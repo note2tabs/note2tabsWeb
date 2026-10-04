@@ -11,22 +11,33 @@ contains only a supported ISO currency code. The country and IP are not written
 to that cookie. Public pricing cards read the preference after page load and
 display the same fixed values configured in Stripe.
 
-Configured live prices as of 2026-10-04:
+Configured local prices as of 2026-10-04:
 
-| Plan | USD | GBP | EUR | SEK | CAD | AUD | NZD | CHF | NOK | DKK | JPY | SGD | BRL | INR | IDR |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Premium monthly | $5.99 | £4.99 | €5.49 | 59 kr | CA$8.99 | A$8.99 | NZ$10.99 | CHF 4.99 | 59 kr | 39 kr | ¥999 | S$8.49 | R$14.99 | ₹299 | Rp48,999 |
-| Premium yearly | $59.99 | £49.99 | €54.99 | 599 kr | CA$85.99 | A$89.99 | NZ$109.99 | CHF 49.99 | 599 kr | 399 kr | ¥9,999 | S$84.99 | R$149.99 | ₹2,999 | Rp489,999 |
-| Pro monthly | $14.99 | £11.99 | €13.99 | 149 kr | CA$21.99 | A$21.99 | NZ$26.99 | CHF 12.49 | 149 kr | 99 kr | ¥2,499 | S$20.99 | R$37.99 | ₹749 | Rp119,999 |
-| Pro yearly | $149.99 | £119.99 | €139.99 | 1,499 kr | CA$214.99 | A$219.99 | NZ$269.99 | CHF 124.99 | 1,499 kr | 999 kr | ¥24,999 | S$209.99 | R$379.99 | ₹7,499 | Rp1,199,999 |
+| Market | Currency | Premium monthly | Premium yearly | Pro monthly | Pro yearly |
+| --- | --- | ---: | ---: | ---: | ---: |
+| United States/default | USD | $5.99 | $59.99 | $14.99 | $149.99 |
+| India | INR | ₹299 | ₹2,999 | ₹749 | ₹7,499 |
+| Brazil | BRL | R$21.90 | R$219 | R$54.90 | R$549 |
+| Indonesia | IDR | Rp64,900 | Rp649,000 | Rp162,900 | Rp1,629,000 |
+| China | CNY | ¥30 | ¥300 | ¥75 | ¥750 |
+| Mexico | MXN | MX$89 | MX$899 | MX$219 | MX$2,199 |
+| Philippines | PHP | ₱199 | ₱1,999 | ₱499 | ₱4,999 |
+| Malaysia | MYR | RM19.90 | RM199 | RM49.90 | RM499 |
+| Thailand | THB | ฿139 | ฿1,399 | ฿349 | ฿3,499 |
+| South Africa | ZAR | R69.99 | R699.99 | R174.99 | R1,749.99 |
+| Poland | PLN | 19.99 zł | 199.99 zł | 49.99 zł | 499.99 zł |
+| South Korea | KRW | ₩7,900 | ₩79,000 | ₩19,900 | ₩199,000 |
+
+GBP, EUR, SEK, CAD, AUD, NZD, CHF, NOK, DKK, JPY, and SGD retain their
+previously approved fixed local prices on the same replacement Price objects.
 
 Localized prices use the ECB reference cross-rates from 2026-10-02 as their
 baseline, then apply customer-friendly endings. SEK and DKK deliberately use
 ending-in-9 commercial prices. JPY includes an additional exchange-rate buffer
-for its higher recent volatility. BRL, INR, and IDR are purchasing-power-aware
-local prices selected for the Brazilian, Indian, and Indonesian markets. These
-are fixed prices rather than live conversions; review them periodically against
-payment fees, foreign-exchange costs, taxes, refunds, and model usage costs.
+for its higher recent volatility. The emerging-market prices are deliberately
+purchasing-power-aware rather than direct FX conversions. These are fixed
+prices; review them periodically against payment fees, exchange rates, taxes,
+refunds, affiliate commission, and model usage costs.
 
 Stripe Checkout uses dynamic payment methods: the application deliberately
 does not pass `payment_method_types`. Managed Payments is not enabled. Stripe
@@ -45,6 +56,14 @@ Validated live subscription Checkout pools as of 2026-10-04:
 | Brazil / BRL | Card, Link, Pix Automático |
 | India / INR | Card, Link, UPI (Stripe dashboard and API both report it active and available) |
 | Indonesia / IDR | Card, Link |
+| China / CNY | Card, Link; Alipay and WeChat Pay requested but not approved by Stripe |
+| Mexico / MXN | Card, Link; OXXO excluded because it cannot renew subscriptions automatically |
+| Philippines / PHP | Card, Link |
+| Malaysia / MYR | Card, Link |
+| Thailand / THB | Card, Link |
+| South Africa / ZAR | Card, Link, Amazon Pay |
+| Poland / PLN | Card, Klarna, Link, Revolut Pay; BLIK cannot be used in Checkout subscription mode |
+| South Korea / KRW | Card, Link, Kakao Pay, Naver Pay, Korean cards |
 
 Apple Pay and Google Pay are enabled wallet presentations of eligible card
 payments and appear only on supported devices and browsers. iDEAL/Wero is
@@ -60,45 +79,16 @@ and subscription-compatibility filtering. Enabling a regional method therefore
 does not add it to every buyer's Checkout page. Methods that cannot fund an
 automatically charged Checkout subscription remain disabled. This includes
 MobilePay, Swish, Bancontact, EPS, Przelewy24, Pay by Bank, Bizum, MB WAY,
-Multibanco, and OXXO. Alipay, WeChat Pay, and the Korean wallets remain disabled
-until the corresponding recurring capability and an approved local Price are
-both available.
+Multibanco, OXXO, BLIK, PAYCO, and Samsung Pay. Alipay and WeChat Pay are
+configured as preferred but remain unavailable until Stripe approves the
+account for them. Korean cards, Kakao Pay, and Naver Pay are active for KRW;
+Stripe excludes them automatically outside eligible South Korean Checkout.
 
 Live Dashboard status was reconciled with the Payment Method Configuration API
 on 2026-10-04. The methods that are both active and relevant to the current
 subscription currencies are card, Apple Pay, Google Pay, Link, Amazon Pay,
-Revolut Pay, Klarna, SEPA Direct Debit, iDEAL/Wero, Satispay, Pix, and UPI.
-BLIK is active but needs a PLN Price before it can be useful to Polish buyers.
-
-Potential next markets require explicit price approval before adding another
-currency option to the immutable Stripe Prices:
-
-| Priority | Market | Currency | Relevant Stripe method | Status |
-| --- | --- | --- | --- | --- |
-| 1 | China | CNY | Alipay; WeChat Pay | Recurring access requires Stripe approval; keep disabled until approved and tested |
-| 1 | Mexico | MXN | Cards and wallets | OXXO cannot fund an automatically renewed subscription |
-| 1 | Philippines | PHP | Cards and wallets | No Philippine-specific recurring method for the Swedish account |
-| 2 | Malaysia | MYR | Cards and wallets | FPX/GrabPay aren't available to the Swedish account for this subscription flow |
-| 2 | Thailand | THB | Cards and wallets | PromptPay doesn't support automatic subscription Checkout here |
-| 2 | South Africa | ZAR | Cards and wallets | No local bank method available through this account |
-| 2 | Poland | PLN | BLIK | BLIK is eligible and can be activated with an approved PLN Price |
-| 2 | South Korea | KRW | Korean cards and wallets | Eligible methods exist; activate only with an approved KRW Price |
-
-Suggested monthly price alternatives for review (not configured):
-
-| Market | Premium conservative | Premium growth | Pro conservative | Pro growth |
-| --- | ---: | ---: | ---: | ---: |
-| China | CN¥39 | CN¥29 | CN¥99 | CN¥79 |
-| Mexico | MX$99 | MX$79 | MX$249 | MX$199 |
-| Philippines | ₱299 | ₱199 | ₱749 | ₱499 |
-| Malaysia | RM25 | RM19 | RM59 | RM49 |
-| Thailand | ฿199 | ฿149 | ฿499 | ฿399 |
-| South Africa | R99 | R79 | R249 | R199 |
-| Poland | 24.99 zł | 19.99 zł | 59.99 zł | 49.99 zł |
-| South Korea | ₩9,900 | ₩7,900 | ₩24,900 | ₩19,900 |
-
-Before approving a growth price, compare net receipts after payment-method
-fees, FX, tax, refunds, affiliate commission, and transcription/model costs.
+Revolut Pay, Klarna, SEPA Direct Debit, iDEAL/Wero, Satispay, Pix, UPI,
+Korean cards, Kakao Pay, and Naver Pay.
 
 USD remains the fallback outside configured regions. Existing subscribers
 remain on their current subscription currency. New Checkout sessions can use

@@ -3,7 +3,7 @@ import type { PaidSubscriptionPlan } from "./subscriptionPlans";
 
 export const DISPLAY_CURRENCIES = [
   "USD", "GBP", "EUR", "SEK", "CAD", "AUD", "NZD", "CHF", "NOK", "DKK", "JPY", "SGD",
-  "BRL", "INR", "IDR",
+  "BRL", "INR", "IDR", "CNY", "MXN", "PHP", "MYR", "THB", "ZAR", "PLN", "KRW",
 ] as const;
 export type DisplayCurrency = (typeof DISPLAY_CURRENCIES)[number];
 
@@ -19,6 +19,7 @@ const COUNTRY_CURRENCIES: Partial<Record<string, DisplayCurrency>> = {
   AU: "AUD", CA: "CAD", CH: "CHF", DK: "DKK", FO: "DKK", GL: "DKK",
   GB: "GBP", JP: "JPY", LI: "CHF", NO: "NOK", NZ: "NZD", SE: "SEK",
   SG: "SGD", SJ: "NOK", BR: "BRL", IN: "INR", ID: "IDR",
+  CN: "CNY", MX: "MXN", PH: "PHP", MY: "MYR", TH: "THB", ZA: "ZAR", PL: "PLN", KR: "KRW",
 };
 
 export function displayCurrencyForCountry(country?: string | null): DisplayCurrency {
@@ -34,13 +35,15 @@ const PRICES: Record<PaidSubscriptionPlan, Record<BillingInterval, Record<Displa
       USD: 5.99, GBP: 4.99, EUR: 5.49, SEK: 59,
       CAD: 8.99, AUD: 8.99, NZD: 10.99, CHF: 4.99,
       NOK: 59, DKK: 39, JPY: 999, SGD: 8.49,
-      BRL: 14.99, INR: 299, IDR: 48999,
+      BRL: 21.90, INR: 299, IDR: 64900,
+      CNY: 30, MXN: 89, PHP: 199, MYR: 19.90, THB: 139, ZAR: 69.99, PLN: 19.99, KRW: 7900,
     },
     yearly: {
       USD: 59.99, GBP: 49.99, EUR: 54.99, SEK: 599,
       CAD: 85.99, AUD: 89.99, NZD: 109.99, CHF: 49.99,
       NOK: 599, DKK: 399, JPY: 9999, SGD: 84.99,
-      BRL: 149.99, INR: 2999, IDR: 489999,
+      BRL: 219, INR: 2999, IDR: 649000,
+      CNY: 300, MXN: 899, PHP: 1999, MYR: 199, THB: 1399, ZAR: 699.99, PLN: 199.99, KRW: 79000,
     },
   },
   PRO: {
@@ -48,13 +51,15 @@ const PRICES: Record<PaidSubscriptionPlan, Record<BillingInterval, Record<Displa
       USD: 14.99, GBP: 11.99, EUR: 13.99, SEK: 149,
       CAD: 21.99, AUD: 21.99, NZD: 26.99, CHF: 12.49,
       NOK: 149, DKK: 99, JPY: 2499, SGD: 20.99,
-      BRL: 37.99, INR: 749, IDR: 119999,
+      BRL: 54.90, INR: 749, IDR: 162900,
+      CNY: 75, MXN: 219, PHP: 499, MYR: 49.90, THB: 349, ZAR: 174.99, PLN: 49.99, KRW: 19900,
     },
     yearly: {
       USD: 149.99, GBP: 119.99, EUR: 139.99, SEK: 1499,
       CAD: 214.99, AUD: 219.99, NZD: 269.99, CHF: 124.99,
       NOK: 1499, DKK: 999, JPY: 24999, SGD: 209.99,
-      BRL: 379.99, INR: 7499, IDR: 1199999,
+      BRL: 549, INR: 7499, IDR: 1629000,
+      CNY: 750, MXN: 2199, PHP: 4999, MYR: 499, THB: 3499, ZAR: 1749.99, PLN: 499.99, KRW: 199000,
     },
   },
 };
@@ -83,6 +88,14 @@ const SYMBOLS: Record<DisplayCurrency, string> = {
   BRL: "R$",
   INR: "₹",
   IDR: "Rp",
+  CNY: "¥",
+  MXN: "MX$",
+  PHP: "₱",
+  MYR: "RM",
+  THB: "฿",
+  ZAR: "R",
+  PLN: "",
+  KRW: "₩",
 };
 
 export function formatLocalizedAmount(amount: number, currency: DisplayCurrency) {
@@ -90,6 +103,8 @@ export function formatLocalizedAmount(amount: number, currency: DisplayCurrency)
   if (currency === "SEK" || currency === "NOK" || currency === "DKK") return `${formatted} kr`;
   if (currency === "CHF") return `CHF ${formatted}`;
   if (currency === "IDR") return `Rp${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(amount)}`;
+  if (currency === "KRW") return `₩${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(amount)}`;
+  if (currency === "PLN") return `${formatted} zł`;
   return `${SYMBOLS[currency]}${formatted}`;
 }
 

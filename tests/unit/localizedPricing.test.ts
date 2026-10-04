@@ -24,6 +24,14 @@ describe("localized pricing", () => {
     expect(displayCurrencyForCountry("BR")).toBe("BRL");
     expect(displayCurrencyForCountry("IN")).toBe("INR");
     expect(displayCurrencyForCountry("ID")).toBe("IDR");
+    expect(displayCurrencyForCountry("CN")).toBe("CNY");
+    expect(displayCurrencyForCountry("MX")).toBe("MXN");
+    expect(displayCurrencyForCountry("PH")).toBe("PHP");
+    expect(displayCurrencyForCountry("MY")).toBe("MYR");
+    expect(displayCurrencyForCountry("TH")).toBe("THB");
+    expect(displayCurrencyForCountry("ZA")).toBe("ZAR");
+    expect(displayCurrencyForCountry("PL")).toBe("PLN");
+    expect(displayCurrencyForCountry("KR")).toBe("KRW");
   });
 
   it("matches the configured Stripe price options", () => {
@@ -38,12 +46,20 @@ describe("localized pricing", () => {
     expect(formatLocalizedPrice("PREMIUM", "monthly", "DKK")).toBe("39 kr");
     expect(formatLocalizedPrice("PREMIUM", "monthly", "JPY")).toBe("¥999");
     expect(formatLocalizedPrice("PRO", "monthly", "SGD")).toBe("S$20.99");
-    expect(formatLocalizedPrice("PREMIUM", "monthly", "BRL")).toBe("R$14.99");
+    expect(formatLocalizedPrice("PREMIUM", "monthly", "BRL")).toBe("R$21.90");
     expect(formatLocalizedPrice("PREMIUM", "monthly", "INR")).toBe("₹299");
-    expect(formatLocalizedPrice("PREMIUM", "monthly", "IDR")).toBe("Rp48,999");
-    expect(formatLocalizedPrice("PRO", "monthly", "BRL")).toBe("R$37.99");
+    expect(formatLocalizedPrice("PREMIUM", "monthly", "IDR")).toBe("Rp64,900");
+    expect(formatLocalizedPrice("PRO", "monthly", "BRL")).toBe("R$54.90");
     expect(formatLocalizedPrice("PRO", "monthly", "INR")).toBe("₹749");
-    expect(formatLocalizedPrice("PRO", "monthly", "IDR")).toBe("Rp119,999");
+    expect(formatLocalizedPrice("PRO", "monthly", "IDR")).toBe("Rp162,900");
+    expect(formatLocalizedPrice("PREMIUM", "monthly", "CNY")).toBe("¥30");
+    expect(formatLocalizedPrice("PRO", "monthly", "MXN")).toBe("MX$219");
+    expect(formatLocalizedPrice("PREMIUM", "monthly", "PHP")).toBe("₱199");
+    expect(formatLocalizedPrice("PRO", "monthly", "MYR")).toBe("RM49.90");
+    expect(formatLocalizedPrice("PREMIUM", "monthly", "THB")).toBe("฿139");
+    expect(formatLocalizedPrice("PRO", "monthly", "ZAR")).toBe("R174.99");
+    expect(formatLocalizedPrice("PREMIUM", "monthly", "PLN")).toBe("19.99 zł");
+    expect(formatLocalizedPrice("PRO", "monthly", "KRW")).toBe("₩19,900");
     expect(localizedAnnualSaving("PREMIUM", "GBP")).toBe("£10");
   });
 
@@ -72,7 +88,7 @@ describe("localized pricing", () => {
       for (const interval of ["monthly", "yearly"] as const) {
         const usdAmount = localizedPriceAmount(plan, interval, "USD");
         for (const currency of DISPLAY_CURRENCIES.filter(
-          (candidate) => !["SEK", "DKK", "BRL", "INR", "IDR"].includes(candidate)
+          (candidate) => !["SEK", "DKK", "BRL", "INR", "IDR", "CNY", "MXN", "PHP", "MYR", "THB", "ZAR", "PLN", "KRW"].includes(candidate)
         )) {
           const usdEquivalent = usdAmount * currencyPerEuro[currency] / usdPerEuro;
           expect(
@@ -101,6 +117,14 @@ describe("localized pricing", () => {
     expect(readDisplayCurrencyCookie("n2t_currency=BRL")).toBe("BRL");
     expect(readDisplayCurrencyCookie("n2t_currency=INR")).toBe("INR");
     expect(readDisplayCurrencyCookie("n2t_currency=IDR")).toBe("IDR");
+    expect(readDisplayCurrencyCookie("n2t_currency=CNY")).toBe("CNY");
+    expect(readDisplayCurrencyCookie("n2t_currency=MXN")).toBe("MXN");
+    expect(readDisplayCurrencyCookie("n2t_currency=PHP")).toBe("PHP");
+    expect(readDisplayCurrencyCookie("n2t_currency=MYR")).toBe("MYR");
+    expect(readDisplayCurrencyCookie("n2t_currency=THB")).toBe("THB");
+    expect(readDisplayCurrencyCookie("n2t_currency=ZAR")).toBe("ZAR");
+    expect(readDisplayCurrencyCookie("n2t_currency=PLN")).toBe("PLN");
+    expect(readDisplayCurrencyCookie("n2t_currency=KRW")).toBe("KRW");
     expect(readDisplayCurrencyCookie("n2t_currency=invalid")).toBe("USD");
     expect(readDisplayCurrencyCookie("")).toBe("USD");
   });
