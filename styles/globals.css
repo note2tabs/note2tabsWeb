@@ -4182,27 +4182,17 @@ input[type="number"] {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 26px;
-  padding: 14px 0;
-}
-
-.nav-shell--home .nav {
   gap: 20px;
   padding: 10px 0;
 }
 
-.nav-shell--home .logo {
+.nav .logo {
   font-size: 0.98rem;
 }
 
-.nav-shell--home .logo-mark {
+.nav .logo-mark {
   width: 24px;
   height: 24px;
-}
-
-.nav-shell--home .nav-links {
-  font-size: 0.94rem;
-  gap: 18px;
 }
 
 .nav-shell--home .nav-cta {
@@ -4223,7 +4213,8 @@ input[type="number"] {
 .nav-links {
   display: flex;
   align-items: center;
-  gap: 22px;
+  gap: 18px;
+  font-size: 0.94rem;
   font-weight: 400;
   color: #0b0f1a;
   margin-left: auto;
@@ -4234,8 +4225,8 @@ input[type="number"] {
   align-items: center;
   justify-content: flex-end;
   gap: 22px;
-  width: 180px;
-  min-width: 180px;
+  width: 166px;
+  min-width: 166px;
   min-height: 41px;
 }
 
@@ -4243,13 +4234,7 @@ input[type="number"] {
   min-height: 41px;
 }
 
-.nav-shell--home .nav-auth-slot {
-  width: 166px;
-  min-width: 166px;
-}
-
-.nav-auth-slot--profile,
-.nav-shell--home .nav-auth-slot--profile {
+.nav-auth-slot--profile {
   width: 41px;
   min-width: 41px;
   gap: 0;
@@ -4346,7 +4331,7 @@ input[type="number"] {
 }
 
 .nav-cta {
-  padding: 10px 18px;
+  padding: 8px 14px;
   border-radius: 999px;
   background: linear-gradient(135deg, #0f172a, #1f2937);
   color: #ffffff;
@@ -9839,10 +9824,6 @@ input[type="number"] {
 }
 
 @media (max-width: 860px) {
-  .nav-shell--home .nav-links {
-    top: 56px;
-  }
-
   .hero-doodle-field {
     display: none;
   }
@@ -11412,7 +11393,7 @@ input[type="number"] {
   .nav-links {
     display: none;
     position: absolute;
-    top: 64px;
+    top: 56px;
     right: 16px;
     flex-direction: column;
     gap: 18px;
@@ -13901,4 +13882,111 @@ input[type="number"] {
     background: #d86155;
     box-shadow: 0 0 0 1px rgba(255,255,255,.55);
   }
+}
+
+/* Pricing conversion layout: scoped to avoid changing shared home cards. */
+.pricing-page--focused { padding:32px 0 36px; }
+.pricing-page--focused .pricing-page__hero { margin-bottom: 20px; }
+.pricing-page--focused .pricing-page__hero h1 { font-size:clamp(1.8rem, 3.5vw, 2.8rem); line-height:1.15; letter-spacing:-.035em; }
+.pricing-page--focused .pricing-page__hero p { margin-top:12px; font-size:1rem; }
+.pricing-page--focused .pricing-billing-toggle { margin:0 auto 28px; }
+/* Keep the production cards' warm surfaces, rounded edges and dark emphasis. */
+.pricing-page--focused .pricing-plan {
+  display: flex;
+  flex-direction: column;
+  padding: 32px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 16px 42px rgba(6, 17, 13, 0.06);
+}
+.pricing-page--focused .pricing-plan--premium {
+  border: 1px solid #06110d;
+  background: #fff;
+  box-shadow: 0 24px 62px rgba(6, 17, 13, 0.13);
+}
+.pricing-page--focused .pricing-plan--pro { background: rgba(255, 255, 255, 0.72); }
+.pricing-page--focused .pricing-plan__top {
+  min-height: 188px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.pricing-page--focused .pricing-plan__top > p { margin: 8px 0 0; }
+.pricing-page--focused .pricing-plan__price { margin-top: 24px; }
+.pricing-page--focused .pricing-plan__price strong { font-size: clamp(2.65rem, 3.8vw, 3.25rem); }
+.pricing-page--focused .pricing-plan__top > .pricing-plan__saving {
+  margin-top: 12px;
+  color: #262522;
+  font-size: .76rem;
+  font-weight: 600;
+}
+.pricing-page--focused .pricing-plan__saving-amount { color: #21704c; }
+.pricing-page--focused .pricing-plan__reassurance {
+  min-height: 82px;
+  margin: 12px 0 0;
+  font-size: .76rem;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+.pricing-page--focused .pricing-plan__features { margin: 0; gap: 16px; }
+.pricing-page--focused .pricing-plan__badge {
+  padding: 8px 16px;
+  background: #06110d;
+  color: #fff;
+  font-size: .8125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: .01em;
+}
+.pricing-page--focused .pricing-plan__cta:focus-visible {
+  outline: 3px solid #262522;
+  outline-offset: 4px;
+}
+.pricing-credit-note { max-width:740px; margin:22px auto; text-align:center; color:#44534b; font-size:.9rem; line-height:1.6; }
+.pricing-comparison { max-width:980px; margin:24px auto 0; padding:16px 20px; border:1px solid rgba(6,17,13,.12); border-radius:12px; background:rgba(255,255,255,.6); }
+.pricing-comparison summary { cursor:pointer; font-weight:650; min-height:28px; }
+.pricing-comparison-scroll { overflow-x:auto; }
+.pricing-comparison table { width:100%; border-collapse:collapse; font-size:.9rem; margin:16px 0; }
+.pricing-comparison th, .pricing-comparison td { text-align:left; padding:12px 10px; border-bottom:1px solid rgba(6,17,13,.1); vertical-align:top; }
+.pricing-comparison caption { text-align:left; margin:10px 0; font-weight:650; }
+.pricing-comparison > p { font-size:.9rem; line-height:1.6; color:#44534b; }
+.pricing-page--focused .pricing-page__faq { margin-top:36px; }
+.pricing-inline-error { padding:12px; margin-top:12px; background:#fff1ed; border-radius:8px; color:#872e18; font-size:.9rem; }
+.pricing-inline-error p { margin:0 0 8px; }
+.pricing-inline-error button { min-height:44px; padding:8px 16px; border:1px solid currentColor; border-radius:6px; background:white; cursor:pointer; }
+.pricing-return-message { text-align:center; margin:0 auto 20px; }
+.pricing-status { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+@media(max-width:760px) {
+  .pricing-page--focused { padding-top:24px; }
+  .pricing-page--focused .pricing-plan { padding: 28px 24px; }
+  .pricing-page--focused .pricing-plan__top { min-height: 0; margin-bottom: 24px; }
+  .pricing-page--focused .pricing-plan__reassurance { min-height:0; }
+  .pricing-page--focused .pricing-plan__price strong { font-size: 3rem; }
+  .pricing-page--focused .pricing-page__hero h1 { font-size:1.9rem; }
+  .pricing-comparison { padding:16px 12px; }
+  .pricing-comparison th, .pricing-comparison td { padding:10px 6px; }
+}
+
+.pricing-page--focused button:focus-visible, .pricing-page--focused a:focus-visible, .pricing-page--focused summary:focus-visible { outline: 3px solid #262522; outline-offset: 4px; }
+
+/* Preserve the full localized saving, even when the currency has large figures. */
+.pricing-page--focused .pricing-billing-toggle { max-width: 100%; }
+.pricing-page--focused .pricing-billing-toggle button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+}
+.pricing-page--focused .pricing-billing-toggle__saving {
+  margin-left: 0;
+  color: #21704c;
+  white-space: nowrap;
+  font-size: .76rem;
+}
+.pricing-page--focused .pricing-billing-toggle button.is-active .pricing-billing-toggle__saving { color: #9ee0c9; }
+@media (max-width: 480px) {
+  .pricing-page--focused .pricing-billing-toggle button { padding: 8px 12px; }
+  .pricing-page--focused .pricing-billing-toggle button:last-child { flex-direction: column; gap: 2px; }
+  .pricing-page--focused .pricing-billing-toggle__saving { font-size: .72rem; }
 }

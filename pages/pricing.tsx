@@ -1,3 +1,5 @@
+import { MAX_FREE_FILE_SNIPPET_SEC, MAX_FREE_YOUTUBE_SNIPPET_SEC } from "../lib/transcriptionClip";
+import { calculateTranscriptionCredits } from "../lib/transcriptionModels";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { signIn, useSession } from "next-auth/react";
@@ -13,45 +15,16 @@ import {
   type PremiumFunnelContext,
 } from "../lib/premiumFunnel";
 import {
-  premiumOfferCtaLabel,
-  premiumOfferReassurance,
   usePremiumOfferEligibility,
 } from "../lib/usePremiumOfferEligibility";
 import { premiumOfferExperimentProperties } from "../lib/premiumOfferExperiment";
 import { usePremiumOfferExperiment } from "../lib/usePremiumOfferExperiment";
-import { proPlanPresentationEnabled, type PaidSubscriptionPlan } from "../lib/subscriptionPlans";
+import { PLAN_CATALOG, proPlanPresentationEnabled, type PaidSubscriptionPlan } from "../lib/subscriptionPlans";
 import type { BillingInterval } from "../lib/stripePremium";
 import { buildPricingProductStructuredData } from "../lib/pricingStructuredData";
 import { rememberCheckoutAttempt } from "../lib/checkoutTracking";
 import { formatLocalizedAmount, formatLocalizedPrice, localizedAnnualSaving, readDisplayCurrencyCookie } from "../lib/localizedPricing";
 import { useDisplayCurrency } from "../lib/useDisplayCurrency";
-
-const pricingFaqs = [
-  {
-    question: "When is Premium billed?",
-    answer:
-      "Premium is $5.99 billed immediately, renews monthly, and can be cancelled anytime.",
-  },
-  {
-    question: "When is Pro billed?",
-    answer: "Pro is for frequent transcription and is billed at $14.99 as soon as you subscribe.",
-  },
-  {
-    question: "Which transcription models does each plan include?",
-    answer:
-      "All plans include Light and Medium. Heavy is our most detailed model for complex multi-instrument recordings and requires Premium or Pro.",
-  },
-  {
-    question: "What happens to unused credits?",
-    answer:
-      "Premium credits roll over up to 200 and Pro credits up to 500. Free credits refresh monthly and do not roll over.",
-  },
-  {
-    question: "Can I cancel anytime?",
-    answer:
-      "Yes. You can manage or cancel Premium or Pro from your account settings. Your access continues through the current billing period.",
-  },
-];
 
 export default function PricingPage() {
   const router = useRouter();
@@ -74,8 +47,22 @@ export default function PricingPage() {
   const offerEligibility = usePremiumOfferEligibility(
     sessionStatus === "authenticated" && !hasPremiumAccess
   );
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 760px)");
+    const update = () => setCompact(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  const pricingFaqs = [
+    { question: "How do transcription credits work?", answer: `A 60-second recording uses ${calculateTranscriptionCredits(60, "light")} credits with Light, ${calculateTranscriptionCredits(60, "heavy")} with Medium, or ${calculateTranscriptionCredits(60, "super_heavy")} with Heavy. All plans include Light and Medium; Heavy requires Premium or Pro.` },
+    { question: "How does billing work?", answer: `Subscriptions are charged when you subscribe. Premium is ${formatLocalizedPrice("PREMIUM", billingInterval, displayCurrency)} per ${billingInterval === "yearly" ? "year" : "month"}${showPro ? ` and Pro is ${formatLocalizedPrice("PRO", billingInterval, displayCurrency)} per ${billingInterval === "yearly" ? "year" : "month"}` : ""}. Your subscription renews at the selected interval until cancelled.` },
+    { question: "What happens to unused credits?", answer: `Free credits do not roll over. Premium credits roll over up to ${PLAN_CATALOG.PREMIUM.rolloverCap}${showPro ? ` and Pro credits up to ${PLAN_CATALOG.PRO.rolloverCap}` : ""}.` },
+    { question: "Can I cancel anytime?", answer: "Yes. Cancel in account settings to stop your next renewal. Access continues through the current billing period." },
+  ];
   const description =
-    "Simple monthly pricing for Note2Tabs. Compare Free, Premium, and Pro plans for guitar tab transcription and editing.";
+    "Monthly and yearly pricing for Note2Tabs. Compare Free, Premium, and Pro plans for guitar tab transcription and editing.";
   const pricingJsonLd = [
     {
       "@context": "https://schema.org",
@@ -241,166 +228,57 @@ export default function PricingPage() {
     void startCheckout(router.query.plan === "pro" ? "PRO" : "PREMIUM");
   }, [billingInterval, getFunnelContext, offerVariantResolved, router.isReady, router.query.billing, router.query.checkout, router.query.plan, sessionStatus, startCheckout]);
 
-  return (
-    <>
-      <SeoHead
-        title="Pricing | Note2Tabs"
-        description={description}
-        canonicalPath="/pricing"
-        jsonLd={pricingJsonLd}
-      />
-      <main className="page page-pricing">
-        <section className="pricing-page">
-          <div className="container pricing-page__container">
-            <header className="pricing-page__hero">
-              <h1>Choose how far you want to take your music.</h1>
-              <p>Start free. Upgrade when you need more room for full songs and the Heavy model.</p>
-            </header>
-
-            {showPro && <div className="pricing-billing-toggle" role="group" aria-label="Billing interval">
-              <button type="button" aria-pressed={billingInterval === "monthly"} className={billingInterval === "monthly" ? "is-active" : ""} onClick={() => setBillingInterval("monthly")}>Monthly</button>
-              <button type="button" aria-pressed={billingInterval === "yearly"} className={billingInterval === "yearly" ? "is-active" : ""} onClick={() => setBillingInterval("yearly")}>Yearly <span>Save {localizedAnnualSaving("PRO", displayCurrency)}!</span></button>
-            </div>}
-
-            <section className={`pricing-page__plans${showPro ? " pricing-page__plans--three" : ""}`} aria-label="Note2Tabs plans">
-              <article className="pricing-plan pricing-plan--free">
-                <div className="pricing-plan__top">
-                  <h2>Free</h2>
-                  <div className="pricing-plan__price">
-                    <strong>{formatLocalizedAmount(0, displayCurrency)}</strong>
-                    <span>/ month</span>
-                  </div>
-                </div>
-                <Link
-                  href="/transcribe"
-                  className="pricing-plan__cta pricing-plan__cta--secondary"
-                  onClick={() =>
-                    trackCtaClick("pricing_start_free", { surface: "pricing_page" })
-                  }
-                >
-                  Start free
-                </Link>
-                <p className="pricing-plan__reassurance">No credit card required</p>
-                <div className="pricing-plan__divider" />
-                <ul className="pricing-plan__features">
-                  <li><strong>10</strong> transcription credits each month</li>
-                  <li>Light and Medium transcription models</li>
-                  <li>Audio clips up to 60 seconds</li>
-                  <li>Uploads up to 50 MB</li>
-                  <li>YouTube clips up to 30 seconds</li>
-                  <li>Full guitar-tab editor and practice tools</li>
-                </ul>
-              </article>
-
-              <article className="pricing-plan pricing-plan--premium">
-                <div className="pricing-plan__badge">
-                  Most popular
-                </div>
-                <div className="pricing-plan__top">
-                  <h2>Premium</h2>
-                  <div className="pricing-plan__price">
-                    <strong>{formatLocalizedPrice("PREMIUM", billingInterval, displayCurrency)}</strong>
-                    <span>/ {billingInterval === "yearly" ? "year" : "month"}</span>
-                  </div>
-                </div>
-                {hasPremiumAccess ? (
-                  <Link
-                    href={hasPaidPremium ? "/settings" : "/transcribe"}
-                    className="pricing-plan__cta pricing-plan__cta--primary"
-                  >
-                    {hasPaidPremium ? "Manage current plan" : "Premium access included"}
-                  </Link>
-                ) : (
-                  <button
-                    type="button"
-                    className="pricing-plan__cta pricing-plan__cta--primary"
-                    onClick={() => void startCheckout("PREMIUM")}
-                    disabled={checkoutBusy || sessionStatus === "loading"}
-                  >
-                    {checkoutBusy
-                      ? "Opening checkout…"
-                      : premiumOfferCtaLabel(offerEligibility, "Get Premium", offerVariant)}
-                  </button>
-                )}
-                <p className="pricing-plan__reassurance">
-                  {billingInterval === "yearly"
-                    ? <><span>{formatLocalizedPrice("PREMIUM", "yearly", displayCurrency)} billed today · </span><span className="pricing-plan__saving">Save {localizedAnnualSaving("PREMIUM", displayCurrency)} per year</span><span> · Cancel anytime</span></>
-                    : premiumOfferReassurance(offerEligibility, offerVariant, formatLocalizedPrice("PREMIUM", "monthly", displayCurrency))}
-                </p>
-                <div className="pricing-plan__divider" />
-                <ul className="pricing-plan__features">
-                  <li><strong>100</strong> credits each month—10× more</li>
-                  <li>Use the more accurate Heavy model regularly</li>
-                  <li>Unused credits roll over, up to 200</li>
-                  <li>Full-length audio-file transcription</li>
-                  <li>Uploads up to 200 MB</li>
-                  <li>Longer YouTube clips within the first 10 minutes</li>
-                </ul>
-              </article>
-
-              {showPro && <article className="pricing-plan pricing-plan--pro">
-                <div className="pricing-plan__top">
-                  <h2>Pro</h2>
-                  <div className="pricing-plan__price"><strong>{formatLocalizedPrice("PRO", billingInterval, displayCurrency)}</strong><span>/ {billingInterval === "yearly" ? "year" : "month"}</span></div>
-                </div>
-                {currentPlan === "PRO" || hasStaffAccess ? (
-                  <Link href={hasStaffAccess ? "/transcribe" : "/settings"} className="pricing-plan__cta pricing-plan__cta--secondary">
-                    {hasStaffAccess ? "Pro access included" : "Manage current plan"}
-                  </Link>
-                ) : (
-                  <button type="button" className="pricing-plan__cta pricing-plan__cta--secondary" onClick={() => void startCheckout("PRO")} disabled={checkoutBusy || sessionStatus === "loading"}>
-                    {checkoutBusy ? "Opening…" : currentPlan === "PREMIUM" ? "Upgrade to Pro" : "Choose Pro"}
-                  </button>
-                )}
-                <p className="pricing-plan__reassurance">{billingInterval === "yearly" ? <><span>{formatLocalizedPrice("PRO", "yearly", displayCurrency)} billed today · </span><span className="pricing-plan__saving">Save {localizedAnnualSaving("PRO", displayCurrency)} per year</span></> : `${formatLocalizedPrice("PRO", "monthly", displayCurrency)} billed today · Cancel anytime`}</p>
-                <div className="pricing-plan__divider" />
-                <ul className="pricing-plan__features">
-                  <li>Everything in Premium</li>
-                  <li><strong>250</strong> credits each month</li>
-                  <li>Unused credits roll over, up to 500</li>
-                  <li>Uploads up to 500 MB</li>
-                  <li>YouTube selections within the first 20 minutes</li>
-                  <li>Priority email support</li>
-                  <li>Eligible for future early-access features</li>
-                </ul>
-              </article>}
-            </section>
-
-            {checkoutError && (
-              <div className="error pricing-page__error" role="alert">{checkoutError}</div>
-            )}
-
-            <section className="pricing-page__faq" aria-labelledby="pricing-faq-title">
-              <div className="pricing-page__section-heading">
-                <h2 id="pricing-faq-title">Questions before you start?</h2>
-              </div>
-              <div className="pricing-page__faq-list">
-                {pricingFaqs.map((item) => (
-                  <details key={item.question}>
-                    <summary>{item.question}</summary>
-                    <p>{item.answer}</p>
-                  </details>
-                ))}
-              </div>
-            </section>
-
-            <section className="pricing-page__final">
-              <div>
-                <h2>Turn the recording into something you can play.</h2>
-              </div>
-              <Link
-                href="/transcribe"
-                className="button-primary"
-                onClick={() =>
-                  trackCtaClick("pricing_final_transcribe", { surface: "pricing_page" })
-                }
-              >
-                Start transcribing
-              </Link>
-            </section>
-          </div>
-        </section>
-      </main>
-    </>
-  );
+  const planOrder = compact
+    ? ["PREMIUM", "FREE", ...(showPro ? ["PRO"] : [])]
+    : ["FREE", "PREMIUM", ...(showPro ? ["PRO"] : [])];
+  return <>
+    <SeoHead title="Pricing | Note2Tabs" description={description} canonicalPath="/pricing" jsonLd={pricingJsonLd} />
+    <main className="page page-pricing"><section className="pricing-page pricing-page--focused"><div className="container pricing-page__container">
+      <header className="pricing-page__hero"><h1>More music. More room to transcribe.</h1></header>
+      <div className="pricing-billing-toggle" role="group" aria-label="Billing interval">
+        {(["monthly", "yearly"] as const).map((interval) => <button key={interval} type="button" aria-pressed={billingInterval === interval} className={billingInterval === interval ? "is-active" : ""} onClick={() => setBillingInterval(interval)} disabled={checkoutBusy}>{interval === "monthly" ? "Monthly" : <>Yearly<span className="pricing-billing-toggle__saving">Save {localizedAnnualSaving(showPro ? "PRO" : "PREMIUM", displayCurrency)}!</span></>}</button>)}
+      </div>
+      <section className={`pricing-page__plans${showPro ? " pricing-page__plans--three" : ""}`} aria-label="Note2Tabs plans">
+        {planOrder.map((id) => {
+          const plan = PLAN_CATALOG[id as keyof typeof PLAN_CATALOG];
+          const paid = plan.id !== "FREE";
+          const paidId = plan.id as PaidSubscriptionPlan;
+          const included = hasStaffAccess && paid;
+          const current = currentPlan === plan.id && paid;
+          return <article key={plan.id} className={`pricing-plan pricing-plan--${plan.id.toLowerCase()}`}>
+            {plan.id === "PREMIUM" && <div className="pricing-plan__badge">Recommended</div>}
+            <div className="pricing-plan__top"><h2>{plan.name}</h2>
+              <p>{plan.id === "FREE" ? "Try short recordings." : plan.id === "PREMIUM" ? "For full songs." : "For frequent transcription."}</p>
+              <div className="pricing-plan__price"><strong>{paid ? formatLocalizedPrice(paidId, billingInterval, displayCurrency) : formatLocalizedAmount(0, displayCurrency)}</strong><span>/ {paid && billingInterval === "yearly" ? "year" : "month"}</span></div>
+              {paid && billingInterval === "yearly" && <p className="pricing-plan__saving"><span className="pricing-plan__saving-amount">Save {localizedAnnualSaving(paidId, displayCurrency)} per year</span> · Billed annually</p>}
+            </div>
+            {!paid ? <Link href="/transcribe" className="pricing-plan__cta pricing-plan__cta--secondary" onClick={() => trackCtaClick("pricing_start_free", { surface: "pricing_page" })}>Start free</Link>
+              : included || current ? <Link href={included ? "/transcribe" : "/settings"} className="pricing-plan__cta pricing-plan__cta--secondary">{included ? `${plan.name} access included` : "Manage current plan"}</Link>
+              : <button type="button" className={`pricing-plan__cta pricing-plan__cta--${plan.id === "PREMIUM" ? "primary" : "secondary"}`} onClick={() => void startCheckout(paidId)} disabled={checkoutBusy || sessionStatus === "loading"}>{checkoutBusy ? "Opening checkout…" : hasPaidPremium ? `Switch to ${plan.name}` : plan.id === "PREMIUM" ? "Get Premium" : "Choose Pro"}</button>}
+            <div className="pricing-plan__reassurance">
+              {!paid ? "No credit card required" : included || current ? "Manage your subscription in your account." : <>
+                {formatLocalizedPrice(paidId, billingInterval, displayCurrency)}/{billingInterval === "yearly" ? "year" : "month"} billed today. Cancel anytime.
+              </>}
+            </div>
+            <div className="pricing-plan__divider" />
+            <ul className="pricing-plan__features">
+              <li><strong>{plan.monthlyCredits}</strong> credits every month</li>
+              <li>{paid ? "Full-length audio-file transcription" : `Audio clips up to ${MAX_FREE_FILE_SNIPPET_SEC} seconds`}</li>
+              <li>{paid ? `Credits roll over, up to ${plan.rolloverCap}` : "No credit rollover"}</li>
+              <li>{plan.id === "PRO" ? "Everything in Premium + priority email support" : paid ? "Light, Medium and Heavy models" : "Light and Medium models, tab editor and practice tools"}</li>
+            </ul>
+          </article>;
+        })}
+      </section>
+      <p className="pricing-credit-note">A 60-second recording uses {calculateTranscriptionCredits(60, "light")} credits with Light, {calculateTranscriptionCredits(60, "heavy")} with Medium, or {calculateTranscriptionCredits(60, "super_heavy")} with Heavy. Credits refresh monthly.</p>
+      <details className="pricing-comparison"><summary>Compare all limits</summary><div className="pricing-comparison-scroll"><table><caption>Recording and upload limits</caption><thead><tr><th scope="col">Limit</th>{["FREE", "PREMIUM", ...(showPro ? ["PRO"] : [])].map((id) => <th scope="col" key={id}>{PLAN_CATALOG[id as keyof typeof PLAN_CATALOG].name}</th>)}</tr></thead><tbody>
+        <tr><th scope="row">Upload size</th>{["FREE", "PREMIUM", ...(showPro ? ["PRO"] : [])].map((id) => <td key={id}>{PLAN_CATALOG[id as keyof typeof PLAN_CATALOG].maxUploadBytes / (1024 * 1024)} MB</td>)}</tr>
+        <tr><th scope="row">YouTube clip length</th><td>Up to {MAX_FREE_YOUTUBE_SNIPPET_SEC} seconds</td><td>Within selected window</td>{showPro && <td>Within selected window</td>}</tr>
+        <tr><th scope="row">YouTube selection window</th>{["FREE", "PREMIUM", ...(showPro ? ["PRO"] : [])].map((id) => <td key={id}>First {PLAN_CATALOG[id as keyof typeof PLAN_CATALOG].youtubePositionLimitSeconds / 60} minutes</td>)}</tr>
+      </tbody></table></div><p>Light suits clear guitar recordings. Medium handles more complex recordings. Heavy is our most detailed model and requires Premium or Pro.</p></details>
+      <section className="pricing-page__faq" aria-labelledby="pricing-faq-title"><div className="pricing-page__section-heading"><h2 id="pricing-faq-title">Questions before you start?</h2></div><div className="pricing-page__faq-list">{pricingFaqs.map((faq) => <details key={faq.question}><summary>{faq.question}</summary><p>{faq.answer}</p></details>)}</div></section>
+      {checkoutError && <div className="error pricing-page__error" role="alert">{checkoutError}</div>}
+      <p className="pricing-status" role="status" aria-live="polite">{checkoutBusy ? "Opening checkout…" : ""}</p>
+    </div></section></main>
+  </>;
 }
