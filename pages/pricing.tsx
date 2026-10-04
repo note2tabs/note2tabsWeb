@@ -243,7 +243,7 @@ export default function PricingPage() {
             <div className="pricing-plan__top"><h2>{plan.name}</h2>
               <p>{plan.id === "FREE" ? "Try short recordings." : plan.id === "PREMIUM" ? "For full songs." : "For frequent transcription."}</p>
               <div className="pricing-plan__price"><strong>{paid ? priceUsd(planPrice(paidId, billingInterval)) : "$0"}</strong><span>/ {paid && billingInterval === "yearly" ? "year" : "month"}</span></div>
-              {paid && billingInterval === "yearly" && <p className="pricing-plan__saving">Save {priceUsd(annualSavings(paidId))} per year · Billed annually</p>}
+              {paid && billingInterval === "yearly" && <p className="pricing-plan__saving"><span className="pricing-plan__saving-amount">Save {priceUsd(annualSavings(paidId))} per year</span> · Billed annually</p>}
             </div>
             {!paid ? <Link href="/transcribe" className="pricing-plan__cta pricing-plan__cta--secondary" onClick={() => trackCtaClick("pricing_start_free", { surface: "pricing_page", ...presentationProperties() })}>Start free</Link>
               : included || current ? <Link href={included ? "/transcribe" : "/settings"} className="pricing-plan__cta pricing-plan__cta--secondary">{included ? `${plan.name} access included` : "Manage current plan"}</Link>

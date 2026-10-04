@@ -12788,6 +12788,7 @@ input[type="number"] {
   font-size: .76rem;
   font-weight: 600;
 }
+.pricing-page--focused .pricing-plan__saving-amount { color: #21704c; }
 .pricing-page--focused .pricing-plan__reassurance {
   min-height: 82px;
   margin: 12px 0 0;
