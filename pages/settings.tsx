@@ -30,6 +30,7 @@ import {
 } from "../lib/premiumEntitlement";
 import NoIndexHead from "../components/NoIndexHead";
 import PremiumConversionCard from "../components/PremiumConversionCard";
+import Note2TabsSelect from "../components/Note2TabsSelect";
 import { PLAN_CATALOG, effectiveSubscriptionPlan, proPlanPresentationEnabled } from "../lib/subscriptionPlans";
 import SubscriptionRetentionDialog from "../components/SubscriptionRetentionDialog";
 import type { SubscriptionRetentionGoal } from "../lib/subscriptionCancellationRetention";
@@ -37,6 +38,7 @@ import {
   getOrCreatePremiumFunnelContext,
   premiumFunnelProperties,
 } from "../lib/premiumFunnel";
+import { rememberCheckoutAttempt } from "../lib/checkoutTracking";
 
 type Props = {
   user: {
@@ -347,7 +349,20 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
         plan: "premium_monthly",
         checkout_attempt_id: data.checkoutAttemptId,
+        checkout_session_id: data.checkoutSessionId,
+        checkout_currency: data.checkoutCurrency,
+        local_currency_eligible: data.localCurrencyEligible,
         ...premiumFunnelProperties(funnel),
+      });
+      rememberCheckoutAttempt({
+        checkoutSessionId: data.checkoutSessionId,
+        checkoutAttemptId: data.checkoutAttemptId,
+        funnelId: funnel.funnelId,
+        plan: "premium_monthly",
+        billingInterval: "monthly",
+        checkoutCurrency: data.checkoutCurrency,
+        source: funnel.source,
+        reason: funnel.reason,
       });
       window.location.href = data.url;
     } catch {
@@ -740,16 +755,12 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
               </div>
               <label className="form-group">
                 <span className="label">I signed up to…</span>
-                <select
-                  className="form-input"
+                <Note2TabsSelect
                   value={deleteGoal}
-                  onChange={(event) => setDeleteGoal(event.target.value as DeleteGoal)}
-                >
-                  <option value="">Choose what brought you here</option>
-                  {deleteGoals.map((goal) => (
-                    <option key={goal.value} value={goal.value}>{goal.label}</option>
-                  ))}
-                </select>
+                  onChange={setDeleteGoal}
+                  label="Reason for signing up"
+                  options={[{ value: "", label: "Choose what brought you here" }, ...deleteGoals]}
+                />
               </label>
               {deletionAlternative && (
                 <div className="delete-alternatives">

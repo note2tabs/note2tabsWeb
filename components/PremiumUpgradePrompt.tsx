@@ -218,7 +218,7 @@ export default function PremiumUpgradePrompt() {
       >
         Explore Premium
       </Link>
-      <small>Cancel anytime</small>
+      <small>$5.99 billed today · Cancel anytime</small>
     </aside>
   );
 }

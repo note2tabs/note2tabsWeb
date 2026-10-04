@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { prisma } from "./prisma";
 import { sendTransactionalEmail } from "./email";
+import { escapeEmailHtml, renderProductEmail } from "./emailTemplate";
 
 const RESET_TOKEN_PREFIX = "reset:";
 const RESET_TOKEN_TTL_MS = 1000 * 60 * 60; // 1h
@@ -83,21 +84,14 @@ ${url}
 Your reset code: ${code}
 
 This link and code expire in 1 hour. If you didn't request this, you can ignore this email.`;
-  const html = `
-    <div style="font-family: Arial, sans-serif; line-height:1.45; color:#0f172a;">
-      <p>Hi ${firstName},</p>
-      <p>We received a request to reset your Note2Tabs password.</p>
-      <p>
-        <a href="${url}" style="display:inline-block;padding:10px 14px;background:#0f172a;color:#fff;text-decoration:none;border-radius:8px;">
-          Reset password
-        </a>
-      </p>
-      <p>Enter this reset code on the website:</p>
-      <p style="font-size:24px;letter-spacing:4px;font-weight:700;">${code}</p>
-      <p style="font-size:13px;color:#475569;">This link and code expire in 1 hour.</p>
-      <p style="font-size:13px;color:#475569;">If you did not request this, you can ignore this email.</p>
-    </div>
-  `;
+  const html = renderProductEmail({
+    title: "Reset your password",
+    preview: "Use this link or six-digit code to reset your Note2Tabs password.",
+    greeting: `Hi ${escapeEmailHtml(firstName)},`,
+    bodyHtml: `<p style="margin:0 0 20px;">We received a request to reset your password.</p><p style="margin:0 0 7px;color:#747d79;font-size:13px;">Your reset code</p><p style="margin:0;color:#17201d;font-family:Menlo,Consolas,monospace;font-size:26px;font-weight:700;letter-spacing:5px;">${escapeEmailHtml(code)}</p>`,
+    action: { label: "Reset password", url },
+    secondaryHtml: "The link and code expire in one hour. If you did not request this, you can ignore this email.",
+  });
   return sendTransactionalEmail({ to: email, subject, html, text });
 }
 

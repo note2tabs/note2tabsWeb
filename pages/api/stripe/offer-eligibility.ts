@@ -5,6 +5,7 @@ import { stripeClient } from "../../../lib/stripe";
 import { getStripePremiumConfig } from "../../../lib/stripePremium";
 import { inspectPremiumCustomerState } from "../../../lib/stripePremiumOffer";
 import { getFreshUserRole } from "../../../lib/serverAuth";
+import { premiumTrialCheckoutEnabled } from "../../../lib/subscriptionPlans";
 
 const PREMIUM_ACCESS_ROLES = new Set(["PREMIUM", "ADMIN", "MODERATOR", "MOD"]);
 
@@ -24,6 +25,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (PREMIUM_ACCESS_ROLES.has(role)) {
     return res.status(200).json({ trialEligible: false, hasPremiumAccess: true });
   }
+  if (!premiumTrialCheckoutEnabled()) {
+    return res.status(200).json({ trialEligible: false, hasPremiumAccess: false });
+  }
 
   const premiumConfig = getStripePremiumConfig();
   if (!stripeClient || !premiumConfig) {
@@ -40,7 +44,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
     res.setHeader("Cache-Control", "private, max-age=300");
     return res.status(200).json({
-      trialEligible: false,
+      trialEligible: state.trialEligible,
       hasPremiumAccess: false,
     });
   } catch (error) {

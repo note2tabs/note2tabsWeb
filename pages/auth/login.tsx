@@ -1,7 +1,5 @@
-import CheckoutPlanSummary from "../../components/CheckoutPlanSummary";
-import { authReturnPath } from "../../lib/pricingPresentation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { signIn } from "next-auth/react";
+import { getSession, signIn } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { generateFingerprint } from "../../lib/fingerprint";
@@ -32,8 +30,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const nextHref = useMemo(() => authReturnPath(router.query.next, router.query.callbackUrl,
-    typeof window === "undefined" ? undefined : window.location.origin), [router.query.next, router.query.callbackUrl]);
+  const nextHref = useMemo(() => {
+    const raw = router.query.next;
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    if (typeof value !== "string") return "/home";
+    const trimmed = value.trim();
+    if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return "/home";
+    return trimmed;
+  }, [router.query.next]);
   const signupHref =
     nextHref === "/" ? "/auth/signup" : `/auth/signup?next=${encodeURIComponent(nextHref)}`;
   const routeError = useMemo(() => authErrorMessage(router.query.error), [router.query.error]);
@@ -74,7 +78,14 @@ export default function LoginPage() {
           destination: categorizeAnalyticsDestination(nextHref),
           ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
         });
-        await router.push(res?.url || nextHref);
+        const signedInSession = await getSession().catch(() => null);
+        if (signedInSession?.user && !signedInSession.user.isEmailVerified) {
+          await router.push(
+            `/auth/verify-email?email=${encodeURIComponent(email.trim().toLowerCase())}&next=${encodeURIComponent(nextHref)}`
+          );
+        } else {
+          await router.push(res?.url || nextHref);
+        }
       }
     } catch {
       setError("We could not reach the sign-in service. Check your connection and try again.");
@@ -93,7 +104,6 @@ export default function LoginPage() {
             <h1 className="page-title">Log in</h1>
             <p className="page-subtitle">Welcome back to Note2Tabs.</p>
           </div>
-          <CheckoutPlanSummary destination={nextHref} signup={false} />
           <form className="stack" onSubmit={handleSubmit}>
             <div className="form-group">
               <label className="label" htmlFor="login-email">Email</label>

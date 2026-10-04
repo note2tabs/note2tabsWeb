@@ -67,6 +67,19 @@ describe("gte editor tab view", () => {
     expect(view.strings.map((line) => line.y)).toEqual([16, 40, 64, 88, 112, 136]);
   });
 
+  it("renders bass snapshots with exactly four string rows", () => {
+    const snapshot = baseSnapshot();
+    snapshot.trackType = "bass";
+    snapshot.editorType = "bass";
+    snapshot.tuning = { presetId: "bass-standard", label: "Standard", openStringMidi: [43, 38, 33, 28], capo: 0 };
+    snapshot.notes = [{ id: 1, startTime: 0, length: 120, midiNum: 28, tab: [3, 0], optimals: [] }];
+    snapshot.chords = [];
+    const view = buildEditorTabView(snapshot, { framesPerBar: 480, beatsPerBar: 4, scale: 1, playheadFrame: 0 });
+    expect(view.strings.map((line) => line.label)).toEqual(["G", "D", "A", "E"]);
+    expect(view.height).toBe(104);
+    expect(view.placements).toHaveLength(1);
+  });
+
   it("places notes on equal 1/32-note subdivisions in practice layout", () => {
     const snapshot = baseSnapshot();
     snapshot.totalFrames = 128;

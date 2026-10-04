@@ -79,8 +79,9 @@ describe("track fingering optimization", () => {
     expect(groups.map((group) => group.notes.map((item) => item.id))).toEqual([[1], [2], [3, 4]]);
   });
 
-  it("generates coordinates, chordizes clusters, and preserves every pitch", () => {
+  it("chordizes clusters, preserves every pitch, and keeps backend-generated coordinates", () => {
     const draft = snapshot();
+    const generatedCoordinates = structuredClone(draft.cutPositionsWithCoords);
     const result = optimizeTrackFingeringInSnapshot(draft);
 
     expect(result.createdChordIds).toHaveLength(1);
@@ -93,7 +94,7 @@ describe("track fingering optimization", () => {
         getTabMidi(draft, tab, draft.chords[0].originalMidi[index])
       )
     ).toEqual(draft.chords[0].originalMidi);
-    expect(draft.cutPositionsWithCoords.length).toBeGreaterThan(1);
+    expect(draft.cutPositionsWithCoords).toEqual(generatedCoordinates);
   });
 
   it("preserves coordinates supplied by the playing-coordinate generator", () => {
@@ -105,7 +106,7 @@ describe("track fingering optimization", () => {
     ];
     draft.cutPositionsWithCoords = generatedCoordinates;
 
-    optimizeTrackFingeringInSnapshot(draft, { generatePlayingCoordinates: false });
+    optimizeTrackFingeringInSnapshot(draft);
 
     expect(draft.cutPositionsWithCoords).toEqual(generatedCoordinates);
   });
@@ -159,7 +160,7 @@ describe("track fingering optimization", () => {
     draft.chords = [chord(20, 0, 120, [[1, 1], [0, 0]], [60, 64])];
     const expectedBest = createBackendStyleChordAlternatives(draft, [60, 64], [2, 5])[0];
 
-    optimizeTrackFingeringInSnapshot(draft, { generatePlayingCoordinates: false });
+    optimizeTrackFingeringInSnapshot(draft);
 
     expect(draft.chords[0].currentTabs).toEqual(expectedBest);
     expect(draft.chords[0].ogTabs).toEqual(expectedBest);
@@ -175,6 +176,35 @@ describe("track fingering optimization", () => {
 
     expect(draft.chords).toHaveLength(0);
     expect(draft.notes).toHaveLength(7);
+  });
+
+  it("optimizes bass with the guitar note-ranking path without creating chords", () => {
+    const draft = snapshot();
+    draft.trackType = "bass";
+    draft.editorType = "bass";
+    draft.tuning = {
+      presetId: "bass-standard",
+      openStringMidi: [43, 38, 33, 28],
+      capo: 0,
+    };
+    draft.cutPositionsWithCoords = [[[0, 480], [2, 5]]];
+    draft.notes = [
+      { ...note(1, 0, 40, [3, 12]), length: 180 },
+      { ...note(2, 4, 43, [0, 0]), length: 180 },
+      { ...note(3, 220, 50, [1, 12]), length: 120 },
+    ];
+
+    const result = optimizeTrackFingeringInSnapshot(draft);
+    finalizeOptimizedTrackFingeringInSnapshot(draft);
+
+    expect(result.chordGroups).toEqual([]);
+    expect(result.createdChordIds).toEqual([]);
+    expect(draft.chords).toEqual([]);
+    expect(draft.notes.map((item) => item.midiNum)).toEqual([40, 43, 50]);
+    expect(draft.notes.map((item) => item.length)).toEqual([180, 180, 120]);
+    expect(draft.notes.every((item) => item.optimals.length > 0)).toBe(true);
+    expect(draft.notes.every((item) => item.tab[0] >= 0 && item.tab[0] < 4)).toBe(true);
+    expect(new Set(draft.notes.slice(0, 2).map((item) => item.tab[0])).size).toBe(2);
   });
 
   it("downgrades one-note chords into notes after optimization", () => {

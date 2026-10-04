@@ -4,6 +4,9 @@ import {
   GTE_TIMELINE_GUTTER_WIDTH,
   GTE_TIMELINE_LABEL_COLUMN_WIDTH,
   getScaledDrumHitSize,
+  getTimelineBaseScale,
+  resolveAddBarRowCapacity,
+  shouldAddBarStartNewRow,
 } from "../../lib/gteTimelineGeometry";
 
 describe("gte timeline geometry", () => {
@@ -17,5 +20,25 @@ describe("gte timeline geometry", () => {
     expect(getScaledDrumHitSize(40, 28)).toBe(24);
     expect(getScaledDrumHitSize(10, 28)).toBe(8);
     expect(getScaledDrumHitSize(0.5, 28)).toBeLessThanOrEqual(0.5);
+  });
+
+  it("sizes bars from the requested row capacity when a song has fewer bars", () => {
+    const scale = getTimelineBaseScale(960, 480, 4);
+
+    expect(scale).toBe(0.5);
+    expect(2 * 480 * scale).toBe(480);
+  });
+
+  it("keeps the add-bar control beside a short final row", () => {
+    const rowCapacity = resolveAddBarRowCapacity(4, 2);
+
+    expect(rowCapacity).toBe(4);
+    expect(shouldAddBarStartNewRow(2, rowCapacity)).toBe(false);
+    expect(shouldAddBarStartNewRow(3, rowCapacity)).toBe(false);
+    expect(shouldAddBarStartNewRow(4, rowCapacity)).toBe(true);
+  });
+
+  it("falls back to the visible capacity when no configured capacity is supplied", () => {
+    expect(resolveAddBarRowCapacity(undefined, 2)).toBe(2);
   });
 });

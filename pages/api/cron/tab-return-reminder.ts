@@ -89,12 +89,15 @@ async function runHandler(req: NextApiRequest, res: NextApiResponse, startedAt: 
           AND v.identifier IN (
             'reminder:return-to-tab:' || c.user_id || ':' || c.canvas_id,
             'reminder:return-to-tab-cooldown:' || c.user_id,
-            'email:reminders-unsubscribed:' || c.user_id
+            'email:reminders-unsubscribed:' || c.user_id,
+            'email:reminders-delivery-suppressed:' || c.user_id
           )
       )
       AND EXISTS (
-        SELECT 1 FROM lane_notes n
-        WHERE n.user_id = c.user_id AND n.canvas_id = c.canvas_id
+        SELECT 1
+        FROM lane_notes n
+        INNER JOIN canvas_lanes l ON l.lane_key = n.lane_key
+        WHERE l.canvas_id = c.canvas_id
       )
     ORDER BY c.user_id, c.updated_at DESC
     LIMIT ${batchSize()}

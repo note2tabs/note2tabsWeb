@@ -1,10 +1,11 @@
-import type { GetServerSideProps } from "next";
+import type { GetStaticPaths, GetStaticProps } from "next";
 import Link from "next/link";
 import { prisma } from "../../../lib/prisma";
 import { withPrismaReadRetry } from "../../../lib/prismaRetry";
 import { estimateReadingTime, getPublishedWhere } from "../../../lib/blog";
 import BlogPostCard from "../../../components/blog/BlogPostCard";
 import SeoHead, { absoluteUrl } from "../../../components/SeoHead";
+import { shouldIndexBlogArchive } from "../../../lib/blogIndexPolicy";
 
 type ClusterPageProps = {
   cluster: { name: string; slug: string; description: string | null };
@@ -61,7 +62,7 @@ export default function BlogClusterPage({ cluster, pillarPost, supportingPosts }
         title={`${cluster.name} Topic Hub | Note2Tabs Blog`}
         description={description}
         canonicalPath={canonicalPath}
-        noindex={!pillarPost && supportingPosts.length === 0}
+        noindex={!shouldIndexBlogArchive("cluster", cluster.slug)}
         jsonLd={jsonLd}
       />
       <div className="container stack">
@@ -124,7 +125,9 @@ export default function BlogClusterPage({ cluster, pillarPost, supportingPosts }
   );
 }
 
-export const getServerSideProps: GetServerSideProps<ClusterPageProps> = async (ctx) => {
+export const getStaticPaths: GetStaticPaths = async () => ({ paths: [], fallback: "blocking" });
+
+export const getStaticProps: GetStaticProps<ClusterPageProps> = async (ctx) => {
   const slug = ctx.params?.slug as string;
   const cluster = await withPrismaReadRetry(() => prisma.topicCluster.findUnique({
     where: { slug },
@@ -133,7 +136,6 @@ export const getServerSideProps: GetServerSideProps<ClusterPageProps> = async (c
   if (!cluster) {
     return { notFound: true };
   }
-  ctx.res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=3600");
 
   const postsRaw = await withPrismaReadRetry(() => prisma.post.findMany({
     where: {
@@ -188,5 +190,6 @@ export const getServerSideProps: GetServerSideProps<ClusterPageProps> = async (c
           publishedAt: post.publishedAt ? post.publishedAt.toISOString() : null,
         })),
     },
+    revalidate: 3600,
   };
 };

@@ -1,10 +1,11 @@
-import type { GetServerSideProps } from "next";
+import type { GetStaticPaths, GetStaticProps } from "next";
 import Link from "next/link";
 import { prisma } from "../../../lib/prisma";
 import { withPrismaReadRetry } from "../../../lib/prismaRetry";
 import { estimateReadingTime, getPublishedWhere } from "../../../lib/blog";
 import BlogPostCard from "../../../components/blog/BlogPostCard";
 import SeoHead, { absoluteUrl } from "../../../components/SeoHead";
+import { shouldIndexBlogArchive } from "../../../lib/blogIndexPolicy";
 
 type CategoryPageProps = {
   category: { name: string; slug: string; description: string | null };
@@ -61,7 +62,7 @@ export default function BlogCategoryPage({ category, posts, pillarPost }: Catego
         title={`${category.name} Guides | Note2Tabs Blog`}
         description={description}
         canonicalPath={canonicalPath}
-        noindex={posts.length === 0}
+        noindex={!shouldIndexBlogArchive("category", category.slug)}
         jsonLd={jsonLd}
       />
       <div className="container stack">
@@ -122,7 +123,9 @@ export default function BlogCategoryPage({ category, posts, pillarPost }: Catego
   );
 }
 
-export const getServerSideProps: GetServerSideProps<CategoryPageProps> = async (ctx) => {
+export const getStaticPaths: GetStaticPaths = async () => ({ paths: [], fallback: "blocking" });
+
+export const getStaticProps: GetStaticProps<CategoryPageProps> = async (ctx) => {
   const slug = ctx.params?.slug as string;
   const category = await withPrismaReadRetry(() => prisma.category.findUnique({
     where: { slug },
@@ -131,7 +134,6 @@ export const getServerSideProps: GetServerSideProps<CategoryPageProps> = async (
   if (!category) {
     return { notFound: true };
   }
-  ctx.res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=3600");
 
   const postsRaw = await withPrismaReadRetry(() => prisma.post.findMany({
     where: {
@@ -182,5 +184,6 @@ export const getServerSideProps: GetServerSideProps<CategoryPageProps> = async (
         publishedAt: post.publishedAt ? post.publishedAt.toISOString() : null,
       })),
     },
+    revalidate: 3600,
   };
 };

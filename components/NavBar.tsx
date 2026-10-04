@@ -19,6 +19,14 @@ type NavBarProps = {
 
 type PrimaryNavSection = "home" | "editor" | "transcriber" | "premium";
 
+export const ADMIN_NAV_ITEMS = [
+  { href: "/admin/analytics", label: "Analytics" },
+  { href: "/admin/affiliates", label: "Affiliates & coupons" },
+  { href: "/admin/blog", label: "Blog" },
+  { href: "/mod/users", label: "Users" },
+  { href: "/mod/dashboard", label: "Moderation" },
+] as const;
+
 export const isPrimaryNavSectionActive = (
   pathname: string,
   section: PrimaryNavSection
@@ -47,6 +55,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
   const { data: session, status: sessionStatus } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [signOutBusy, setSignOutBusy] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -74,6 +83,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
   useEffect(() => {
     setMenuOpen(false);
     setProfileMenuOpen(false);
+    setAdminMenuOpen(false);
   }, [router.asPath]);
 
   useEffect(() => {
@@ -137,11 +147,13 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
       const target = event.target as Node | null;
       if (profileMenuRef.current && target && !profileMenuRef.current.contains(target)) {
         setProfileMenuOpen(false);
+        setAdminMenuOpen(false);
       }
     };
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setProfileMenuOpen(false);
+        setAdminMenuOpen(false);
       }
     };
     document.addEventListener("mousedown", handleDocumentClick);
@@ -243,6 +255,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
                   aria-controls="nav-profile-menu"
                   onClick={() => {
                     setProfileMenuOpen((prev) => !prev);
+                    setAdminMenuOpen(false);
                     setMenuOpen(false);
                   }}
                   title={roleLabel(session.user?.role)}
@@ -276,9 +289,40 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
                     My editors
                   </Link>
                   {isAdmin && (
-                    <Link href="/admin/analytics" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
-                      Analytics
-                    </Link>
+                    <div className="nav-admin-tools" role="none">
+                      <button
+                        type="button"
+                        className="nav-admin-tools__toggle"
+                        role="menuitem"
+                        aria-haspopup="menu"
+                        aria-expanded={adminMenuOpen}
+                        aria-controls="nav-admin-tools-menu"
+                        onClick={() => setAdminMenuOpen((open) => !open)}
+                      >
+                        <span>Admin tools</span>
+                        <svg viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+                          <path d="m3 4.5 3 3 3-3" />
+                        </svg>
+                      </button>
+                      {adminMenuOpen && (
+                        <div id="nav-admin-tools-menu" className="nav-admin-tools__menu" role="menu">
+                          {ADMIN_NAV_ITEMS.map((item) => (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              role="menuitem"
+                              aria-current={router.pathname === item.href ? "page" : undefined}
+                              onClick={() => {
+                                setAdminMenuOpen(false);
+                                setProfileMenuOpen(false);
+                              }}
+                            >
+                              {item.label}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
                   <Link href="/settings" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
                     Settings

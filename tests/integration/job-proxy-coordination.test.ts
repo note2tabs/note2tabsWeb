@@ -242,6 +242,26 @@ describe("job proxy backend coordination", () => {
     });
   });
 
+  it("does not repeat an acknowledgement already confirmed by the backend", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({
+        job_id: "job_123",
+        status: "succeeded",
+        durableResultId: "tab_123",
+        tabs: [["e|--0--"]],
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    );
+    prismaMock.tabJob.upsert.mockResolvedValue({ id: "tab_123", userId: "user_1" });
+    const handler = (await import("../../pages/api/jobs/[job_id]")).default;
+    const { req, res } = createMocks({ method: "GET", query: { job_id: "job_123" } });
+
+    await handler(req as any, res as any);
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(completionEmailMock).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps a completed transcription successful when its email cannot be delivered", async () => {
     fetchMock
       .mockResolvedValueOnce(

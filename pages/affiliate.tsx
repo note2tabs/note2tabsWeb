@@ -10,7 +10,7 @@ type AffiliateData = {
   commissions: Commission[];
 };
 
-const money = (amount: number, currency = "usd") => new Intl.NumberFormat(undefined, {
+const money = (amount: number, currency = "usd") => new Intl.NumberFormat("en-US", {
   style: "currency", currency: currency.toUpperCase(), minimumFractionDigits: 2,
 }).format(amount / 100);
 
@@ -67,6 +67,7 @@ export default function AffiliatePage() {
         <span className="affiliateEyebrow">Note2Tabs affiliates</span><h1>Your referrals, commissions, and payouts in one place.</h1>
         <p>Sign in with the Note2Tabs account connected to your affiliate invitation.</p>
         <button className="affiliatePrimaryButton" onClick={() => signIn(undefined, { callbackUrl: "/affiliate" })}>Sign in to continue</button>
+        <a className="affiliateSignedOutInfo" href="/affiliate-program">Learn how the affiliate program works</a>
       </section>}
       {status === "authenticated" && error && !affiliate && <section className="affiliateError" role="alert">
         <h1>We couldn’t open your affiliate dashboard.</h1><p>{error}</p>
@@ -84,8 +85,8 @@ export default function AffiliatePage() {
         </section>}
         {error && <div className="affiliateInlineError" role="alert">{error}</div>}
         <section className="affiliateStats" aria-label="Affiliate overview">
-          <article><span>Total earned</span><strong>{money(totalEarned, currency)}</strong><small>Paid and pending</small></article>
-          <article><span>Pending</span><strong>{money(affiliate.totals.pending, currency)}</strong><small>Released after the hold period</small></article>
+          <article><span>Total earned</span><strong className="affiliateStatMoney">{money(totalEarned, currency)}</strong><small>Paid and pending</small></article>
+          <article><span>Pending</span><strong className="affiliateStatMoney">{money(affiliate.totals.pending, currency)}</strong><small>Released after the hold period</small></article>
           <article><span>Referred customers</span><strong>{affiliate.referralCount}</strong><small>Attributed accounts</small></article>
         </section>
         <div className="affiliateGrid">
@@ -107,7 +108,7 @@ export default function AffiliatePage() {
           {affiliate.commissions.length === 0 ? <div className="affiliateEmptyState"><div className="affiliateEmptyGraphic" aria-hidden="true"><span/><span/><span/></div>
             <h3>Your first referral will appear here</h3><p>Share your link with musicians who would benefit from editable tabs, transcription, and practice tools.</p></div> :
             <div className="affiliateTableWrap"><table className="affiliateTable"><thead><tr><th>Commission</th><th>Status</th><th>Created</th><th>Available</th></tr></thead><tbody>
-              {affiliate.commissions.map((item) => <tr key={item.id}><td><strong>{money(item.amount, item.currency)}</strong></td><td><span className={`affiliateCommissionStatus affiliateCommissionStatus${item.status}`}>{item.status.toLowerCase()}</span></td><td>{new Date(item.createdAt).toLocaleDateString()}</td><td>{new Date(item.availableAt).toLocaleDateString()}</td></tr>)}
+              {affiliate.commissions.map((item) => <tr key={item.id}><td><strong className={item.status === "PAID" ? "affiliateStatMoney" : ""}>{money(item.amount, item.currency)}</strong></td><td><span className={`affiliateCommissionStatus affiliateCommissionStatus${item.status}`}>{item.status.toLowerCase()}</span></td><td>{new Date(item.createdAt).toLocaleDateString("en-US")}</td><td>{new Date(item.availableAt).toLocaleDateString("en-US")}</td></tr>)}
             </tbody></table></div>}
         </section>
       </>}

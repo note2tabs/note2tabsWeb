@@ -7,6 +7,7 @@ import { linkIdentityToUser } from "../../../lib/analyticsV2/identity";
 import { normalizeSafeReturnPath } from "../../../lib/safeReturnPath";
 import { affiliateClickIdFromRequest, affiliateCodeFromRequest } from "../../../lib/affiliate";
 import { trackAffiliateEvent } from "../../../lib/affiliateTracking";
+import { trackTabShareEmailSignup } from "../../../lib/tabShareAnalyticsServer";
 
 const MIN_PASSWORD = 10;
 
@@ -94,6 +95,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     } catch (linkError) {
       console.warn("signup identity link warning", linkError);
+    }
+
+    try {
+      await trackTabShareEmailSignup({ userId: user.id, method: "email", returnTo, req });
+    } catch (shareAttributionError) {
+      console.warn("tab share signup attribution warning", shareAttributionError);
     }
 
     let sent = false;

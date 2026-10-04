@@ -1,4 +1,3 @@
-import { PricingFooter } from "../components/PricingChrome";
 import type { AppProps } from "next/app";
 import dynamic from "next/dynamic";
 import Head from "next/head";
@@ -12,8 +11,10 @@ import RouteLoadingIndicator from "../components/RouteLoadingIndicator";
 import PremiumUpgradePrompt from "../components/PremiumUpgradePrompt";
 import UserActivityTracker from "../components/UserActivityTracker";
 import AffiliateAttributionCapture from "../components/AffiliateAttributionCapture";
+import CheckoutCancellationTracker from "../components/CheckoutCancellationTracker";
 import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
 import { sanitizeAnalyticsPathname } from "../lib/analyticsPrivacy";
+import { installStaleChunkRecovery } from "../lib/staleChunkRecovery";
 import {
   sessionReplayIsBlocked,
   stopPostHogSessionRecording,
@@ -25,9 +26,17 @@ const AnalyticsIdentityLinker = dynamic(() => import("../components/AnalyticsIde
 
 export default function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps) {
   const router = useRouter();
-  const isPricingPage = router.pathname === "/pricing";
-  const isGteEditorPage = router.pathname === "/gte/[editor_id]";
-  const isProductHomePage = router.pathname === "/home";
+  const isGteEditorPage =
+    router.pathname === "/gte/[editor_id]" || router.pathname === "/dev/heavy-preview-editor";
+  const isProductHomePage = router.pathname === "/home" || router.pathname === "/shared";
+
+  useEffect(() => {
+    return installStaleChunkRecovery(router.events, {
+      reportFailure: () => sendEvent(ANALYTICS_EVENTS.staleChunkRecoveryFailed, {
+        path: window.location.pathname,
+      }),
+    });
+  }, [router.events]);
 
   useEffect(() => {
     const trackPageView = (url?: string) => {
@@ -87,12 +96,13 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         >
           <Component {...pageProps} />
         </div>
-        {isPricingPage ? <PricingFooter /> : !isGteEditorPage && !isProductHomePage && <FooterBar />}
+        {!isGteEditorPage && !isProductHomePage && <FooterBar />}
         <SessionAccountRefresher />
         <UserActivityTracker />
         <AnalyticsIdentityLinker />
         <PremiumUpgradePrompt />
         <AffiliateAttributionCapture />
+        <CheckoutCancellationTracker />
       </div>
     </SessionProvider>
   );

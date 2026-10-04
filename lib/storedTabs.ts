@@ -13,7 +13,7 @@ export type StoredTranscriberSegment = {
 export type StoredTranscriberSegmentGroup = StoredTranscriberSegment[];
 export type StoredTranscriberTrack = {
   name: string;
-  trackType: "tab" | "drums";
+  trackType: "tab" | "bass" | "drums";
   instrumentId: string;
   program?: number;
   segments: StoredTranscriberSegmentGroup;
@@ -144,14 +144,15 @@ export function normalizeTranscriberTracks(value: unknown): StoredTranscriberTra
     const record = entry as Record<string, unknown>;
     const groups = normalizeTranscriberSegments([record.segments]);
     if (!groups.length) return [];
-    const trackType = record.trackType === "drums" || record.type === "drums" ? "drums" : "tab";
+    const program = Number(record.program);
+    const bass = record.trackType === "bass" || record.type === "bass" || record.instrumentId === "gm:bass" || (Number.isInteger(program) && program >= 32 && program <= 39) || (typeof record.name === "string" && /\bbass\b/i.test(record.name) && !/\bbassoon\b/i.test(record.name));
+    const trackType = record.trackType === "drums" || record.type === "drums" ? "drums" : bass ? "bass" : "tab";
     const name = typeof record.name === "string" && record.name.trim()
       ? record.name.trim().slice(0, 80)
-      : trackType === "drums" ? "Drums" : `Instrument ${index + 1}`;
+      : trackType === "drums" ? "Drums" : trackType === "bass" ? "Bass" : `Instrument ${index + 1}`;
     const instrumentId = typeof record.instrumentId === "string" && record.instrumentId.trim()
       ? record.instrumentId.trim().slice(0, 80)
-      : trackType === "drums" ? "drum1" : "jazz";
-    const program = Number(record.program);
+      : trackType === "drums" ? "drum1" : trackType === "bass" ? "bass_overdrive" : "jazz";
     return [{
       name,
       trackType,

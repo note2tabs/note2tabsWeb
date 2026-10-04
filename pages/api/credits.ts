@@ -78,14 +78,26 @@ async function buildUserCredits(user: {
       console.warn("credits backend read failed", error);
     }
     if (user.tokensRemaining !== credits.remaining) {
-      await prisma.user.update({
-        where: { id: user.id },
+      await prisma.user.updateMany({
+        where: {
+          id: user.id,
+          role: user.role,
+          subscriptionPlan: user.subscriptionPlan,
+          tokensRemaining: user.tokensRemaining,
+        },
         data: { tokensRemaining: credits.remaining },
       });
     }
   } else if (user.tokensRemaining !== credits.remaining) {
-    await prisma.user.update({
-      where: { id: user.id },
+    // Do not let a request that read a FREE account before checkout overwrite
+    // a paid balance after Stripe activates the subscription.
+    await prisma.user.updateMany({
+      where: {
+        id: user.id,
+        role: user.role,
+        subscriptionPlan: user.subscriptionPlan,
+        tokensRemaining: user.tokensRemaining,
+      },
       data: { tokensRemaining: credits.remaining },
     });
   }

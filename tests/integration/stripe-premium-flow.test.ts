@@ -10,9 +10,14 @@ const { sessionMock, stripeMock, prismaMock, posthogMock, sendEmailMock } = vi.h
       checkout: {
         sessions: {
           create: vi.fn(),
+          list: vi.fn(),
           retrieve: vi.fn(),
           listLineItems: vi.fn(),
         },
+      },
+      promotionCodes: {
+        list: vi.fn(),
+        retrieve: vi.fn(),
       },
       webhooks: {
         constructEvent: vi.fn(),
@@ -29,6 +34,9 @@ const { sessionMock, stripeMock, prismaMock, posthogMock, sendEmailMock } = vi.h
       },
       subscriptionSchedules: { create: vi.fn(), update: vi.fn() },
       invoices: {
+        retrieve: vi.fn(),
+      },
+      paymentIntents: {
         retrieve: vi.fn(),
       },
       billingPortal: {
@@ -167,6 +175,7 @@ describe("stripe premium flow", () => {
     delete process.env.STRIPE_PRODUCT_PRO;
     delete process.env.PRO_PLAN_ENABLED;
     process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+    process.env.PREMIUM_TRIAL_ENABLED = "true";
     delete process.env.PREMIUM_TRIAL_REMINDER_MODE;
     process.env.NEXTAUTH_URL = "https://note2tabs.test";
     sessionMock.mockResolvedValue({
@@ -175,8 +184,11 @@ describe("stripe premium flow", () => {
     stripeMock.checkout.sessions.create.mockResolvedValue({
       id: "cs_test_123",
       url: "https://checkout.stripe.test/session_123",
+      currency: "gbp",
     });
+    stripeMock.promotionCodes.list.mockResolvedValue({ data: [] });
     stripeMock.checkout.sessions.retrieve.mockResolvedValue(null);
+    stripeMock.checkout.sessions.list.mockResolvedValue({ data: [] });
     stripeMock.checkout.sessions.listLineItems.mockResolvedValue({ data: [] });
     stripeMock.customers.list.mockResolvedValue({ data: [] });
     stripeMock.customers.retrieve.mockResolvedValue(null);
@@ -186,6 +198,7 @@ describe("stripe premium flow", () => {
     );
     stripeMock.subscriptions.cancel.mockResolvedValue({});
     stripeMock.invoices.retrieve.mockResolvedValue(premiumInvoice());
+    stripeMock.paymentIntents.retrieve.mockResolvedValue({ id: "pi_test", last_payment_error: null });
     stripeMock.billingPortal.sessions.create.mockResolvedValue({
       url: "https://billing.stripe.test/session_123",
     });
@@ -220,7 +233,62 @@ describe("stripe premium flow", () => {
     );
   });
 
+  describe("school access checkout", () => {
+    it("opens a separate Stripe code-entry checkout without changing normal trial checkout", async () => {
+      const handler = (await import("../../pages/api/stripe/school-access-checkout")).default;
+      const { req, res } = createMocks({ method: "GET", headers: { host: "note2tabs.test", "x-forwarded-proto": "https" } });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(303);
+      expect(res.getHeader("Location")).toBe("https://checkout.stripe.test/session_123");
+      expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(expect.objectContaining({
+        mode: "subscription",
+        payment_method_collection: "if_required",
+        allow_promotion_codes: true,
+        line_items: [{ price: "price_test_premium", quantity: 1 }],
+        subscription_data: { metadata: expect.objectContaining({ note2tabsSchoolCheckout: "true", premiumTrialIncluded: "false" }) },
+      }));
+    });
+
+    it("sends signed-out teachers through login and back to the private checkout link", async () => {
+      sessionMock.mockResolvedValue(null);
+      const handler = (await import("../../pages/api/stripe/school-access-checkout")).default;
+      const { req, res } = createMocks({ method: "GET" });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(302);
+      expect(res.getHeader("Location")).toBe("/auth/login?next=%2Fapi%2Fstripe%2Fschool-access-checkout");
+      expect(stripeMock.checkout.sessions.create).not.toHaveBeenCalled();
+    });
+  });
+
   describe("create-checkout-session", () => {
+    it("charges Premium immediately while the 30-day no-trial test is active", async () => {
+      delete process.env.PREMIUM_TRIAL_ENABLED;
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const { req, res } = createMocks({ method: "POST", body: { plan: "premium" } });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(res._getJSONData()).toMatchObject({
+        plan: "premium",
+        trialIncluded: false,
+        offerMode: "immediate_charge",
+      });
+      expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subscription_data: expect.not.objectContaining({ trial_period_days: expect.anything() }),
+          metadata: expect.objectContaining({
+            premiumTrialIncluded: "false",
+            premiumOfferMode: "immediate_charge",
+          }),
+        }),
+        expect.anything()
+      );
+    });
     it("keeps Pro checkout disabled until the launch flag is enabled", async () => {
       process.env.STRIPE_PRICE_PRO_MONTHLY = "price_test_pro";
       process.env.STRIPE_PRODUCT_PRO = "prod_test_pro";
@@ -253,7 +321,7 @@ describe("stripe premium flow", () => {
       );
     });
 
-    it("uses yearly Premium prices and charges immediately", async () => {
+    it("uses yearly prices while keeping Premium's trial and excluding Pro's", async () => {
       process.env.STRIPE_PRICE_PREMIUM_YEARLY = "price_test_premium_yearly";
       const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
       const { req, res } = createMocks({ method: "POST", body: { plan: "premium", billingInterval: "yearly" } });
@@ -261,11 +329,11 @@ describe("stripe premium flow", () => {
       await handler(req as any, res as any);
 
       expect(res._getStatusCode()).toBe(200);
-      expect(res._getJSONData()).toMatchObject({ plan: "premium", billingInterval: "yearly", trialIncluded: false });
+      expect(res._getJSONData()).toMatchObject({ plan: "premium", billingInterval: "yearly", trialIncluded: true });
       expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
         expect.objectContaining({
           line_items: [{ price: "price_test_premium_yearly", quantity: 1 }],
-          subscription_data: expect.not.objectContaining({ trial_period_days: expect.anything() }),
+          subscription_data: expect.objectContaining({ trial_period_days: 7 }),
           metadata: expect.objectContaining({ note2tabsBillingInterval: "yearly" }),
         }),
         expect.objectContaining({ idempotencyKey: expect.stringContaining("premium-yearly-checkout-") })
@@ -316,10 +384,14 @@ describe("stripe premium flow", () => {
       expect(res._getJSONData()).toEqual({
         url: "https://checkout.stripe.test/session_123",
         checkoutAttemptId: "local",
+        checkoutSessionId: "cs_test_123",
+        checkoutCurrency: "gbp",
+        localCurrencyEligible: true,
         funnelId: "funnel_test_123",
         plan: "premium",
         billingInterval: "monthly",
-        trialIncluded: false,
+        trialIncluded: true,
+        offerMode: "seven_day_trial",
         offerVariant: "value_framing",
       });
       expect(posthogMock.capture).toHaveBeenCalledWith({
@@ -344,6 +416,7 @@ describe("stripe premium flow", () => {
           line_items: [{ price: "price_test_premium", quantity: 1 }],
           client_reference_id: "funnel_test_123",
           subscription_data: expect.objectContaining({
+            trial_period_days: 7,
             metadata: expect.objectContaining({
               premiumFunnelId: "funnel_test_123",
               premiumFunnelSource: "pricing_page",
@@ -362,11 +435,50 @@ describe("stripe premium flow", () => {
           }),
           success_url:
             "https://note2tabs.test/premium/welcome?next=%2Ftranscribe&session_id={CHECKOUT_SESSION_ID}",
-          cancel_url: "https://note2tabs.test/settings?upgrade=cancel",
+          cancel_url: "https://note2tabs.test/settings?upgrade=cancel&funnel_id=funnel_test_123",
         }),
         expect.objectContaining({
           idempotencyKey: expect.stringMatching(/^premium-monthly-checkout-user_1-/),
         })
+      );
+    });
+
+    it("preserves supported local display currencies in checkout metadata", async () => {
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const { req, res } = createMocks({
+        method: "POST",
+        body: { plan: "premium", displayCurrency: "brl" },
+      });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ note2tabsDisplayCurrency: "brl" }),
+          subscription_data: expect.objectContaining({
+            metadata: expect.objectContaining({ note2tabsDisplayCurrency: "brl" }),
+          }),
+        }),
+        expect.anything()
+      );
+    });
+
+    it("falls back to USD metadata for unsupported display currencies", async () => {
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const { req, res } = createMocks({
+        method: "POST",
+        body: { plan: "premium", displayCurrency: "btc" },
+      });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ note2tabsDisplayCurrency: "usd" }),
+        }),
+        expect.anything()
       );
     });
 
@@ -499,7 +611,9 @@ describe("stripe premium flow", () => {
         expect.objectContaining({
           success_url:
             "https://note2tabs.test/premium/welcome?next=%2Ftranscribe%3FresumeTranscription%3D1&session_id={CHECKOUT_SESSION_ID}",
-          cancel_url: "https://note2tabs.test/transcribe?resumeTranscription=1&upgrade=cancel",
+          cancel_url: expect.stringMatching(
+            /^https:\/\/note2tabs\.test\/transcribe\?resumeTranscription=1&upgrade=cancel&funnel_id=/
+          ),
         }),
         expect.any(Object)
       );
@@ -614,7 +728,7 @@ describe("stripe premium flow", () => {
       expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
         expect.objectContaining({
           customer: "cus_other",
-          subscription_data: expect.not.objectContaining({ trial_period_days: expect.anything() }),
+          subscription_data: expect.objectContaining({ trial_period_days: 7 }),
         }),
         expect.any(Object)
       );
@@ -778,7 +892,7 @@ describe("stripe premium flow", () => {
   });
 
   describe("premium offer eligibility", () => {
-    it("returns no trial for new and returning subscribers", async () => {
+    it("returns a trial only for accounts without previous Premium trial history", async () => {
       const handler = (await import("../../pages/api/stripe/offer-eligibility")).default;
       const eligible = createMocks({ method: "GET" });
 
@@ -786,7 +900,7 @@ describe("stripe premium flow", () => {
 
       expect(eligible.res._getStatusCode()).toBe(200);
       expect(eligible.res._getJSONData()).toEqual({
-        trialEligible: false,
+        trialEligible: true,
         hasPremiumAccess: false,
       });
 
@@ -1060,6 +1174,47 @@ describe("stripe premium flow", () => {
       });
     });
 
+    it("repairs a partial Premium activation instead of preserving the free balance", async () => {
+      stripeMock.subscriptions.retrieve.mockResolvedValue(
+        premiumSubscription({ status: "active" })
+      );
+      stripeMock.checkout.sessions.retrieve.mockResolvedValue({
+        id: "cs_partial_activation",
+        mode: "subscription",
+        status: "complete",
+        metadata: {
+          userId: "user_1",
+          note2tabsPlan: "premium",
+          note2tabsPriceId: "price_test_premium",
+        },
+        line_items: { data: [{ price: premiumPrice }] },
+        subscription: premiumSubscription({ status: "active" }),
+      });
+      prismaMock.user.findFirst.mockResolvedValue({
+        id: "user_1",
+        role: "PREMIUM",
+        subscriptionPlan: "FREE",
+        tokensRemaining: STARTING_CREDITS,
+      });
+      const handler = (await import("../../pages/api/stripe/confirm-checkout-session")).default;
+      const { req, res } = createMocks({
+        method: "POST",
+        body: { sessionId: "cs_partial_activation" },
+      });
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: "user_1" },
+        data: {
+          role: "PREMIUM",
+          subscriptionPlan: "PREMIUM",
+          tokensRemaining: PREMIUM_MONTHLY_CREDITS,
+        },
+      });
+    });
+
     it("rejects a completed checkout for an unrelated product", async () => {
       stripeMock.checkout.sessions.retrieve.mockResolvedValue({
         id: "cs_other",
@@ -1086,6 +1241,168 @@ describe("stripe premium flow", () => {
   });
 
   describe("stripe webhook", () => {
+    it("tracks an expired Note2Tabs Checkout session as abandoned", async () => {
+      stripeMock.webhooks.constructEvent.mockReturnValue({
+        id: "evt_checkout_expired",
+        type: "checkout.session.expired",
+        data: { object: {
+          id: "cs_expired",
+          status: "expired",
+          payment_status: "unpaid",
+          metadata: {
+            userId: "user_1",
+            note2tabsPlan: "premium",
+            note2tabsBillingInterval: "yearly",
+            note2tabsCheckoutAttemptId: "attempt_123",
+            premiumFunnelId: "funnel_123",
+            premiumFunnelSource: "pricing_page",
+            premiumFunnelReason: "plan_comparison",
+          },
+        } },
+      });
+
+      const handler = (await import("../../pages/api/stripe/webhook")).default;
+      const res = createResponse();
+      await handler(buildWebhookReq() as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(posthogMock.capture).toHaveBeenCalledWith({
+        distinctId: "user_1",
+        event: "checkout_abandoned",
+        properties: expect.objectContaining({
+          checkout_session_id: "cs_expired",
+          checkout_attempt_id: "attempt_123",
+          plan: "premium_yearly",
+          checkout_status: "expired",
+          payment_status: "unpaid",
+          $insert_id: "checkout-abandoned:cs_expired",
+        }),
+      });
+    });
+
+    it("tracks safe Stripe failure codes for asynchronous checkout failures", async () => {
+      stripeMock.webhooks.constructEvent.mockReturnValue({
+        id: "evt_checkout_failed",
+        type: "checkout.session.async_payment_failed",
+        data: { object: {
+          id: "cs_failed",
+          status: "complete",
+          payment_status: "unpaid",
+          payment_intent: {
+            id: "pi_failed",
+            last_payment_error: {
+              code: "card_declined",
+              decline_code: "insufficient_funds",
+              type: "card_error",
+              message: "Sensitive processor message that must not be captured",
+            },
+          },
+          metadata: {
+            userId: "user_1",
+            note2tabsPlan: "pro",
+            note2tabsBillingInterval: "monthly",
+          },
+        } },
+      });
+
+      const handler = (await import("../../pages/api/stripe/webhook")).default;
+      await handler(buildWebhookReq() as any, createResponse() as any);
+
+      expect(posthogMock.capture).toHaveBeenCalledWith({
+        distinctId: "user_1",
+        event: "checkout_payment_failed",
+        properties: expect.objectContaining({
+          checkout_session_id: "cs_failed",
+          failure_code: "card_declined",
+          decline_code: "insufficient_funds",
+          failure_type: "card_error",
+          $insert_id: "checkout-payment-failed:cs_failed",
+        }),
+      });
+      const captured = posthogMock.capture.mock.calls.at(-1)?.[0]?.properties;
+      expect(captured).not.toHaveProperty("message");
+    });
+
+    it("correlates a failed PaymentIntent with its Checkout session", async () => {
+      stripeMock.webhooks.constructEvent.mockReturnValue({
+        id: "evt_pi_failed",
+        type: "payment_intent.payment_failed",
+        data: { object: {
+          id: "pi_failed",
+          last_payment_error: { code: "authentication_required", type: "card_error" },
+        } },
+      });
+      stripeMock.checkout.sessions.list.mockResolvedValue({ data: [{
+        id: "cs_for_pi",
+        status: "open",
+        payment_status: "unpaid",
+        metadata: { userId: "user_1", note2tabsPlan: "premium" },
+      }] });
+
+      const handler = (await import("../../pages/api/stripe/webhook")).default;
+      await handler(buildWebhookReq() as any, createResponse() as any);
+
+      expect(stripeMock.checkout.sessions.list).toHaveBeenCalledWith({
+        payment_intent: "pi_failed",
+        limit: 1,
+      });
+      expect(posthogMock.capture).toHaveBeenCalledWith(expect.objectContaining({
+        distinctId: "user_1",
+        event: "checkout_payment_failed",
+      }));
+    });
+
+    it("schedules card-free school access to end without renewal", async () => {
+      stripeMock.webhooks.constructEvent.mockReturnValue({
+        id: "evt_school",
+        type: "checkout.session.completed",
+        data: { object: {
+          id: "cs_school",
+          mode: "subscription",
+          metadata: {
+            userId: "user_1",
+            note2tabsPlan: "premium",
+            note2tabsPriceId: "price_test_premium",
+            note2tabsSchoolCheckout: "true",
+            premiumTrialIncluded: "false",
+          },
+          subscription: "sub_school",
+          customer_details: { email: "user@example.com" },
+        } },
+      });
+      stripeMock.subscriptions.retrieve.mockResolvedValue(premiumSubscription({ id: "sub_school", metadata: {} }));
+      stripeMock.checkout.sessions.retrieve.mockResolvedValue({
+        id: "cs_school",
+        total_details: { breakdown: { discounts: [{ discount: { promotion_code: "promo_school" } }] } },
+      });
+      stripeMock.promotionCodes.retrieve.mockResolvedValue({
+        id: "promo_school",
+        active: true,
+        metadata: {},
+        coupon: {
+          valid: true,
+          percent_off: 100,
+          duration: "repeating",
+          duration_in_months: 2,
+          metadata: { note2tabsCardFreeSchoolAccess: "true" },
+        },
+      });
+      prismaMock.user.findFirst.mockResolvedValue({ id: "user_1", role: "FREE", tokensRemaining: STARTING_CREDITS });
+
+      const handler = (await import("../../pages/api/stripe/webhook")).default;
+      await handler(buildWebhookReq() as any, createResponse() as any);
+
+      const expectedEnd = new Date(1_700_000_000 * 1000);
+      expectedEnd.setUTCMonth(expectedEnd.getUTCMonth() + 2);
+      expect(stripeMock.subscriptions.update).toHaveBeenCalledWith("sub_school", {
+        cancel_at: Math.floor(expectedEnd.getTime() / 1000),
+        metadata: expect.objectContaining({
+          note2tabsCardFreeSchoolAccess: "true",
+          note2tabsSchoolAccessMonths: "2",
+        }),
+      });
+    });
+
     it("upgrades FREE users to PREMIUM on checkout.session.completed", async () => {
       stripeMock.webhooks.constructEvent.mockReturnValue({
         type: "checkout.session.completed",
@@ -1144,6 +1461,47 @@ describe("stripe premium flow", () => {
           event_source: "stripe_webhook",
           $insert_id: "subscription-started:cs_premium",
         }),
+      });
+    });
+
+    it("repairs a webhook activation with a paid role but a free plan and balance", async () => {
+      stripeMock.webhooks.constructEvent.mockReturnValue({
+        type: "checkout.session.completed",
+        data: {
+          object: {
+            id: "cs_partial_webhook",
+            mode: "subscription",
+            metadata: {
+              userId: "user_1",
+              note2tabsPlan: "premium",
+              note2tabsPriceId: "price_test_premium",
+            },
+            subscription: premiumSubscription(),
+            customer_details: { email: "user@example.com" },
+          },
+        },
+      });
+      prismaMock.user.findFirst.mockResolvedValue({
+        id: "user_1",
+        role: "PREMIUM",
+        subscriptionPlan: "FREE",
+        tokensRemaining: STARTING_CREDITS,
+      });
+
+      const handler = (await import("../../pages/api/stripe/webhook")).default;
+      const req = buildWebhookReq();
+      const res = createResponse();
+
+      await handler(req as any, res as any);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: "user_1" },
+        data: {
+          role: "PREMIUM",
+          subscriptionPlan: "PREMIUM",
+          tokensRemaining: PREMIUM_MONTHLY_CREDITS,
+        },
       });
     });
 

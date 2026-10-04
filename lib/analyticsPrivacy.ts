@@ -248,8 +248,56 @@ const EXPECTED_EXCEPTION_PATTERNS = [
   /not authenticated|unauthori[sz]ed|forbidden|sign in|required.*account|\b40[13]\b/i,
   /insufficient credits|quota|limit (?:reached|exceeded)|rate limit|too many requests|\b429\b/i,
   /aborterror|operation was aborted|user cancelled|user canceled/i,
-  /failed to fetch|networkerror|network request failed|internet connection|offline/i,
+  /failed to fetch|\bload failed\b|networkerror|network request failed|internet connection|offline/i,
   /resizeobserver loop/i,
+];
+
+// Browsers intentionally hide the details of some cross-origin script errors.
+// The resulting generic message has no source, stack, or actionable application
+// context, so retain it in Error Tracking without waking the operational alert.
+const NON_ACTIONABLE_BROWSER_EXCEPTION_PATTERNS = [
+  // Chromium extension/message-bridge failures are emitted as non-Error promise
+  // rejections without an application stack. They can fire several times in the
+  // same millisecond but do not originate in Note2Tabs code.
+  /object not found matching id:\d+.*methodname:update.*paramcount:\d+/i,
+  // Safari password/autofill extensions ask their injected content script for
+  // targeting rules. Failures in that bridge have no Note2Tabs stack frame.
+  /sendExtensionMessage[\s\S]*getUrlAutofillTargetingRules/i,
+];
+
+function isOpaqueCrossOriginScriptError(exceptionList: unknown) {
+  if (!Array.isArray(exceptionList) || exceptionList.length === 0) return false;
+  return exceptionList.every((exception) => {
+    if (!exception || typeof exception !== "object") return false;
+    const item = exception as Record<string, unknown>;
+    return item.type === "Error" && /^script error\.?$/i.test(String(item.value ?? "").trim());
+  });
+}
+
+// Some iOS embedded browsers occasionally reject an internal promise with a
+// minified one- or two-character `Error` value while the page is unloading.
+// There is no diagnostic message to act on, and these events can otherwise
+// create high-severity issues such as `Error: La`. Keep the event for replay
+// correlation, but do not wake operators for an opaque browser token.
+function isOpaqueShortBrowserError(exceptionList: unknown) {
+  if (!Array.isArray(exceptionList) || exceptionList.length === 0) return false;
+  return exceptionList.every((exception) => {
+    if (!exception || typeof exception !== "object") return false;
+    const item = exception as Record<string, unknown>;
+    const value = String(item.value ?? "").trim();
+    return item.type === "Error" && value.length > 0 && value.length <= 2;
+  });
+}
+
+// A browser can retain an old Next.js route manifest briefly after a deploy and
+// request a chunk Vercel has already retired. The app reloads once to obtain the
+// current manifest; only a failed recovery is operationally actionable.
+const RECOVERABLE_STALE_CHUNK_PATTERNS = [
+  /chunkloaderror/i,
+  /loading chunk [^ ]+ failed/i,
+  /failed to load chunk/i,
+  /failed to fetch dynamically imported module/i,
+  /importing a module script failed/i,
 ];
 
 function exceptionText(value: unknown, depth = 0): string {
@@ -266,8 +314,17 @@ function exceptionText(value: unknown, depth = 0): string {
 
 export function classifyPostHogException(exceptionList: unknown) {
   const text = exceptionText(exceptionList);
+  if (isOpaqueCrossOriginScriptError(exceptionList) || isOpaqueShortBrowserError(exceptionList)) {
+    return { alertEligible: false, classification: "non_actionable_browser_error" } as const;
+  }
+  if (RECOVERABLE_STALE_CHUNK_PATTERNS.some((pattern) => pattern.test(text))) {
+    return { alertEligible: false, classification: "recoverable_stale_chunk" } as const;
+  }
   if (EXPECTED_EXCEPTION_PATTERNS.some((pattern) => pattern.test(text))) {
     return { alertEligible: false, classification: "expected_product_state" } as const;
+  }
+  if (NON_ACTIONABLE_BROWSER_EXCEPTION_PATTERNS.some((pattern) => pattern.test(text.trim()))) {
+    return { alertEligible: false, classification: "non_actionable_browser_error" } as const;
   }
   return { alertEligible: true, classification: "unexpected_application_error" } as const;
 }

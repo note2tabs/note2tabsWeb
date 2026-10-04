@@ -10,11 +10,11 @@ import {
   type BillingInterval,
 } from "../../../lib/stripePremium";
 import { getFreshUserAccess } from "../../../lib/serverAuth";
-import { PLAN_CATALOG, proPlanCheckoutEnabled, type PaidSubscriptionPlan } from "../../../lib/subscriptionPlans";
+import { PLAN_CATALOG, premiumTrialCheckoutEnabled, proPlanCheckoutEnabled, type PaidSubscriptionPlan } from "../../../lib/subscriptionPlans";
+import { DISPLAY_CURRENCIES, type DisplayCurrency } from "../../../lib/localizedPricing";
 import { createPostHogServerClient } from "../../../lib/posthogServer";
 import { inspectPremiumCustomerState } from "../../../lib/stripePremiumOffer";
 import {
-  premiumPricingHref,
   normalizePremiumFunnelId,
   normalizePremiumFunnelReason,
   normalizePremiumFunnelSource,
@@ -54,10 +54,15 @@ const appendCheckoutSessionId = (path: string) => {
 const premiumWelcomePath = (next: string) =>
   `/premium/welcome?next=${encodeURIComponent(next)}`;
 
-const resolveCheckoutReturnPaths = (requestedPath: unknown, pricingCancelPath?: string) => {
-  if (requestedPath === "pricing" && pricingCancelPath) {
-    return { success: premiumWelcomePath("/transcribe"), cancel: pricingCancelPath, manage: "/settings?upgrade=manage" };
-  }
+const appendQueryParam = (path: string, key: string, value: string) => {
+  const hashIndex = path.indexOf("#");
+  const pathAndQuery = hashIndex >= 0 ? path.slice(0, hashIndex) : path;
+  const hash = hashIndex >= 0 ? path.slice(hashIndex) : "";
+  const separator = pathAndQuery.includes("?") ? "&" : "?";
+  return `${pathAndQuery}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}${hash}`;
+};
+
+const resolveCheckoutReturnPaths = (requestedPath: unknown) => {
   if (requestedPath === "/transcribe?resumeTranscription=1") {
     return {
       success: premiumWelcomePath("/transcribe?resumeTranscription=1"),
@@ -106,6 +111,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "Choose monthly or yearly billing." });
   }
   const billingInterval: BillingInterval = rawBillingInterval;
+  const rawDisplayCurrency = typeof req.body?.displayCurrency === "string"
+    ? req.body.displayCurrency.toUpperCase()
+    : "USD";
+  const siteDisplayCurrency = DISPLAY_CURRENCIES.includes(rawDisplayCurrency as DisplayCurrency)
+    ? rawDisplayCurrency.toLowerCase()
+    : "usd";
   if (requestedPlan === "PRO" && !proPlanCheckoutEnabled()) {
     return res.status(503).json({ error: "Pro checkout is not available yet." });
   }
@@ -161,16 +172,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     offer_variant: offerVariant,
     model,
     device_type: deviceType,
-    pricing_layout_version: req.body?.pricingLayoutVersion === "checkout_focus_v1" ? "checkout_focus_v1" : undefined,
-    current_plan: "free",
-    signedIn: true,
     request_id: requestId,
   });
 
   try {
     const baseUrl = getAppBaseUrl(req);
-    const pricingCancelPath = `${premiumPricingHref({ source, reason, funnelId })}&upgrade=cancel&plan=${requestedPlan.toLowerCase()}&billing=${billingInterval}`;
-    const returnPaths = resolveCheckoutReturnPaths(req.body?.returnTo, pricingCancelPath);
+    const returnPaths = resolveCheckoutReturnPaths(req.body?.returnTo);
     const referralCode = affiliateCodeFromRequest(req);
     const referredAffiliate = referralCode
       ? await prisma.affiliate.findFirst({
@@ -183,6 +190,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       config: selectedConfig,
       configs: paidConfigs,
     });
+    const trialIncluded = requestedPlan === "PREMIUM" && premiumTrialCheckoutEnabled() && customerState.trialEligible;
     if (customerState.manageableCustomer) {
       const portal = await stripeClient.billingPortal.sessions.create({
         customer: customerState.manageableCustomer.id,
@@ -221,7 +229,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .update(
       `${session.user.id}|${requestedPlan}|${billingInterval}|${returnPaths.success}|${funnelId}|${
           customerState.subscriptionState.sort().join("|") || "new"
-        }`
+        }|${trialIncluded ? "seven_day_trial" : "immediate_charge"}`
       )
       .digest("hex")
       .slice(0, 24);
@@ -235,7 +243,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       premiumFunnelReason: reason,
       premiumOfferVariant: offerVariant,
       premiumFunnelModel: model,
-      premiumTrialIncluded: "false",
+      premiumTrialIncluded: trialIncluded ? "true" : "false",
+      premiumOfferMode: trialIncluded ? "seven_day_trial" : "immediate_charge",
+      note2tabsCheckoutAttemptId: requestId,
+      note2tabsDisplayCurrency: siteDisplayCurrency,
       ...(activeAttribution
         ? {
             note2tabsAffiliateId: activeAttribution.affiliateId,
@@ -253,13 +264,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         line_items: [{ price: selectedConfig.priceId, quantity: 1 }],
         client_reference_id: funnelId,
         subscription_data: {
+          ...(trialIncluded
+            ? { trial_period_days: selectedPlan.trialDays }
+            : {}),
           metadata: checkoutMetadata,
         },
         ...(activeAttribution?.affiliate.stripePromotionCodeId
           ? { discounts: [{ promotion_code: activeAttribution.affiliate.stripePromotionCodeId }] }
           : { allow_promotion_codes: true }),
         success_url: `${baseUrl}${appendCheckoutSessionId(returnPaths.success)}`,
-        cancel_url: `${baseUrl}${returnPaths.cancel}`,
+        cancel_url: `${baseUrl}${appendQueryParam(returnPaths.cancel, "funnel_id", funnelId)}`,
         metadata: checkoutMetadata,
       },
       { idempotencyKey: `${requestedPlan.toLowerCase()}-${billingInterval}-checkout-${session.user.id}-${checkoutStateHash}` }
@@ -276,11 +290,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       source,
       reason,
       funnel_id: funnelId,
-      trial_included: false,
+      trial_included: trialIncluded,
+      offer_mode: trialIncluded ? "seven_day_trial" : "immediate_charge",
       offer_variant: offerVariant,
       model,
       device_type: deviceType,
       request_id: requestId,
+      checkout_attempt_id: requestId,
+      checkout_session_id: checkout.id,
+      checkout_currency: checkout.currency || undefined,
+      local_currency_eligible: true,
+      site_display_currency: siteDisplayCurrency,
       $insert_id: `checkout-started:${checkout.id}`,
     });
     if (activeAttribution) {
@@ -295,7 +315,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           checkout_session_id: checkout.id,
           plan: selectedPlan.analyticsId,
           billing_interval: billingInterval,
-          trial_included: false,
+          trial_included: trialIncluded,
+          offer_mode: trialIncluded ? "seven_day_trial" : "immediate_charge",
         },
       });
     }
@@ -312,10 +333,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({
       url: checkout.url,
       checkoutAttemptId: requestId,
+      checkoutSessionId: checkout.id,
+      checkoutCurrency: checkout.currency || undefined,
+      localCurrencyEligible: true,
       funnelId,
       plan: requestedPlan.toLowerCase(),
       billingInterval,
-      trialIncluded: false,
+      trialIncluded,
+      offerMode: trialIncluded ? "seven_day_trial" : "immediate_charge",
       offerVariant,
     });
   } catch (error) {

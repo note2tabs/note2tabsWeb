@@ -1,6 +1,9 @@
-import { track as trackAnalyticsV2 } from "./analyticsV2";
 import { publishTranscriptionCompletedForPremiumPrompt } from "./premiumPromptSignals";
-import type { TranscriptionModelChoice } from "./transcriptionModels";
+import { track as trackAnalyticsV2 } from "./analyticsV2";
+import {
+  getTranscriptionModelAnalyticsProperties,
+  type TranscriptionModelChoice,
+} from "./transcriptionModels";
 import {
   sanitizeAnalyticsPathname,
   sanitizeAnalyticsProperties,
@@ -13,10 +16,6 @@ type EventPayload = Record<string, unknown> | undefined;
 export const ANALYTICS_EVENTS = {
   pageView: "$pageview",
   ctaClicked: "cta_clicked",
-  pricingAuthHandoff: "pricing_auth_handoff",
-  pricingCheckoutResumed: "pricing_checkout_resumed",
-  pricingBillingSelected: "pricing_billing_selected",
-  pricingCheckoutCancelled: "pricing_checkout_cancelled",
   pricingViewed: "pricing_viewed",
   pricingCtaClicked: "pricing_cta_clicked",
   checkoutStarted: "checkout_started",
@@ -24,6 +23,11 @@ export const ANALYTICS_EVENTS = {
   checkoutRedirected: "checkout_redirected",
   checkoutFailed: "checkout_failed",
   checkoutClientFailed: "checkout_client_failed",
+  checkoutCancelled: "checkout_cancelled",
+  checkoutAbandoned: "checkout_abandoned",
+  checkoutPaymentFailed: "checkout_payment_failed",
+  checkoutAbandonmentReasonSubmitted: "checkout_abandonment_reason_submitted",
+  checkoutAbandonmentReasonDismissed: "checkout_abandonment_reason_dismissed",
   subscriptionStarted: "subscription_started",
   subscriptionCheckoutConfirmed: "subscription_checkout_confirmed",
   premiumTrialActivationShown: "premium_trial_activation_shown",
@@ -46,6 +50,10 @@ export const ANALYTICS_EVENTS = {
   signupStarted: "signup_started",
   signupCompleted: "signup_completed",
   signupFailed: "signup_failed",
+  emailVerified: "email_verified",
+  tabShareEmailClicked: "tab_share_email_clicked",
+  tabShareEmailSignupCompleted: "tab_share_email_signup_completed",
+  tabShareDialogOpened: "tab_share_dialog_opened",
   loginSucceeded: "login_succeeded",
   inactiveSignupReminderLanded: "inactive_signup_reminder_landed",
   tabReturnReminderLanded: "tab_return_reminder_landed",
@@ -64,7 +72,21 @@ export const ANALYTICS_EVENTS = {
   uploadStorageFailed: "upload_storage_failed",
   tabGenerationStarted: "transcription_started",
   transcriptionStartedLightModel: "transcription_started_light_model",
+  transcriptionStartedMediumModel: "transcription_started_medium_model",
   transcriptionStartedHeavyModel: "transcription_started_heavy_model",
+  heavyPreviewShown: "heavy_preview_shown",
+  heavyPreviewConfirmationShown: "heavy_preview_confirmation_shown",
+  heavyPreviewSelected: "heavy_preview_selected",
+  heavyPreviewConfirmationDismissed: "heavy_preview_confirmation_dismissed",
+  heavyPreviewStarted: "heavy_preview_started",
+  heavyPreviewCompleted: "heavy_preview_completed",
+  heavyPreviewUpgradeShown: "heavy_preview_upgrade_shown",
+  heavyPreviewUpgradeClicked: "heavy_preview_upgrade_clicked",
+  heavyPreviewUpgradeDismissed: "heavy_preview_upgrade_dismissed",
+  postLightModelPromptShown: "post_light_model_prompt_shown",
+  postLightModelPromptClicked: "post_light_model_prompt_clicked",
+  postLightModelPromptDismissed: "post_light_model_prompt_dismissed",
+  verificationGateShown: "verification_gate_shown",
   tabGenerationQueued: "transcription_queued",
   tabGenerationSucceeded: "transcription_succeeded",
   jobCompleted: "job_completed",
@@ -77,6 +99,7 @@ export const ANALYTICS_EVENTS = {
   accountDeletionAlternativeClicked: "account_deletion_alternative_clicked",
   accountDeletionConfirmed: "account_deletion_confirmed",
   internshipApplicationSubmitted: "internship_application_submitted",
+  staleChunkRecoveryFailed: "stale_chunk_recovery_failed",
 } as const;
 
 function getUtmParams() {
@@ -134,18 +157,36 @@ export function sendEvent(event: string, payload?: EventPayload) {
 export function getTranscriptionStartedModelEvent(
   transcriptionModel: TranscriptionModelChoice
 ) {
-  return transcriptionModel === "heavy"
-    ? ANALYTICS_EVENTS.transcriptionStartedHeavyModel
-    : ANALYTICS_EVENTS.transcriptionStartedLightModel;
+  if (transcriptionModel === "super_heavy") {
+    return ANALYTICS_EVENTS.transcriptionStartedHeavyModel;
+  }
+  if (transcriptionModel === "heavy") {
+    return ANALYTICS_EVENTS.transcriptionStartedMediumModel;
+  }
+  return ANALYTICS_EVENTS.transcriptionStartedLightModel;
 }
 
 export function sendTranscriptionStartedEvents(
   transcriptionModel: TranscriptionModelChoice,
   payload?: EventPayload
 ) {
-  const properties = { ...(payload || {}), transcriptionModel };
+  const properties = {
+    ...(payload || {}),
+    ...getTranscriptionModelAnalyticsProperties(transcriptionModel),
+  };
   sendEvent(ANALYTICS_EVENTS.tabGenerationStarted, properties);
   sendEvent(getTranscriptionStartedModelEvent(transcriptionModel), properties);
+}
+
+export function getAcceptedTranscriptionAccessType(
+  heavyPreviewUsed: boolean,
+  hasPaidAccess: boolean,
+  isStaff = false
+) {
+  if (heavyPreviewUsed) return "preview" as const;
+  if (isStaff) return "staff" as const;
+  if (hasPaidAccess) return "paid" as const;
+  return "free" as const;
 }
 
 export function trackCtaClick(name: string, payload?: EventPayload) {

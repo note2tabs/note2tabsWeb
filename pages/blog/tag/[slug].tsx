@@ -1,10 +1,11 @@
-import type { GetServerSideProps } from "next";
+import type { GetStaticPaths, GetStaticProps } from "next";
 import Link from "next/link";
 import { prisma } from "../../../lib/prisma";
 import { withPrismaReadRetry } from "../../../lib/prismaRetry";
 import { estimateReadingTime, getPublishedWhere } from "../../../lib/blog";
 import BlogPostCard from "../../../components/blog/BlogPostCard";
 import SeoHead, { absoluteUrl } from "../../../components/SeoHead";
+import { shouldIndexBlogArchive } from "../../../lib/blogIndexPolicy";
 
 type TagPageProps = {
   tag: { name: string; slug: string };
@@ -53,7 +54,7 @@ export default function BlogTagPage({ tag, posts }: TagPageProps) {
         title={`${tag.name} Articles | Note2Tabs Blog`}
         description={description}
         canonicalPath={canonicalPath}
-        noindex={posts.length === 0}
+        noindex={!shouldIndexBlogArchive("tag", tag.slug)}
         jsonLd={jsonLd}
       />
       <div className="container stack">
@@ -96,7 +97,9 @@ export default function BlogTagPage({ tag, posts }: TagPageProps) {
   );
 }
 
-export const getServerSideProps: GetServerSideProps<TagPageProps> = async (ctx) => {
+export const getStaticPaths: GetStaticPaths = async () => ({ paths: [], fallback: "blocking" });
+
+export const getStaticProps: GetStaticProps<TagPageProps> = async (ctx) => {
   const slug = ctx.params?.slug as string;
   const tag = await withPrismaReadRetry(() => prisma.tag.findUnique({
     where: { slug },
@@ -105,7 +108,6 @@ export const getServerSideProps: GetServerSideProps<TagPageProps> = async (ctx) 
   if (!tag) {
     return { notFound: true };
   }
-  ctx.res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=3600");
 
   const postsRaw = await withPrismaReadRetry(() => prisma.post.findMany({
     where: {
@@ -140,5 +142,6 @@ export const getServerSideProps: GetServerSideProps<TagPageProps> = async (ctx) 
         publishedAt: post.publishedAt ? post.publishedAt.toISOString() : null,
       })),
     },
+    revalidate: 3600,
   };
 };

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Note2TabsSelect from "../components/Note2TabsSelect";
 import { PLAN_CATALOG, effectiveSubscriptionPlan, proPlanPresentationEnabled, type PaidSubscriptionPlan } from "../lib/subscriptionPlans";
 import type { BillingInterval } from "../lib/stripePremium";
 import Image from "next/image";
@@ -9,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import {
   ANALYTICS_EVENTS,
+  getAcceptedTranscriptionAccessType,
   sendEvent,
   sendTranscriptionStartedEvents,
   trackCtaClick,
@@ -16,6 +18,9 @@ import {
 import { buildTranscriptionResearchProperties } from "../lib/retentionResearch";
 import { isDevelopmentClient, isLocalNoDbClientMode } from "../lib/clientDevMode";
 import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
+import { rememberCheckoutAttempt } from "../lib/checkoutTracking";
+import { formatLocalizedAmount, formatLocalizedPrice, localizedAnnualSaving } from "../lib/localizedPricing";
+import { useDisplayCurrency } from "../lib/useDisplayCurrency";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
 import { tabSegmentsToStamps } from "../lib/tabTextToStamps";
@@ -23,8 +28,10 @@ import { fetchYouTubeVideoTitle } from "../lib/youtubeTitle";
 import {
   DEFAULT_TRANSCRIPTION_MODEL,
   getDefaultTranscriptionModel,
+  HEAVY_PREVIEW_MAX_DURATION_SEC,
   type TranscriptionModelChoice,
 } from "../lib/transcriptionModels";
+import { useHeavyPreviewCountryEligibility } from "../lib/useHeavyPreviewCountryEligibility";
 import {
   DEFAULT_FILE_SNIPPET_SEC,
   DEFAULT_YOUTUBE_SNIPPET_SEC,
@@ -48,6 +55,8 @@ import SeoHead, {
 } from "../components/SeoHead";
 import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown";
 import TranscriptionModelValueNote from "../components/TranscriptionModelValueNote";
+import HeavyPreviewIntroDialog from "../components/HeavyPreviewIntroDialog";
+import HeavyPreviewOffer from "../components/HeavyPreviewOffer";
 import PremiumConversionCard from "../components/PremiumConversionCard";
 import { publishCreditsForPremiumPrompt } from "../lib/premiumPromptSignals";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
@@ -92,6 +101,7 @@ type TabsResponse = {
   status?: string;
   gteEditorId?: string;
   verificationRequired?: boolean;
+  heavyPreviewUsed?: boolean;
   unverifiedTranscriptionUsed?: boolean;
 };
 type CreditsResponse = {
@@ -227,14 +237,19 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   const [pricingBusy, setPricingBusy] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
   const [pricingBillingInterval, setPricingBillingInterval] = useState<BillingInterval>("monthly");
+  const displayCurrency = useDisplayCurrency();
   const [authHandoffBusy, setAuthHandoffBusy] = useState(false);
   const [showInstrumentPrompt, setShowInstrumentPrompt] = useState(false);
   const [includesOtherInstruments, setIncludesOtherInstruments] = useState<boolean | null>(null);
   const [transcriptionModel, setTranscriptionModel] =
     useState<TranscriptionModelChoice>(DEFAULT_TRANSCRIPTION_MODEL);
   const transcriptionModelTouchedRef = useRef(false);
+  const heavyPreviewShownRef = useRef(false);
   const [multipleGuitars, setMultipleGuitars] = useState<boolean | null>(null);
-  const [localUnverifiedTranscriptionUsed, setLocalUnverifiedTranscriptionUsed] = useState(false);
+  const [localHeavyPreviewUsed, setLocalHeavyPreviewUsed] = useState(false);
+  const [showHeavyPreviewIntro, setShowHeavyPreviewIntro] = useState(false);
+  const [heavyPreviewConfirmationIntent, setHeavyPreviewConfirmationIntent] = useState<"select" | "start">("start");
+  const heavyPreviewAcknowledgedRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
   const convertInFlightRef = useRef(false);
@@ -261,16 +276,27 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   );
   const requireVerifiedEmail = process.env.NODE_ENV === "production";
   const isEmailVerified = !requireVerifiedEmail || Boolean(transcriberSession?.user?.isEmailVerified);
-  const unverifiedTranscriptionUsed =
-    localUnverifiedTranscriptionUsed || Boolean(transcriberSession?.user?.unverifiedTranscriptionUsed);
-  const canUseUnverifiedTranscription = !requireVerifiedEmail || isEmailVerified || !unverifiedTranscriptionUsed;
+  const unverifiedTranscriptionUsed = Boolean(transcriberSession?.user?.unverifiedTranscriptionUsed);
+  const heavyPreviewUsed =
+    localHeavyPreviewUsed || Boolean(transcriberSession?.user?.heavyPreviewUsed);
+  const { countryEligible: heavyPreviewCountryEligible } =
+    useHeavyPreviewCountryEligibility(Boolean(transcriberSession && !isPremiumUser && !heavyPreviewUsed));
+  const heavyPreviewAvailable = Boolean(
+    transcriberSession &&
+      heavyPreviewCountryEligible &&
+      isEmailVerified &&
+      !isPremiumUser &&
+      !heavyPreviewUsed
+  );
+  const canUseHeavy = isPremiumUser || heavyPreviewAvailable;
+  const canTranscribe = !requireVerifiedEmail || isEmailVerified || !unverifiedTranscriptionUsed;
   const displayedCredits = useMemo(
     () => credits ?? (disableDbInDev ? buildDevCreditsSummary() : null),
     [credits, disableDbInDev]
   );
-  const verifyHref = `/auth/verify-email${
+  const verifyHref = `/auth/verify-email?next=${encodeURIComponent("/?resumeTranscription=1")}${
     transcriberSession?.user?.email
-      ? `?email=${encodeURIComponent(transcriberSession.user.email)}`
+      ? `&email=${encodeURIComponent(transcriberSession.user.email)}`
       : ""
   }`;
   const appendEditorId = useMemo(() => {
@@ -301,8 +327,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   }, [fileStartTime, fileEndTime]);
   const fileTimeRangeValid = useMemo(() => {
     if (!selectedFile) return false;
-    return isFileClipRangeValid(fileStartTime, fileEndTime, fileDuration, isPremiumUser);
-  }, [fileDuration, fileEndTime, fileStartTime, isPremiumUser, selectedFile]);
+    return isFileClipRangeValid(fileStartTime, fileEndTime, fileDuration, isPremiumUser) &&
+      (!heavyPreviewAvailable || transcriptionModel !== "super_heavy" || resolvedFileDuration <= HEAVY_PREVIEW_MAX_DURATION_SEC);
+  }, [fileDuration, fileEndTime, fileStartTime, heavyPreviewAvailable, isPremiumUser, resolvedFileDuration, selectedFile, transcriptionModel]);
   const shouldDeferEditorSync = Boolean(appendEditorId);
   const shouldRedirectToProductHome =
     router.isReady &&
@@ -316,11 +343,17 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
   useEffect(() => {
     if (sessionStatus === "loading" || transcriptionModelTouchedRef.current) return;
-    setTranscriptionModel(getDefaultTranscriptionModel(isPremiumUser));
-  }, [isPremiumUser, sessionStatus]);
+    setTranscriptionModel(getDefaultTranscriptionModel(isPremiumUser, heavyPreviewAvailable));
+  }, [heavyPreviewAvailable, isPremiumUser, sessionStatus]);
 
   useEffect(() => {
-    setLocalUnverifiedTranscriptionUsed(Boolean(session?.user?.unverifiedTranscriptionUsed));
+    if (!heavyPreviewAvailable || heavyPreviewShownRef.current) return;
+    heavyPreviewShownRef.current = true;
+    sendEvent(ANALYTICS_EVENTS.heavyPreviewShown, { surface: "home_transcriber" });
+  }, [heavyPreviewAvailable]);
+
+  useEffect(() => {
+    setLocalHeavyPreviewUsed(Boolean(session?.user?.heavyPreviewUsed));
     if (session?.user?.monthlyCreditsUsed !== undefined) {
       setCredits({
         used: session.user.monthlyCreditsUsed ?? 0,
@@ -504,8 +537,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         setStatus("Choose a smaller audio file to continue.");
       } else if (requiresPremium && !premiumEntitlementReady) {
         setStatus("Your upload is restored. Upgrade to Premium to transcribe this file.");
-      } else if (!canUseUnverifiedTranscription) {
-        setError("Please verify your email to continue using the transcriber.");
+      } else if (!canTranscribe) {
+        setError("Verify your email to start transcribing and unlock your free Heavy preview.");
         setStatus("Your upload is restored and will remain available after verification.");
       } else {
         setShowInstrumentPrompt(true);
@@ -529,7 +562,10 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   useEffect(() => {
     if (!selectedFile || fileDuration === null || fileStartTime !== 0 || fileEndTime === null) return;
     const fileLength = Math.max(1, Math.ceil(fileDuration));
-    const freeDefaultEnd = Math.min(fileLength, MAX_FREE_FILE_SNIPPET_SEC);
+    const freeLimit = heavyPreviewAvailable && transcriptionModel === "super_heavy"
+      ? HEAVY_PREVIEW_MAX_DURATION_SEC
+      : MAX_FREE_FILE_SNIPPET_SEC;
+    const freeDefaultEnd = Math.min(fileLength, freeLimit);
     if (isPremiumUser && fileEndTime === freeDefaultEnd && fileLength > freeDefaultEnd) {
       setFileEndTime(fileLength);
       setFileEndInput(formatTimestamp(fileLength));
@@ -539,7 +575,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       setFileEndTime(freeDefaultEnd);
       setFileEndInput(formatTimestamp(freeDefaultEnd));
     }
-  }, [fileDuration, fileEndTime, fileStartTime, isPremiumUser, selectedFile]);
+  }, [fileDuration, fileEndTime, fileStartTime, heavyPreviewAvailable, isPremiumUser, selectedFile, transcriptionModel]);
 
   const handleYtStartInputChange = (value: string) => {
     const nextValue = preserveTimestampColon(value, ytStartInput);
@@ -642,7 +678,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   const youtubeValid = useMemo(() => Boolean(youtubeId), [youtubeId]);
 
   const canSubmit = useMemo(() => {
-    if (sessionStatus === "loading" || (isSignedIn && !canUseUnverifiedTranscription)) return false;
+    if (sessionStatus === "loading" || (isSignedIn && !canTranscribe)) return false;
     if (mode === "FILE") return Boolean(selectedFile) && fileTimeRangeValid && !loading && !authHandoffBusy;
     return youtubeValid && youtubeTimeRangeValid && !loading && !authHandoffBusy;
   }, [
@@ -654,7 +690,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     loading,
     authHandoffBusy,
     isSignedIn,
-    canUseUnverifiedTranscription,
+    canTranscribe,
     sessionStatus,
   ]);
   const submitLabel = authHandoffBusy
@@ -665,8 +701,12 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       : "Generating..."
     : mode === "FILE" && !selectedFile
     ? "Choose audio file"
-    : mode === "YOUTUBE"
-    ? "Generate tabs"
+    : sessionStatus === "loading"
+    ? "Checking account…"
+    : !isSignedIn
+    ? "Continue to sign in"
+    : heavyPreviewAvailable && transcriptionModel === "super_heavy"
+    ? "Use free Heavy preview"
     : "Generate tabs";
   const buildTranscribingStatusLabel = (separateGuitar: boolean) =>
     separateGuitar ? "Separating guitar and transcribing audio..." : "Transcribing audio...";
@@ -756,8 +796,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       signIn(undefined, { callbackUrl: "/" });
       return false;
     }
-    if (transcriberSession && !canUseUnverifiedTranscription) {
-      setError("Please verify your email to continue using the transcriber.");
+    if (transcriberSession && !canTranscribe) {
+      setError("Verify your email to start transcribing and unlock your free Heavy preview.");
+      sendEvent(ANALYTICS_EVENTS.verificationGateShown, { surface: "home_transcriber", mode });
       sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "email_unverified", mode });
       return false;
     }
@@ -809,7 +850,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     }
 
     if (mode === "FILE" && selectedFile && !fileTimeRangeValid) {
-      setError("Selected file clip must be greater than 0 and within the file length.");
+      setError(heavyPreviewAvailable && transcriptionModel === "super_heavy"
+        ? "Your one-time Heavy preview can include up to 30 seconds."
+        : "Selected file clip must be greater than 0 and within the file length.");
       return false;
     }
     if (mode === "YOUTUBE") {
@@ -855,8 +898,6 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       durationSec: mode === "YOUTUBE" ? resolvedYtDuration : resolvedFileDuration,
       appendingToExistingEditor: Boolean(appendEditorId),
     });
-    sendTranscriptionStartedEvents(transcriptionModel, researchProperties);
-
     try {
       let response: Response | null = null;
       const youtubeTitlePromise = mode === "YOUTUBE" ? fetchYouTubeVideoTitle(youtubeId) : null;
@@ -967,13 +1008,35 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
       const data = (await response.json().catch(() => ({}))) as { error?: string } & TabsResponse;
       if (response.status === 202 && data.jobId) {
+        const accessType = getAcceptedTranscriptionAccessType(
+          Boolean(data.heavyPreviewUsed),
+          isPremiumUser && !isStaffUser,
+          isStaffUser
+        );
+        sendTranscriptionStartedEvents(transcriptionModel, {
+          ...researchProperties,
+          jobId: data.jobId,
+          acceptance_status: "accepted",
+          access_type: accessType,
+          heavy_preview: Boolean(data.heavyPreviewUsed),
+        });
         await clearPendingTranscription().catch(() => {});
         if (data.credits) {
           setCredits(data.credits);
         }
         if (data.unverifiedTranscriptionUsed) {
-          setLocalUnverifiedTranscriptionUsed(true);
           await updateSession().catch(() => null);
+        }
+        if (data.heavyPreviewUsed) {
+          setLocalHeavyPreviewUsed(true);
+          await updateSession().catch(() => null);
+          sendEvent(ANALYTICS_EVENTS.heavyPreviewStarted, {
+            surface: "home_transcriber",
+            mode,
+            jobId: data.jobId,
+            acceptance_status: "accepted",
+            access_type: "preview",
+          });
         }
         setStatus("Getting things started. Opening progress screen...");
         sendEvent(ANALYTICS_EVENTS.tabGenerationQueued, {
@@ -986,6 +1049,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         jobParams.set("separateGuitar", separateGuitar ? "1" : "0");
         jobParams.set("multipleGuitars", multipleGuitars ? "1" : "0");
         jobParams.set("model", transcriptionModel);
+        if (data.heavyPreviewUsed) jobParams.set("heavyPreview", "1");
         const selectedDuration = mode === "YOUTUBE" ? resolvedYtDuration : resolvedFileDuration;
         if (Number.isFinite(selectedDuration) && selectedDuration > 0) {
           jobParams.set("duration", String(Math.round(selectedDuration)));
@@ -1007,9 +1071,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
           setCredits(data.credits);
         }
         if (data.verificationRequired) {
-          setLocalUnverifiedTranscriptionUsed(true);
           await updateSession().catch(() => null);
-          setError("Please verify your email to continue using the transcriber.");
+          setError("Verify your email to start transcribing and unlock your free Heavy preview.");
           return;
         }
         if (response.status === 403 && data.credits) {
@@ -1033,14 +1096,33 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         return;
       }
       const nextTabs = data.tabs;
+      const accessType = getAcceptedTranscriptionAccessType(
+        Boolean(data.heavyPreviewUsed),
+        isPremiumUser && !isStaffUser,
+        isStaffUser
+      );
+      sendTranscriptionStartedEvents(transcriptionModel, {
+        ...researchProperties,
+        jobId: data.jobId || data.tabJobId,
+        acceptance_status: "accepted",
+        access_type: accessType,
+        heavy_preview: Boolean(data.heavyPreviewUsed),
+      });
       await clearPendingTranscription().catch(() => {});
       setTranscriberSegments(Array.isArray(data.transcriberSegments) ? data.transcriberSegments : null);
       if (data.credits) {
         setCredits(data.credits);
       }
-      if (data.unverifiedTranscriptionUsed) {
-        setLocalUnverifiedTranscriptionUsed(true);
+      if (data.heavyPreviewUsed) {
+        setLocalHeavyPreviewUsed(true);
         await updateSession().catch(() => null);
+        sendEvent(ANALYTICS_EVENTS.heavyPreviewStarted, {
+          surface: "home_transcriber",
+          mode,
+          jobId: data.jobId || data.tabJobId,
+          acceptance_status: "accepted",
+          access_type: "preview",
+        });
       }
       sendEvent(ANALYTICS_EVENTS.tabGenerationSucceeded, {
         ...researchProperties,
@@ -1157,6 +1239,15 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     if (includesOtherInstruments === null || multipleGuitars === null) return;
     if (!validateConvertInputs()) {
       setShowInstrumentPrompt(false);
+      return;
+    }
+    if (heavyPreviewAvailable && transcriptionModel === "super_heavy" && !heavyPreviewAcknowledgedRef.current) {
+      setHeavyPreviewConfirmationIntent("start");
+      setShowHeavyPreviewIntro(true);
+      sendEvent(ANALYTICS_EVENTS.heavyPreviewConfirmationShown, {
+        surface: "home_transcriber",
+        trigger: "transcription_start",
+      });
       return;
     }
     void startConvert(includesOtherInstruments);
@@ -1339,6 +1430,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       cta: plan === "PRO" ? "pro_card" : "premium_card",
       plan: plan.toLowerCase(),
       billing_interval: pricingBillingInterval,
+      display_currency: displayCurrency.toLowerCase(),
       signedIn: Boolean(session),
       path: "/",
       ...premiumFunnelProperties(funnel),
@@ -1363,6 +1455,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
           funnelId: funnel.funnelId,
           plan: plan.toLowerCase(),
           billingInterval: pricingBillingInterval,
+          displayCurrency: displayCurrency.toLowerCase(),
         }),
       });
       const data = await res.json();
@@ -1379,7 +1472,20 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         plan: `${plan.toLowerCase()}_${pricingBillingInterval}`,
         billing_interval: pricingBillingInterval,
         checkout_attempt_id: data.checkoutAttemptId,
+        checkout_session_id: data.checkoutSessionId,
+        checkout_currency: data.checkoutCurrency,
+        local_currency_eligible: data.localCurrencyEligible,
         ...premiumFunnelProperties(funnel),
+      });
+      rememberCheckoutAttempt({
+        checkoutSessionId: data.checkoutSessionId,
+        checkoutAttemptId: data.checkoutAttemptId,
+        funnelId: funnel.funnelId,
+        plan: `${plan.toLowerCase()}_${pricingBillingInterval}`,
+        billingInterval: pricingBillingInterval,
+        checkoutCurrency: data.checkoutCurrency,
+        source: funnel.source,
+        reason: funnel.reason,
       });
       if (data.url) window.location.href = data.url;
       else await router.push("/settings?planChanged=1");
@@ -1428,7 +1534,20 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
         plan: "premium_monthly",
         checkout_attempt_id: payload.checkoutAttemptId,
+        checkout_session_id: payload.checkoutSessionId,
+        checkout_currency: payload.checkoutCurrency,
+        local_currency_eligible: payload.localCurrencyEligible,
         ...premiumFunnelProperties(funnel),
+      });
+      rememberCheckoutAttempt({
+        checkoutSessionId: payload.checkoutSessionId,
+        checkoutAttemptId: payload.checkoutAttemptId,
+        funnelId: funnel.funnelId,
+        plan: "premium_monthly",
+        billingInterval: "monthly",
+        checkoutCurrency: payload.checkoutCurrency,
+        source: funnel.source,
+        reason: funnel.reason,
       });
       window.location.assign(payload.url);
     } catch (upgradeError) {
@@ -1480,9 +1599,36 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
   return (
     <>
+      <HeavyPreviewIntroDialog
+        open={showHeavyPreviewIntro}
+        onCancel={() => {
+          setShowHeavyPreviewIntro(false);
+          sendEvent(ANALYTICS_EVENTS.heavyPreviewConfirmationDismissed, {
+            surface: "home_transcriber",
+            trigger: heavyPreviewConfirmationIntent === "select" ? "offer" : "transcription_start",
+          });
+        }}
+        onConfirm={() => {
+          heavyPreviewAcknowledgedRef.current = true;
+          setShowHeavyPreviewIntro(false);
+          if (heavyPreviewConfirmationIntent === "select") {
+            selectTranscriptionModel("super_heavy");
+            sendEvent(ANALYTICS_EVENTS.heavyPreviewSelected, {
+              surface: "home_transcriber",
+              trigger: "offer",
+            });
+            return;
+          }
+          sendEvent(ANALYTICS_EVENTS.heavyPreviewSelected, {
+            surface: "home_transcriber",
+            trigger: "transcription_start",
+          });
+          if (includesOtherInstruments !== null) void startConvert(includesOtherInstruments);
+        }}
+      />
       <SeoHead
-        title="Note2Tabs | Convert Audio and YouTube to Guitar Tabs"
-        description="Convert audio files or YouTube links into playable guitar tabs online, then open them in a complete browser-based guitar tab editor."
+        title="AI Guitar Tab Generator – Audio & YouTube to Tabs | Note2Tabs"
+        description="Upload an MP3 or WAV, or paste a YouTube link to generate playable guitar tabs online. Edit, practise, and export every transcription in your browser."
         canonicalPath="/"
         jsonLd={homeJsonLd}
       />
@@ -1535,6 +1681,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                         value={transcriptionModel}
                         onChange={selectTranscriptionModel}
                         disabled={loading || authHandoffBusy}
+                        canUseHeavy={canUseHeavy}
+                        heavyPreviewAvailable={heavyPreviewAvailable}
+                        verificationRequired={isSignedIn && heavyPreviewCountryEligible && !isEmailVerified}
                       />
                     </div>
                   )}
@@ -1555,15 +1704,30 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 )}
               </div>
               {!showInstrumentPrompt && (
-                <TranscriptionModelValueNote
-                  model={transcriptionModel}
-                  isPremium={isPremiumUser}
-                  onSelectHeavy={() => {
-                    selectTranscriptionModel("heavy");
-                    trackCtaClick("try_heavy_model", { surface: "hero_funnel" });
-                  }}
-                  surface="hero_funnel"
-                />
+                heavyPreviewAvailable ? (
+                  <HeavyPreviewOffer
+                    selected={transcriptionModel === "super_heavy"}
+                    onSelect={() => {
+                      setHeavyPreviewConfirmationIntent("select");
+                      setShowHeavyPreviewIntro(true);
+                      sendEvent(ANALYTICS_EVENTS.heavyPreviewConfirmationShown, {
+                        surface: "home_transcriber",
+                        trigger: "offer",
+                      });
+                      trackCtaClick("use_free_heavy_preview", { surface: "hero_funnel" });
+                    }}
+                  />
+                ) : (
+                  <TranscriptionModelValueNote
+                    model={transcriptionModel}
+                    isPremium={isPremiumUser}
+                    onSelectMedium={() => {
+                      selectTranscriptionModel("heavy");
+                      trackCtaClick("try_medium_model", { surface: "hero_funnel" });
+                    }}
+                    surface="hero_funnel"
+                  />
+                )
               )}
 
               {showInstrumentPrompt ? (
@@ -1582,7 +1746,10 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                       <button type="button" className={`button-secondary instrument-choice-button ${multipleGuitars === false ? "active" : ""}`} onClick={() => setMultipleGuitars(false)} aria-pressed={multipleGuitars === false} disabled={loading || authHandoffBusy}>No</button>
                     </div>
                   </div>
-                  <button type="button" className="button-primary instrument-start-button" onClick={handleInstrumentPromptStart} disabled={loading || !instrumentPromptComplete}>Start transcription</button>
+                  <div className="transcription-auth-cta">
+                    <button type="button" className="button-primary instrument-start-button" onClick={handleInstrumentPromptStart} disabled={loading || !instrumentPromptComplete}>{!isSignedIn ? "Continue to sign in" : heavyPreviewAvailable && transcriptionModel === "super_heavy" ? "Use free Heavy preview" : "Start transcription"}</button>
+                    {!isSignedIn && <p>A free account is required. Your selection will be saved.</p>}
+                  </div>
                 </div>
               ) : (
                 <>
@@ -1678,18 +1845,21 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                           YouTube link
                         </button>
                       </div>
-                      <button
-                        type="submit"
-                        className="button-primary funnel-submit"
-                        disabled={
-                          loading ||
-                          authHandoffBusy ||
-                          (mode === "YOUTUBE" && !canSubmit) ||
-                          (mode === "FILE" && Boolean(selectedFile) && !canSubmit)
-                        }
-                      >
-                        {submitLabel}
-                      </button>
+                      <div className="transcription-auth-cta transcription-auth-cta--toolbar">
+                        <button
+                          type="submit"
+                          className="button-primary funnel-submit"
+                          disabled={
+                            loading ||
+                            authHandoffBusy ||
+                            (mode === "YOUTUBE" && !canSubmit) ||
+                            (mode === "FILE" && Boolean(selectedFile) && !canSubmit)
+                          }
+                        >
+                          {submitLabel}
+                        </button>
+                        {!isSignedIn && canSubmit && <p>A free account is required. Your selection will be saved.</p>}
+                      </div>
                     </div>
                   </div>
 
@@ -1786,9 +1956,11 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
               {needsPremiumForSelectedFile && pricingError && (
                 <div className="error" role="alert">{pricingError}</div>
               )}
-              {isSignedIn && !isEmailVerified && !canUseUnverifiedTranscription && (
+              {isSignedIn && !isEmailVerified && (
                 <div className="notice">
-                  Verify your email to continue using the transcriber.{" "}
+                  {unverifiedTranscriptionUsed
+                    ? "Verify your email to continue transcribing and unlock your free Heavy preview. "
+                    : "You can make one transcription now. Verify your email to keep transcribing and unlock your free Heavy preview. "}
                   <Link href={verifyHref} className="button-link">
                     Verify now
                   </Link>
@@ -1832,19 +2004,14 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 <div className="results-actions">
                   {isSignedIn && (
                     <div className="button-row">
-                      <select
-                        className="form-select button-small"
+                      <Note2TabsSelect
+                        className="note2tabs-select--compact"
                         value={editorChoice}
-                        onChange={(event) => setEditorChoice(event.target.value)}
+                        onChange={setEditorChoice}
                         disabled={editorLoading}
-                      >
-                        <option value="new">New editor</option>
-                        {editorChoicesForSelect.map((editor) => (
-                          <option key={editor.id} value={editor.id}>
-                            {editor.name || "Untitled"}
-                          </option>
-                        ))}
-                      </select>
+                        label="Import destination"
+                        options={[{ value: "new", label: "New editor" }, ...editorChoicesForSelect.map((editor) => ({ value: editor.id, label: editor.name || "Untitled" }))]}
+                      />
                       <button
                         type="button"
                         className="button-primary"
@@ -1921,13 +2088,17 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         <section className="home-workflow-links" aria-labelledby="home-workflow-links-title">
           <div className="container">
             <div className="home-workflow-links-header">
-              <h2 id="home-workflow-links-title">A focused path for every source</h2>
-              <p>Choose the workflow that matches your recording, then finish the result in the same editor.</p>
+              <h2 id="home-workflow-links-title">Choose your guitar tab converter</h2>
+              <p>Start with the format you have, then play, edit, practise, and export the result in the same editor.</p>
             </div>
             <div className="home-workflow-link-grid">
+              <Link href="/mp3-to-guitar-tabs">
+                <strong>Convert MP3 to guitar tabs</strong>
+                <span>Turn an MP3 recording into playable, editable guitar tablature online.</span>
+              </Link>
               <Link href="/audio-to-guitar-tab-converter">
-                <strong>Convert an audio file</strong>
-                <span>Upload MP3, WAV, or another recording and generate a structured, editable guitar tab.</span>
+                <strong>Convert WAV and other audio</strong>
+                <span>Upload a WAV or another audio recording and generate a structured guitar tab.</span>
               </Link>
               <Link href="/youtube-to-guitar-tabs">
                 <strong>Convert a YouTube clip</strong>
@@ -2051,14 +2222,14 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
             </div>
             {proPlanPresentationEnabled() && <div className="pricing-billing-toggle" role="group" aria-label="Billing interval" data-reveal>
               <button type="button" aria-pressed={pricingBillingInterval === "monthly"} className={pricingBillingInterval === "monthly" ? "is-active" : ""} onClick={() => setPricingBillingInterval("monthly")}>Monthly</button>
-              <button type="button" aria-pressed={pricingBillingInterval === "yearly"} className={pricingBillingInterval === "yearly" ? "is-active" : ""} onClick={() => setPricingBillingInterval("yearly")}>Yearly <span>Save $30!</span></button>
+              <button type="button" aria-pressed={pricingBillingInterval === "yearly"} className={pricingBillingInterval === "yearly" ? "is-active" : ""} onClick={() => setPricingBillingInterval("yearly")}>Yearly <span>Save {localizedAnnualSaving("PRO", displayCurrency)}!</span></button>
             </div>}
             <div className={`pricing-page__plans home-pricing__plans${proPlanPresentationEnabled() ? " pricing-page__plans--three" : ""}`}>
               <article className="pricing-plan pricing-plan--free" data-reveal>
                 <div className="pricing-plan__top">
                   <h3>Free</h3>
                   <div className="pricing-plan__price">
-                    <strong>$0</strong>
+                    <strong>{formatLocalizedAmount(0, displayCurrency)}</strong>
                     <span>/ month</span>
                   </div>
                 </div>
@@ -2069,7 +2240,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
                   <li><strong>10</strong> credits each month</li>
-                  <li>Light and Heavy transcription models</li>
+                  <li>Light and Medium transcription models</li>
                   <li>Audio clips up to 60 seconds</li>
                   <li>Uploads up to 50 MB</li>
                   <li>Full editor and practice tools</li>
@@ -2080,12 +2251,12 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 data-reveal
               >
                 <div className="pricing-plan__badge">
-                  Recommended
+                  Most popular
                 </div>
                 <div className="pricing-plan__top">
                   <h3>Premium</h3>
                   <div className="pricing-plan__price">
-                    <strong>{pricingBillingInterval === "yearly" ? "$59.99" : "$5.99"}</strong>
+                    <strong>{formatLocalizedPrice("PREMIUM", pricingBillingInterval, displayCurrency)}</strong>
                     <span>/ {pricingBillingInterval === "yearly" ? "year" : "month"}</span>
                   </div>
                 </div>
@@ -2105,8 +2276,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 </button>
                 <p className="pricing-plan__reassurance">
                   {pricingBillingInterval === "yearly"
-                    ? <><span>$59.99/year billed today · </span><span className="pricing-plan__saving">Save $11.89 per year</span><span> · Cancel anytime</span></>
-                    : premiumOfferReassurance(offerEligibility)}
+                    ? <><span>{formatLocalizedPrice("PREMIUM", "yearly", displayCurrency)} billed today · </span><span className="pricing-plan__saving">Save {localizedAnnualSaving("PREMIUM", displayCurrency)} per year</span><span> · Cancel anytime</span></>
+                    : premiumOfferReassurance(offerEligibility, "control", formatLocalizedPrice("PREMIUM", "monthly", displayCurrency))}
                 </p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
@@ -2121,12 +2292,12 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
               {proPlanPresentationEnabled() && <article className="pricing-plan pricing-plan--pro" data-reveal>
                 <div className="pricing-plan__top">
                   <h3>Pro</h3>
-                  <div className="pricing-plan__price"><strong>{pricingBillingInterval === "yearly" ? "$149.99" : "$14.99"}</strong><span>/ {pricingBillingInterval === "yearly" ? "year" : "month"}</span></div>
+                  <div className="pricing-plan__price"><strong>{formatLocalizedPrice("PRO", pricingBillingInterval, displayCurrency)}</strong><span>/ {pricingBillingInterval === "yearly" ? "year" : "month"}</span></div>
                 </div>
                 <button type="button" className="pricing-plan__cta pricing-plan__cta--secondary" onClick={() => void handlePricingClick("home_pricing", "homepage_pro_card", "PRO")} disabled={pricingBusy}>
                   {pricingBusy ? "Opening…" : currentPlan === "PRO" ? "Manage current plan" : currentPlan === "PREMIUM" ? "Upgrade to Pro" : "Choose Pro"}
                 </button>
-                <p className="pricing-plan__reassurance">{pricingBillingInterval === "yearly" ? <><span>No free trial · $149.99 billed today · </span><span className="pricing-plan__saving">Save $30 per year</span></> : "No free trial · $14.99 billed today · Cancel anytime"}</p>
+                <p className="pricing-plan__reassurance">{pricingBillingInterval === "yearly" ? <><span>{formatLocalizedPrice("PRO", "yearly", displayCurrency)} billed today · </span><span className="pricing-plan__saving">Save {localizedAnnualSaving("PRO", displayCurrency)} per year</span></> : `${formatLocalizedPrice("PRO", "monthly", displayCurrency)} billed today · Cancel anytime`}</p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
                   <li>Everything in Premium</li>
@@ -2200,10 +2371,11 @@ export const getStaticProps: GetStaticProps<HomePageProps> = async () => {
     ]);
     return {
       props: { trustMetrics: { transcriptionsCompleted, editorsCreated } },
-      revalidate: 3600,
+      // These public trust totals do not need an hourly database refresh.
+      revalidate: 24 * 60 * 60,
     };
   } catch (error) {
     console.warn("[home] Could not load public trust metrics.", error);
-    return { props: { trustMetrics: null }, revalidate: 300 };
+    return { props: { trustMetrics: null }, revalidate: 60 * 60 };
   }
 };

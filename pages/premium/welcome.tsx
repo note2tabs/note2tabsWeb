@@ -30,10 +30,13 @@ type Props = {
 
 export default function PremiumWelcomePage({ previewMode }: Props) {
   const router = useRouter();
-  const { data: session, update } = useSession();
+  const { data: session, status: sessionStatus, update } = useSession();
   const [state, setState] = useState<WelcomeState>(previewMode ? "ready" : "checking");
   const trackedRef = useRef(false);
   const confettiPlayedRef = useRef(false);
+  const activationStartedRef = useRef(false);
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
   const destination = useMemo(
     () => premiumWelcomeDestination(router.query.next),
     [router.query.next]
@@ -83,7 +86,13 @@ export default function PremiumWelcomePage({ previewMode }: Props) {
   }, [state]);
 
   useEffect(() => {
-    if (!router.isReady || previewMode) return;
+    if (!router.isReady || previewMode || sessionStatus === "loading") return;
+    // Session hydration can rerender this page while checkout confirmation is
+    // already in flight. Only one confirmation/refresh loop may own the state;
+    // otherwise an older FREE-session response can overwrite the newer paid
+    // session and incorrectly leave the customer on the delayed screen.
+    if (activationStartedRef.current) return;
+    activationStartedRef.current = true;
     let cancelled = false;
     const sessionIdValue = router.query.session_id;
     const sessionIdFromQuery = Array.isArray(sessionIdValue)
@@ -93,13 +102,25 @@ export default function PremiumWelcomePage({ previewMode }: Props) {
     const checkoutSessionId = sessionIdFromQuery || getRecoverableCheckoutSessionId();
 
     const activate = async () => {
-      if (hasPremiumEntitlement(session)) {
+      if (hasPremiumEntitlement(sessionRef.current)) {
         clearRecoverableCheckoutSessionId();
         if (!cancelled) setState("ready");
         return;
       }
       if (!checkoutSessionId) {
-        if (!cancelled) setState("delayed");
+        // A previous confirmation may already have updated the database and
+        // cleared the checkout ID while an older session response won the
+        // client-side race. Refresh once so revisiting this page (or pressing
+        // Check again) repairs that stale cookie-backed session.
+        let refreshedSession = null;
+        try {
+          refreshedSession = await update();
+        } catch {
+          // The delayed state remains a safe, retryable fallback.
+        }
+        if (!cancelled) {
+          setState(hasPremiumEntitlement(refreshedSession) ? "ready" : "delayed");
+        }
         return;
       }
       const confirmed = await confirmPremiumCheckout(checkoutSessionId);
@@ -123,7 +144,7 @@ export default function PremiumWelcomePage({ previewMode }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [previewMode, router.isReady, router.query.session_id, session, update]);
+  }, [previewMode, router.isReady, router.query.session_id, sessionStatus, update]);
 
   useEffect(() => {
     if (previewMode || state !== "ready" || trackedRef.current) return;

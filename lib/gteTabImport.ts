@@ -63,6 +63,9 @@ type ParsedTabImport = {
   fps: number;
   totalFrames: number;
   warning?: string;
+  trackType?: "tab" | "bass";
+  program?: number;
+  droppedNoteCount?: number;
   tracks?: ParsedTabTrackImport[];
 };
 
@@ -73,7 +76,70 @@ export type ParsedTabFileImport = ParsedTabImport & {
 
 export type ParsedTabTrackImport = Omit<ParsedTabImport, "tracks"> & {
   name?: string;
+  trackType?: "tab" | "bass";
+  program?: number;
+  droppedNoteCount?: number;
 };
+
+export const DEFAULT_IMPORT_QUANTIZATION_SUBDIVISIONS_PER_BEAT = 4;
+
+/**
+ * Snap imported timing to the editor's default sixteenth-note grid.
+ *
+ * File formats often contain humanized or conversion-generated tick offsets.
+ * Quantizing here keeps every supported external format consistent while the
+ * native Note2Tabs JSON importer can continue to preserve exact editor data.
+ */
+export function quantizeImportedStamps(
+  stamps: Array<[number, [number, number], number]>,
+  framesPerMeasure: number,
+  beatsPerMeasure = 4,
+  subdivisionsPerBeat = DEFAULT_IMPORT_QUANTIZATION_SUBDIVISIONS_PER_BEAT
+) {
+  const safeFramesPerMeasure = Math.max(1, Math.round(Number(framesPerMeasure) || FIXED_FRAMES_PER_BAR));
+  const safeBeats = Math.max(1, Math.round(Number(beatsPerMeasure) || 4));
+  const safeSubdivisions = Math.max(1, Math.round(Number(subdivisionsPerBeat) || 4));
+  const grid = safeFramesPerMeasure / (safeBeats * safeSubdivisions);
+  const snap = (value: number) => Math.max(0, Math.round(Math.round(value / grid) * grid));
+  const snapDuration = (value: number) => Math.max(1, Math.round(grid), snap(value));
+
+  return stamps.map(([start, tab, length]): [number, [number, number], number] => [
+    snap(Math.max(0, Number(start) || 0)),
+    [tab[0], tab[1]],
+    snapDuration(Math.max(1, Number(length) || 1)),
+  ]);
+}
+
+function quantizeParsedImport(parsed: ParsedTabImport): ParsedTabImport {
+  const quantizeTrack = (track: ParsedTabTrackImport): ParsedTabTrackImport => {
+    const framesPerMeasure = Math.max(1, Math.round(Number(track.framesPerMessure) || FIXED_FRAMES_PER_BAR));
+    const stamps = quantizeImportedStamps(track.stamps, framesPerMeasure);
+    const noteEnd = stamps.reduce((latest, [start, , length]) => Math.max(latest, start + length), 0);
+    return {
+      ...track,
+      stamps,
+      totalFrames: Math.max(
+        framesPerMeasure,
+        noteEnd,
+        Math.max(0, Math.round(Number(track.totalFrames) || 0))
+      ),
+    };
+  };
+  const quantized = quantizeTrack(parsed);
+  const tracks = parsed.tracks?.map(quantizeTrack);
+  const combinedStamps = tracks?.length ? tracks.flatMap((track) => track.stamps) : quantized.stamps;
+  return {
+    ...quantized,
+    ...(tracks ? { tracks } : {}),
+    stamps: combinedStamps.sort((left, right) => left[0] - right[0] || left[1][0] - right[1][0]),
+    totalFrames: Math.max(
+      quantized.framesPerMessure,
+      quantized.totalFrames,
+      ...(tracks?.map((track) => track.totalFrames) ?? []),
+      ...combinedStamps.map(([start, , length]) => start + length)
+    ),
+  };
+}
 
 type TabPosition = {
   column: number;
@@ -163,7 +229,7 @@ export async function parseTabImportFile(file: File): Promise<ParsedTabFileImpor
   }
 
   return {
-    ...validateParsedImport(parsed),
+    ...validateParsedImport(quantizeParsedImport(parsed)),
     name: getImportNameFromFile(file.name),
     fileName: file.name,
   };
@@ -263,6 +329,9 @@ export function parseMidiTabImport(buffer: ArrayBuffer): ParsedTabImport {
     buildParsedImportFromPositions(track.positions, undefined, {
       warning: "MIDI does not store guitar string choices, so string and fret positions were estimated.",
       name: track.name || `MIDI track ${index + 1}`,
+      trackType: track.trackType,
+      program: track.program,
+      droppedNoteCount: track.droppedNoteCount,
     })
   );
   const combined = buildParsedImportFromPositions(
@@ -549,13 +618,19 @@ function getMidiChannelTrackName(trackName: string, channel: number, program?: n
 
 function midiNoteEventsToPositions(
   noteEvents: { startTick: number; endTick: number; midi: number }[],
-  ticksPerBar: number
+  ticksPerBar: number,
+  bass = false
 ) {
   return limitTabPositions(
     noteEvents
       .sort((left, right) => left.startTick - right.startTick || left.midi - right.midi)
       .flatMap((note) => {
-        const tab = midiToTab(note.midi);
+        const tab = bass
+          ? [43, 38, 33, 28]
+              .map((base, stringIndex) => ({ stringIndex, fret: note.midi - base }))
+              .filter((candidate) => candidate.fret >= 0 && candidate.fret <= 22)
+              .sort((left, right) => left.fret - right.fret || left.stringIndex - right.stringIndex)[0] ?? null
+          : midiToTab(note.midi);
         return tab
           ? [
               {
@@ -570,7 +645,7 @@ function midiNoteEventsToPositions(
   );
 }
 
-function extractMidiTracks(buffer: ArrayBuffer): Array<{ name?: string; positions: TabPosition[] }> {
+function extractMidiTracks(buffer: ArrayBuffer): Array<{ name?: string; positions: TabPosition[]; trackType: "tab" | "bass"; program?: number; droppedNoteCount?: number }> {
   const view = new DataView(buffer);
   if (view.byteLength < 14 || readAscii(view, 0, 4) !== "MThd") {
     throw new Error("This does not look like a valid MIDI file.");
@@ -579,7 +654,7 @@ function extractMidiTracks(buffer: ArrayBuffer): Array<{ name?: string; position
   const ticksPerQuarter = Math.max(1, view.getUint16(12) & 0x7fff);
   const ticksPerBar = Math.max(1, ticksPerQuarter * 4);
   let offset = 8 + headerLength;
-  const tracks: Array<{ name?: string; positions: TabPosition[] }> = [];
+  const tracks: Array<{ name?: string; positions: TabPosition[]; trackType: "tab" | "bass"; program?: number; droppedNoteCount?: number }> = [];
 
   while (offset + 8 <= view.byteLength) {
     const chunkType = readAscii(view, offset, 4);
@@ -672,11 +747,17 @@ function extractMidiTracks(buffer: ArrayBuffer): Array<{ name?: string; position
     });
     const channelEntries = Array.from(eventsByChannel.entries()).sort((a, b) => a[0] - b[0]);
     for (const [channel, channelEvents] of channelEntries) {
-      const positions = midiNoteEventsToPositions(channelEvents, ticksPerBar);
-      if (positions.length) {
+      const program = programsByChannel.get(channel);
+      const bass = (Number.isInteger(program) && Number(program) >= 32 && Number(program) <= 39) || (/\bbass\b/i.test(trackName) && !/\bbassoon\b/i.test(trackName));
+      const positions = midiNoteEventsToPositions(channelEvents, ticksPerBar, bass);
+      const droppedNoteCount = bass ? Math.max(0, channelEvents.length - positions.length) : 0;
+      if (positions.length || (bass && droppedNoteCount)) {
         tracks.push({
-          name: getMidiChannelTrackName(trackName, channel, programsByChannel.get(channel)),
+          name: getMidiChannelTrackName(trackName, channel, program),
           positions,
+          trackType: bass ? "bass" : "tab",
+          ...(Number.isInteger(program) ? { program } : {}),
+          ...(droppedNoteCount ? { droppedNoteCount } : {}),
         });
       }
     }
@@ -746,7 +827,7 @@ function extractAsciiTabNotes(text: string): TabPosition[] {
 function buildParsedImportFromPositions(
   positions: TabPosition[],
   sourceText?: string,
-  options?: { warning?: string; name?: string }
+  options?: { warning?: string; name?: string; trackType?: "tab" | "bass"; program?: number; droppedNoteCount?: number }
 ): ParsedTabImport {
   const safePositions = limitTabPositions(positions);
   const stamps = limitStamps(
@@ -774,6 +855,9 @@ function buildParsedImportFromPositions(
     totalFrames,
     warning: options?.warning,
     name: options?.name,
+    trackType: options?.trackType,
+    program: options?.program,
+    droppedNoteCount: options?.droppedNoteCount,
   };
 }
 

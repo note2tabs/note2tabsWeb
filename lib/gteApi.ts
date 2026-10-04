@@ -1,8 +1,13 @@
 import type {
+  CanvasShare,
   CanvasSnapshot,
   ChordFingering,
   EditorListItem,
   EditorSnapshot,
+  OutgoingCanvasShare,
+  PendingCanvasShare,
+  SharedEditorListItem,
+  SharedEditorRole,
   TabCoord,
   TimingMapV2,
 } from "../types/gte";
@@ -12,6 +17,8 @@ import {
   preserveExistingTimingForOffsetImport,
   stabilizeNewTranscriberTimingMap,
 } from "./gteTranscriberTiming";
+import { generatePlayingCoordinatesInSnapshot } from "./gtePlayingCoordinates";
+import { shortenTinyImportedNoteOverlapsInSnapshot } from "./gteTranscriberOverlapCleanup";
 
 const AUTH_BASE = "/api/gte";
 const GUEST_BASE = "/api/gte-guest";
@@ -69,7 +76,7 @@ export type TranscriberSegment = {
 export type TranscriberSegmentGroup = TranscriberSegment[];
 export type TranscriberTrack = {
   name: string;
-  trackType: "tab" | "drums";
+  trackType: "tab" | "bass" | "drums";
   instrumentId: string;
   program?: number;
   segments: TranscriberSegmentGroup;
@@ -524,6 +531,14 @@ async function importTranscriberToSaved(
     }
   }
 
+  const optimizedCanvas = lastResponse.canvas
+    ? await optimizeImportedTrackFingerings(
+        currentEditorId,
+        lastResponse.canvas,
+        TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES,
+        finalImportedEditorIds
+      )
+    : undefined;
   return {
     ok: true,
     target: lastResponse.target ?? (payload.target === "existing" ? "existing" : "new"),
@@ -531,7 +546,7 @@ async function importTranscriberToSaved(
     importedEditorIds: finalImportedEditorIds,
     quantization: lastResponse.quantization,
     alignment: lastResponse.alignment,
-    canvas: lastResponse.canvas,
+    canvas: optimizedCanvas ?? lastResponse.canvas,
   };
 }
 
@@ -605,11 +620,102 @@ async function importTranscriberToGuest(
       ? patched.canvas
       : await retainOnlyImportedTracks(response.editorId, patched.canvas, importedEditorIds),
   };
+  response = {
+    ...response,
+    canvas: await optimizeImportedTrackFingerings(
+      response.editorId,
+      response.canvas,
+      TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES,
+      importedEditorIds
+    ),
+  };
   return response;
 }
 
+const isDrumLane = (lane: EditorSnapshot) => {
+  const trackType = lane.trackType ?? lane.editorType ?? lane.type;
+  return trackType === "drums" || trackType === "drum";
+};
+
+export const TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES = 2;
+
+/** Runs the same frontend transformation as Tools -> Optimize fingering on every imported track. */
+export async function optimizeImportedTrackFingerings(
+  editorId: string,
+  sourceCanvas?: CanvasSnapshot,
+  passes: number = 1,
+  importedEditorIds?: readonly string[]
+): Promise<CanvasSnapshot> {
+  const canvasId = editorId.includes(LANE_DELIMITER)
+    ? editorId.slice(0, editorId.indexOf(LANE_DELIMITER))
+    : editorId;
+  const loaded = sourceCanvas ?? await fetchEditor(canvasId);
+  const canvas: CanvasSnapshot = "editors" in loaded
+    ? loaded
+    : {
+        id: canvasId,
+        name: loaded.name,
+        editors: [loaded],
+      };
+  const optimized = JSON.parse(JSON.stringify(canvas)) as CanvasSnapshot;
+  const {
+    finalizeOptimizedTrackFingeringInSnapshot,
+    mergeRedundantCutRegionsInSnapshot,
+    optimizeTrackFingeringInSnapshot,
+  } = await import("./gteFingeringOptimization");
+  const importedLaneIds = importedEditorIds ? new Set(importedEditorIds) : null;
+
+  optimized.editors.forEach((lane) => {
+    if (
+      isDrumLane(lane) ||
+      !Array.isArray(lane.notes) ||
+      !Array.isArray(lane.chords) ||
+      (lane.notes.length === 0 && lane.chords.length === 0)
+    ) return;
+    if (importedLaneIds?.has(lane.id)) {
+      shortenTinyImportedNoteOverlapsInSnapshot(lane);
+    }
+    const passCount = Math.max(1, Math.floor(passes));
+    for (let pass = 0; pass < passCount; pass += 1) {
+      generatePlayingCoordinatesInSnapshot(lane);
+      optimizeTrackFingeringInSnapshot(lane);
+      finalizeOptimizedTrackFingeringInSnapshot(lane);
+      mergeRedundantCutRegionsInSnapshot(lane);
+    }
+  });
+
+  await requestForEditor<{ ok: true; snapshot: EditorOrCanvasSnapshot; canvas?: CanvasSnapshot }>(
+    canvasId,
+    `/editors/${encodeURIComponent(canvasId)}/snapshot`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ snapshot: optimized }),
+    }
+  );
+  editorPrefetches.delete(canvasId);
+  return optimized;
+}
+
 export const gteApi = {
-  listEditors: () => request<{ editors: EditorListItem[] }>("/editors"),
+  listEditors: () =>
+    request<{ editors: EditorListItem[]; sharedEditors?: SharedEditorListItem[] }>("/editors"),
+  listShares: (editorId: string) =>
+    request<{ shares: CanvasShare[] }>(`/editors/${encodeURIComponent(editorId)}/shares`),
+  createShare: (editorId: string, email: string, role: SharedEditorRole) =>
+    request<CanvasShare & { canvasId: string; emailDelivered?: boolean; emailSuppressed?: boolean }>(`/editors/${encodeURIComponent(editorId)}/shares`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, role }),
+    }),
+  revokeShare: (editorId: string, shareId: number) =>
+    request<{ ok: true }>(`/editors/${encodeURIComponent(editorId)}/shares/${shareId}`, {
+      method: "DELETE",
+    }),
+  listPendingShares: () => request<{ pending: PendingCanvasShare[] }>("/shares/pending"),
+  listOutgoingShares: () => request<{ outgoing: OutgoingCanvasShare[] }>("/shares/outgoing"),
+  acceptShare: (shareId: number) =>
+    request<{ ok: true }>(`/shares/${shareId}/accept`, { method: "POST" }),
   createEditor: (editorId?: string, name?: string) =>
     request<{ editorId: string; snapshot: CanvasSnapshot }>("/editors", {
       method: "POST",
@@ -629,13 +735,25 @@ export const gteApi = {
   applySnapshot: (
     editorId: string,
     snapshot: EditorOrCanvasSnapshot | Record<string, any>,
-    concurrency?: { expectedVersion?: number; expectedDraftRevision?: number }
+    concurrency?: {
+      expectedVersion?: number;
+      expectedDraftRevision?: number;
+      // The lane as the client last saw it confirmed by the server --
+      // lets the backend auto-merge concurrent edits from a collaborator
+      // instead of rejecting the save outright. See dlapi.py's
+      // apply_editor_snapshot for the merge semantics.
+      baseSnapshot?: EditorOrCanvasSnapshot | Record<string, any>;
+    }
   ) =>
-    requestForEditor<{ ok: true; snapshot: any; canvas?: CanvasSnapshot }>(editorId, `/editors/${editorId}/snapshot`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ snapshot, ...concurrency }),
-    }),
+    requestForEditor<{ ok: true; snapshot: any; canvas?: CanvasSnapshot; conflicts?: unknown[] }>(
+      editorId,
+      `/editors/${editorId}/snapshot`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ snapshot, ...concurrency }),
+      }
+    ),
   setTrackInstrument: (editorId: string, laneId: string, instrumentId: string) =>
     request<{ ok: true }>("/track-instrument", {
       method: "POST",
@@ -755,9 +873,9 @@ export const gteApi = {
     editorId: string,
     name?: string,
     options?: {
-      editorType?: "tab" | "chords" | "drums" | string;
-      trackType?: "tab" | "chords" | "drums" | string;
-      type?: "tab" | "chords" | "drums" | string;
+      editorType?: "tab" | "bass" | "chords" | "drums" | string;
+      trackType?: "tab" | "bass" | "chords" | "drums" | string;
+      type?: "tab" | "bass" | "chords" | "drums" | string;
       chordEditor?: Record<string, unknown>;
     }
   ) =>
@@ -770,8 +888,8 @@ export const gteApi = {
       body: JSON.stringify({ name, ...options }),
       }
     ),
-  importEditorJson: (canvasId: string, laneId: string, payload: unknown) =>
-    requestForEditor<{ ok: true; snapshot: EditorSnapshot; canvas: CanvasSnapshot }>(
+  importEditorJson: async (canvasId: string, laneId: string, payload: unknown) => {
+    const response = await requestForEditor<{ ok: true; snapshot: EditorSnapshot; canvas: CanvasSnapshot }>(
       canvasId,
       `/editors/${canvasId}__ed__${laneId}/import_json`,
       {
@@ -779,7 +897,9 @@ export const gteApi = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       }
-    ),
+    );
+    return { ...response, canvas: await optimizeImportedTrackFingerings(canvasId) };
+  },
   saveDrumNote: (
     canvasId: string,
     laneId: string,
@@ -1068,7 +1188,7 @@ export const gteApi = {
       beatsPerBar: number;
       charactersPerBar: number;
     }>(editorId, `/editors/${editorId}/export_ascii`),
-  importTab: (
+  importTab: async (
     editorId: string,
     payload: {
       stamps: Array<[number, TabCoord, number]>;
@@ -1076,13 +1196,19 @@ export const gteApi = {
       fps?: number;
       totalFrames?: number;
     }
-  ) =>
-    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/import`, {
+  ) => {
+    const response = await requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/import`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    }),
-  appendImportTab: (
+    });
+    const canvas = await optimizeImportedTrackFingerings(editorId);
+    const laneId = editorId.includes(LANE_DELIMITER)
+      ? editorId.slice(editorId.indexOf(LANE_DELIMITER) + LANE_DELIMITER.length)
+      : response.snapshot.id;
+    return { ...response, snapshot: canvas.editors.find((lane) => lane.id === laneId) ?? response.snapshot };
+  },
+  appendImportTab: async (
     editorId: string,
     payload: {
       stamps: Array<[number, TabCoord, number]>;
@@ -1090,20 +1216,23 @@ export const gteApi = {
       fps?: number;
       totalFrames?: number;
     }
-  ) =>
-    requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/import_append`, {
+  ) => {
+    const response = await requestForEditor<{ ok: true; snapshot: EditorSnapshot }>(editorId, `/editors/${editorId}/import_append`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    }),
-  importAsciiTab: (
+    });
+    const canvas = await optimizeImportedTrackFingerings(editorId);
+    return { ...response, snapshot: canvas.editors.find((lane) => lane.id === response.snapshot.id) ?? response.snapshot };
+  },
+  importAsciiTab: async (
     editorId: string,
     payload: {
       text: string;
       name?: string;
     }
-  ) =>
-    requestForEditor<{ ok: true; canvas: CanvasSnapshot; editor: EditorSnapshot }>(
+  ) => {
+    const response = await requestForEditor<{ ok: true; canvas: CanvasSnapshot; editor: EditorSnapshot }>(
       editorId,
       `/editors/${editorId}/canvas/import_ascii`,
       {
@@ -1111,7 +1240,10 @@ export const gteApi = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       }
-    ),
+    );
+    const canvas = await optimizeImportedTrackFingerings(editorId);
+    return { ...response, canvas, editor: canvas.editors.find((lane) => lane.id === response.editor.id) ?? response.editor };
+  },
   setSecondsPerBar: (editorId: string, secondsPerBar: number) =>
     requestForEditor<{ ok: true; snapshot: EditorSnapshot; canvas?: CanvasSnapshot }>(
       editorId,

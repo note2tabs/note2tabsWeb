@@ -1,6 +1,4 @@
-import CheckoutPlanSummary from "../../components/CheckoutPlanSummary";
-import { authReturnPath } from "../../lib/pricingPresentation";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { signIn } from "next-auth/react";
@@ -11,6 +9,7 @@ import { clearOAuthIntent, saveOAuthIntent } from "../../lib/oauthAnalytics";
 import { categorizeAnalyticsDestination } from "../../lib/analyticsPrivacy";
 import { categorizeAnalyticsError } from "../../lib/analyticsErrors";
 import { premiumFunnelProperties, readPremiumFunnelContext } from "../../lib/premiumFunnel";
+import { isTabShareEmailDestination, TAB_SHARE_EMAIL_SOURCE } from "../../lib/tabShareAnalytics";
 
 const authErrorMessage = (error?: string | string[]) => {
   const value = Array.isArray(error) ? error[0] : error;
@@ -31,11 +30,29 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const nextHref = useMemo(() => authReturnPath(router.query.next, router.query.callbackUrl,
-    typeof window === "undefined" ? undefined : window.location.origin), [router.query.next, router.query.callbackUrl]);
+  const shareEmailClickTracked = useRef(false);
+  const nextHref = useMemo(() => {
+    const raw = router.query.next;
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    if (typeof value !== "string") return "/transcriber";
+    const trimmed = value.trim();
+    if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return "/transcriber";
+    return trimmed;
+  }, [router.query.next]);
   const loginHref =
     nextHref === "/" ? "/auth/login" : `/auth/login?next=${encodeURIComponent(nextHref)}`;
   const routeError = useMemo(() => authErrorMessage(router.query.error), [router.query.error]);
+  const fromTabShareEmail = useMemo(() => isTabShareEmailDestination(nextHref), [nextHref]);
+
+  useEffect(() => {
+    if (!router.isReady || !fromTabShareEmail || shareEmailClickTracked.current) return;
+    shareEmailClickTracked.current = true;
+    sendEvent(ANALYTICS_EVENTS.tabShareEmailClicked, {
+      landing: "signup",
+      recipient_status: "new",
+      source: TAB_SHARE_EMAIL_SOURCE,
+    });
+  }, [fromTabShareEmail, router.isReady]);
 
   useEffect(() => {
     if (router.query.error) clearOAuthIntent();
@@ -87,12 +104,13 @@ export default function SignupPage() {
       sendEvent(ANALYTICS_EVENTS.signupCompleted, {
         method: "email",
         destination,
+        ...(fromTabShareEmail ? { signup_source: TAB_SHARE_EMAIL_SOURCE } : {}),
         ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
       });
-      // Keep the newly created account signed in while email verification is
-      // completed. Unverified accounts remain blocked from transcription by
-      // the existing server checks, but the verification link can return the
-      // musician directly to the transcription they already prepared.
+      // Keep the newly created account signed in and take them directly to
+      // their intended destination. New accounts may complete one standard
+      // transcription before verification; Heavy preview access still
+      // requires a verified email.
       await signIn("credentials", {
         redirect: false,
         email,
@@ -100,10 +118,7 @@ export default function SignupPage() {
         fingerprintId,
         callbackUrl: nextHref,
       }).catch(() => null);
-      const nextEmail = encodeURIComponent((data?.email as string) || email);
-      const sentParam = data?.emailSent === false ? "&sent=0" : "";
-      const nextParam = nextHref === "/" ? "" : `&next=${encodeURIComponent(nextHref)}`;
-      await router.push(`/auth/verify-email?email=${nextEmail}${sentParam}${nextParam}`);
+      await router.push(nextHref);
     } catch (requestError) {
       setError("We could not reach the sign-up service. Check your connection and try again.");
       sendEvent(ANALYTICS_EVENTS.signupFailed, {
@@ -123,9 +138,7 @@ export default function SignupPage() {
         <div className="card auth-card auth-card--expanded stack">
           <div className="auth-card-header">
             <h1 className="page-title">Create your account</h1>
-            <p className="page-subtitle">Get started with Note2Tabs.</p>
           </div>
-          <CheckoutPlanSummary destination={nextHref} signup={true} />
           <form className="stack" onSubmit={handleSubmit}>
             <div className="form-group">
               <label className="label" htmlFor="signup-name">Name (optional)</label>
@@ -181,6 +194,7 @@ export default function SignupPage() {
               sendEvent(ANALYTICS_EVENTS.signupStarted, {
                 method: "google",
                 destination: categorizeAnalyticsDestination(nextHref),
+                ...(fromTabShareEmail ? { signup_source: TAB_SHARE_EMAIL_SOURCE } : {}),
                 ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
               });
               trackCtaClick("signup_google", { surface: "signup_page" });

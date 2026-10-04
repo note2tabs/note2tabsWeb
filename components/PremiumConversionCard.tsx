@@ -45,7 +45,7 @@ export default function PremiumConversionCard({
           </button>
         )}
         <small>
-          $5.99/month billed today · Cancel anytime
+          $5.99 billed today · Cancel anytime
           {resetMessage ? ` · ${resetMessage}` : ""}
         </small>
       </div>

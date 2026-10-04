@@ -37,6 +37,14 @@ export default function PrivacyPage() {
             Note2Tabs. Please avoid including sensitive information that is not needed to resolve your issue.
           </p>
 
+          <h2>Tabs shared with non-users</h2>
+          <p>
+            A signed-in Note2Tabs user may share a tab with an email address that does not yet belong to an account.
+            We use that address only to create and deliver the requested sharing invitation and to prevent abuse or
+            unwanted repeat messages. The invitation identifies the person who shared the tab, links to this policy,
+            and lets the recipient block future tab-sharing emails. We do not add recipients to marketing lists.
+          </p>
+
           <h2>Internship applications</h2>
           <p>
             If you submit an internship application, the information you provide is delivered directly to the
@@ -81,6 +89,21 @@ export default function PrivacyPage() {
           <p>
             You can deny analytics and continue using core features (subject to rate limits and security protections).
             You can update this later in settings and request account deletion at any time.
+          </p>
+
+          <h2>Advertising</h2>
+          <p>
+            Note2Tabs may use advertising partners, including Google, to display ads on selected parts of the
+            service. When advertising is enabled, those partners may process device information, approximate
+            location, browsing activity, and advertising identifiers to deliver, measure, limit, and protect ads.
+            Google explains how it uses information from sites that use its services in its
+            {" "}<a href="https://policies.google.com/technologies/partner-sites">partner-sites policy</a>.
+          </p>
+          <p>
+            Advertising cookies, local storage, and personalized advertising are subject to the choices and notices
+            required in the visitor&apos;s region. Note2Tabs does not use information from internship applications,
+            private uploaded audio, or private tab content to personalize advertising. Paid plans may be offered an
+            ad-free experience as described on the pricing page.
           </p>
           </section>
         </div>

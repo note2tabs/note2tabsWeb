@@ -2,8 +2,10 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { ingestAnalyticsEvents } from "../../../lib/analyticsV2/ingest";
+import { attachFunctionTiming } from "../../../lib/functionTiming";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  attachFunctionTiming(res, "/api/analytics/ingest");
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).json({ error: "Method not allowed" });

@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import NoIndexHead from "../../components/NoIndexHead";
+import { ANALYTICS_EVENTS, sendEvent } from "../../lib/analytics";
 
 type VerifyState = "idle" | "verifying" | "verified" | "error";
 
@@ -56,6 +57,7 @@ export default function VerifyEmailPage() {
           throw new Error(data?.error || "This verification link could not be confirmed. It may have expired; request a new email below.");
         }
         const refreshedSession = await updateSession().catch(() => null);
+        sendEvent(ANALYTICS_EVENTS.emailVerified, { method: "email_link" });
         setVerifyState("verified");
         await router.replace(refreshedSession ? nextHref : loginHref);
       })
@@ -112,7 +114,7 @@ export default function VerifyEmailPage() {
           <div className="auth-card-header">
             <h1 className="page-title">Verify your email</h1>
             <p className="page-subtitle">
-              Email verification is required before you can use the transcriber.
+              Verify your email to start transcribing. Eligible accounts also unlock a one-time 30-second Heavy preview.
             </p>
             {email && <p className="muted text-small">Verification address: {email}</p>}
           </div>

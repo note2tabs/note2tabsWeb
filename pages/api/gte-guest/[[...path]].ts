@@ -43,6 +43,7 @@ const normalizeEditorType = (value: unknown) => {
   const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
   if (raw === "drum" || raw === "drums" || raw === "percussion") return "drums";
   if (raw === "chord" || raw === "chords" || raw === "chordeditor" || raw === "chord-editor") return "chords";
+  if (raw === "bass" || raw === "basseditor" || raw === "bass-editor") return "bass";
   return "tab";
 };
 const getLaneOpenStringMidi = (lane: Pick<EditorSnapshot, "tuning">) => {
@@ -548,55 +549,6 @@ const deleteCutBoundary = (lane: EditorSnapshot, boundaryIndex: number) => {
   lane.cutPositionsWithCoords = cuts;
 };
 
-const generateCuts = (lane: EditorSnapshot) => {
-  const tabsForMidi = (midi: number): TabCoord[] => {
-    const result = getAllTabsForMidi(lane, midi);
-    return result.length ? result : [clampTab(lane)];
-  };
-  const chooseClosestTab = (candidates: TabCoord[], reference: TabCoord): TabCoord => {
-    const ranked = [...candidates].sort((left, right) => {
-      const leftDistance = Math.abs(left[0] - reference[0]) + Math.abs(left[1] - reference[1]);
-      const rightDistance = Math.abs(right[0] - reference[0]) + Math.abs(right[1] - reference[1]);
-      return leftDistance - rightDistance || left[0] - right[0] || left[1] - right[1];
-    });
-    return clampTab(lane, ranked[0] ?? reference);
-  };
-
-  let lastCoord = clampTab(lane);
-  const events = [
-    ...lane.notes.map((note) => {
-      const midi = note.midiNum || getTabMidi(lane, note.tab);
-      const coord = chooseClosestTab(tabsForMidi(midi), lastCoord);
-      lastCoord = [coord[0], coord[1]];
-      return { time: Math.round(toNumber(note.startTime, 0)), coord };
-    }),
-    ...lane.chords.filter((chord) => chord.currentTabs.length > 0).map((chord) => ({
-      time: Math.round(toNumber(chord.startTime, 0)),
-      coord: (() => {
-        const firstTab = chord.currentTabs[0];
-        const midi = chord.originalMidi?.[0] || getTabMidi(lane, firstTab);
-        const coord = chooseClosestTab(tabsForMidi(midi), lastCoord);
-        lastCoord = [coord[0], coord[1]];
-        return coord;
-      })(),
-    })),
-  ].sort((a, b) => a.time - b.time);
-  if (!events.length) {
-    lane.cutPositionsWithCoords = buildDefaultCuts(lane);
-    return;
-  }
-  const points = Array.from(new Set([0, ...events.map((event) => clamp(event.time, 0, lane.totalFrames)), lane.totalFrames])).sort(
-    (a, b) => a - b
-  );
-  lane.cutPositionsWithCoords = points.slice(0, -1).map((start, index) => {
-    let coord = clampTab(lane);
-    events.forEach((event) => {
-      if (event.time <= start) coord = [event.coord[0], event.coord[1]];
-    });
-    return [[start, points[index + 1]], coord] as CutWithCoord;
-  });
-};
-
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   const method = req.method || "GET";
   const path = getPath(req);
@@ -722,6 +674,12 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
             editorType,
             type: editorType,
             trackType: editorType,
+            ...(editorType === "bass" ? {
+              instrumentId: "bass_overdrive",
+              maxFret: 22,
+              tuning: { presetId: "bass-standard", label: "Standard", openStringMidi: [43, 38, 33, 28], capo: 0 },
+              chords: [],
+            } : {}),
             ...(chordEditor ? { chordEditor } : {}),
             secondsPerBar: canvas.secondsPerBar,
           },
@@ -1160,17 +1118,9 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
             return res.status(200).json({ ...parsed, snapshot: result.snapshot });
           })
           .catch((error: any) => {
-            try {
-              const result = applyLaneMutation(canvas, laneId, (lane) => generateCuts(lane));
-              canvas = persistCanvas(sessionId, result.canvas);
-              return res.status(200).json({
-                ok: true,
-                snapshot: result.snapshot,
-                warning: error?.message || "Guest cut generation failed upstream; applied local fallback.",
-              });
-            } catch {
-              return res.status(500).json({ error: error?.message || "Guest cut generation failed." });
-            }
+            return res.status(502).json({
+              error: error?.message || "Guest cut generation failed.",
+            });
           });
       }
       if (rest[1] === "apply_manual" && method === "POST") {

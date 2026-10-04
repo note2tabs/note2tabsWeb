@@ -13,8 +13,9 @@ describe("blog conversion layout", () => {
     expect(postSource).toContain('placement="article_end"');
   });
 
-  it("shows the compact introduction prompt only at mobile widths", () => {
-    expect(styles).toContain(".post-mobile-product-card {\n  display: none;");
-    expect(styles).toMatch(/@media \(max-width: 960px\)[\s\S]*\.post-mobile-product-card \{\s*display: flex;/);
+  it("keeps the mobile introduction focused on the article", () => {
+    expect(postSource).not.toContain('className="post-mobile-product-card"');
+    expect(styles).toMatch(/@media \(max-width: 960px\)[\s\S]*\.post-reader-rail \{\s*display: none;/);
+    expect(postSource).toContain('className="post-end-cta"');
   });
 });
