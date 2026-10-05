@@ -1962,16 +1962,16 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
               {error && <div className="error" role="alert">{error}</div>}
               {needsPremiumForSelectedFile && !showHeavyUpgrade && (
                 isSignedIn && !needsProForSelectedFile ? (
-                  <PremiumConversionCard title="Continue with this upload" description="Your file is still selected. Premium supports audio files up to 200 MB and full-length transcription." actionLabel="Continue with Premium" onAction={() => void handlePreservedUploadUpgrade()} busy={pricingBusy} />
+                  <PremiumConversionCard title="Continue with this upload" description="Your file is still selected. Premium supports audio files up to 200 MB and full-length transcription." actionLabel="Continue with Premium" onAction={() => void handlePreservedUploadUpgrade()} busy={pricingBusy} tracking={{ source: "large_upload_gate", reason: "file_size_limit", surface: "file_size_limit_card", trigger: "oversized_file_selected" }} />
                 ) : (
-                  <PremiumConversionCard title={needsProForSelectedFile ? "This file needs Pro" : "This file needs Premium"} description={needsProForSelectedFile ? "This file is larger than Premium's 200 MB limit. Pro supports files up to 500 MB." : "Free uploads are limited to 50 MB. Premium supports files up to 200 MB."} actionLabel={needsProForSelectedFile ? "See Pro" : "See Premium"} planLabel={needsProForSelectedFile ? "Note2Tabs Pro" : undefined} reassurance={needsProForSelectedFile ? "$14.99 billed today · Cancel anytime" : undefined} href={premiumPricingHref({ source: "large_upload_gate", reason: needsProForSelectedFile ? "pro_file_size_limit" : "file_size_limit" })} />
+                  <PremiumConversionCard title={needsProForSelectedFile ? "This file needs Pro" : "This file needs Premium"} description={needsProForSelectedFile ? "This file is larger than Premium's 200 MB limit. Pro supports files up to 500 MB." : "Free uploads are limited to 50 MB. Premium supports files up to 200 MB."} actionLabel={needsProForSelectedFile ? "See Pro" : "See Premium"} planLabel={needsProForSelectedFile ? "Note2Tabs Pro" : undefined} reassurance={needsProForSelectedFile ? "$14.99 billed today · Cancel anytime" : undefined} href={premiumPricingHref({ source: "large_upload_gate", reason: needsProForSelectedFile ? "pro_file_size_limit" : "file_size_limit" })} tracking={{ source: "large_upload_gate", reason: needsProForSelectedFile ? "pro_file_size_limit" : "file_size_limit", surface: needsProForSelectedFile ? "pro_file_size_limit_card" : "file_size_limit_card", trigger: "oversized_file_selected" }} />
                 )
               )}
               {!needsPremiumForSelectedFile && needsPremiumForFileDuration && !showHeavyUpgrade && (
-                <PremiumConversionCard title="Transcribe more of this file" description="Free accounts can select up to 60 seconds. Premium unlocks full-length audio-file transcription." actionLabel="See longer options" href={premiumPricingHref({ source: "premium_prompt", reason: "file_duration_limit" })} />
+                <PremiumConversionCard title="Transcribe more of this file" description="Free accounts can select up to 60 seconds. Premium unlocks full-length audio-file transcription." actionLabel="See longer options" href={premiumPricingHref({ source: "premium_prompt", reason: "file_duration_limit" })} tracking={{ source: "premium_prompt", reason: "file_duration_limit", surface: "file_duration_limit_card", trigger: "long_file_selected" }} />
               )}
               {showHeavyUpgrade && !isPremiumUser && (
-                <PremiumConversionCard title="Use the Heavy model" description="The Heavy model is available with Premium or Pro for our highest transcription accuracy." actionLabel="See plans" href={premiumPricingHref({ source: "heavy_model", reason: "heavy_model_locked" })} />
+                <PremiumConversionCard title="Use the Heavy model" description="The Heavy model is available with Premium or Pro for our highest transcription accuracy." actionLabel="See plans" href={premiumPricingHref({ source: "heavy_model", reason: "heavy_model_locked" })} tracking={{ source: "heavy_model", reason: "heavy_model_locked", surface: "heavy_model_locked_card", trigger: "locked_model_selected" }} />
               )}
               {needsPremiumForSelectedFile && pricingError && (
                 <div className="error" role="alert">{pricingError}</div>
@@ -1999,6 +1999,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                     onAction={() => void handlePricingClick("low_credits", "credits_low")}
                     busy={pricingBusy}
                     resetMessage={`Free credits reset ${creditsResetLabel}`}
+                    tracking={{ source: "low_credits", reason: "credits_low", surface: "low_credits_card", trigger: "credits_threshold_reached" }}
                   />
                 )
               )}
