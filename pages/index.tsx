@@ -61,6 +61,7 @@ import PremiumConversionCard from "../components/PremiumConversionCard";
 import { publishCreditsForPremiumPrompt } from "../lib/premiumPromptSignals";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
 import PremiumHomeCallout from "../components/PremiumHomeCallout";
+import TranscriptionSignupDialog from "../components/TranscriptionSignupDialog";
 import { normalizeUploadFilename } from "../lib/uploadFilename";
 import {
   clearPendingTranscription,
@@ -239,6 +240,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   const [pricingBillingInterval, setPricingBillingInterval] = useState<BillingInterval>("monthly");
   const displayCurrency = useDisplayCurrency();
   const [authHandoffBusy, setAuthHandoffBusy] = useState(false);
+  const [showTranscriptionSignup, setShowTranscriptionSignup] = useState(false);
   const [showInstrumentPrompt, setShowInstrumentPrompt] = useState(false);
   const [includesOtherInstruments, setIncludesOtherInstruments] = useState<boolean | null>(null);
   const [transcriptionModel, setTranscriptionModel] =
@@ -701,7 +703,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     sessionStatus,
   ]);
   const submitLabel = authHandoffBusy
-    ? "Opening sign in…"
+    ? "Saving selection…"
     : loading
     ? mode === "YOUTUBE"
       ? "Downloading..."
@@ -711,7 +713,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     : sessionStatus === "loading"
     ? "Checking account…"
     : !isSignedIn
-    ? "Continue to sign in"
+    ? "Start transcription"
     : heavyPreviewAvailable && transcriptionModel === "super_heavy"
     ? "Use free Heavy preview"
     : "Generate tabs";
@@ -1212,9 +1214,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         );
         sendEvent(ANALYTICS_EVENTS.authHandoffRequired, { reason: "signed_out", mode });
         sendEvent(ANALYTICS_EVENTS.authHandoffSaved, { mode, path: "/" });
-        await router.push(
-          `/auth/login?next=${encodeURIComponent("/transcribe?resumeTranscription=1")}`
-        );
+        setShowTranscriptionSignup(true);
       } catch {
         setError("We could not safely preserve this audio for sign-in. Please sign in first, then choose it again.");
       } finally {
@@ -1606,6 +1606,13 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
   return (
     <>
+      <TranscriptionSignupDialog
+        open={showTranscriptionSignup}
+        mode={mode}
+        returnTo="/?resumeTranscription=1"
+        onClose={() => setShowTranscriptionSignup(false)}
+        onComplete={() => window.location.assign("/?resumeTranscription=1")}
+      />
       <HeavyPreviewIntroDialog
         open={showHeavyPreviewIntro}
         onCancel={() => {
@@ -1760,7 +1767,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                     </div>
                   </div>
                   <div className="transcription-auth-cta">
-                    <button type="button" className="button-primary instrument-start-button" onClick={handleInstrumentPromptStart} disabled={loading || !instrumentPromptComplete}>{!isSignedIn ? "Continue to sign in" : heavyPreviewAvailable && transcriptionModel === "super_heavy" ? "Use free Heavy preview" : "Start transcription"}</button>
+                    <button type="button" className="button-primary instrument-start-button" onClick={handleInstrumentPromptStart} disabled={loading || !instrumentPromptComplete}>{!isSignedIn ? "Start transcription" : heavyPreviewAvailable && transcriptionModel === "super_heavy" ? "Use free Heavy preview" : "Start transcription"}</button>
                     {!isSignedIn && <p>A free account is required. Your selection will be saved.</p>}
                   </div>
                 </div>
