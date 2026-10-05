@@ -9,89 +9,108 @@ import {
   type PremiumFunnelContext,
 } from "../lib/premiumFunnel";
 
-const DISMISSED_KEY = "note2tabs:premium-home-callout-dismissed-at";
-const DISMISS_FOR_MS = 30 * 24 * 60 * 60 * 1000;
+const hasPremiumAccess = (role?: string, subscriptionPlan?: string) =>
+  (Boolean(subscriptionPlan) && subscriptionPlan !== "FREE") ||
+  ["PREMIUM", "PRO", "ADMIN", "MODERATOR", "MOD"].includes(role || "");
 
-const hasPremiumAccess = (role?: string) =>
-  role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
+type PremiumHomeCalloutCardProps = {
+  href: string;
+  onClick?: () => void;
+};
 
-export default function PremiumHomeCallout() {
+export function PremiumHomeCalloutCard({ href, onClick }: PremiumHomeCalloutCardProps) {
+  return (
+    <aside className="premium-home-callout" aria-label="Longer YouTube transcription options">
+      <div>
+        <strong>Need a longer section?</strong>
+        <p>Free accounts can transcribe 30 seconds at a time. Premium unlocks longer YouTube sections within the first 10 minutes.</p>
+      </div>
+      <Link href={href} onClick={onClick}>See longer options</Link>
+    </aside>
+  );
+}
+
+export default function PremiumHomeCallout({ show = false }: { show?: boolean }) {
   const { data: session, status } = useSession();
   const [funnel, setFunnel] = useState<PremiumFunnelContext | null>(null);
   const [visible, setVisible] = useState(false);
   const shownRef = useRef(false);
+  const viewedRef = useRef(false);
+  const calloutRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (status !== "authenticated" || hasPremiumAccess(session?.user?.role)) {
+    if (
+      !show ||
+      status === "loading" ||
+      hasPremiumAccess(session?.user?.role, session?.user?.subscriptionPlan)
+    ) {
       shownRef.current = false;
       setVisible(false);
       return;
     }
     if (shownRef.current) return;
-    let dismissedAt = 0;
-    try {
-      dismissedAt = Number(window.localStorage.getItem(DISMISSED_KEY) || 0);
-    } catch {
-      // The inline callout can still render when storage is unavailable.
-    }
-    if (Date.now() - dismissedAt < DISMISS_FOR_MS) return;
-
     const context = getOrCreatePremiumFunnelContext({
-      source: "signed_home",
-      reason: "signed_home_value",
+      source: "premium_prompt",
+      reason: "youtube_clip_limit",
     });
     shownRef.current = true;
     setFunnel(context);
     setVisible(true);
-    sendEvent(ANALYTICS_EVENTS.premiumPromptShown, {
-      surface: "signed_home_callout",
+    sendEvent(ANALYTICS_EVENTS.premiumPromptEligible, {
+      surface: "youtube_clip_limit_inline",
+      placement: "below_youtube_time_range",
+      trigger: "youtube_link_added",
       ...premiumFunnelProperties(context),
     });
-  }, [session?.user?.role, status]);
+    sendEvent(ANALYTICS_EVENTS.premiumPromptRendered, {
+      surface: "youtube_clip_limit_inline",
+      placement: "below_youtube_time_range",
+      trigger: "youtube_link_added",
+      ...premiumFunnelProperties(context),
+    });
+    sendEvent(ANALYTICS_EVENTS.premiumPromptShown, {
+      surface: "youtube_clip_limit_inline",
+      ...premiumFunnelProperties(context),
+    });
+  }, [session?.user?.role, session?.user?.subscriptionPlan, show, status]);
+
+  useEffect(() => {
+    const element = calloutRef.current;
+    if (!visible || !funnel || !element || viewedRef.current) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry?.isIntersecting || entry.intersectionRatio < 0.5 || viewedRef.current) return;
+      viewedRef.current = true;
+      sendEvent(ANALYTICS_EVENTS.premiumPromptViewed, {
+        surface: "youtube_clip_limit_inline",
+        placement: "below_youtube_time_range",
+        trigger: "youtube_link_added",
+        ...premiumFunnelProperties(funnel),
+      });
+      observer.disconnect();
+    }, { threshold: 0.5 });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [funnel, visible]);
 
   if (!visible || !funnel) return null;
 
   return (
     <div className="premium-home-callout-wrap">
-      <aside className="premium-home-callout" aria-label="Note2Tabs Premium">
-        <div>
-          <strong>More room for full songs and the Heavy model.</strong>
-          <p>Get 100 monthly credits, rollover, and full-length audio-file transcription.</p>
-        </div>
-        <Link
+      <div ref={calloutRef}>
+        <PremiumHomeCalloutCard
           href={premiumPricingHref(funnel)}
           onClick={() => {
             sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, {
-              surface: "signed_home_callout",
+              surface: "youtube_clip_limit_inline",
               ...premiumFunnelProperties(funnel),
             });
-            trackCtaClick("signed_home_explore_premium", {
-              surface: "signed_home_callout",
-              ...premiumFunnelProperties(funnel),
-            });
-          }}
-        >
-          Explore Premium
-        </Link>
-        <button
-          type="button"
-          aria-label="Dismiss Premium suggestion"
-          onClick={() => {
-            try {
-              window.localStorage.setItem(DISMISSED_KEY, String(Date.now()));
-            } catch {
-              // Dismissal still works for the current page.
-            }
-            setVisible(false);
-            sendEvent(ANALYTICS_EVENTS.premiumPromptDismissed, {
-              surface: "signed_home_callout",
+            trackCtaClick("youtube_clip_limit_explore_premium", {
+              surface: "youtube_clip_limit_inline",
               ...premiumFunnelProperties(funnel),
             });
           }}
-        >
-          Dismiss
-        </button>
-      </aside>
+        />
+      </div>
     </div>
   );
 }

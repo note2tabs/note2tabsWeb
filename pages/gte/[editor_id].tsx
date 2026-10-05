@@ -89,6 +89,14 @@ import { EditorLoadingState } from "../../components/EditorLoadingState";
 import EditorTutorial, { EditorTutorialTrigger } from "../../components/EditorTutorial";
 import HeavyPreviewEditorPrompt from "../../components/HeavyPreviewEditorPrompt";
 import PostLightModelPrompt from "../../components/PostLightModelPrompt";
+import PostValuePremiumPrompt from "../../components/PostValuePremiumPrompt";
+import { hasVisitedPremiumPricing } from "../../lib/premiumPromptSignals";
+import {
+  getOrCreatePremiumFunnelContext,
+  premiumFunnelProperties,
+  premiumPricingHref,
+  type PremiumFunnelContext,
+} from "../../lib/premiumFunnel";
 import { useHeavyPreviewCountryEligibility } from "../../lib/useHeavyPreviewCountryEligibility";
 import { prisma } from "../../lib/prisma";
 import {
@@ -1656,6 +1664,16 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const postLightPromptHandledRef = useRef(false);
   const [heavyPreviewUpgradeOpen, setHeavyPreviewUpgradeOpen] = useState(false);
   const [postLightPromptOpen, setPostLightPromptOpen] = useState(false);
+  const [postValuePromptOpen, setPostValuePromptOpen] = useState(false);
+  const [postValueTrigger, setPostValueTrigger] = useState<"playback_completed" | "practice_started">("playback_completed");
+  const [postValueFunnel, setPostValueFunnel] = useState<PremiumFunnelContext | null>(null);
+  const postValuePlaybackSeenRef = useRef(false);
+  const postValuePromptHandledRef = useRef(false);
+  const heavyPreviewUpgradePendingRef = useRef(false);
+  const heavyPreviewPlaybackSeenRef = useRef(false);
+  const postLightPromptPendingRef = useRef(false);
+  const postLightPlaybackSeenRef = useRef(false);
+  const postLightJobIdRef = useRef<string | undefined>(undefined);
   const saveToAccountPath = "/gte?importGuest=1";
   const loginSaveHref = `/auth/login?next=${encodeURIComponent(saveToAccountPath)}`;
   const signupSaveHref = `/auth/signup?next=${encodeURIComponent(saveToAccountPath)}`;
@@ -1705,21 +1723,37 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         ? `heavy-preview-completed:${heavyPreviewJobId}`
         : `heavy-preview-completed:editor:${editorId}`,
     });
-    const timeout = window.setTimeout(() => {
-      setHeavyPreviewUpgradeOpen(true);
-      sendEvent(ANALYTICS_EVENTS.heavyPreviewUpgradeShown, {
-        surface: "editor",
-        editor_id: editorId,
-      });
-      const {
-        heavyPreviewComplete: _marker,
-        heavyPreviewJobId: _jobId,
-        ...nextQuery
-      } = router.query;
-      void router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
-    }, 1200);
-    return () => window.clearTimeout(timeout);
+    heavyPreviewUpgradePendingRef.current = true;
+    sendEvent(ANALYTICS_EVENTS.premiumPromptDeferred, {
+      reason: "heavy_preview_completed",
+      trigger: "awaiting_result_interaction",
+      surface: "editor",
+      editor_id: editorId,
+    });
+    const {
+      heavyPreviewComplete: _marker,
+      heavyPreviewJobId: _jobId,
+      ...nextQuery
+    } = router.query;
+    void router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
   }, [canvas, editorId, loading, router]);
+
+  useEffect(() => {
+    if (!heavyPreviewUpgradePendingRef.current) return;
+    if (globalPlaybackIsPlaying) {
+      heavyPreviewPlaybackSeenRef.current = true;
+      return;
+    }
+    if (!heavyPreviewPlaybackSeenRef.current || heavyPreviewUpgradeOpen) return;
+    heavyPreviewPlaybackSeenRef.current = false;
+    heavyPreviewUpgradePendingRef.current = false;
+    setHeavyPreviewUpgradeOpen(true);
+    sendEvent(ANALYTICS_EVENTS.heavyPreviewUpgradeShown, {
+      surface: "editor",
+      editor_id: editorId,
+      trigger: "playback_completed",
+    });
+  }, [editorId, globalPlaybackIsPlaying, heavyPreviewUpgradeOpen]);
 
   useEffect(() => {
     if (!router.isReady || loading || !canvas || postLightPromptHandledRef.current) return;
@@ -1733,26 +1767,21 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       typeof router.query.transcriptionJobId === "string"
         ? router.query.transcriptionJobId
         : undefined;
-    const timeout = window.setTimeout(() => {
-      setPostLightPromptOpen(true);
-      sendEvent(ANALYTICS_EVENTS.postLightModelPromptShown, {
-        surface: "editor",
-        editor_id: editorId,
-        recommendation,
-        source_model: "light",
-        jobId: transcriptionJobId,
-        $insert_id: transcriptionJobId
-          ? `post-light-prompt-shown:${transcriptionJobId}`
-          : `post-light-prompt-shown:editor:${editorId}`,
-      });
-      const {
-        transcriptionModel: _model,
-        transcriptionJobId: _jobId,
-        ...nextQuery
-      } = router.query;
-      void router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
-    }, 1200);
-    return () => window.clearTimeout(timeout);
+    postLightJobIdRef.current = transcriptionJobId;
+    postLightPromptPendingRef.current = true;
+    sendEvent(ANALYTICS_EVENTS.premiumPromptDeferred, {
+      reason: "post_light_model_recommendation",
+      trigger: "awaiting_result_interaction",
+      surface: "editor",
+      editor_id: editorId,
+      recommendation,
+    });
+    const {
+      transcriptionModel: _model,
+      transcriptionJobId: _jobId,
+      ...nextQuery
+    } = router.query;
+    void router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
   }, [
     canCheckHeavyPreview,
     canvas,
@@ -1761,6 +1790,121 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     heavyPreviewEligible,
     loading,
     router,
+  ]);
+
+  useEffect(() => {
+    if (!postLightPromptPendingRef.current) return;
+    if (globalPlaybackIsPlaying) {
+      postLightPlaybackSeenRef.current = true;
+      return;
+    }
+    if (!postLightPlaybackSeenRef.current || postLightPromptOpen || heavyPreviewUpgradeOpen) return;
+    postLightPlaybackSeenRef.current = false;
+    postLightPromptPendingRef.current = false;
+    const recommendation = heavyPreviewEligible ? "heavy_preview" : "medium";
+    const transcriptionJobId = postLightJobIdRef.current;
+    setPostLightPromptOpen(true);
+    sendEvent(ANALYTICS_EVENTS.postLightModelPromptShown, {
+      surface: "editor",
+      editor_id: editorId,
+      recommendation,
+      source_model: "light",
+      trigger: "playback_completed",
+      jobId: transcriptionJobId,
+      $insert_id: transcriptionJobId
+        ? `post-light-prompt-shown:${transcriptionJobId}`
+        : `post-light-prompt-shown:editor:${editorId}`,
+    });
+  }, [
+    editorId,
+    globalPlaybackIsPlaying,
+    heavyPreviewCountryResolved,
+    heavyPreviewEligible,
+    heavyPreviewUpgradeOpen,
+    postLightPromptOpen,
+  ]);
+
+  useEffect(() => {
+    if (!router.isReady || loading || !canvas || !hasAccount || isPaidUser) return;
+    if (globalPlaybackIsPlaying) {
+      postValuePlaybackSeenRef.current = true;
+      return;
+    }
+    if (!postValuePlaybackSeenRef.current || postValuePromptHandledRef.current) return;
+    postValuePlaybackSeenRef.current = false;
+
+    if (
+      heavyPreviewUpgradeHandledRef.current ||
+      postLightPromptHandledRef.current ||
+      heavyPreviewUpgradeOpen ||
+      postLightPromptOpen ||
+      hasVisitedPremiumPricing()
+    ) {
+      sendEvent(ANALYTICS_EVENTS.premiumPromptDeferred, {
+        reason: "post_value_interaction",
+        trigger: "playback_completed",
+        surface: "editor",
+        editor_id: editorId,
+        blocked_by: heavyPreviewUpgradeHandledRef.current || heavyPreviewUpgradeOpen
+          ? "heavy_preview_upgrade"
+          : postLightPromptHandledRef.current || postLightPromptOpen
+            ? "post_light_model_prompt"
+            : "pricing_already_visited",
+      });
+      return;
+    }
+
+    const storageKey = "note2tabs:premium-prompt:shown:post_value_interaction";
+    const dismissedKey = "note2tabs:premium-prompt:dismissed:post_value_interaction";
+    let shownAt = 0;
+    let dismissedAt = 0;
+    try {
+      shownAt = Number(window.localStorage.getItem(storageKey) || 0);
+      dismissedAt = Number(window.localStorage.getItem(dismissedKey) || 0);
+    } catch {
+      // The offer can still appear when local storage is unavailable.
+    }
+    const cooldown = 7 * 24 * 60 * 60 * 1000;
+    if (Date.now() - shownAt < cooldown || Date.now() - dismissedAt < cooldown) return;
+
+    postValuePromptHandledRef.current = true;
+    const funnel = getOrCreatePremiumFunnelContext({
+      source: "premium_prompt",
+      reason: "post_value_interaction",
+    });
+    setPostValueTrigger("playback_completed");
+    setPostValueFunnel(funnel);
+    sendEvent(ANALYTICS_EVENTS.premiumPromptEligible, {
+      trigger: "playback_completed",
+      placement: "editor_nonmodal",
+      surface: "editor",
+      editor_id: editorId,
+      ...premiumFunnelProperties(funnel),
+    });
+    const timeout = window.setTimeout(() => {
+      try { window.localStorage.setItem(storageKey, String(Date.now())); } catch {}
+      setPostValuePromptOpen(true);
+      const properties = {
+        trigger: "playback_completed",
+        placement: "editor_nonmodal",
+        surface: "editor",
+        editor_id: editorId,
+        ...premiumFunnelProperties(funnel),
+      };
+      sendEvent(ANALYTICS_EVENTS.premiumPromptRendered, properties);
+      sendEvent(ANALYTICS_EVENTS.premiumPromptShown, properties);
+    }, 1200);
+    return () => window.clearTimeout(timeout);
+  }, [
+    canvas,
+    editorId,
+    globalPlaybackIsPlaying,
+    hasAccount,
+    heavyPreviewUpgradeOpen,
+    isPaidUser,
+    loading,
+    postLightPromptOpen,
+    router.isReady,
   ]);
   const chordDiagramHandednessStorageKey = useMemo(() => {
     if (session?.user?.id) {
@@ -11243,6 +11387,43 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             recommendedModel: recommendation === "heavy_preview" ? "super_heavy" : "heavy",
           });
           void router.push(`/transcriber?${params.toString()}#hero`);
+        }}
+      />
+      <PostValuePremiumPrompt
+        open={postValuePromptOpen && !heavyPreviewUpgradeOpen && !postLightPromptOpen}
+        editorId={editorId}
+        trigger={postValueTrigger}
+        onClose={() => {
+          setPostValuePromptOpen(false);
+          try {
+            window.localStorage.setItem(
+              "note2tabs:premium-prompt:dismissed:post_value_interaction",
+              String(Date.now())
+            );
+          } catch {}
+          sendEvent(ANALYTICS_EVENTS.premiumPromptDismissed, {
+            reason: "post_value_interaction",
+            trigger: postValueTrigger,
+            placement: "editor_nonmodal",
+            surface: "editor",
+            editor_id: editorId,
+            ...(postValueFunnel ? premiumFunnelProperties(postValueFunnel) : {}),
+          });
+        }}
+        onUpgrade={() => {
+          sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, {
+            reason: "post_value_interaction",
+            trigger: postValueTrigger,
+            placement: "editor_nonmodal",
+            surface: "editor",
+            editor_id: editorId,
+            ...(postValueFunnel ? premiumFunnelProperties(postValueFunnel) : {}),
+          });
+          const funnel = postValueFunnel || getOrCreatePremiumFunnelContext({
+            source: "premium_prompt",
+            reason: "post_value_interaction",
+          });
+          void router.push(premiumPricingHref(funnel));
         }}
       />
       <EditorTutorial hasAccount={hasAccount} passedTutorial={passedTutorial} />

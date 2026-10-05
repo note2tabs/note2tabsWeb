@@ -12,6 +12,7 @@ type TranscriptionModelDropdownProps = {
   canUseHeavy?: boolean;
   heavyPreviewAvailable?: boolean;
   verificationRequired?: boolean;
+  onLockedHeavySelect?: () => void;
 };
 
 export default function TranscriptionModelDropdown({
@@ -22,6 +23,7 @@ export default function TranscriptionModelDropdown({
   canUseHeavy = false,
   heavyPreviewAvailable = false,
   verificationRequired = false,
+  onLockedHeavySelect,
 }: TranscriptionModelDropdownProps) {
   const detailsRef = useRef<HTMLDetailsElement | null>(null);
   const selected =
@@ -92,10 +94,22 @@ export default function TranscriptionModelDropdown({
               aria-selected={option.value === value}
               className={`${option.value === value ? "selected" : ""}${isLocked ? " model-dropdown-option--locked" : ""}`}
               onClick={() => {
-                if (!isLocked) choose(option.value);
+                if (isLocked) {
+                  onLockedHeavySelect?.();
+                  if (detailsRef.current) detailsRef.current.open = false;
+                  return;
+                }
+                choose(option.value);
               }}
-              onKeyDown={(event) => onOptionKeyDown(event, option.value)}
-              disabled={isLocked}
+              onKeyDown={(event) => {
+                if (isLocked && (event.key === "Enter" || event.key === " ")) {
+                  event.preventDefault();
+                  onLockedHeavySelect?.();
+                  if (detailsRef.current) detailsRef.current.open = false;
+                  return;
+                }
+                onOptionKeyDown(event, option.value);
+              }}
               aria-disabled={isLocked}
               title={
                 isLocked

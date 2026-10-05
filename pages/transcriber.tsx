@@ -51,6 +51,7 @@ import TranscriptionModelValueNote from "../components/TranscriptionModelValueNo
 import HeavyPreviewIntroDialog from "../components/HeavyPreviewIntroDialog";
 import HeavyPreviewOffer from "../components/HeavyPreviewOffer";
 import PremiumConversionCard from "../components/PremiumConversionCard";
+import PremiumHomeCallout from "../components/PremiumHomeCallout";
 import { publishCreditsForPremiumPrompt } from "../lib/premiumPromptSignals";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
 import { normalizeUploadFilename } from "../lib/uploadFilename";
@@ -227,6 +228,7 @@ export default function TranscriberPage() {
   const heavyPreviewAcknowledgedRef = useRef(false);
   const [authHandoffBusy, setAuthHandoffBusy] = useState(false);
   const [upgradeBusy, setUpgradeBusy] = useState(false);
+  const [showHeavyUpgrade, setShowHeavyUpgrade] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
   const convertInFlightRef = useRef(false);
@@ -247,7 +249,13 @@ export default function TranscriberPage() {
     setTranscriptionModel(model);
   };
   const needsPremiumForSelectedFile = Boolean(
-    transcriberSession && !isPremiumUser && selectedFile && selectedFile.size > MAX_FREE_BYTES
+    !isPremiumUser && selectedFile && selectedFile.size > MAX_FREE_BYTES && selectedFile.size <= MAX_PRESERVABLE_UPLOAD_BYTES
+  );
+  const needsProForSelectedFile = Boolean(
+    selectedFile && selectedFile.size > PLAN_CATALOG.PREMIUM.maxUploadBytes
+  );
+  const needsPremiumForFileDuration = Boolean(
+    !isPremiumUser && selectedFile && fileDuration && fileDuration > MAX_FREE_FILE_SNIPPET_SEC
   );
   const requireVerifiedEmail = process.env.NODE_ENV === "production";
   const isEmailVerified = !requireVerifiedEmail || Boolean(transcriberSession?.user?.isEmailVerified);
@@ -1524,6 +1532,13 @@ export default function TranscriberPage() {
                         canUseHeavy={canUseHeavy}
                         heavyPreviewAvailable={heavyPreviewAvailable}
                         verificationRequired={isSignedIn && heavyPreviewCountryEligible && !isEmailVerified}
+                        onLockedHeavySelect={() => {
+                          if (isSignedIn && heavyPreviewCountryEligible && !isEmailVerified) {
+                            void router.push(verifyHref);
+                            return;
+                          }
+                          setShowHeavyUpgrade(true);
+                        }}
                       />
                     </div>
                   )}
@@ -1679,8 +1694,9 @@ export default function TranscriberPage() {
                   </div>
 
                   {mode === "YOUTUBE" && (
-                    <div className="prompt-field prompt-field--compact">
-                      <div className="advanced-grid">
+                    <>
+                      <div className="prompt-field prompt-field--compact">
+                        <div className="advanced-grid">
                         <label>Start time<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="0:00" value={ytStartInput} onChange={(event) => handleYtStartInputChange(event.target.value)} onBlur={handleYtStartInputBlur} required /></label>
                         <label>End time<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="0:30" value={ytEndInput} onChange={(event) => handleYtEndInputChange(event.target.value)} onBlur={handleYtEndInputBlur} required /></label>
                         <p className="advanced-note">
@@ -1688,8 +1704,10 @@ export default function TranscriberPage() {
                             ? `Choose any clip length within the first ${youtubeWindowSeconds / 60} minutes.`
                             : "Free clips can be up to 30 s."}
                         </p>
+                        </div>
                       </div>
-                    </div>
+                      <PremiumHomeCallout show={youtubeValid} />
+                    </>
                   )}
                   {mode === "FILE" && selectedFile && (
                     <div className="prompt-field prompt-field--compact">
@@ -1705,14 +1723,18 @@ export default function TranscriberPage() {
 
               {status && !loading && !authHandoffBusy && <div className="status">{status}</div>}
               {error && <div className="error" role="alert">{error}</div>}
-              {needsPremiumForSelectedFile && (
-                <PremiumConversionCard
-                  title="Continue with this upload"
-                  description="Your file is still selected. Premium supports audio files up to 200 MB and full-length transcription."
-                  actionLabel="Continue with Premium"
-                  onAction={() => void handlePreservedUploadUpgrade()}
-                  busy={upgradeBusy}
-                />
+              {needsPremiumForSelectedFile && !showHeavyUpgrade && (
+                isSignedIn && !needsProForSelectedFile ? (
+                  <PremiumConversionCard title="Continue with this upload" description="Your file is still selected. Premium supports audio files up to 200 MB and full-length transcription." actionLabel="Continue with Premium" onAction={() => void handlePreservedUploadUpgrade()} busy={upgradeBusy} tracking={{ source: "large_upload_gate", reason: "file_size_limit", surface: "file_size_limit_card", trigger: "oversized_file_selected" }} />
+                ) : (
+                  <PremiumConversionCard title={needsProForSelectedFile ? "This file needs Pro" : "This file needs Premium"} description={needsProForSelectedFile ? "This file is larger than Premium's 200 MB limit. Pro supports files up to 500 MB." : "Free uploads are limited to 50 MB. Premium supports files up to 200 MB."} actionLabel={needsProForSelectedFile ? "See Pro" : "See Premium"} planLabel={needsProForSelectedFile ? "Note2Tabs Pro" : undefined} reassurance={needsProForSelectedFile ? "$14.99 billed today · Cancel anytime" : undefined} href={premiumPricingHref({ source: "large_upload_gate", reason: needsProForSelectedFile ? "pro_file_size_limit" : "file_size_limit" })} tracking={{ source: "large_upload_gate", reason: needsProForSelectedFile ? "pro_file_size_limit" : "file_size_limit", surface: needsProForSelectedFile ? "pro_file_size_limit_card" : "file_size_limit_card", trigger: "oversized_file_selected" }} />
+                )
+              )}
+              {!needsPremiumForSelectedFile && needsPremiumForFileDuration && !showHeavyUpgrade && (
+                <PremiumConversionCard title="Transcribe more of this file" description="Free accounts can select up to 60 seconds. Premium unlocks full-length audio-file transcription." actionLabel="See longer options" href={premiumPricingHref({ source: "premium_prompt", reason: "file_duration_limit" })} tracking={{ source: "premium_prompt", reason: "file_duration_limit", surface: "file_duration_limit_card", trigger: "long_file_selected" }} />
+              )}
+              {showHeavyUpgrade && !isPremiumUser && (
+                <PremiumConversionCard title="Use the Heavy model" description="The Heavy model is available with Premium or Pro for our highest transcription accuracy." actionLabel="See plans" href={premiumPricingHref({ source: "heavy_model", reason: "heavy_model_locked" })} tracking={{ source: "heavy_model", reason: "heavy_model_locked", surface: "heavy_model_locked_card", trigger: "locked_model_selected" }} />
               )}
               {isSignedIn && !isEmailVerified && (
                 <div className="notice">
@@ -1724,7 +1746,7 @@ export default function TranscriberPage() {
                   </Link>
                 </div>
               )}
-              {isSignedIn && showCreditsLow && (
+              {isSignedIn && showCreditsLow && !needsPremiumForSelectedFile && !needsPremiumForFileDuration && !showHeavyUpgrade && (
                 isPremiumRole(transcriberSession?.user?.role) ? (
                   <div className="notice">
                     Your credits will be refreshed on {creditsResetLabel}.
@@ -1736,6 +1758,7 @@ export default function TranscriberPage() {
                     actionLabel="See Premium"
                     href={premiumPricingHref({ source: "low_credits", reason: "credits_low" })}
                     resetMessage={`Free credits reset ${creditsResetLabel}`}
+                    tracking={{ source: "low_credits", reason: "credits_low", surface: "low_credits_card", trigger: "credits_threshold_reached" }}
                   />
                 )
               )}
