@@ -59,6 +59,39 @@ const promptCopy: Record<PromptReason, { title: string; body: string }> = {
   },
 };
 
+type PremiumPromptCardProps = {
+  reason: PromptReason;
+  href: string;
+  onDismiss: () => void;
+  onClick?: () => void;
+  preview?: boolean;
+};
+
+export function PremiumPromptCard({
+  reason,
+  href,
+  onDismiss,
+  onClick,
+  preview = false,
+}: PremiumPromptCardProps) {
+  const copy = promptCopy[reason];
+  return (
+    <aside className={`premium-upgrade-prompt${preview ? " premium-upgrade-prompt--preview" : ""}`} aria-label="Premium subscription">
+      <button type="button" className="premium-upgrade-prompt__close" onClick={onDismiss} aria-label="Dismiss Premium offer">
+        <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="m5.5 5.5 9 9m0-9-9 9" /></svg>
+      </button>
+      <span className="premium-upgrade-prompt__eyebrow">Note2Tabs Premium</span>
+      <strong>{copy.title}</strong>
+      <p>{copy.body}</p>
+      <div className="premium-upgrade-prompt__actions">
+        <Link href={href} onClick={onClick}>See plans</Link>
+        <button type="button" onClick={onDismiss}>Not now</button>
+      </div>
+      <small>Plans from $5.99/month · Cancel anytime</small>
+    </aside>
+  );
+}
+
 function readTimestamp(key: string) {
   try { return Number(window.localStorage.getItem(key) || 0); } catch { return 0; }
 }
@@ -79,7 +112,7 @@ export default function PremiumUpgradePrompt() {
   const { data: session, status } = useSession();
   const [reason, setReason] = useState<PromptReason | null>(null);
   const [funnelContext, setFunnelContext] = useState<PremiumFunnelContext | null>(null);
-  const promptRef = useRef<HTMLElement | null>(null);
+  const promptRef = useRef<HTMLDivElement | null>(null);
   const viewedRef = useRef(false);
   const role = session?.user?.role;
   const isEligible = status === "authenticated" &&
@@ -185,7 +218,6 @@ export default function PremiumUpgradePrompt() {
   }, [funnelContext, reason]);
 
   if (!reason) return null;
-  const copy = promptCopy[reason];
   const dismiss = () => {
     try { window.localStorage.setItem(storageKey("dismissed", reason), String(Date.now())); } catch {}
     setReason(null);
@@ -196,15 +228,12 @@ export default function PremiumUpgradePrompt() {
   };
 
   return (
-    <aside ref={promptRef} className="premium-upgrade-prompt" aria-label="Premium subscription">
-      <button type="button" className="premium-upgrade-prompt__close" onClick={dismiss} aria-label="Dismiss Premium offer">
-        <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="m5.5 5.5 9 9m0-9-9 9" /></svg>
-      </button>
-      <span className="premium-upgrade-prompt__eyebrow">Note2Tabs Premium</span>
-      <strong>{copy.title}</strong>
-      <p>{copy.body}</p>
-      <div className="premium-upgrade-prompt__actions">
-        <Link href={premiumPricingHref(funnelContext || { source: "premium_prompt", reason })} onClick={() => {
+    <div ref={promptRef}>
+      <PremiumPromptCard
+        reason={reason}
+        href={premiumPricingHref(funnelContext || { source: "premium_prompt", reason })}
+        onDismiss={dismiss}
+        onClick={() => {
           sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, {
             trigger: reason, placement: "nonmodal_corner", surface: "contextual_prompt",
             ...(funnelContext ? premiumFunnelProperties(funnelContext) : {}),
@@ -212,10 +241,8 @@ export default function PremiumUpgradePrompt() {
           trackCtaClick("premium_prompt_view_plans", {
             surface: "contextual_prompt", ...(funnelContext ? premiumFunnelProperties(funnelContext) : {}),
           });
-        }}>See plans</Link>
-        <button type="button" onClick={dismiss}>Not now</button>
-      </div>
-      <small>Plans from $5.99/month · Cancel anytime</small>
-    </aside>
+        }}
+      />
+    </div>
   );
 }

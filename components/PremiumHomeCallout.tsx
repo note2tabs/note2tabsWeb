@@ -13,13 +13,30 @@ const hasPremiumAccess = (role?: string, subscriptionPlan?: string) =>
   (Boolean(subscriptionPlan) && subscriptionPlan !== "FREE") ||
   ["PREMIUM", "PRO", "ADMIN", "MODERATOR", "MOD"].includes(role || "");
 
+type PremiumHomeCalloutCardProps = {
+  href: string;
+  onClick?: () => void;
+};
+
+export function PremiumHomeCalloutCard({ href, onClick }: PremiumHomeCalloutCardProps) {
+  return (
+    <aside className="premium-home-callout" aria-label="Note2Tabs Premium">
+      <div>
+        <strong>More room for full songs and the Heavy model.</strong>
+        <p>Get 100 monthly credits, rollover, and full-length audio-file transcription.</p>
+      </div>
+      <Link href={href} onClick={onClick}>See plans</Link>
+    </aside>
+  );
+}
+
 export default function PremiumHomeCallout() {
   const { data: session, status } = useSession();
   const [funnel, setFunnel] = useState<PremiumFunnelContext | null>(null);
   const [visible, setVisible] = useState(false);
   const shownRef = useRef(false);
   const viewedRef = useRef(false);
-  const calloutRef = useRef<HTMLElement | null>(null);
+  const calloutRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (
@@ -78,12 +95,8 @@ export default function PremiumHomeCallout() {
 
   return (
     <div className="premium-home-callout-wrap">
-      <aside ref={calloutRef} className="premium-home-callout" aria-label="Note2Tabs Premium">
-        <div>
-          <strong>More room for full songs and the Heavy model.</strong>
-          <p>Get 100 monthly credits, rollover, and full-length audio-file transcription.</p>
-        </div>
-        <Link
+      <div ref={calloutRef}>
+        <PremiumHomeCalloutCard
           href={premiumPricingHref(funnel)}
           onClick={() => {
             sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, {
@@ -95,10 +108,8 @@ export default function PremiumHomeCallout() {
               ...premiumFunnelProperties(funnel),
             });
           }}
-        >
-          See plans
-        </Link>
-      </aside>
+        />
+      </div>
     </div>
   );
 }
