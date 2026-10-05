@@ -21,15 +21,35 @@ export default function TranscriptionSignupDialog({ open, mode, returnTo, onClos
   const [loading, setLoading] = useState(false);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const emailRef = useRef<HTMLInputElement | null>(null);
+  const trackedOpenRef = useRef(false);
+
+  const closeDialog = (reason: "close_button" | "escape" | "backdrop") => {
+    sendEvent(ANALYTICS_EVENTS.transcriptionSignupDialogDismissed, {
+      surface: "transcription_signup_dialog",
+      mode,
+      reason,
+    });
+    onClose();
+  };
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      trackedOpenRef.current = false;
+      return;
+    }
+    if (!trackedOpenRef.current) {
+      trackedOpenRef.current = true;
+      sendEvent(ANALYTICS_EVENTS.transcriptionSignupDialogShown, {
+        surface: "transcription_signup_dialog",
+        mode,
+      });
+    }
     const previousOverflow = document.body.style.overflow;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.body.style.overflow = "hidden";
     emailRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !loading) onClose();
+      if (event.key === "Escape" && !loading) closeDialog("escape");
       if (event.key !== "Tab") return;
       const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
         'button:not([disabled]), a[href], input:not([disabled])'
@@ -51,7 +71,7 @@ export default function TranscriptionSignupDialog({ open, mode, returnTo, onClos
       window.removeEventListener("keydown", onKeyDown);
       previousFocus?.focus();
     };
-  }, [loading, onClose, open]);
+  }, [loading, mode, onClose, open]);
 
   if (!open) return null;
 
@@ -96,10 +116,10 @@ export default function TranscriptionSignupDialog({ open, mode, returnTo, onClos
 
   return (
     <div className="transcription-signup-scrim" onMouseDown={(event) => {
-      if (event.target === event.currentTarget && !loading) onClose();
+      if (event.target === event.currentTarget && !loading) closeDialog("backdrop");
     }}>
       <div ref={dialogRef} className="transcription-signup-dialog" role="dialog" aria-modal="true" aria-labelledby="transcription-signup-title">
-        <button type="button" className="transcription-signup-dialog__close" onClick={onClose} disabled={loading} aria-label="Close account creation">×</button>
+        <button type="button" className="transcription-signup-dialog__close" onClick={() => closeDialog("close_button")} disabled={loading} aria-label="Close account creation">×</button>
         <header>
           <h2 id="transcription-signup-title">Create an account to transcribe</h2>
           <p>Your {mode === "YOUTUBE" ? "YouTube section" : "audio file"} is saved. After sign-up, you’ll return automatically to your transcription.</p>
@@ -118,7 +138,7 @@ export default function TranscriptionSignupDialog({ open, mode, returnTo, onClos
           const analytics = { method: "google", destination: "transcription_resume", surface: "transcription_signup_dialog", mode };
           sendEvent(ANALYTICS_EVENTS.signupStarted, analytics);
           trackCtaClick("transcription_signup_google", analytics);
-          saveOAuthIntent("signup", returnTo);
+          saveOAuthIntent("signup", returnTo, { surface: "transcription_signup_dialog", mode });
           void signIn("google", { callbackUrl: returnTo });
         }}><img src="/icons/google.svg" alt="" width={17} height={16} aria-hidden="true" />Continue with Google</button>
         <p className="transcription-signup-dialog__login">Already have an account? <Link href={loginHref}>Log in</Link></p>

@@ -74,6 +74,8 @@ export const ANALYTICS_EVENTS = {
   authHandoffRequired: "auth_handoff_required",
   authHandoffSaved: "auth_handoff_saved",
   authHandoffResumed: "auth_handoff_resumed",
+  transcriptionSignupDialogShown: "transcription_signup_dialog_shown",
+  transcriptionSignupDialogDismissed: "transcription_signup_dialog_dismissed",
   uploadPresignStarted: "upload_presign_started",
   uploadStorageSucceeded: "upload_storage_succeeded",
   uploadStorageFailed: "upload_storage_failed",

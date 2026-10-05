@@ -554,7 +554,13 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         setStatus("Welcome back — your transcription is ready to continue.");
       }
 
-      sendEvent(ANALYTICS_EVENTS.authHandoffResumed, { mode: pending.mode, path: "/" });
+      sendEvent(ANALYTICS_EVENTS.authHandoffResumed, {
+        mode: pending.mode,
+        path: "/",
+        ...(router.query.source === "transcription_signup_dialog"
+          ? { source: "transcription_signup_dialog" }
+          : {}),
+      });
       await router.replace("/#hero", undefined, { shallow: true });
     };
 
@@ -566,7 +572,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     return () => {
       cancelled = true;
     };
-  }, [router.isReady, router.query.resumeTranscription, sessionStatus]);
+  }, [router.isReady, router.query.resumeTranscription, router.query.source, sessionStatus]);
 
   useEffect(() => {
     if (!selectedFile || fileDuration === null || fileStartTime !== 0 || fileEndTime === null) return;
@@ -1609,9 +1615,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       <TranscriptionSignupDialog
         open={showTranscriptionSignup}
         mode={mode}
-        returnTo="/?resumeTranscription=1"
+        returnTo="/?resumeTranscription=1&source=transcription_signup_dialog"
         onClose={() => setShowTranscriptionSignup(false)}
-        onComplete={() => window.location.assign("/?resumeTranscription=1")}
+        onComplete={() => window.location.assign("/?resumeTranscription=1&source=transcription_signup_dialog")}
       />
       <HeavyPreviewIntroDialog
         open={showHeavyPreviewIntro}

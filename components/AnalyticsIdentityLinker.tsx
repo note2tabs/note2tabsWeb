@@ -112,6 +112,8 @@ export default function AnalyticsIdentityLinker() {
           method: "google",
           destination: categorizeAnalyticsDestination(oauthIntent.next),
           initiatedAs: oauthIntent.intent,
+          ...(oauthIntent.surface ? { surface: oauthIntent.surface } : {}),
+          ...(oauthIntent.mode ? { mode: oauthIntent.mode } : {}),
           ...(fromTabShareEmail ? { signup_source: TAB_SHARE_EMAIL_SOURCE } : {}),
           ...(funnel ? premiumFunnelProperties(funnel) : {}),
         });
@@ -128,6 +130,8 @@ export default function AnalyticsIdentityLinker() {
           method: "google",
           destination: categorizeAnalyticsDestination(oauthIntent.next),
           initiatedAs: oauthIntent.intent,
+          ...(oauthIntent.surface ? { surface: oauthIntent.surface } : {}),
+          ...(oauthIntent.mode ? { mode: oauthIntent.mode } : {}),
           ...(funnel ? premiumFunnelProperties(funnel) : {}),
         });
       }

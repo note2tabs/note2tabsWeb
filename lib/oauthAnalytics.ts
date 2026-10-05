@@ -2,7 +2,11 @@ export type OAuthIntent = {
   intent: "signup" | "login";
   next: string;
   savedAt: number;
+  surface?: string;
+  mode?: "FILE" | "YOUTUBE";
 };
+
+type OAuthAnalyticsContext = Pick<OAuthIntent, "surface" | "mode">;
 
 const STORAGE_KEY = "note2tabs:oauth-intent";
 const MAX_AGE_MS = 15 * 60 * 1000;
@@ -16,11 +20,15 @@ function getSessionStorage() {
   }
 }
 
-export function saveOAuthIntent(intent: OAuthIntent["intent"], next: string) {
+export function saveOAuthIntent(
+  intent: OAuthIntent["intent"],
+  next: string,
+  context: OAuthAnalyticsContext = {}
+) {
   const storage = getSessionStorage();
   if (!storage) return;
   try {
-    storage.setItem(STORAGE_KEY, JSON.stringify({ intent, next, savedAt: Date.now() }));
+    storage.setItem(STORAGE_KEY, JSON.stringify({ intent, next, savedAt: Date.now(), ...context }));
   } catch {
     // Analytics state must never block sign-in.
   }
@@ -51,6 +59,8 @@ export function takeOAuthIntent(): OAuthIntent | null {
     const value = JSON.parse(raw) as OAuthIntent;
     if (!value || Date.now() - value.savedAt > MAX_AGE_MS) return null;
     if (value.intent !== "signup" && value.intent !== "login") return null;
+    if (value.surface !== undefined && typeof value.surface !== "string") return null;
+    if (value.mode !== undefined && value.mode !== "FILE" && value.mode !== "YOUTUBE") return null;
     return value;
   } catch {
     return null;
