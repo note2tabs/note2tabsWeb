@@ -4,6 +4,7 @@ import { PremiumPromptCard, type PromptReason } from "../../components/PremiumUp
 import PostValuePremiumPrompt from "../../components/PostValuePremiumPrompt";
 import HeavyPreviewEditorPrompt from "../../components/HeavyPreviewEditorPrompt";
 import PostLightModelPrompt from "../../components/PostLightModelPrompt";
+import PremiumConversionCard from "../../components/PremiumConversionCard";
 import type { ReactNode } from "react";
 
 const noop = () => undefined;
@@ -85,6 +86,18 @@ export default function PremiumPromptsPreviewPage() {
             <p>Reason-specific messages with independent cooldowns. They no longer appear simply because twelve seconds passed.</p>
           </div>
           <div className="premium-prompt-dev__grid">
+            <article className="premium-prompt-dev__card">
+              <div><h3>File size limit</h3><p>Appears immediately after a free user selects an audio file larger than 50 MB.</p></div>
+              <PremiumConversionCard title="This file needs Premium" description="Free uploads are limited to 50 MB. Premium supports files up to 200 MB." actionLabel="See Premium" href="#preview" />
+            </article>
+            <article className="premium-prompt-dev__card">
+              <div><h3>File duration limit</h3><p>Explains why only the first 60 seconds can be selected from a longer upload.</p></div>
+              <PremiumConversionCard title="Transcribe more of this file" description="Free accounts can select up to 60 seconds. Premium unlocks full-length audio-file transcription." actionLabel="See longer options" href="#preview" />
+            </article>
+            <article className="premium-prompt-dev__card">
+              <div><h3>Locked Heavy model</h3><p>Appears when a free user actively selects the locked Heavy model.</p></div>
+              <PremiumConversionCard title="Use the Heavy model" description="The Heavy model is available with Premium or Pro for our highest transcription accuracy." actionLabel="See plans" href="#preview" />
+            </article>
             {contextualStates.map((state) => (
               <article className="premium-prompt-dev__card" key={state.reason}>
                 <div><h3>{state.label}</h3><p>{state.timing}</p></div>

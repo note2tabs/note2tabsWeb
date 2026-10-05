@@ -249,6 +249,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   const [localHeavyPreviewUsed, setLocalHeavyPreviewUsed] = useState(false);
   const [showHeavyPreviewIntro, setShowHeavyPreviewIntro] = useState(false);
   const [heavyPreviewConfirmationIntent, setHeavyPreviewConfirmationIntent] = useState<"select" | "start">("start");
+  const [showHeavyUpgrade, setShowHeavyUpgrade] = useState(false);
   const heavyPreviewAcknowledgedRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
@@ -272,7 +273,10 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     sessionStatus === "authenticated" && !isPremiumUser
   );
   const needsPremiumForSelectedFile = Boolean(
-    transcriberSession && !isPremiumUser && selectedFile && selectedFile.size > MAX_FREE_BYTES
+    !isPremiumUser && selectedFile && selectedFile.size > MAX_FREE_BYTES && selectedFile.size <= MAX_PRESERVABLE_UPLOAD_BYTES
+  );
+  const needsPremiumForFileDuration = Boolean(
+    !isPremiumUser && selectedFile && fileDuration && fileDuration > MAX_FREE_FILE_SNIPPET_SEC
   );
   const requireVerifiedEmail = process.env.NODE_ENV === "production";
   const isEmailVerified = !requireVerifiedEmail || Boolean(transcriberSession?.user?.isEmailVerified);
@@ -1683,6 +1687,13 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                         canUseHeavy={canUseHeavy}
                         heavyPreviewAvailable={heavyPreviewAvailable}
                         verificationRequired={isSignedIn && heavyPreviewCountryEligible && !isEmailVerified}
+                        onLockedHeavySelect={() => {
+                          if (isSignedIn && heavyPreviewCountryEligible && !isEmailVerified) {
+                            void router.push(verifyHref);
+                            return;
+                          }
+                          setShowHeavyUpgrade(true);
+                        }}
                       />
                     </div>
                   )}
@@ -1946,14 +1957,18 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
               {status && !loading && !authHandoffBusy && <div className="status">{status}</div>}
               {error && <div className="error" role="alert">{error}</div>}
-              {needsPremiumForSelectedFile && (
-                <PremiumConversionCard
-                  title="Continue with this upload"
-                  description="Your file is still selected. Premium supports audio files up to 200 MB and full-length transcription."
-                  actionLabel="Continue with Premium"
-                  onAction={() => void handlePreservedUploadUpgrade()}
-                  busy={pricingBusy}
-                />
+              {needsPremiumForSelectedFile && !showHeavyUpgrade && (
+                isSignedIn ? (
+                  <PremiumConversionCard title="Continue with this upload" description="Your file is still selected. Premium supports audio files up to 200 MB and full-length transcription." actionLabel="Continue with Premium" onAction={() => void handlePreservedUploadUpgrade()} busy={pricingBusy} />
+                ) : (
+                  <PremiumConversionCard title="This file needs Premium" description="Free uploads are limited to 50 MB. Premium supports files up to 200 MB." actionLabel="See Premium" href={premiumPricingHref({ source: "large_upload_gate", reason: "file_size_limit" })} />
+                )
+              )}
+              {!needsPremiumForSelectedFile && needsPremiumForFileDuration && !showHeavyUpgrade && (
+                <PremiumConversionCard title="Transcribe more of this file" description="Free accounts can select up to 60 seconds. Premium unlocks full-length audio-file transcription." actionLabel="See longer options" href={premiumPricingHref({ source: "premium_prompt", reason: "file_duration_limit" })} />
+              )}
+              {showHeavyUpgrade && !isPremiumUser && (
+                <PremiumConversionCard title="Use the Heavy model" description="The Heavy model is available with Premium or Pro for our highest transcription accuracy." actionLabel="See plans" href={premiumPricingHref({ source: "heavy_model", reason: "heavy_model_locked" })} />
               )}
               {needsPremiumForSelectedFile && pricingError && (
                 <div className="error" role="alert">{pricingError}</div>
@@ -1968,7 +1983,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   </Link>
                 </div>
               )}
-              {isSignedIn && showCreditsLow && (
+              {isSignedIn && showCreditsLow && !needsPremiumForSelectedFile && !needsPremiumForFileDuration && !showHeavyUpgrade && (
                 isPremiumRole(transcriberSession?.user?.role) ? (
                   <div className="notice">
                     Your credits will be refreshed on {creditsResetLabel}.
