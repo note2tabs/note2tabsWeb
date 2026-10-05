@@ -20,17 +20,17 @@ type PremiumHomeCalloutCardProps = {
 
 export function PremiumHomeCalloutCard({ href, onClick }: PremiumHomeCalloutCardProps) {
   return (
-    <aside className="premium-home-callout" aria-label="Note2Tabs Premium">
+    <aside className="premium-home-callout" aria-label="Longer YouTube transcription options">
       <div>
-        <strong>More room for full songs and the Heavy model.</strong>
-        <p>Get 100 monthly credits, rollover, and full-length audio-file transcription.</p>
+        <strong>Need a longer section?</strong>
+        <p>Free accounts can transcribe 30 seconds at a time. Premium unlocks longer YouTube sections within the first 10 minutes.</p>
       </div>
-      <Link href={href} onClick={onClick}>See plans</Link>
+      <Link href={href} onClick={onClick}>See longer options</Link>
     </aside>
   );
 }
 
-export default function PremiumHomeCallout() {
+export default function PremiumHomeCallout({ show = false }: { show?: boolean }) {
   const { data: session, status } = useSession();
   const [funnel, setFunnel] = useState<PremiumFunnelContext | null>(null);
   const [visible, setVisible] = useState(false);
@@ -40,7 +40,8 @@ export default function PremiumHomeCallout() {
 
   useEffect(() => {
     if (
-      status !== "authenticated" ||
+      !show ||
+      status === "loading" ||
       hasPremiumAccess(session?.user?.role, session?.user?.subscriptionPlan)
     ) {
       shownRef.current = false;
@@ -49,29 +50,29 @@ export default function PremiumHomeCallout() {
     }
     if (shownRef.current) return;
     const context = getOrCreatePremiumFunnelContext({
-      source: "signed_home",
-      reason: "signed_home_value",
+      source: "premium_prompt",
+      reason: "youtube_clip_limit",
     });
     shownRef.current = true;
     setFunnel(context);
     setVisible(true);
     sendEvent(ANALYTICS_EVENTS.premiumPromptEligible, {
-      surface: "signed_home_inline",
-      placement: "below_transcription_form",
-      trigger: "passive_awareness",
+      surface: "youtube_clip_limit_inline",
+      placement: "below_youtube_time_range",
+      trigger: "youtube_link_added",
       ...premiumFunnelProperties(context),
     });
     sendEvent(ANALYTICS_EVENTS.premiumPromptRendered, {
-      surface: "signed_home_inline",
-      placement: "below_transcription_form",
-      trigger: "passive_awareness",
+      surface: "youtube_clip_limit_inline",
+      placement: "below_youtube_time_range",
+      trigger: "youtube_link_added",
       ...premiumFunnelProperties(context),
     });
     sendEvent(ANALYTICS_EVENTS.premiumPromptShown, {
-      surface: "signed_home_inline",
+      surface: "youtube_clip_limit_inline",
       ...premiumFunnelProperties(context),
     });
-  }, [session?.user?.role, session?.user?.subscriptionPlan, status]);
+  }, [session?.user?.role, session?.user?.subscriptionPlan, show, status]);
 
   useEffect(() => {
     const element = calloutRef.current;
@@ -80,9 +81,9 @@ export default function PremiumHomeCallout() {
       if (!entry?.isIntersecting || entry.intersectionRatio < 0.5 || viewedRef.current) return;
       viewedRef.current = true;
       sendEvent(ANALYTICS_EVENTS.premiumPromptViewed, {
-        surface: "signed_home_inline",
-        placement: "below_transcription_form",
-        trigger: "passive_awareness",
+        surface: "youtube_clip_limit_inline",
+        placement: "below_youtube_time_range",
+        trigger: "youtube_link_added",
         ...premiumFunnelProperties(funnel),
       });
       observer.disconnect();
@@ -100,11 +101,11 @@ export default function PremiumHomeCallout() {
           href={premiumPricingHref(funnel)}
           onClick={() => {
             sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, {
-              surface: "signed_home_callout",
+              surface: "youtube_clip_limit_inline",
               ...premiumFunnelProperties(funnel),
             });
-            trackCtaClick("signed_home_explore_premium", {
-              surface: "signed_home_callout",
+            trackCtaClick("youtube_clip_limit_explore_premium", {
+              surface: "youtube_clip_limit_inline",
               ...premiumFunnelProperties(funnel),
             });
           }}

@@ -65,13 +65,13 @@ export default function PremiumPromptsPreviewPage() {
 
         <section className="premium-prompt-dev__section">
           <div className="premium-prompt-dev__section-heading">
-            <div><span>01</span><h2>Permanent awareness</h2></div>
-            <p>Always discoverable beneath the transcription form. It does not float, animate, or require dismissal.</p>
+            <div><span>01</span><h2>YouTube limit guidance</h2></div>
+            <p>Appears only after a valid YouTube link is entered, where the 30-second free limit becomes relevant.</p>
           </div>
           <div className="premium-prompt-dev__transcriber">
             <div className="premium-prompt-dev__form">
-              <label>Upload audio or paste a YouTube link</label>
-              <div><span>Choose a file or enter a link</span><button>Start transcription</button></div>
+              <label>YouTube link</label>
+              <div><span>https://www.youtube.com/watch?v=example</span><button>Start transcription</button></div>
             </div>
             <div className="premium-home-callout-wrap premium-home-callout-wrap--preview">
               <PremiumHomeCalloutCard href="#preview" onClick={noop} />
@@ -112,7 +112,7 @@ export default function PremiumPromptsPreviewPage() {
             <div><span>04</span><h2>Behavior and measurement</h2></div>
           </div>
           <div className="premium-prompt-dev__rules-grid">
-            <div><strong>Priority</strong><p>Credit or feature limit → Heavy follow-up → Light recommendation → returning user → general post-value → inline awareness.</p></div>
+            <div><strong>Priority</strong><p>Credit or feature limit → Heavy follow-up → Light recommendation → returning user → general post-value → contextual YouTube guidance.</p></div>
             <div><strong>No overlap</strong><p>Only one promotional editor surface renders at a time. Paid users and staff see none of them.</p></div>
             <div><strong>Dismissal</strong><p>Each reason has its own cooldown. Dismissing one offer no longer hides unrelated offers for fourteen days.</p></div>
             <div><strong>Analytics</strong><p>Eligibility, render, actual viewport exposure, deferral, click, and dismissal are tracked separately through pricing and checkout.</p></div>

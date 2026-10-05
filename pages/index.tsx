@@ -1650,7 +1650,6 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 Turn recordings into guitar tab you can edit, practice, and export.
               </p>
             </div>
-            <PremiumHomeCallout />
             <form
               id="transcriber-start"
               className="prompt-shell prompt-shell--funnel"
@@ -1864,8 +1863,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   </div>
 
                   {mode === "YOUTUBE" && (
-                    <div className="prompt-field prompt-field--compact">
-                      <div className="advanced-grid">
+                    <>
+                      <div className="prompt-field prompt-field--compact">
+                        <div className="advanced-grid">
                         <label>
                           Start time
                           <input
@@ -1899,8 +1899,10 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                             ? `Choose any clip length within the first ${youtubeWindowSeconds / 60} minutes.`
                             : "Free clips can be up to 30 s."}
                         </p>
+                        </div>
                       </div>
-                    </div>
+                      <PremiumHomeCallout show={youtubeValid} />
+                    </>
                   )}
                   {mode === "FILE" && selectedFile && (
                     <div className="prompt-field prompt-field--compact">

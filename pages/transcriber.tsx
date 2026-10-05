@@ -51,6 +51,7 @@ import TranscriptionModelValueNote from "../components/TranscriptionModelValueNo
 import HeavyPreviewIntroDialog from "../components/HeavyPreviewIntroDialog";
 import HeavyPreviewOffer from "../components/HeavyPreviewOffer";
 import PremiumConversionCard from "../components/PremiumConversionCard";
+import PremiumHomeCallout from "../components/PremiumHomeCallout";
 import { publishCreditsForPremiumPrompt } from "../lib/premiumPromptSignals";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
 import { normalizeUploadFilename } from "../lib/uploadFilename";
@@ -1679,8 +1680,9 @@ export default function TranscriberPage() {
                   </div>
 
                   {mode === "YOUTUBE" && (
-                    <div className="prompt-field prompt-field--compact">
-                      <div className="advanced-grid">
+                    <>
+                      <div className="prompt-field prompt-field--compact">
+                        <div className="advanced-grid">
                         <label>Start time<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="0:00" value={ytStartInput} onChange={(event) => handleYtStartInputChange(event.target.value)} onBlur={handleYtStartInputBlur} required /></label>
                         <label>End time<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="0:30" value={ytEndInput} onChange={(event) => handleYtEndInputChange(event.target.value)} onBlur={handleYtEndInputBlur} required /></label>
                         <p className="advanced-note">
@@ -1688,8 +1690,10 @@ export default function TranscriberPage() {
                             ? `Choose any clip length within the first ${youtubeWindowSeconds / 60} minutes.`
                             : "Free clips can be up to 30 s."}
                         </p>
+                        </div>
                       </div>
-                    </div>
+                      <PremiumHomeCallout show={youtubeValid} />
+                    </>
                   )}
                   {mode === "FILE" && selectedFile && (
                     <div className="prompt-field prompt-field--compact">
