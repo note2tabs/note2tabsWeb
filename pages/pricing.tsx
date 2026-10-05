@@ -26,6 +26,7 @@ import { buildPricingProductStructuredData } from "../lib/pricingStructuredData"
 import { rememberCheckoutAttempt } from "../lib/checkoutTracking";
 import { formatLocalizedAmount, formatLocalizedPrice, localizedAnnualSaving, readDisplayCurrencyCookie } from "../lib/localizedPricing";
 import { useDisplayCurrency } from "../lib/useDisplayCurrency";
+import { markPremiumPricingVisited } from "../lib/premiumPromptSignals";
 
 export default function PricingPage() {
   const router = useRouter();
@@ -131,6 +132,7 @@ export default function PricingPage() {
   useEffect(() => {
     if (!router.isReady || sessionStatus === "loading" || !offerVariantResolved || pricingViewTrackedRef.current) return;
     pricingViewTrackedRef.current = true;
+    markPremiumPricingVisited();
     const funnel = getFunnelContext();
     sendEvent(ANALYTICS_EVENTS.pricingViewed, {
       path: "/pricing",

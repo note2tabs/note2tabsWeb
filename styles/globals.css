@@ -9525,9 +9525,15 @@ input[type="number"] {
   line-height: 1.45;
 }
 
-.premium-upgrade-prompt > a {
-  width: fit-content;
+.premium-upgrade-prompt__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin-top: 3px;
+}
+
+.premium-upgrade-prompt__actions > a {
+  width: fit-content;
   color: #06110d;
   font-size: 0.78rem;
   font-weight: 800;
@@ -9536,8 +9542,18 @@ input[type="number"] {
   text-underline-offset: 3px;
 }
 
-.premium-upgrade-prompt > a:hover {
+.premium-upgrade-prompt__actions > a:hover {
   text-decoration-color: currentColor;
+}
+
+.premium-upgrade-prompt__actions > button {
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: rgba(6, 17, 13, 0.55);
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
 }
 
 .premium-upgrade-prompt > small {
@@ -9583,19 +9599,14 @@ input[type="number"] {
 }
 
 .premium-home-callout-wrap {
-  position: fixed;
-  right: 24px;
-  bottom: 22px;
-  left: 24px;
-  z-index: 70;
-  width: min(820px, calc(100vw - 48px));
-  margin: 0 auto;
-  pointer-events: none;
+  position: relative;
+  width: min(760px, calc(100% - 32px));
+  margin: 18px auto 0;
 }
 
 .premium-home-callout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 18px;
   padding: 12px 14px;
@@ -9603,9 +9614,7 @@ input[type="number"] {
   border-radius: 15px;
   background: rgba(255, 255, 255, 0.96);
   color: #06110d;
-  box-shadow: 0 16px 42px rgba(6, 17, 13, 0.14);
-  pointer-events: auto;
-  animation: premium-prompt-enter 180ms ease-out both;
+  box-shadow: none;
 }
 
 .premium-home-callout > div {
@@ -9639,23 +9648,10 @@ input[type="number"] {
   white-space: nowrap;
 }
 
-.premium-home-callout > button {
-  min-height: 34px;
-  padding: 6px 4px;
-  border: 0;
-  background: transparent;
-  color: rgba(6, 17, 13, 0.5);
-  font: inherit;
-  font-size: 0.7rem;
-  cursor: pointer;
-}
-
 @media (max-width: 680px) {
   .premium-home-callout-wrap {
-    right: 10px;
-    bottom: 10px;
-    left: 10px;
-    width: auto;
+    width: calc(100% - 20px);
+    margin-top: 12px;
   }
 
   .premium-home-callout {
@@ -9673,9 +9669,6 @@ input[type="number"] {
     justify-self: start;
   }
 
-  .premium-home-callout > button {
-    justify-self: end;
-  }
 }
 
 @keyframes premium-prompt-enter {
@@ -9713,7 +9706,7 @@ input[type="number"] {
     line-height: 1.35;
   }
 
-  .premium-upgrade-prompt > a {
+  .premium-upgrade-prompt__actions > a {
     display: inline-flex;
     align-items: center;
     min-height: 32px;

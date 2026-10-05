@@ -9,33 +9,28 @@ import {
   type PremiumFunnelContext,
 } from "../lib/premiumFunnel";
 
-const DISMISSED_KEY = "note2tabs:premium-home-callout-dismissed-at";
-const DISMISS_FOR_MS = 30 * 24 * 60 * 60 * 1000;
-
-const hasPremiumAccess = (role?: string) =>
-  role === "PREMIUM" || role === "ADMIN" || role === "MODERATOR" || role === "MOD";
+const hasPremiumAccess = (role?: string, subscriptionPlan?: string) =>
+  (Boolean(subscriptionPlan) && subscriptionPlan !== "FREE") ||
+  ["PREMIUM", "PRO", "ADMIN", "MODERATOR", "MOD"].includes(role || "");
 
 export default function PremiumHomeCallout() {
   const { data: session, status } = useSession();
   const [funnel, setFunnel] = useState<PremiumFunnelContext | null>(null);
   const [visible, setVisible] = useState(false);
   const shownRef = useRef(false);
+  const viewedRef = useRef(false);
+  const calloutRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    if (status !== "authenticated" || hasPremiumAccess(session?.user?.role)) {
+    if (
+      status !== "authenticated" ||
+      hasPremiumAccess(session?.user?.role, session?.user?.subscriptionPlan)
+    ) {
       shownRef.current = false;
       setVisible(false);
       return;
     }
     if (shownRef.current) return;
-    let dismissedAt = 0;
-    try {
-      dismissedAt = Number(window.localStorage.getItem(DISMISSED_KEY) || 0);
-    } catch {
-      // The inline callout can still render when storage is unavailable.
-    }
-    if (Date.now() - dismissedAt < DISMISS_FOR_MS) return;
-
     const context = getOrCreatePremiumFunnelContext({
       source: "signed_home",
       reason: "signed_home_value",
@@ -43,17 +38,47 @@ export default function PremiumHomeCallout() {
     shownRef.current = true;
     setFunnel(context);
     setVisible(true);
-    sendEvent(ANALYTICS_EVENTS.premiumPromptShown, {
-      surface: "signed_home_callout",
+    sendEvent(ANALYTICS_EVENTS.premiumPromptEligible, {
+      surface: "signed_home_inline",
+      placement: "below_transcription_form",
+      trigger: "passive_awareness",
       ...premiumFunnelProperties(context),
     });
-  }, [session?.user?.role, status]);
+    sendEvent(ANALYTICS_EVENTS.premiumPromptRendered, {
+      surface: "signed_home_inline",
+      placement: "below_transcription_form",
+      trigger: "passive_awareness",
+      ...premiumFunnelProperties(context),
+    });
+    sendEvent(ANALYTICS_EVENTS.premiumPromptShown, {
+      surface: "signed_home_inline",
+      ...premiumFunnelProperties(context),
+    });
+  }, [session?.user?.role, session?.user?.subscriptionPlan, status]);
+
+  useEffect(() => {
+    const element = calloutRef.current;
+    if (!visible || !funnel || !element || viewedRef.current) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry?.isIntersecting || entry.intersectionRatio < 0.5 || viewedRef.current) return;
+      viewedRef.current = true;
+      sendEvent(ANALYTICS_EVENTS.premiumPromptViewed, {
+        surface: "signed_home_inline",
+        placement: "below_transcription_form",
+        trigger: "passive_awareness",
+        ...premiumFunnelProperties(funnel),
+      });
+      observer.disconnect();
+    }, { threshold: 0.5 });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [funnel, visible]);
 
   if (!visible || !funnel) return null;
 
   return (
     <div className="premium-home-callout-wrap">
-      <aside className="premium-home-callout" aria-label="Note2Tabs Premium">
+      <aside ref={calloutRef} className="premium-home-callout" aria-label="Note2Tabs Premium">
         <div>
           <strong>More room for full songs and the Heavy model.</strong>
           <p>Get 100 monthly credits, rollover, and full-length audio-file transcription.</p>
@@ -71,26 +96,8 @@ export default function PremiumHomeCallout() {
             });
           }}
         >
-          Explore Premium
+          See plans
         </Link>
-        <button
-          type="button"
-          aria-label="Dismiss Premium suggestion"
-          onClick={() => {
-            try {
-              window.localStorage.setItem(DISMISSED_KEY, String(Date.now()));
-            } catch {
-              // Dismissal still works for the current page.
-            }
-            setVisible(false);
-            sendEvent(ANALYTICS_EVENTS.premiumPromptDismissed, {
-              surface: "signed_home_callout",
-              ...premiumFunnelProperties(funnel),
-            });
-          }}
-        >
-          Dismiss
-        </button>
       </aside>
     </div>
   );
