@@ -251,6 +251,9 @@ export default function TranscriberPage() {
   const needsPremiumForSelectedFile = Boolean(
     !isPremiumUser && selectedFile && selectedFile.size > MAX_FREE_BYTES && selectedFile.size <= MAX_PRESERVABLE_UPLOAD_BYTES
   );
+  const needsProForSelectedFile = Boolean(
+    selectedFile && selectedFile.size > PLAN_CATALOG.PREMIUM.maxUploadBytes
+  );
   const needsPremiumForFileDuration = Boolean(
     !isPremiumUser && selectedFile && fileDuration && fileDuration > MAX_FREE_FILE_SNIPPET_SEC
   );
@@ -1721,10 +1724,10 @@ export default function TranscriberPage() {
               {status && !loading && !authHandoffBusy && <div className="status">{status}</div>}
               {error && <div className="error" role="alert">{error}</div>}
               {needsPremiumForSelectedFile && !showHeavyUpgrade && (
-                isSignedIn ? (
+                isSignedIn && !needsProForSelectedFile ? (
                   <PremiumConversionCard title="Continue with this upload" description="Your file is still selected. Premium supports audio files up to 200 MB and full-length transcription." actionLabel="Continue with Premium" onAction={() => void handlePreservedUploadUpgrade()} busy={upgradeBusy} />
                 ) : (
-                  <PremiumConversionCard title="This file needs Premium" description="Free uploads are limited to 50 MB. Premium supports files up to 200 MB." actionLabel="See Premium" href={premiumPricingHref({ source: "large_upload_gate", reason: "file_size_limit" })} />
+                  <PremiumConversionCard title={needsProForSelectedFile ? "This file needs Pro" : "This file needs Premium"} description={needsProForSelectedFile ? "This file is larger than Premium's 200 MB limit. Pro supports files up to 500 MB." : "Free uploads are limited to 50 MB. Premium supports files up to 200 MB."} actionLabel={needsProForSelectedFile ? "See Pro" : "See Premium"} planLabel={needsProForSelectedFile ? "Note2Tabs Pro" : undefined} reassurance={needsProForSelectedFile ? "$14.99 billed today · Cancel anytime" : undefined} href={premiumPricingHref({ source: "large_upload_gate", reason: needsProForSelectedFile ? "pro_file_size_limit" : "file_size_limit" })} />
                 )
               )}
               {!needsPremiumForSelectedFile && needsPremiumForFileDuration && !showHeavyUpgrade && (

@@ -91,6 +91,10 @@ export default function PremiumPromptsPreviewPage() {
               <PremiumConversionCard title="This file needs Premium" description="Free uploads are limited to 50 MB. Premium supports files up to 200 MB." actionLabel="See Premium" href="#preview" />
             </article>
             <article className="premium-prompt-dev__card">
+              <div><h3>Pro file size limit</h3><p>Files over 200 MB point to Pro rather than sending the user into the wrong checkout.</p></div>
+              <PremiumConversionCard title="This file needs Pro" description="This file is larger than Premium's 200 MB limit. Pro supports files up to 500 MB." actionLabel="See Pro" planLabel="Note2Tabs Pro" reassurance="$14.99 billed today · Cancel anytime" href="#preview" />
+            </article>
+            <article className="premium-prompt-dev__card">
               <div><h3>File duration limit</h3><p>Explains why only the first 60 seconds can be selected from a longer upload.</p></div>
               <PremiumConversionCard title="Transcribe more of this file" description="Free accounts can select up to 60 seconds. Premium unlocks full-length audio-file transcription." actionLabel="See longer options" href="#preview" />
             </article>

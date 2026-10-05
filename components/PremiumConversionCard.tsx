@@ -5,6 +5,8 @@ type PremiumConversionCardBaseProps = {
   description: string;
   actionLabel: string;
   resetMessage?: string;
+  planLabel?: string;
+  reassurance?: string;
 };
 
 type PremiumConversionCardProps = PremiumConversionCardBaseProps &
@@ -21,11 +23,13 @@ export default function PremiumConversionCard({
   onAction,
   href,
   resetMessage,
+  planLabel = "Note2Tabs Premium",
+  reassurance = "$5.99 billed today · Cancel anytime",
 }: PremiumConversionCardProps) {
   return (
     <aside className="premium-conversion-card" aria-label="Premium subscription">
       <div className="premium-conversion-card__copy">
-        <span>Note2Tabs Premium</span>
+        <span>{planLabel}</span>
         <h3>{title}</h3>
         <p>{description}</p>
       </div>
@@ -45,7 +49,7 @@ export default function PremiumConversionCard({
           </button>
         )}
         <small>
-          $5.99 billed today · Cancel anytime
+          {reassurance}
           {resetMessage ? ` · ${resetMessage}` : ""}
         </small>
       </div>
