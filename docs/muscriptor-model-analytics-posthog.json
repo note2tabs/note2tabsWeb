@@ -1,0 +1,204 @@
+{
+  "project_id": 208789,
+  "updated_at": "2026-10-07",
+  "before": [
+    {
+      "id": 5219230,
+      "short_id": "aLU1PzqE",
+      "name": "Light model starts",
+      "description": "Transcription starts using the Light model.",
+      "query": {
+        "kind": "InsightVizNode",
+        "source": {
+          "kind": "TrendsQuery",
+          "tags": {
+            "productKey": "product_analytics"
+          },
+          "series": [
+            {
+              "kind": "EventsNode",
+              "math": "total",
+              "name": "transcription_started_light_model",
+              "event": "transcription_started_light_model"
+            }
+          ],
+          "version": 4,
+          "trendsFilter": {}
+        }
+      },
+      "dashboards": [
+        773369
+      ]
+    },
+    {
+      "id": 5361357,
+      "short_id": "zAtcsgBK",
+      "name": "Transcription model usage (30d)",
+      "description": "Light versus Heavy usage from the canonical transcription_started event property.",
+      "query": {
+        "kind": "DataVisualizationNode",
+        "source": {
+          "kind": "HogQLQuery",
+          "query": "SELECT if(notEmpty(toString(properties.transcriptionModel)), lower(toString(properties.transcriptionModel)), 'unknown') AS model, count() AS starts FROM events WHERE event='transcription_started' AND timestamp >= now() - INTERVAL 30 DAY GROUP BY model ORDER BY starts DESC"
+        },
+        "display": "ActionsPie",
+        "chartSettings": {
+          "xAxis": {
+            "column": "model"
+          },
+          "yAxis": [
+            {
+              "column": "starts",
+              "settings": {
+                "formatting": {
+                  "prefix": "",
+                  "suffix": ""
+                }
+              }
+            }
+          ],
+          "showLegend": true
+        },
+        "tableSettings": {
+          "columns": [
+            {
+              "column": "model",
+              "settings": {
+                "formatting": {
+                  "prefix": "",
+                  "suffix": ""
+                }
+              }
+            },
+            {
+              "column": "starts",
+              "settings": {
+                "formatting": {
+                  "prefix": "",
+                  "suffix": ""
+                }
+              }
+            }
+          ]
+        }
+      },
+      "dashboards": [
+        879531
+      ]
+    },
+    {
+      "id": 5725114,
+      "short_id": "bIVod06e",
+      "name": "D7 retention by transcription model and recording profile",
+      "description": "Observational comparison only. Controls by duration bucket and input source; it does not prove Heavy causes retention.",
+      "query": {
+        "kind": "DataVisualizationNode",
+        "source": {
+          "kind": "HogQLQuery",
+          "query": "SELECT\n  model,\n  duration_bucket,\n  input_source,\n  count() AS users,\n  sum(did_return_d7) AS retained_users,\n  round(sum(did_return_d7) / count(), 3) AS d7_retention\nFROM (\n  SELECT\n    s.person_id,\n    s.first_start_at,\n    s.model,\n    s.duration_bucket,\n    s.input_source,\n    countIf(\n      toDate(e.timestamp) > toDate(s.first_start_at)\n      AND e.timestamp <= s.first_start_at + INTERVAL 7 DAY\n      AND e.event IN ('transcription_started', 'transcription_succeeded', 'transcription_imported_to_editor', 'gte_session_started', 'gte_practice_started', 'gte_editor_saved', 'product_home_viewed')\n    ) > 0 AS did_return_d7\n  FROM (\n    SELECT\n      person_id,\n      min(timestamp) AS first_start_at,\n      argMin(coalesce(nullIf(toString(properties.transcriptionModel), ''), 'unknown'), timestamp) AS model,\n      argMin(\n        multiIf(\n          coalesce(toFloat(properties.durationSec), 0) <= 30, '0-30s',\n          coalesce(toFloat(properties.durationSec), 0) <= 120, '31-120s',\n          coalesce(toFloat(properties.durationSec), 0) <= 300, '121-300s',\n          '300s+'\n        ),\n        timestamp\n      ) AS duration_bucket,\n      argMin(coalesce(nullIf(toString(properties.input_source), ''), nullIf(toString(properties.mode), ''), 'unknown'), timestamp) AS input_source\n    FROM events\n    WHERE timestamp >= now() - INTERVAL 90 DAY\n      AND event = 'transcription_started'\n    GROUP BY person_id\n  ) AS s\n  LEFT JOIN events AS e ON s.person_id = e.person_id\n  WHERE e.timestamp >= now() - INTERVAL 90 DAY\n    AND s.first_start_at <= now() - INTERVAL 7 DAY\n  GROUP BY s.person_id, s.first_start_at, s.model, s.duration_bucket, s.input_source\n)\nGROUP BY model, duration_bucket, input_source\nORDER BY users DESC\nLIMIT 100"
+        },
+        "display": "ActionsTable"
+      },
+      "dashboards": [
+        926079
+      ]
+    }
+  ],
+  "changes": [
+    {
+      "id": 5219230,
+      "name": "Light starts: Basic Pitch vs MuScriptor Small",
+      "description": "Separate series for historical Basic Pitch Light and new MuScriptor Small Light. New MuScriptor events begin after the frontend deployment; historical events remain unchanged.",
+      "query": {
+        "kind": "InsightVizNode",
+        "source": {
+          "kind": "TrendsQuery",
+          "tags": {
+            "productKey": "product_analytics"
+          },
+          "series": [
+            {
+              "kind": "EventsNode",
+              "math": "total",
+              "name": "transcription_started_light_model",
+              "event": "transcription_started_light_model",
+              "custom_name": "Basic Pitch Light (legacy)"
+            },
+            {
+              "kind": "EventsNode",
+              "math": "total",
+              "name": "transcription_started_msmodel_small",
+              "event": "transcription_started_msmodel_small",
+              "custom_name": "MuScriptor Small Light"
+            }
+          ],
+          "version": 4,
+          "trendsFilter": {}
+        }
+      }
+    },
+    {
+      "id": 5361357,
+      "description": "Starts by actual model implementation: basic_pitch (legacy Light), msmodel_small (new Light), yourmt3 (retired Medium), msmodel (Heavy). Historical ids are mapped at query time.",
+      "query": {
+        "kind": "DataVisualizationNode",
+        "source": {
+          "kind": "HogQLQuery",
+          "query": "SELECT coalesce(nullIf(toString(properties.transcription_backend_method), ''), nullIf(toString(properties.transcription_model_implementation), ''), multiIf(coalesce(nullIf(toString(properties.transcription_model_id), ''), toString(properties.transcriptionModel)) = 'msmodel_small', 'msmodel_small', coalesce(nullIf(toString(properties.transcription_model_id), ''), toString(properties.transcriptionModel)) = 'light', 'basic_pitch', coalesce(nullIf(toString(properties.transcription_model_id), ''), toString(properties.transcriptionModel)) = 'heavy', 'yourmt3', coalesce(nullIf(toString(properties.transcription_model_id), ''), toString(properties.transcriptionModel)) = 'super_heavy', 'msmodel', 'unknown')) AS model, count() AS starts FROM events WHERE event='transcription_started' AND timestamp >= now() - INTERVAL 30 DAY GROUP BY model ORDER BY starts DESC"
+        },
+        "display": "ActionsPie",
+        "chartSettings": {
+          "xAxis": {
+            "column": "model"
+          },
+          "yAxis": [
+            {
+              "column": "starts",
+              "settings": {
+                "formatting": {
+                  "prefix": "",
+                  "suffix": ""
+                }
+              }
+            }
+          ],
+          "showLegend": true
+        },
+        "tableSettings": {
+          "columns": [
+            {
+              "column": "model",
+              "settings": {
+                "formatting": {
+                  "prefix": "",
+                  "suffix": ""
+                }
+              }
+            },
+            {
+              "column": "starts",
+              "settings": {
+                "formatting": {
+                  "prefix": "",
+                  "suffix": ""
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 5725114,
+      "description": "Observational D7 comparison by model implementation, duration and source. Legacy Light maps to basic_pitch; new Light is msmodel_small. Cohorts require a complete seven-day window. No historical events are rewritten.",
+      "query": {
+        "kind": "DataVisualizationNode",
+        "source": {
+          "kind": "HogQLQuery",
+          "query": "SELECT\n  model,\n  duration_bucket,\n  input_source,\n  count() AS users,\n  sum(did_return_d7) AS retained_users,\n  round(sum(did_return_d7) / count(), 3) AS d7_retention\nFROM (\n  SELECT\n    s.person_id,\n    s.first_start_at,\n    s.model,\n    s.duration_bucket,\n    s.input_source,\n    countIf(\n      toDate(e.timestamp) > toDate(s.first_start_at)\n      AND e.timestamp <= s.first_start_at + INTERVAL 7 DAY\n      AND e.event IN ('transcription_started', 'transcription_succeeded', 'transcription_imported_to_editor', 'gte_session_started', 'gte_practice_started', 'gte_editor_saved', 'product_home_viewed')\n    ) > 0 AS did_return_d7\n  FROM (\n    SELECT\n      person_id,\n      min(timestamp) AS first_start_at,\n      argMin(coalesce(nullIf(toString(properties.transcription_backend_method), ''), nullIf(toString(properties.transcription_model_implementation), ''), multiIf(coalesce(nullIf(toString(properties.transcription_model_id), ''), toString(properties.transcriptionModel)) = 'msmodel_small', 'msmodel_small', coalesce(nullIf(toString(properties.transcription_model_id), ''), toString(properties.transcriptionModel)) = 'light', 'basic_pitch', coalesce(nullIf(toString(properties.transcription_model_id), ''), toString(properties.transcriptionModel)) = 'heavy', 'yourmt3', coalesce(nullIf(toString(properties.transcription_model_id), ''), toString(properties.transcriptionModel)) = 'super_heavy', 'msmodel', 'unknown')), timestamp) AS model,\n      argMin(\n        multiIf(\n          coalesce(toFloat(properties.durationSec), 0) <= 30, '0-30s',\n          coalesce(toFloat(properties.durationSec), 0) <= 120, '31-120s',\n          coalesce(toFloat(properties.durationSec), 0) <= 300, '121-300s',\n          '300s+'\n        ),\n        timestamp\n      ) AS duration_bucket,\n      argMin(coalesce(nullIf(toString(properties.input_source), ''), nullIf(toString(properties.mode), ''), 'unknown'), timestamp) AS input_source\n    FROM events\n    WHERE timestamp >= now() - INTERVAL 90 DAY\n      AND event = 'transcription_started'\n    GROUP BY person_id\n  ) AS s\n  LEFT JOIN events AS e ON s.person_id = e.person_id\n  WHERE e.timestamp >= now() - INTERVAL 90 DAY\n    AND s.first_start_at <= now() - INTERVAL 7 DAY\n  GROUP BY s.person_id, s.first_start_at, s.model, s.duration_bucket, s.input_source\n)\nGROUP BY model, duration_bucket, input_source\nORDER BY users DESC\nLIMIT 100"
+        },
+        "display": "ActionsTable"
+      }
+    }
+  ]
+}

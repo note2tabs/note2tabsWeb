@@ -55,7 +55,7 @@ export default function AiGuitarTabGeneratorPage() {
           bullets: [
             "Begin with a focused riff, solo, or song section.",
             "Use the clearest version of the recording available.",
-            "Choose whether the source includes other instruments or multiple guitars.",
+            "Choose the Light or Heavy model for your recording.",
             "Play the tab alongside the original recording when learning the part.",
           ],
         },

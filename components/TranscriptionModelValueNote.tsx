@@ -3,24 +3,24 @@ import type { TranscriptionModelChoice } from "../lib/transcriptionModels";
 type TranscriptionModelValueNoteProps = {
   model: TranscriptionModelChoice;
   isPremium: boolean;
-  onSelectMedium: () => void;
+  onSelectHeavy: () => void;
   surface: string;
   heavyPreviewAvailable?: boolean;
 };
 
 export default function TranscriptionModelValueNote({
   model,
-  onSelectMedium,
+  onSelectHeavy,
   heavyPreviewAvailable = false,
 }: TranscriptionModelValueNoteProps) {
   if (model === "light") {
     return (
       <p className="model-value-note">
         <span>
-          Working with a complex recording? Try Medium for multi-instrument transcription.
+          Working with a complex recording? Try Heavy for more detailed transcription.
         </span>
-        <button type="button" onClick={onSelectMedium} className="model-value-note__action">
-          Try Medium
+        <button type="button" onClick={onSelectHeavy} className="model-value-note__action">
+          Try Heavy
         </button>
       </p>
     );
@@ -38,7 +38,7 @@ export default function TranscriptionModelValueNote({
 
   return (
     <p className="model-value-note">
-      <span>Medium selected for multi-instrument transcription.</span>
+      <span>Light selected for multi-instrument transcription.</span>
     </p>
   );
 }

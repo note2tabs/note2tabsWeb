@@ -3,7 +3,7 @@ import {
   type TranscriptionModelChoice,
 } from "./transcriptionModels";
 
-export const RETENTION_RESEARCH_VERSION = "retention_v2";
+export const RETENTION_RESEARCH_VERSION = "retention_v3";
 
 export type TranscriptionResearchInput = {
   mode: "FILE" | "YOUTUBE";
@@ -21,8 +21,12 @@ export function buildTranscriptionResearchProperties(input: TranscriptionResearc
     mode: input.mode,
     input_source: input.mode === "YOUTUBE" ? "youtube" : "local_file",
     ...getTranscriptionModelAnalyticsProperties(input.transcriptionModel),
-    separate_guitar: Boolean(input.separateGuitar),
-    multiple_guitars: Boolean(input.multipleGuitars),
+    transcription_flow_version: "original_mix_v2",
+    instrument_questions_shown: false,
+    audio_separation_used: false,
+    track_separator_used: false,
+    separate_guitar: false,
+    multiple_guitars: false,
     duration_sec:
       typeof input.durationSec === "number" && Number.isFinite(input.durationSec)
         ? Math.max(0, input.durationSec)
