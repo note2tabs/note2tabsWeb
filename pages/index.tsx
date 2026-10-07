@@ -27,6 +27,7 @@ import { tabSegmentsToStamps } from "../lib/tabTextToStamps";
 import { fetchYouTubeVideoTitle } from "../lib/youtubeTitle";
 import {
   DEFAULT_TRANSCRIPTION_MODEL,
+  transcriptionModelToBackendMethod,
   getDefaultTranscriptionModel,
   HEAVY_PREVIEW_MAX_DURATION_SEC,
   type TranscriptionModelChoice,
@@ -102,6 +103,7 @@ type TabsResponse = {
   gteEditorId?: string;
   verificationRequired?: boolean;
   heavyPreviewUsed?: boolean;
+  workerPool?: string;
   unverifiedTranscriptionUsed?: boolean;
 };
 type CreditsResponse = {
@@ -239,13 +241,12 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   const [pricingBillingInterval, setPricingBillingInterval] = useState<BillingInterval>("monthly");
   const displayCurrency = useDisplayCurrency();
   const [authHandoffBusy, setAuthHandoffBusy] = useState(false);
-  const [showInstrumentPrompt, setShowInstrumentPrompt] = useState(false);
-  const [includesOtherInstruments, setIncludesOtherInstruments] = useState<boolean | null>(null);
+  const separateGuitar = false;
+  const multipleGuitars = false;
   const [transcriptionModel, setTranscriptionModel] =
     useState<TranscriptionModelChoice>(DEFAULT_TRANSCRIPTION_MODEL);
   const transcriptionModelTouchedRef = useRef(false);
   const heavyPreviewShownRef = useRef(false);
-  const [multipleGuitars, setMultipleGuitars] = useState<boolean | null>(null);
   const [localHeavyPreviewUsed, setLocalHeavyPreviewUsed] = useState(false);
   const [showHeavyPreviewIntro, setShowHeavyPreviewIntro] = useState(false);
   const [heavyPreviewConfirmationIntent, setHeavyPreviewConfirmationIntent] = useState<"select" | "start">("start");
@@ -518,7 +519,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       }
 
       setError(null);
-      setShowInstrumentPrompt(false);
+
       if (pending.mode === "FILE") {
         setMode("FILE");
         setSelectedFile(pending.file);
@@ -548,7 +549,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         setError("Verify your email to start transcribing and unlock your free Heavy preview.");
         setStatus("Your upload is restored and will remain available after verification.");
       } else {
-        setShowInstrumentPrompt(true);
+
         setStatus("Welcome back — your transcription is ready to continue.");
       }
 
@@ -715,12 +716,6 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     : heavyPreviewAvailable && transcriptionModel === "super_heavy"
     ? "Use free Heavy preview"
     : "Generate tabs";
-  const buildTranscribingStatusLabel = (separateGuitar: boolean) =>
-    separateGuitar ? "Separating guitar and transcribing audio..." : "Transcribing audio...";
-  const buildYoutubeTranscribingStatusLabel = (separateGuitar: boolean) =>
-    separateGuitar
-      ? "Downloading YouTube audio, separating guitar, and transcribing..."
-      : "Downloading YouTube audio and transcribing...";
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
@@ -736,7 +731,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     setError(null);
     setImportError(null);
     setTabsResult(null);
-    setShowInstrumentPrompt(false);
+
   };
 
   const onDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
@@ -769,7 +764,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       setError(null);
       setImportError(null);
       setTabsResult(null);
-      setShowInstrumentPrompt(false);
+
     }
   };
 
@@ -883,13 +878,13 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     return true;
   };
 
-  const startConvert = async (separateGuitar: boolean) => {
+  const startConvert = async () => {
     if (convertInFlightRef.current || loading) return;
-    const transcribingStatusLabel = buildTranscribingStatusLabel(separateGuitar);
-    const youtubeTranscribingStatusLabel = buildYoutubeTranscribingStatusLabel(separateGuitar);
+    const transcribingStatusLabel = "Transcribing audio...";
+    const youtubeTranscribingStatusLabel = "Downloading YouTube audio and transcribing...";
 
     convertInFlightRef.current = true;
-    setShowInstrumentPrompt(false);
+
     setError(null);
     setImportError(null);
     setTabsResult(null);
@@ -1023,6 +1018,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         sendTranscriptionStartedEvents(transcriptionModel, {
           ...researchProperties,
           jobId: data.jobId,
+          transcription_worker_pool: data.workerPool,
           acceptance_status: "accepted",
           access_type: accessType,
           heavy_preview: Boolean(data.heavyPreviewUsed),
@@ -1056,6 +1052,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         jobParams.set("separateGuitar", separateGuitar ? "1" : "0");
         jobParams.set("multipleGuitars", multipleGuitars ? "1" : "0");
         jobParams.set("model", transcriptionModel);
+        jobParams.set("transcriptionMethod", transcriptionModelToBackendMethod(transcriptionModel));
         if (data.heavyPreviewUsed) jobParams.set("heavyPreview", "1");
         const selectedDuration = mode === "YOUTUBE" ? resolvedYtDuration : resolvedFileDuration;
         if (Number.isFinite(selectedDuration) && selectedDuration > 0) {
@@ -1225,9 +1222,15 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     }
     if (!validateConvertInputs()) return;
     setError(null);
-    setIncludesOtherInstruments(null);
-    setMultipleGuitars(null);
-    setShowInstrumentPrompt(true);
+    if (heavyPreviewAvailable && transcriptionModel === "super_heavy" && !heavyPreviewAcknowledgedRef.current) {
+      setHeavyPreviewConfirmationIntent("start");
+      setShowHeavyPreviewIntro(true);
+      sendEvent(ANALYTICS_EVENTS.heavyPreviewConfirmationShown, {
+        surface: "home_transcriber", trigger: "transcription_start",
+      });
+      return;
+    }
+    await startConvert();
   };
 
   const handleHeroPrimaryAction = () => {
@@ -1238,26 +1241,6 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     }
     trackCtaClick("convert_to_tabs", { surface: "hero_funnel", mode });
     void handleConvert();
-  };
-
-  const instrumentPromptComplete = includesOtherInstruments !== null && multipleGuitars !== null;
-
-  const handleInstrumentPromptStart = () => {
-    if (includesOtherInstruments === null || multipleGuitars === null) return;
-    if (!validateConvertInputs()) {
-      setShowInstrumentPrompt(false);
-      return;
-    }
-    if (heavyPreviewAvailable && transcriptionModel === "super_heavy" && !heavyPreviewAcknowledgedRef.current) {
-      setHeavyPreviewConfirmationIntent("start");
-      setShowHeavyPreviewIntro(true);
-      sendEvent(ANALYTICS_EVENTS.heavyPreviewConfirmationShown, {
-        surface: "home_transcriber",
-        trigger: "transcription_start",
-      });
-      return;
-    }
-    void startConvert(includesOtherInstruments);
   };
 
   const handleImportToEditor = async () => {
@@ -1400,7 +1383,6 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     setActiveHowStep(index);
     setHowManualPlayNonce((prev) => prev + 1);
   };
-
 
   const handleOpenGuestEditor = async () => {
     if (!tabsResult || importBusy) return;
@@ -1630,7 +1612,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
             surface: "home_transcriber",
             trigger: "transcription_start",
           });
-          if (includesOtherInstruments !== null) void startConvert(includesOtherInstruments);
+          void startConvert();
         }}
       />
       <SeoHead
@@ -1667,39 +1649,26 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 handleHeroPrimaryAction();
               }}
             >
-              <div
-                className={`prompt-meta-row ${
-                  !showInstrumentPrompt || mode === "YOUTUBE" || (isSignedIn && displayedCredits)
-                    ? ""
-                    : "is-empty"
-                }`}
-                aria-hidden={
-                  !showInstrumentPrompt || mode === "YOUTUBE" || (isSignedIn && displayedCredits)
-                    ? undefined
-                    : "true"
-                }
-              >
+              <div className="prompt-meta-row">
                 <div className="prompt-meta-left">
-                  {!showInstrumentPrompt && (
-                    <div className="model-choice model-choice--meta">
-                      <TranscriptionModelDropdown
-                        id="home-transcription-model"
-                        value={transcriptionModel}
-                        onChange={selectTranscriptionModel}
-                        disabled={loading || authHandoffBusy}
-                        canUseHeavy={canUseHeavy}
-                        heavyPreviewAvailable={heavyPreviewAvailable}
-                        verificationRequired={isSignedIn && heavyPreviewCountryEligible && !isEmailVerified}
-                        onLockedHeavySelect={() => {
-                          if (isSignedIn && heavyPreviewCountryEligible && !isEmailVerified) {
-                            void router.push(verifyHref);
-                            return;
-                          }
-                          setShowHeavyUpgrade(true);
-                        }}
-                      />
-                    </div>
-                  )}
+                  <div className="model-choice model-choice--meta">
+                    <TranscriptionModelDropdown
+                      id="home-transcription-model"
+                      value={transcriptionModel}
+                      onChange={selectTranscriptionModel}
+                      disabled={loading || authHandoffBusy}
+                      canUseHeavy={canUseHeavy}
+                      heavyPreviewAvailable={heavyPreviewAvailable}
+                      verificationRequired={isSignedIn && heavyPreviewCountryEligible && !isEmailVerified}
+                      onLockedHeavySelect={() => {
+                        if (isSignedIn && heavyPreviewCountryEligible && !isEmailVerified) {
+                          void router.push(verifyHref);
+                          return;
+                        }
+                        setShowHeavyUpgrade(true);
+                      }}
+                    />
+                  </div>
                 </div>
                 {isSignedIn && displayedCredits && (
                   <p className="hero-credits-inline">
@@ -1716,8 +1685,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   </p>
                 )}
               </div>
-              {!showInstrumentPrompt && (
-                heavyPreviewAvailable ? (
+              {heavyPreviewAvailable ? (
                   <HeavyPreviewOffer
                     selected={transcriptionModel === "super_heavy"}
                     onSelect={() => {
@@ -1734,228 +1702,202 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   <TranscriptionModelValueNote
                     model={transcriptionModel}
                     isPremium={isPremiumUser}
-                    onSelectMedium={() => {
-                      selectTranscriptionModel("heavy");
-                      trackCtaClick("try_medium_model", { surface: "hero_funnel" });
+                    onSelectHeavy={() => {
+                      selectTranscriptionModel("super_heavy");
+                      trackCtaClick("try_heavy_model", { surface: "hero_funnel" });
                     }}
                     surface="hero_funnel"
                   />
-                )
               )}
 
-              {showInstrumentPrompt ? (
-                <div className="instrument-prompt">
-                  <div className="instrument-choice-group">
-                    <p className="instrument-question">Does your audio include other instruments?</p>
-                    <div className="button-row instrument-choice-row">
-                      <button type="button" className={`button-secondary instrument-choice-button ${includesOtherInstruments === true ? "active" : ""}`} onClick={() => setIncludesOtherInstruments(true)} aria-pressed={includesOtherInstruments === true} disabled={loading || authHandoffBusy}>Yes</button>
-                      <button type="button" className={`button-secondary instrument-choice-button ${includesOtherInstruments === false ? "active" : ""}`} onClick={() => setIncludesOtherInstruments(false)} aria-pressed={includesOtherInstruments === false} disabled={loading || authHandoffBusy}>No</button>
-                    </div>
-                  </div>
-                  <div className="instrument-choice-group">
-                    <p className="instrument-question">Are there multiple guitars?</p>
-                    <div className="button-row instrument-choice-row">
-                      <button type="button" className={`button-secondary instrument-choice-button ${multipleGuitars === true ? "active" : ""}`} onClick={() => setMultipleGuitars(true)} aria-pressed={multipleGuitars === true} disabled={loading || authHandoffBusy}>Yes</button>
-                      <button type="button" className={`button-secondary instrument-choice-button ${multipleGuitars === false ? "active" : ""}`} onClick={() => setMultipleGuitars(false)} aria-pressed={multipleGuitars === false} disabled={loading || authHandoffBusy}>No</button>
-                    </div>
-                  </div>
-                  <div className="transcription-auth-cta">
-                    <button type="button" className="button-primary instrument-start-button" onClick={handleInstrumentPromptStart} disabled={loading || !instrumentPromptComplete}>{!isSignedIn ? "Continue to sign in" : heavyPreviewAvailable && transcriptionModel === "super_heavy" ? "Use free Heavy preview" : "Start transcription"}</button>
-                    {!isSignedIn && <p>A free account is required. Your selection will be saved.</p>}
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="funnel-panel">
-                    <div className="funnel-row">
-                      <div
-                        className={`funnel-input ${mode === "FILE" ? "is-file" : "is-url"} ${
-                          dragActive ? "active" : ""
-                        }`}
-                        onDrop={mode === "FILE" ? onDrop : undefined}
-                        onDragOver={mode === "FILE" ? onDragOver : undefined}
-                        onDragEnter={mode === "FILE" ? onDragEnter : undefined}
-                        onDragLeave={mode === "FILE" ? onDragLeave : undefined}
-                      >
-                        {(loading || authHandoffBusy) && status ? (
-                          <TranscriptionStartStatus status={status} compact />
+              <div className="funnel-panel">
+                <div className="funnel-row">
+                  <div
+                    className={`funnel-input ${mode === "FILE" ? "is-file" : "is-url"} ${
+                      dragActive ? "active" : ""
+                    }`}
+                    onDrop={mode === "FILE" ? onDrop : undefined}
+                    onDragOver={mode === "FILE" ? onDragOver : undefined}
+                    onDragEnter={mode === "FILE" ? onDragEnter : undefined}
+                    onDragLeave={mode === "FILE" ? onDragLeave : undefined}
+                  >
+                    {(loading || authHandoffBusy) && status ? (
+                      <TranscriptionStartStatus status={status} compact />
+                    ) : (
+                      <>
+                        <span
+                          className={`funnel-icon ${mode === "YOUTUBE" ? "funnel-icon--youtube" : ""}`}
+                          aria-hidden="true"
+                        >
+                          {mode === "YOUTUBE" ? (
+                            <svg className="youtube-mark" viewBox="0 0 28 20" fill="none">
+                              <path
+                                d="M27.4 3.1c-.32-1.2-1.24-2.15-2.4-2.48C22.9 0 14 0 14 0S5.1 0 3 .62C1.84.95.92 1.9.6 3.1.03 5.28.03 10 .03 10s0 4.72.57 6.9c.32 1.2 1.24 2.15 2.4 2.48C5.1 20 14 20 14 20s8.9 0 11-.62c1.16-.33 2.08-1.28 2.4-2.48.57-2.18.57-6.9.57-6.9s0-4.72-.57-6.9Z"
+                                fill="currentColor"
+                              />
+                              <path d="M11.2 14.25V5.75L18.45 10l-7.25 4.25Z" fill="#fff" />
+                            </svg>
+                          ) : (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M8 5.5v13l10-6.5-10-6.5z" />
+                            </svg>
+                          )}
+                        </span>
+                        {mode === "FILE" ? (
+                          <span className="funnel-file-label">
+                            {selectedFile ? selectedFile.name : "Upload audio file or drop it here"}
+                          </span>
                         ) : (
                           <>
-                            <span
-                              className={`funnel-icon ${mode === "YOUTUBE" ? "funnel-icon--youtube" : ""}`}
-                              aria-hidden="true"
-                            >
-                              {mode === "YOUTUBE" ? (
-                                <svg className="youtube-mark" viewBox="0 0 28 20" fill="none">
-                                  <path
-                                    d="M27.4 3.1c-.32-1.2-1.24-2.15-2.4-2.48C22.9 0 14 0 14 0S5.1 0 3 .62C1.84.95.92 1.9.6 3.1.03 5.28.03 10 .03 10s0 4.72.57 6.9c.32 1.2 1.24 2.15 2.4 2.48C5.1 20 14 20 14 20s8.9 0 11-.62c1.16-.33 2.08-1.28 2.4-2.48.57-2.18.57-6.9.57-6.9s0-4.72-.57-6.9Z"
-                                    fill="currentColor"
-                                  />
-                                  <path d="M11.2 14.25V5.75L18.45 10l-7.25 4.25Z" fill="#fff" />
-                                </svg>
-                              ) : (
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M8 5.5v13l10-6.5-10-6.5z" />
-                                </svg>
-                              )}
-                            </span>
-                            {mode === "FILE" ? (
-                              <span className="funnel-file-label">
-                                {selectedFile ? selectedFile.name : "Upload audio file or drop it here"}
-                              </span>
-                            ) : (
-                              <>
-                                <label className="sr-only" htmlFor="home-youtube-url">
-                                  YouTube link
-                                </label>
-                                <input
-                                  id="home-youtube-url"
-                                  name="youtubeUrl"
-                                  type="url"
-                                  value={youtubeUrl}
-                                  onChange={(event) => setYoutubeUrl(event.target.value)}
-                                  placeholder="https://www.youtube.com/..."
-                                />
-                              </>
-                            )}
+                            <label className="sr-only" htmlFor="home-youtube-url">
+                              YouTube link
+                            </label>
+                            <input
+                              id="home-youtube-url"
+                              name="youtubeUrl"
+                              type="url"
+                              value={youtubeUrl}
+                              onChange={(event) => setYoutubeUrl(event.target.value)}
+                              placeholder="https://www.youtube.com/..."
+                            />
                           </>
                         )}
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept={AUDIO_ACCEPT}
-                          className="native-file-input"
-                          aria-label="Choose audio file"
-                          disabled={mode !== "FILE" || loading}
-                          onChange={onFileChange}
-                        />
-                      </div>
-                    </div>
-                    <div className="funnel-toolbar">
-                      <div className="mode-switch mode-switch--hero" role="group" aria-label="Input mode">
-                        <button
-                          type="button"
-                          className={mode === "FILE" ? "active" : ""}
-                          aria-pressed={mode === "FILE"}
-                          onClick={() => {
-                            setMode("FILE");
-                            setShowInstrumentPrompt(false);
-                            trackCtaClick("mode_file", { surface: "hero_funnel" });
-                          }}
-                        >
-                          Audio file
-                        </button>
-                        <button
-                          type="button"
-                          className={mode === "YOUTUBE" ? "active" : ""}
-                          aria-pressed={mode === "YOUTUBE"}
-                          onClick={() => {
-                            setMode("YOUTUBE");
-                            setShowInstrumentPrompt(false);
-                            trackCtaClick("mode_youtube", { surface: "hero_funnel" });
-                          }}
-                        >
-                          YouTube link
-                        </button>
-                      </div>
-                      <div className="transcription-auth-cta transcription-auth-cta--toolbar">
-                        <button
-                          type="submit"
-                          className="button-primary funnel-submit"
-                          disabled={
-                            loading ||
-                            authHandoffBusy ||
-                            (mode === "YOUTUBE" && !canSubmit) ||
-                            (mode === "FILE" && Boolean(selectedFile) && !canSubmit)
-                          }
-                        >
-                          {submitLabel}
-                        </button>
-                        {!isSignedIn && canSubmit && <p>A free account is required. Your selection will be saved.</p>}
-                      </div>
+                      </>
+                    )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept={AUDIO_ACCEPT}
+                      className="native-file-input"
+                      aria-label="Choose audio file"
+                      disabled={mode !== "FILE" || loading}
+                      onChange={onFileChange}
+                    />
+                  </div>
+                </div>
+                <div className="funnel-toolbar">
+                  <div className="mode-switch mode-switch--hero" role="group" aria-label="Input mode">
+                    <button
+                      type="button"
+                      className={mode === "FILE" ? "active" : ""}
+                      aria-pressed={mode === "FILE"}
+                      onClick={() => {
+                        setMode("FILE");
+
+                        trackCtaClick("mode_file", { surface: "hero_funnel" });
+                      }}
+                    >
+                      Audio file
+                    </button>
+                    <button
+                      type="button"
+                      className={mode === "YOUTUBE" ? "active" : ""}
+                      aria-pressed={mode === "YOUTUBE"}
+                      onClick={() => {
+                        setMode("YOUTUBE");
+
+                        trackCtaClick("mode_youtube", { surface: "hero_funnel" });
+                      }}
+                    >
+                      YouTube link
+                    </button>
+                  </div>
+                  <div className="transcription-auth-cta transcription-auth-cta--toolbar">
+                    <button
+                      type="submit"
+                      className="button-primary funnel-submit"
+                      disabled={
+                        loading ||
+                        authHandoffBusy ||
+                        (mode === "YOUTUBE" && !canSubmit) ||
+                        (mode === "FILE" && Boolean(selectedFile) && !canSubmit)
+                      }
+                    >
+                      {submitLabel}
+                    </button>
+                    {!isSignedIn && canSubmit && <p>A free account is required. Your selection will be saved.</p>}
+                  </div>
+                </div>
+              </div>
+
+              {mode === "YOUTUBE" && (
+                <>
+                  <div className="prompt-field prompt-field--compact">
+                    <div className="advanced-grid">
+                    <label>
+                      Start time
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9:]*"
+                        autoComplete="off"
+                        placeholder="0:00"
+                        value={ytStartInput}
+                        onChange={(event) => handleYtStartInputChange(event.target.value)}
+                        onBlur={handleYtStartInputBlur}
+                        required
+                      />
+                    </label>
+                    <label>
+                      End time
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9:]*"
+                        autoComplete="off"
+                        placeholder="0:30"
+                        value={ytEndInput}
+                        onChange={(event) => handleYtEndInputChange(event.target.value)}
+                        onBlur={handleYtEndInputBlur}
+                        required
+                      />
+                    </label>
+                    <p className="advanced-note">
+                      {isPremiumUser
+                        ? `Choose any clip length within the first ${youtubeWindowSeconds / 60} minutes.`
+                        : "Free clips can be up to 30 s."}
+                    </p>
                     </div>
                   </div>
-
-                  {mode === "YOUTUBE" && (
-                    <>
-                      <div className="prompt-field prompt-field--compact">
-                        <div className="advanced-grid">
-                        <label>
-                          Start time
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9:]*"
-                            autoComplete="off"
-                            placeholder="0:00"
-                            value={ytStartInput}
-                            onChange={(event) => handleYtStartInputChange(event.target.value)}
-                            onBlur={handleYtStartInputBlur}
-                            required
-                          />
-                        </label>
-                        <label>
-                          End time
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9:]*"
-                            autoComplete="off"
-                            placeholder="0:30"
-                            value={ytEndInput}
-                            onChange={(event) => handleYtEndInputChange(event.target.value)}
-                            onBlur={handleYtEndInputBlur}
-                            required
-                          />
-                        </label>
-                        <p className="advanced-note">
-                          {isPremiumUser
-                            ? `Choose any clip length within the first ${youtubeWindowSeconds / 60} minutes.`
-                            : "Free clips can be up to 30 s."}
-                        </p>
-                        </div>
-                      </div>
-                      <PremiumHomeCallout show={youtubeValid} />
-                    </>
-                  )}
-                  {mode === "FILE" && selectedFile && (
-                    <div className="prompt-field prompt-field--compact">
-                      <div className="advanced-grid">
-                        <label>
-                          Start time
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9:]*"
-                            autoComplete="off"
-                            placeholder="0:00"
-                            value={fileStartInput}
-                            onChange={(event) => handleFileStartInputChange(event.target.value)}
-                            onBlur={handleFileStartInputBlur}
-                            required
-                          />
-                        </label>
-                        <label>
-                          End time
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9:]*"
-                            autoComplete="off"
-                            placeholder="1:00"
-                            value={fileEndInput}
-                            onChange={(event) => handleFileEndInputChange(event.target.value)}
-                            onBlur={handleFileEndInputBlur}
-                            required
-                          />
-                        </label>
-                        <p className="advanced-note">
-                          {isPremiumUser ? "Pick any section within the file." : "Free file uploads are limited to 60 s."}
-                        </p>
-                      </div>
-                    </div>
-                  )}
+                  <PremiumHomeCallout show={youtubeValid} />
                 </>
+              )}
+              {mode === "FILE" && selectedFile && (
+                <div className="prompt-field prompt-field--compact">
+                  <div className="advanced-grid">
+                    <label>
+                      Start time
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9:]*"
+                        autoComplete="off"
+                        placeholder="0:00"
+                        value={fileStartInput}
+                        onChange={(event) => handleFileStartInputChange(event.target.value)}
+                        onBlur={handleFileStartInputBlur}
+                        required
+                      />
+                    </label>
+                    <label>
+                      End time
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9:]*"
+                        autoComplete="off"
+                        placeholder="1:00"
+                        value={fileEndInput}
+                        onChange={(event) => handleFileEndInputChange(event.target.value)}
+                        onBlur={handleFileEndInputBlur}
+                        required
+                      />
+                    </label>
+                    <p className="advanced-note">
+                      {isPremiumUser ? "Pick any section within the file." : "Free file uploads are limited to 60 s."}
+                    </p>
+                  </div>
+                </div>
               )}
 
               {status && !loading && !authHandoffBusy && <div className="status">{status}</div>}
@@ -2261,7 +2203,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
                   <li><strong>10</strong> credits each month</li>
-                  <li>Light and Medium transcription models</li>
+                  <li>Light transcription model</li>
                   <li>Audio clips up to 60 seconds</li>
                   <li>Uploads up to 50 MB</li>
                   <li>Full editor and practice tools</li>

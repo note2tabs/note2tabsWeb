@@ -76,10 +76,12 @@ function makeRes() {
 async function callTranscribe(
   role: string,
   multipleGuitars = false,
-  transcriptionModel: "light" | "heavy" | "super_heavy" | null = "heavy",
+  transcriptionModel: "light" | "heavy" | "super_heavy" | null = "light",
   duration = 30,
   startTime = 0,
-  concurrentBalance?: number
+  concurrentBalance?: number,
+  separateGuitar = false,
+  backendWorkerPool?: string
 ) {
   const handler = (await import("../../pages/api/transcribe")).default;
   mocks.session.mockResolvedValue({ user: { id: "user_1" } });
@@ -107,7 +109,7 @@ async function callTranscribe(
   mocks.setBackendCredits.mockResolvedValue(10);
   mocks.raiseBackendCreditsToFloor.mockResolvedValue(10);
   mocks.fetch.mockResolvedValue(
-    new Response(JSON.stringify({ job_id: "job_123" }), {
+    new Response(JSON.stringify({ job_id: "job_123", workerPool: backendWorkerPool }), {
       status: 200,
       headers: { "content-type": "application/json" },
     })
@@ -119,7 +121,7 @@ async function callTranscribe(
     startTime,
     duration,
     ...(transcriptionModel ? { transcriptionModel } : {}),
-    separateGuitar: false,
+    separateGuitar,
     multipleGuitars,
   });
   const res = makeRes();
@@ -130,6 +132,17 @@ async function callTranscribe(
 }
 
 describe("transcribe credits", () => {
+  it("forwards the backend-selected Heavy pool", async () => {
+    const res = await callTranscribe("PREMIUM", false, "super_heavy", 30, 0, undefined, false, "paid_speed");
+    expect(res.statusCode).toBe(202);
+    expect(res.body).toMatchObject({ transcriptionMethod: "msmodel", workerPool: "paid_speed" });
+  });
+
+  it("does not forward unknown backend pool values", async () => {
+    const res = await callTranscribe("PREMIUM", false, "super_heavy", 30, 0, undefined, false, "forged");
+    expect(res.statusCode).toBe(202);
+    expect((res.body as Record<string, unknown>).workerPool).toBeUndefined();
+  });
   beforeEach(() => {
     vi.resetModules();
     mocks.session.mockReset();
@@ -147,11 +160,26 @@ describe("transcribe credits", () => {
     vi.stubEnv("REQUIRE_EMAIL_VERIFICATION", "false");
   });
 
+  it.each(["light", "super_heavy"] as const)("disables legacy separation flags for %s", async (model) => {
+    const res = await callTranscribe("PREMIUM", true, model, 30, 0, undefined, true);
+    expect(res.statusCode).toBe(202);
+    const [, requestInit] = mocks.fetch.mock.calls[0] as [string, RequestInit];
+    const body = requestInit.body as FormData;
+    expect(body.get("separate_guitar")).toBe("false");
+    expect(body.get("multiple_guitars")).toBe("false");
+  });
+
+  it("allows subscribed Light clips longer than two minutes", async () => {
+    const res = await callTranscribe("PREMIUM", false, "light", 150);
+    expect(res.statusCode).toBe(202);
+    expect(res.body).toMatchObject({ durationSec: 150, tokensRemaining: 0 });
+  });
+
   it("deducts credits for free users", async () => {
     const res = await callTranscribe("FREE");
 
     expect(res.statusCode).toBe(202);
-    expect(res.body).toMatchObject({ credits: { remaining: 7 }, tokensRemaining: 7 });
+    expect(res.body).toMatchObject({ credits: { remaining: 8 }, tokensRemaining: 8 });
     expect(mocks.prisma.user.updateMany).toHaveBeenLastCalledWith({
       where: {
         id: "user_1",
@@ -159,9 +187,9 @@ describe("transcribe credits", () => {
         subscriptionPlan: "FREE",
         tokensRemaining: 10,
       },
-      data: { tokensRemaining: 7 },
+      data: { tokensRemaining: 8 },
     });
-    expect((res.body as { credits: { remaining: number } }).credits.remaining).toBe(7);
+    expect((res.body as { credits: { remaining: number } }).credits.remaining).toBe(8);
   });
 
   it("deducts credits for admin users too", async () => {
@@ -175,9 +203,9 @@ describe("transcribe credits", () => {
         subscriptionPlan: "FREE",
         tokensRemaining: 10,
       },
-      data: { tokensRemaining: 7 },
+      data: { tokensRemaining: 8 },
     });
-    expect((res.body as { credits: { remaining: number } }).credits.remaining).toBe(7);
+    expect((res.body as { credits: { remaining: number } }).credits.remaining).toBe(8);
   });
 
   it("does not overwrite a Premium balance activated while a free transcription was in flight", async () => {
@@ -192,7 +220,7 @@ describe("transcribe credits", () => {
         subscriptionPlan: "FREE",
         tokensRemaining: 10,
       },
-      data: { tokensRemaining: 7 },
+      data: { tokensRemaining: 8 },
     });
   });
 
@@ -214,7 +242,7 @@ describe("transcribe credits", () => {
       transcriptionModel: "light",
       tokensRemaining: 8,
     });
-    expect(res.body.heavyPreviewUsed).toBeUndefined();
+    expect((res.body as { heavyPreviewUsed?: boolean }).heavyPreviewUsed).toBeUndefined();
     expect(mocks.prisma.user.updateMany).toHaveBeenLastCalledWith({
       where: {
         id: "user_1",
@@ -226,7 +254,7 @@ describe("transcribe credits", () => {
     });
     const [, requestInit] = mocks.fetch.mock.calls[0] as [string, RequestInit];
     const body = requestInit.body as FormData;
-    expect(body.get("transcription_method")).toBe("basic_pitch");
+    expect(body.get("transcription_method")).toBe("msmodel_small");
   });
 
   it("allows one credit-free Heavy preview for a verified free user", async () => {
@@ -431,14 +459,14 @@ describe("transcribe credits", () => {
     }
   );
 
-  it("forwards the multiple-guitar choice to the backend transcription job", async () => {
+  it("ignores the legacy multiple-guitar choice for free Light jobs", async () => {
     const res = await callTranscribe("FREE", true);
 
     expect(res.statusCode).toBe(202);
     const [, requestInit] = mocks.fetch.mock.calls[0] as [string, RequestInit];
     expect(requestInit.body).toBeInstanceOf(FormData);
     const body = requestInit.body as FormData;
-    expect(body.get("multiple_guitars")).toBe("true");
+    expect(body.get("multiple_guitars")).toBe("false");
   });
 
   it("rejects free YouTube clips longer than 30 seconds", async () => {

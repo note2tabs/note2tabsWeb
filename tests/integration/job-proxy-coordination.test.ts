@@ -50,6 +50,18 @@ describe("job proxy backend coordination", () => {
     vi.stubEnv("BACKEND_SHARED_SECRET", "secret_test");
   });
 
+  it.each(["basic_pitch", "msmodel_small", "msmodel"])("preserves recorded %s identity in compact job responses", async (method) => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({
+      job_id: "job_123", status: "running", output: { transcriptionMethod: method, workerPool: "preview_cost" },
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    const handler = (await import("../../pages/api/jobs/[job_id]")).default;
+    const { req, res } = createMocks({ method: "GET", query: { job_id: "job_123" } });
+    await handler(req as any, res as any);
+    expect(res._getStatusCode()).toBe(200);
+    expect(res._getJSONData().transcriptionMethod).toBe(method);
+    expect(res._getJSONData().workerPool).toBe("preview_cost");
+  });
+
   it("forwards conditional job polling and returns backend validators", async () => {
     fetchMock.mockResolvedValue(
       new Response(null, {

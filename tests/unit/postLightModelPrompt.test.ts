@@ -3,11 +3,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import PostLightModelPrompt from "../../components/PostLightModelPrompt";
 
-const renderPrompt = (recommendation: "medium" | "heavy_preview", open = true) =>
+const renderPrompt = (recommendation: "heavy" | "heavy_preview", open = true, hasHeavyAccess = false) =>
   renderToStaticMarkup(
     createElement(PostLightModelPrompt, {
       open,
       recommendation,
+      hasHeavyAccess,
       onClose: vi.fn(),
       onTryAgain: vi.fn(),
     })
@@ -23,15 +24,21 @@ describe("PostLightModelPrompt", () => {
     expect(html).toContain("Try Heavy free");
   });
 
-  it("recommends Medium without promising a Heavy preview", () => {
-    const html = renderPrompt("medium");
+  it("offers paid Heavy access without promising another free preview", () => {
+    const html = renderPrompt("heavy");
 
     expect(html).toContain("Get better accuracy!");
-    expect(html).toContain("Try Medium");
+    expect(html).toContain("See Heavy plans");
+    expect(html).not.toContain("Medium");
     expect(html).not.toContain("free 30-second preview");
   });
 
+  it("lets subscribed users retry with Heavy", () => {
+    expect(renderPrompt("heavy", true, true)).toContain("Try Heavy");
+    expect(renderPrompt("heavy", true, true)).not.toContain("See Heavy plans");
+  });
+
   it("renders nothing while closed", () => {
-    expect(renderPrompt("medium", false)).toBe("");
+    expect(renderPrompt("heavy", false)).toBe("");
   });
 });

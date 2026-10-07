@@ -17,7 +17,7 @@ import NoIndexHead from "../../components/NoIndexHead";
 import { publicJobError } from "../../lib/backendError";
 import { EditorLoadingState } from "../../components/EditorLoadingState";
 import { categorizeAnalyticsError } from "../../lib/analyticsErrors";
-import { getTranscriptionModelAnalyticsProperties } from "../../lib/transcriptionModels";
+import { getRecordedTranscriptionModelAnalyticsProperties } from "../../lib/transcriptionModels";
 import {
   DEFAULT_JOB_POLL_DELAY_MS,
   requestJobStatus,
@@ -652,6 +652,15 @@ export default function JobPage() {
       ? rawModel
       : null;
   }, [router.isReady, router.query.model]);
+  const modelAnalyticsProperties = useMemo(() => {
+    const recordedMethod = getFirstJobValue(displayJob, ["transcriptionMethod", "transcription_method"]);
+    return {
+      ...getRecordedTranscriptionModelAnalyticsProperties(
+        recordedMethod ?? getQueryStringValue(router.query.transcriptionMethod), modelHint
+      ),
+      transcription_worker_pool: getFirstJobValue(displayJob, ["workerPool"]),
+    };
+  }, [displayJob, router.query.transcriptionMethod, modelHint]);
   const isHeavyPreview = useMemo(() => {
     if (!router.isReady) return false;
     return parseBooleanFlag(getQueryStringValue(router.query.heavyPreview)) ?? false;
@@ -726,8 +735,7 @@ export default function JobPage() {
       mode: modeHint || undefined,
       duration_sec: durationHintSeconds || undefined,
       durationSec: durationHintSeconds || undefined,
-      ...(modelHint ? getTranscriptionModelAnalyticsProperties(modelHint) : {}),
-      model: modelHint || undefined,
+      ...modelAnalyticsProperties,
       separate_guitar: separateGuitarHint,
       multiple_guitars: loadedMultipleGuitars,
     };
@@ -745,7 +753,7 @@ export default function JobPage() {
         $insert_id: `heavy-preview-completed:${job_id}`,
       });
     }
-  }, [durationHintSeconds, isHeavyPreview, job_id, loadedMultipleGuitars, modeHint, modelHint, separateGuitarHint, showReviewUi]);
+  }, [durationHintSeconds, isHeavyPreview, job_id, loadedMultipleGuitars, modeHint, modelHint, modelAnalyticsProperties, separateGuitarHint, showReviewUi]);
 
 
   const fetchJob = async (
@@ -1104,6 +1112,7 @@ export default function JobPage() {
       selection: "all",
       mode: modeHint || undefined,
       source: "job",
+      ...modelAnalyticsProperties,
       job_id: typeof job_id === "string" ? job_id : undefined,
       quantize,
     };

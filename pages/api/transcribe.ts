@@ -339,6 +339,12 @@ function extractBackendJobId(payload: unknown): string | null {
   return null;
 }
 
+function extractBackendWorkerPool(payload: unknown): string | undefined {
+  const pool = getRecord(payload)?.workerPool;
+  return typeof pool === "string" && ["paid_speed", "preview_cost", "legacy_preview"].includes(pool)
+    ? pool : undefined;
+}
+
 function extractBackendJobStatus(payload: unknown): string | null {
   const record = getRecord(payload);
   if (!record || typeof record.status !== "string") return null;
@@ -716,6 +722,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
     const backendTranscriptionMethod = transcriptionModelToBackendMethod(transcriptionModel);
+    // Both selectable models consume the original mix and return their own tracks.
+    if (youtubePayload) {
+      youtubePayload.separateGuitar = false;
+      youtubePayload.multipleGuitars = false;
+    }
+    if (filePayload) {
+      filePayload.separateGuitar = false;
+      filePayload.multipleGuitars = false;
+    }
 
     if (mode !== "FILE" && mode !== "YOUTUBE") {
       return res.status(400).json({ error: "Invalid mode" });
@@ -848,6 +863,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     let backendJobId: string | undefined;
+    let backendWorkerPool: string | undefined;
     const cleanupUploadedFile = () => {
       if (uploadedFile?.filepath) {
         void fs.unlink(uploadedFile.filepath).catch(() => {});
@@ -882,6 +898,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const data = await fetchJson<unknown>(ytRes);
       backendJobId = extractBackendJobId(data) || undefined;
+      backendWorkerPool = extractBackendWorkerPool(data);
     }
 
     if (mode === "FILE") {
@@ -912,6 +929,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
         const data = await fetchJson<unknown>(processRes);
         backendJobId = extractBackendJobId(data) || undefined;
+        backendWorkerPool = extractBackendWorkerPool(data);
       } else {
         if (!uploadedFile?.filepath) {
           await releaseUnverifiedTranscriptionReservation();
@@ -950,6 +968,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
         const data = await fetchJson<unknown>(processRes);
         backendJobId = extractBackendJobId(data) || undefined;
+        backendWorkerPool = extractBackendWorkerPool(data);
         cleanupUploadedFile();
       }
     }
@@ -1028,6 +1047,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       status: "processing",
       durationSec,
       transcriptionModel,
+      transcriptionMethod: backendTranscriptionMethod,
+      workerPool: backendWorkerPool,
       heavyPreviewUsed: heavyPreviewUsed || undefined,
       unverifiedTranscriptionUsed: reservedUnverifiedTranscription || undefined,
     });

@@ -746,6 +746,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         { field: "startedAt", keys: ["startedAt", "started_at"] },
         { field: "finishedAt", keys: ["finishedAt", "finished_at"] },
         { field: "workflowState", keys: ["workflowState", "workflow_state"] },
+        { field: "transcriptionMethod", keys: ["transcriptionMethod", "transcription_method"] },
+        { field: "workerPool", keys: ["workerPool"] },
         { field: "currentStepKey", keys: ["currentStepKey", "current_step_key"] },
         { field: "currentStepLabel", keys: ["currentStepLabel", "current_step_label"] },
         { field: "currentStepDetail", keys: ["currentStepDetail", "current_step_detail"] },

@@ -120,7 +120,7 @@ export default function PremiumPromptsPreviewPage() {
             <div><h3>General post-value offer</h3><p>For an engaged free user without a higher-priority model message.</p><EditorStage title="After meaningful use"><PostValuePremiumPrompt open editorId="preview" trigger="playback_completed" onClose={noop} onUpgrade={noop} /></EditorStage></div>
             <div><h3>Heavy preview completed</h3><p>Continued Heavy access, only after the preview result has been explored.</p><EditorStage title="After a Heavy preview"><HeavyPreviewEditorPrompt open onClose={noop} onUpgrade={noop} /></EditorStage></div>
             <div><h3>Light result · Heavy preview eligible</h3><p>The free preview takes priority over the general Premium offer.</p><EditorStage title="Heavy preview recommendation"><PostLightModelPrompt open recommendation="heavy_preview" onClose={noop} onTryAgain={noop} /></EditorStage></div>
-            <div><h3>Light result · Medium recommendation</h3><p>Free users who cannot preview Heavy receive the more relevant model suggestion.</p><EditorStage title="Medium recommendation"><PostLightModelPrompt open recommendation="medium" onClose={noop} onTryAgain={noop} /></EditorStage></div>
+            <div><h3>Light result · Heavy recommendation</h3><p>Free users who have used their Heavy preview can explore paid Heavy access.</p><EditorStage title="Heavy recommendation"><PostLightModelPrompt open recommendation="heavy" onClose={noop} onTryAgain={noop} /></EditorStage></div>
           </div>
         </section>
 

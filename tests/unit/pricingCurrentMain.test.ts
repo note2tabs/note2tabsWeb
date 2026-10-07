@@ -51,10 +51,10 @@ describe("pricing design uses current offers and localized pricing", () => {
     state.billing = "monthly";
     const html = renderToStaticMarkup(createElement(PricingPage));
     const free = html.match(/<article class="pricing-plan pricing-plan--free">([\s\S]*?)<\/article>/)?.[1];
-    expect(free).toContain("Light and Medium models");
+    expect(free).toContain("Light model");
     expect(free).not.toContain("Heavy");
     expect(html).toContain("4 credits with Light");
-    expect(html).toContain("6 with Medium");
+    expect(html).not.toContain("Medium");
     expect(html).toContain("10 with Heavy");
     expect(html.match(/Credits refresh monthly/g)).toHaveLength(1);
     expect(html).not.toMatch(/<details[^>]*\bopen/);

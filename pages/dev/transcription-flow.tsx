@@ -82,12 +82,6 @@ function InputStartPreview({ mode }: { mode: "file" | "youtube" }) {
           status={mode === "file" ? "Uploading audio..." : "Preparing YouTube download..."}
           compact
         />
-        <div className="transcriber-checkbox-row">
-          <label className="checkbox">
-            <input type="checkbox" checked readOnly />
-            <span>Does your audio include other instruments?</span>
-          </label>
-        </div>
       </div>
       <div className="prompt-actions">
         <button type="button" className="button-primary" disabled>
