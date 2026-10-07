@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildEditorTabView,
   EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH,
+  getWrappedTabPlayheadPosition,
 } from "../../lib/gteEditorTabView";
 import type { EditorSnapshot } from "../../types/gte";
 
@@ -30,6 +31,40 @@ const baseSnapshot = (): EditorSnapshot => ({
 });
 
 describe("gte editor tab view", () => {
+  it("wraps the playback cursor into the correct desktop score row", () => {
+    const barStartXs = [32, 152, 272, 392, 512, 632, 752];
+    expect(getWrappedTabPlayheadPosition({
+      cursorX: 332,
+      playheadFrame: 1200,
+      framesPerBar: 480,
+      barCount: 6,
+      barsPerRow: 2,
+      barStartXs,
+      rowStride: 190,
+    })).toEqual({
+      rowIndex: 1,
+      x: EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + 60,
+      y: 190,
+    });
+  });
+
+  it("keeps the final frame inside the final wrapped row", () => {
+    const barStartXs = [32, 152, 272, 392, 512, 632, 752];
+    expect(getWrappedTabPlayheadPosition({
+      cursorX: 752,
+      playheadFrame: 2880,
+      framesPerBar: 480,
+      barCount: 6,
+      barsPerRow: 2,
+      barStartXs,
+      rowStride: 190,
+    })).toEqual({
+      rowIndex: 2,
+      x: EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + 240,
+      y: 380,
+    });
+  });
+
   it("uses the same per-bar width as the frame timeline scale", () => {
     const framesPerBar = 480;
     const scale = 3.37;

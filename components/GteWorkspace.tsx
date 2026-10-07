@@ -77,6 +77,7 @@ import {
   buildEditorTabView,
   EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH,
   getEditorTabViewCursorX,
+  getWrappedTabPlayheadPosition,
 } from "../lib/gteEditorTabView";
 import { useGteRenderInstrumentation } from "../lib/gtePerformanceDiagnostics";
 import { RevisionedAutosaveQueue } from "../lib/gteAutosaveQueue";
@@ -5409,6 +5410,8 @@ export default function GteWorkspace({
   const tabViewScrollRef = useRef<HTMLDivElement | null>(null);
   const practiceScoreRef = useRef<HTMLDivElement | null>(null);
   const lastPracticeRowRef = useRef(-1);
+  const desktopTabScoreRef = useRef<HTMLDivElement | null>(null);
+  const lastDesktopTabRowRef = useRef(-1);
   const tabViewCursorRef = useRef<HTMLDivElement | null>(null);
   const [practiceScoreWidth, setPracticeScoreWidth] = useState(0);
   const timelinePlayheadRef = useRef<HTMLButtonElement | null>(null);
@@ -5747,6 +5750,27 @@ export default function GteWorkspace({
     ]
   );
   const practiceVerticalScale = 0.6;
+  const desktopTabRowHeight = TIMELINE_BAR_HEADER_HEIGHT + editorTabView.height;
+  const desktopTabRowStride = desktopTabRowHeight + ROW_GAP;
+  const getDesktopTabPosition = useCallback(
+    (frame: number, sourceX: number) =>
+      getWrappedTabPlayheadPosition({
+        cursorX: sourceX,
+        playheadFrame: frame,
+        framesPerBar: framesPerMeasure,
+        barCount: editorTabView.barCount,
+        barsPerRow,
+        barStartXs: editorTabView.barStartXs,
+        rowStride: desktopTabRowStride,
+      }),
+    [
+      barsPerRow,
+      desktopTabRowStride,
+      editorTabView.barCount,
+      editorTabView.barStartXs,
+      framesPerMeasure,
+    ]
+  );
   const practiceTabHeight = Math.round(editorTabView.height * practiceVerticalScale);
   const practiceRowGap = 42;
   const effectivePracticeRowGap = mobileViewport ? 16 : practiceRowGap;
@@ -6016,6 +6040,12 @@ export default function GteWorkspace({
     observer.observe(score);
     return () => observer.disconnect();
   }, [practiceMode]);
+
+  useEffect(() => {
+    if (!effectiveIsPlaying || !tabViewEnabled || practiceMode) {
+      lastDesktopTabRowRef.current = -1;
+    }
+  }, [effectiveIsPlaying, practiceMode, tabViewEnabled]);
   const effectivePlaybackSpeedOptions = useMemo(() => {
     const values = new Set<number>(PLAYBACK_SPEED_OPTIONS.map((speed) => normalizePlaybackSpeed(speed)));
     values.add(Math.round(effectivePlaybackSpeed * 100) / 100);
@@ -6454,7 +6484,29 @@ export default function GteWorkspace({
             }
           }
         } else {
-          tabViewCursorRef.current.style.transform = `translate3d(${x}px, 0, 0) translateX(-1px)`;
+          const position = getDesktopTabPosition(safeFrame, x);
+          tabViewCursorRef.current.style.transform =
+            `translate3d(${position.x}px, ${position.y}px, 0) translateX(-1px)`;
+          if (effectiveIsPlaying && position.rowIndex !== lastDesktopTabRowRef.current) {
+            lastDesktopTabRowRef.current = position.rowIndex;
+            const row = desktopTabScoreRef.current?.querySelector<HTMLElement>(
+              `[data-desktop-tab-row="${position.rowIndex}"]`
+            );
+            if (row) {
+              const bounds = row.getBoundingClientRect();
+              const viewportTop = 140;
+              const viewportBottom = window.innerHeight - 54;
+              if (bounds.top < viewportTop || bounds.bottom > viewportBottom) {
+                const reducedMotion = window.matchMedia(
+                  "(prefers-reduced-motion: reduce)"
+                ).matches;
+                row.scrollIntoView({
+                  block: "center",
+                  behavior: reducedMotion ? "auto" : "smooth",
+                });
+              }
+            }
+          }
         }
       }
       if (timelinePlayheadRef.current) {
@@ -6474,6 +6526,7 @@ export default function GteWorkspace({
       editorTabView.width,
       effectiveIsPlaying,
       framesPerMeasure,
+      getDesktopTabPosition,
       getPracticePosition,
       practiceMode,
       rowFrames,
@@ -17264,7 +17317,7 @@ export default function GteWorkspace({
             className="min-w-0 overflow-visible bg-white"
           >
             {(() => {
-              const tabRowHeight = TIMELINE_BAR_HEADER_HEIGHT + editorTabView.height;
+              const tabRowHeight = desktopTabRowHeight;
               const lastTabRowIndex = rows - 1;
               const lastTabRowBarCount = Math.max(0, barCount - lastTabRowIndex * barsPerRow);
               const tabAddBarStartsNewRow = shouldAddBarStartNewRow(
@@ -17276,7 +17329,6 @@ export default function GteWorkspace({
                 Math.max(0, rows - 1) * ROW_GAP +
                 (tabAddBarStartsNewRow ? tabRowHeight + ROW_GAP : 0);
               const safeCursorFrame = clamp(Math.round(effectivePlayheadFrame), 0, timelineEnd);
-              const cursorRowIndex = clamp(Math.floor(safeCursorFrame / rowFrames), 0, rows - 1);
               const tabAddBarRowIndex = tabAddBarStartsNewRow ? rows : lastTabRowIndex;
               const tabAddBarSourceLeft = tabAddBarStartsNewRow
                 ? 0
@@ -17294,6 +17346,7 @@ export default function GteWorkspace({
 
               return (
                 <div
+                  ref={desktopTabScoreRef}
                   className="relative min-w-full bg-white"
                   style={{ height: tabScoreHeight }}
                 >
@@ -17315,6 +17368,7 @@ export default function GteWorkspace({
                     return (
                       <div
                         key={`desktop-tab-row-${rowIndex}`}
+                        data-desktop-tab-row={rowIndex}
                         className="absolute left-0 right-0"
                         style={{ top: rowTop, height: tabRowHeight }}
                       >
@@ -17563,24 +17617,26 @@ export default function GteWorkspace({
                           );
                         })}
 
-                        {rowIndex === cursorRowIndex ? (
-                          <div
-                            ref={tabViewCursorRef}
-                            className="pointer-events-none absolute z-20 w-[2px] rounded-full bg-rose-500"
-                            style={{
-                              left:
-                                EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
-                                editorTabView.cursorX -
-                                sourceLeft,
-                              top: TIMELINE_BAR_HEADER_HEIGHT + 3,
-                              height: Math.max(20, editorTabView.height - 6),
-                              transform: "translateX(-1px)",
-                            }}
-                          />
-                        ) : null}
                       </div>
                     );
                   })}
+
+                  <div
+                    ref={tabViewCursorRef}
+                    className="pointer-events-none absolute z-20 w-[2px] rounded-full bg-rose-500"
+                    style={{
+                      left: 0,
+                      top: TIMELINE_BAR_HEADER_HEIGHT + 3,
+                      height: Math.max(20, editorTabView.height - 6),
+                      transform: (() => {
+                        const position = getDesktopTabPosition(
+                          safeCursorFrame,
+                          editorTabView.cursorX
+                        );
+                        return `translate3d(${position.x}px, ${position.y}px, 0) translateX(-1px)`;
+                      })(),
+                    }}
+                  />
 
                   <button
                     type="button"
@@ -18060,7 +18116,13 @@ export default function GteWorkspace({
                         top: 0,
                         height,
                         width: 2,
-                        transform: `translate3d(${left}px, ${top}px, 0) translateX(-1px)`,
+                        // Playback writes the transform directly from its audio-clock RAF.
+                        // Global button styles animate transforms, which otherwise leaves
+                        // the red line visibly behind every audible note.
+                        transform: effectiveIsPlaying
+                          ? undefined
+                          : `translate3d(${left}px, ${top}px, 0) translateX(-1px)`,
+                        transition: "none",
                         willChange: effectiveIsPlaying ? "transform" : undefined,
                       }}
                     >
