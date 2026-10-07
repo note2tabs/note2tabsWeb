@@ -18116,7 +18116,12 @@ export default function GteWorkspace({
                         top: 0,
                         height,
                         width: 2,
-                        transform: `translate3d(${left}px, ${top}px, 0) translateX(-1px)`,
+                        // While playback is running, applyPlayheadDomFrame owns this transform
+                        // from the audio-clock RAF. Letting React also write a lower-frequency
+                        // frame here can snap the Canvas playhead back to a stale position.
+                        transform: effectiveIsPlaying
+                          ? undefined
+                          : `translate3d(${left}px, ${top}px, 0) translateX(-1px)`,
                         willChange: effectiveIsPlaying ? "transform" : undefined,
                       }}
                     >
