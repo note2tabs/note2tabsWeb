@@ -1704,8 +1704,16 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                     model={transcriptionModel}
                     isPremium={isPremiumUser}
                     onSelectHeavy={() => {
-                      selectTranscriptionModel("super_heavy");
-                      trackCtaClick("try_heavy_model", { surface: "hero_funnel" });
+                      if (isPremiumUser) {
+                        selectTranscriptionModel("super_heavy");
+                      } else {
+                        void router.push(
+                          premiumPricingHref({ source: "heavy_model", reason: "heavy_model_awareness" })
+                        );
+                      }
+                      trackCtaClick(isPremiumUser ? "use_heavy_model" : "see_heavy_plans", {
+                        surface: "hero_funnel",
+                      });
                     }}
                     surface="hero_funnel"
                   />

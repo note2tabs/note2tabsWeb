@@ -10,17 +10,20 @@ type TranscriptionModelValueNoteProps = {
 
 export default function TranscriptionModelValueNote({
   model,
+  isPremium,
   onSelectHeavy,
   heavyPreviewAvailable = false,
 }: TranscriptionModelValueNoteProps) {
   if (model === "light") {
     return (
-      <p className="model-value-note">
+      <p className={`model-value-note${isPremium ? "" : " model-value-note--premium"}`}>
         <span>
-          Working with a complex recording? Try Heavy for more detailed transcription.
+          {isPremium
+            ? "Working with a complex recording? Heavy offers our highest accuracy."
+            : "Need more accuracy? The Heavy model is available with Premium or Pro."}
         </span>
         <button type="button" onClick={onSelectHeavy} className="model-value-note__action">
-          Try Heavy
+          {isPremium ? "Use Heavy" : "See plans"}
         </button>
       </p>
     );
