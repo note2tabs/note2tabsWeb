@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { isIP } from "node:net";
 import { createHash } from "node:crypto";
 import {
-  createPostHogServerClient,
+  createPostHogIngestClient,
   isPostHogConfigured,
 } from "../posthogServer";
 import {
@@ -153,7 +153,7 @@ export async function ingestAnalyticsEvents(
     };
   }
 
-  const client = createPostHogServerClient();
+  const client = createPostHogIngestClient();
   if (!client) {
     throw new Error("PostHog is not configured.");
   }

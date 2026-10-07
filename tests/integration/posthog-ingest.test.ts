@@ -7,7 +7,7 @@ const { capture, flush } = vi.hoisted(() => ({
 
 vi.mock("../../lib/posthogServer", () => ({
   isPostHogConfigured: vi.fn(() => true),
-  createPostHogServerClient: vi.fn(() => ({
+  createPostHogIngestClient: vi.fn(() => ({
     capture,
     flush,
   })),
