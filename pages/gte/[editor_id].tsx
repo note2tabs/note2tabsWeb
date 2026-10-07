@@ -64,6 +64,7 @@ import {
   warmTrackInstrument,
 } from "../../lib/gteSamplePlayback";
 import { buildDiscreteSlideSteps } from "../../lib/gteSlidePlayback";
+import { getPlaybackScheduleLeadSeconds } from "../../lib/gtePlaybackTiming";
 import { getOpenStringMidiFromSnapshot, getTabMidi as getSnapshotTabMidi } from "../../lib/gteTuning";
 import {
   getDrumVoiceForNote,
@@ -5034,12 +5035,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         preparedEntries
       );
 
-      const latencySec =
-        (Number.isFinite(ctx.baseLatency) ? ctx.baseLatency : 0) +
-        (Number.isFinite((ctx as AudioContext).outputLatency)
-          ? (ctx as AudioContext).outputLatency
-          : 0);
-      const base = ctx.currentTime + latencySec;
+      const base =
+        ctx.currentTime +
+        getPlaybackScheduleLeadSeconds(ctx.baseLatency, (ctx as AudioContext).outputLatency);
 
       const master = ctx.createGain();
       master.gain.value = globalPlaybackVolume;
