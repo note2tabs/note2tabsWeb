@@ -985,6 +985,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const completedHeavyPreviewReservation = reservedHeavyPreview;
     const heavyPreviewUsed = Boolean(completedHeavyPreviewReservation);
     reservedHeavyPreview = null;
+    let analyticsServerTracked = false;
+    if (backendJobId && session?.user?.id) {
+      try {
+        analyticsServerTracked = await registerTranscriptionAnalytics({
+          req, jobId: backendJobId, userId: session.user.id,
+          model: transcriptionModel, workerPool: backendWorkerPool,
+          durationSec, mode: mode || "file", plan: subscriptionPlan,
+          preview: Boolean(heavyPreviewUsed), creditsUsed: requiredCredits,
+          accessType: heavyPreviewUsed ? "preview" : ["ADMIN", "MODERATOR", "MOD"].includes(user?.role || "") ? "staff" : isPremium ? "paid" : "free",
+        });
+      } catch {
+        // Analytics must not invalidate an already accepted transcription.
+        console.warn("Could not register server transcription analytics");
+      }
+    }
+
     if (completedHeavyPreviewReservation && user?.id) {
       try {
         await prisma.user.updateMany({
@@ -1038,22 +1054,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
         persistedUser = null;
         console.warn("transcribe credit update skipped in dev", error);
-      }
-    }
-
-    let analyticsServerTracked = false;
-    if (backendJobId && session?.user?.id) {
-      try {
-        analyticsServerTracked = await registerTranscriptionAnalytics({
-          req, jobId: backendJobId, userId: session.user.id,
-          model: transcriptionModel, workerPool: backendWorkerPool,
-          durationSec, mode: mode || "file", plan: subscriptionPlan,
-          preview: Boolean(heavyPreviewUsed), creditsUsed: requiredCredits,
-          accessType: heavyPreviewUsed ? "preview" : ["ADMIN", "MODERATOR", "MOD"].includes(user?.role || "") ? "staff" : isPremium ? "paid" : "free",
-        });
-      } catch {
-        // Analytics must not invalidate an already accepted transcription.
-        console.warn("Could not register server transcription analytics");
       }
     }
 
