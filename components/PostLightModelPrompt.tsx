@@ -1,6 +1,7 @@
 type PostLightModelPromptProps = {
   open: boolean;
-  recommendation: "medium" | "heavy_preview";
+  recommendation: "heavy" | "heavy_preview";
+  hasHeavyAccess?: boolean;
   onClose: () => void;
   onTryAgain: () => void;
 };
@@ -8,6 +9,7 @@ type PostLightModelPromptProps = {
 export default function PostLightModelPrompt({
   open,
   recommendation,
+  hasHeavyAccess = false,
   onClose,
   onTryAgain,
 }: PostLightModelPromptProps) {
@@ -18,7 +20,7 @@ export default function PostLightModelPrompt({
   return (
     <aside
       className="heavy-preview-editor-prompt post-light-model-prompt"
-      aria-label={isHeavyPreview ? "Try the Heavy model" : "Try the Medium model"}
+      aria-label="Try the Heavy model"
     >
       <button
         type="button"
@@ -33,12 +35,12 @@ export default function PostLightModelPrompt({
         <p>
           {isHeavyPreview
             ? "This tab used our Light model. You have one free 30-second preview of our most accurate model."
-            : "This tab used our Light model. Medium is better suited to complex recordings and multiple instruments."}
+            : "This tab used our Light model. Heavy offers more detailed transcription for complex recordings and multiple instruments."}
         </p>
       </div>
       <div className="heavy-preview-editor-prompt__actions">
         <button type="button" className="button-primary button-small" onClick={onTryAgain}>
-          {isHeavyPreview ? "Try Heavy free" : "Try Medium"}
+          {isHeavyPreview ? "Try Heavy free" : hasHeavyAccess ? "Try Heavy" : "See Heavy plans"}
         </button>
         <button type="button" className="heavy-preview-editor-prompt__later" onClick={onClose}>
           Continue editing
