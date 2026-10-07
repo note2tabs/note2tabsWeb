@@ -12,7 +12,7 @@ import {
 import { getFreshUserAccess } from "../../../lib/serverAuth";
 import { PLAN_CATALOG, premiumTrialCheckoutEnabled, proPlanCheckoutEnabled, type PaidSubscriptionPlan } from "../../../lib/subscriptionPlans";
 import { DISPLAY_CURRENCIES, type DisplayCurrency } from "../../../lib/localizedPricing";
-import { createPostHogServerClient } from "../../../lib/posthogServer";
+import { createPostHogServerClient, stablePostHogEventUuid } from "../../../lib/posthogServer";
 import { inspectPremiumCustomerState } from "../../../lib/stripePremiumOffer";
 import {
   normalizePremiumFunnelId,
@@ -33,7 +33,13 @@ async function trackCheckoutEvent(
 ) {
   const client = createPostHogServerClient();
   if (!client) return;
-  client.capture({ distinctId, event, properties });
+  const insertId = typeof properties.$insert_id === "string" ? properties.$insert_id : null;
+  client.capture({
+    distinctId,
+    event,
+    properties,
+    ...(insertId ? { uuid: stablePostHogEventUuid(insertId) } : {}),
+  });
   try {
     // Checkout is a low-volume, business-critical funnel. Awaiting this flush
     // prevents Vercel from ending the invocation before PostHog receives it.
@@ -173,6 +179,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     model,
     device_type: deviceType,
     request_id: requestId,
+    checkout_attempt_id: requestId,
   });
 
   try {

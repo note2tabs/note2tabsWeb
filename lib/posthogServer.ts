@@ -1,7 +1,18 @@
 import { PostHog } from "posthog-node";
+import { createHash } from "crypto";
 
 let sharedClient: PostHog | null = null;
 let sharedClientKey: string | null = null;
+
+/**
+ * PostHog deduplicates retried captures by their top-level event UUID. Derive
+ * one from a stable business identifier so a retried webhook or API request
+ * cannot inflate low-volume conversion events.
+ */
+export function stablePostHogEventUuid(identifier: string) {
+  const hex = createHash("sha256").update(identifier).digest("hex").slice(0, 32);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20)}`;
+}
 
 function getPostHogConfig() {
   const token =

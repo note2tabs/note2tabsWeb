@@ -24,6 +24,7 @@ import {
 import {
   createPostHogServerClient,
   flushPostHogServerClientInBackground,
+  stablePostHogEventUuid,
 } from "../../../lib/posthogServer";
 import {
   normalizePremiumFunnelId,
@@ -205,7 +206,12 @@ async function setPremiumForIdentifier(identifier: UserIdentifier, plan: PaidSub
   return user.id;
 }
 
-function trackSubscriptionStarted(userId: string, session: Stripe.Checkout.Session, plan: PaidSubscriptionPlan) {
+function trackSubscriptionStarted(
+  userId: string,
+  session: Stripe.Checkout.Session,
+  plan: PaidSubscriptionPlan,
+  stripeEventId: string
+) {
   const client = createPostHogServerClient();
   if (!client) return;
   const funnelId =
@@ -219,6 +225,7 @@ function trackSubscriptionStarted(userId: string, session: Stripe.Checkout.Sessi
   client.capture({
     distinctId: userId,
     event: "subscription_started",
+    uuid: stablePostHogEventUuid(`subscription-started:${session.id}`),
     properties: {
       plan: PLAN_CATALOG[plan].analyticsId,
       source: normalizePremiumFunnelSource(session.metadata?.premiumFunnelSource),
@@ -228,6 +235,8 @@ function trackSubscriptionStarted(userId: string, session: Stripe.Checkout.Sessi
       offer_variant: normalizePremiumOfferVariant(session.metadata?.premiumOfferVariant),
       model,
       checkout_session_id: session.id,
+      checkout_attempt_id: session.metadata?.note2tabsCheckoutAttemptId || undefined,
+      stripe_event_id: stripeEventId,
       ...checkoutCurrencyProperties(session),
       event_source: "stripe_webhook",
       $insert_id: `subscription-started:${session.id}`,
@@ -1013,7 +1022,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (identifier) {
         const userId = await setPremiumForIdentifier(identifier, plan);
         if (userId) {
-          trackSubscriptionStarted(userId, checkoutSession, plan);
+          trackSubscriptionStarted(userId, checkoutSession, plan, event.id);
           await persistAffiliateAttribution(checkoutSession, userId);
           if (plan === "PREMIUM" && checkoutSession.metadata?.premiumTrialIncluded === "true") {
             await trackAffiliateTrialStarted(userId, checkoutSession);

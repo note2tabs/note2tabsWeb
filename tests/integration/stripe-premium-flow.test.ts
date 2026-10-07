@@ -115,6 +115,7 @@ vi.mock("../../lib/prisma", () => ({
 vi.mock("../../lib/posthogServer", () => ({
   createPostHogServerClient: vi.fn(() => posthogMock),
   flushPostHogServerClientInBackground: vi.fn(),
+  stablePostHogEventUuid: vi.fn((identifier: string) => `uuid:${identifier}`),
 }));
 
 vi.mock("../../lib/email", () => ({
@@ -397,6 +398,7 @@ describe("stripe premium flow", () => {
       expect(posthogMock.capture).toHaveBeenCalledWith({
         distinctId: "user_1",
         event: "checkout_started",
+        uuid: "uuid:checkout-started:cs_test_123",
         properties: expect.objectContaining({
           plan: "premium_monthly",
           source: "pricing_page",
@@ -404,6 +406,8 @@ describe("stripe premium flow", () => {
           funnel_id: "funnel_test_123",
           offer_variant: "value_framing",
           device_type: "desktop",
+          checkout_attempt_id: "local",
+          checkout_session_id: "cs_test_123",
           $insert_id: "checkout-started:cs_test_123",
         }),
       });
@@ -1405,6 +1409,7 @@ describe("stripe premium flow", () => {
 
     it("upgrades FREE users to PREMIUM on checkout.session.completed", async () => {
       stripeMock.webhooks.constructEvent.mockReturnValue({
+        id: "evt_checkout_premium",
         type: "checkout.session.completed",
         data: {
           object: {
@@ -1421,6 +1426,7 @@ describe("stripe premium flow", () => {
               premiumOfferVariant: "value_framing",
               premiumFunnelModel: "heavy",
               premiumTrialIncluded: "true",
+              note2tabsCheckoutAttemptId: "attempt_premium_123",
             },
             subscription: premiumSubscription(),
             customer_details: { email: "user@example.com" },
@@ -1451,6 +1457,7 @@ describe("stripe premium flow", () => {
       expect(posthogMock.capture).toHaveBeenCalledWith({
         distinctId: "user_1",
         event: "subscription_started",
+        uuid: "uuid:subscription-started:cs_premium",
         properties: expect.objectContaining({
           source: "signed_home",
           reason: "signed_home_value",
@@ -1458,6 +1465,9 @@ describe("stripe premium flow", () => {
           trial_included: true,
           offer_variant: "value_framing",
           model: "heavy",
+          checkout_session_id: "cs_premium",
+          checkout_attempt_id: "attempt_premium_123",
+          stripe_event_id: "evt_checkout_premium",
           event_source: "stripe_webhook",
           $insert_id: "subscription-started:cs_premium",
         }),
