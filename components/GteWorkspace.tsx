@@ -32,7 +32,6 @@ import {
   warmTrackInstrument,
 } from "../lib/gteSamplePlayback";
 import { buildDiscreteSlideSteps } from "../lib/gteSlidePlayback";
-import { getPlaybackScheduleLeadSeconds } from "../lib/gtePlaybackTiming";
 import { buildChordPlaybackWindows } from "../lib/gteChordPlayback";
 import {
   getAllTabsForMidi as getSnapshotTabsForMidi,
@@ -11946,9 +11945,12 @@ export default function GteWorkspace({
     if (!isCurrentRequest() || ctx.state !== "running") {
       throw new Error(AUDIO_CONTEXT_RESUME_ERROR);
     }
-    const base =
-      ctx.currentTime +
-      getPlaybackScheduleLeadSeconds(ctx.baseLatency, (ctx as AudioContext).outputLatency);
+    const latencySec =
+      (Number.isFinite(ctx.baseLatency) ? ctx.baseLatency : 0) +
+      (Number.isFinite((ctx as AudioContext).outputLatency)
+        ? (ctx as AudioContext).outputLatency
+        : 0);
+    const base = ctx.currentTime + latencySec;
 
     const master = ctx.createGain();
     master.gain.value = effectivePlaybackVolume;
@@ -17199,7 +17201,13 @@ export default function GteWorkspace({
                         top: 0,
                         height,
                         width: 2,
-                        transform: `translate3d(${left}px, ${top}px, 0) translateX(-1px)`,
+                        // Playback writes the transform directly from its audio-clock RAF.
+                        // Global button styles animate transforms, which otherwise leaves
+                        // the red line visibly behind every audible note.
+                        transform: effectiveIsPlaying
+                          ? undefined
+                          : `translate3d(${left}px, ${top}px, 0) translateX(-1px)`,
+                        transition: "none",
                         willChange: effectiveIsPlaying ? "transform" : undefined,
                       }}
                     >
