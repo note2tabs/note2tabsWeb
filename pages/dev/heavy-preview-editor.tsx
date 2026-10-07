@@ -16,7 +16,7 @@ const notes = [
 
 export default function HeavyPreviewEditorDesignPage() {
   const [promptOpen, setPromptOpen] = useState(true);
-  const [promptKind, setPromptKind] = useState<"heavy_preview" | "medium" | "upgrade">("heavy_preview");
+  const [promptKind, setPromptKind] = useState<"heavy_preview" | "heavy" | "upgrade">("heavy_preview");
 
   return (
     <>
@@ -74,12 +74,12 @@ export default function HeavyPreviewEditorDesignPage() {
         )}
         <div className="heavy-preview-dev-switcher" aria-label="Preview prompt variant">
           <button onClick={() => { setPromptKind("heavy_preview"); setPromptOpen(true); }}>After Light: Heavy preview</button>
-          <button onClick={() => { setPromptKind("medium"); setPromptOpen(true); }}>After Light: Medium</button>
+          <button onClick={() => { setPromptKind("heavy"); setPromptOpen(true); }}>After Light: Heavy</button>
           <button onClick={() => { setPromptKind("upgrade"); setPromptOpen(true); }}>After Heavy: Upgrade</button>
         </div>
         <PostLightModelPrompt
           open={promptOpen && promptKind !== "upgrade"}
-          recommendation={promptKind === "medium" ? "medium" : "heavy_preview"}
+          recommendation={promptKind === "heavy" ? "heavy" : "heavy_preview"}
           onClose={() => setPromptOpen(false)}
           onTryAgain={() => setPromptOpen(false)}
         />

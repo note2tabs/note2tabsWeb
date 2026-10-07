@@ -1762,7 +1762,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     if (canCheckHeavyPreview && !heavyPreviewCountryResolved) return;
 
     postLightPromptHandledRef.current = true;
-    const recommendation = heavyPreviewEligible ? "heavy_preview" : "medium";
+    const recommendation = heavyPreviewEligible ? "heavy_preview" : "heavy";
     const transcriptionJobId =
       typeof router.query.transcriptionJobId === "string"
         ? router.query.transcriptionJobId
@@ -1801,7 +1801,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     if (!postLightPlaybackSeenRef.current || postLightPromptOpen || heavyPreviewUpgradeOpen) return;
     postLightPlaybackSeenRef.current = false;
     postLightPromptPendingRef.current = false;
-    const recommendation = heavyPreviewEligible ? "heavy_preview" : "medium";
+    const recommendation = heavyPreviewEligible ? "heavy_preview" : "heavy";
     const transcriptionJobId = postLightJobIdRef.current;
     setPostLightPromptOpen(true);
     sendEvent(ANALYTICS_EVENTS.postLightModelPromptShown, {
@@ -11365,26 +11365,31 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       />
       <PostLightModelPrompt
         open={postLightPromptOpen}
-        recommendation={heavyPreviewEligible ? "heavy_preview" : "medium"}
+        recommendation={heavyPreviewEligible ? "heavy_preview" : "heavy"}
+        hasHeavyAccess={isPaidUser}
         onClose={() => {
           setPostLightPromptOpen(false);
           sendEvent(ANALYTICS_EVENTS.postLightModelPromptDismissed, {
             surface: "editor",
             editor_id: editorId,
-            recommendation: heavyPreviewEligible ? "heavy_preview" : "medium",
+            recommendation: heavyPreviewEligible ? "heavy_preview" : "heavy",
           });
         }}
         onTryAgain={() => {
-          const recommendation = heavyPreviewEligible ? "heavy_preview" : "medium";
+          const recommendation = heavyPreviewEligible ? "heavy_preview" : "heavy";
           sendEvent(ANALYTICS_EVENTS.postLightModelPromptClicked, {
             surface: "editor",
             editor_id: editorId,
             recommendation,
           });
+          if (!heavyPreviewEligible && !isPaidUser) {
+            void router.push("/pricing?source=post_light_model_prompt&reason=heavy_model");
+            return;
+          }
           const params = new URLSearchParams({
             appendEditorId: editorId,
             source: "post_light_model_prompt",
-            recommendedModel: recommendation === "heavy_preview" ? "super_heavy" : "heavy",
+            recommendedModel: "super_heavy",
           });
           void router.push(`/transcriber?${params.toString()}#hero`);
         }}
