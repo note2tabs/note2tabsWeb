@@ -32,6 +32,7 @@ import {
   warmTrackInstrument,
 } from "../lib/gteSamplePlayback";
 import { buildDiscreteSlideSteps } from "../lib/gteSlidePlayback";
+import { getPlaybackScheduleLeadSeconds } from "../lib/gtePlaybackTiming";
 import { buildChordPlaybackWindows } from "../lib/gteChordPlayback";
 import {
   getAllTabsForMidi as getSnapshotTabsForMidi,
@@ -11945,12 +11946,9 @@ export default function GteWorkspace({
     if (!isCurrentRequest() || ctx.state !== "running") {
       throw new Error(AUDIO_CONTEXT_RESUME_ERROR);
     }
-    const latencySec =
-      (Number.isFinite(ctx.baseLatency) ? ctx.baseLatency : 0) +
-      (Number.isFinite((ctx as AudioContext).outputLatency)
-        ? (ctx as AudioContext).outputLatency
-        : 0);
-    const base = ctx.currentTime + latencySec;
+    const base =
+      ctx.currentTime +
+      getPlaybackScheduleLeadSeconds(ctx.baseLatency, (ctx as AudioContext).outputLatency);
 
     const master = ctx.createGain();
     master.gain.value = effectivePlaybackVolume;
@@ -17201,12 +17199,7 @@ export default function GteWorkspace({
                         top: 0,
                         height,
                         width: 2,
-                        // While playback is running, applyPlayheadDomFrame owns this transform
-                        // from the audio-clock RAF. Letting React also write a lower-frequency
-                        // frame here can snap the Canvas playhead back to a stale position.
-                        transform: effectiveIsPlaying
-                          ? undefined
-                          : `translate3d(${left}px, ${top}px, 0) translateX(-1px)`,
+                        transform: `translate3d(${left}px, ${top}px, 0) translateX(-1px)`,
                         willChange: effectiveIsPlaying ? "transform" : undefined,
                       }}
                     >
