@@ -120,27 +120,31 @@ async function postEvents(events: CanonicalEvent[], mode: "fetch" | "beacon") {
 
   if (mode === "beacon" && typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
     const blob = new Blob([payload], { type: "application/json" });
-    navigator.sendBeacon("/api/analytics/ingest", blob);
-    return;
+    if (navigator.sendBeacon("/api/analytics/ingest", blob)) return;
   }
 
-  await fetch("/api/analytics/ingest", {
+  const response = await fetch("/api/analytics/ingest", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: payload,
     keepalive: true,
   });
+  if (!response.ok) throw new Error("Analytics delivery failed");
 }
 
 export async function flush(reason: "timer" | "manual" | "pagehide" = "manual") {
   if (!queue.length) return;
-  const pending = queue;
-  queue = [];
+  const pending = queue.splice(0, QUEUE_MAX);
   try {
     await postEvents(pending, reason === "pagehide" ? "beacon" : "fetch");
   } catch {
-    // Never throw from analytics client.
+    // Reuse the same UUID and timestamp when retrying failed delivery.
+    if (shouldTrack()) {
+      queue = [...pending, ...queue].slice(0, QUEUE_MAX * 4);
+      scheduleFlush();
+    }
   }
+  if (queue.length) scheduleFlush();
 }
 
 export async function track(name: string, props: EventProps = {}) {
@@ -216,6 +220,9 @@ export function trackGteSessionEnded(props: EventProps = {}) {
 export function setAnalyticsConsent(state: "granted" | "denied") {
   setCookie(ANALYTICS_CONSENT_COOKIE, state, 365 * 24 * 60 * 60);
   if (state === "denied") {
+    queue = [];
+    if (flushTimer) clearTimeout(flushTimer);
+    flushTimer = null;
     deleteCookie(ANALYTICS_ANON_COOKIE);
     deleteCookie(ANALYTICS_SESSION_COOKIE);
     deleteCookie(ANALYTICS_ATTRIBUTION_COOKIE);

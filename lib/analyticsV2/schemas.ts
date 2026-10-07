@@ -107,6 +107,11 @@ function parseDate(ts: string | undefined): Date {
   return parsed;
 }
 
+function propertyId(props: Record<string, unknown>, snake: string, camel: string) {
+  const value = props[snake] ?? props[camel];
+  return typeof value === "string" && value ? value : undefined;
+}
+
 function parseCanonicalEvent(input: unknown): NormalizedIngestEvent {
   const parsed = canonicalSchema.parse(input);
   const rawProps = parsed.props || {};
@@ -134,8 +139,8 @@ function parseCanonicalEvent(input: unknown): NormalizedIngestEvent {
     utmCampaign: parsed.utm_campaign || parsed.utmCampaign,
     utmTerm: parsed.utm_term || parsed.utmTerm,
     utmContent: parsed.utm_content || parsed.utmContent,
-    editorId: parsed.editor_id || parsed.editorId,
-    jobId: parsed.job_id || parsed.jobId,
+    editorId: parsed.editor_id || parsed.editorId || propertyId(props, "editor_id", "editorId"),
+    jobId: parsed.job_id || parsed.jobId || propertyId(props, "job_id", "jobId"),
     sessionId: parsed.session_id || parsed.sessionId,
     anonId: parsed.anon_id || parsed.anonId,
     appVersion: parsed.app_version || parsed.appVersion,
@@ -167,6 +172,8 @@ function parseLegacyEvent(input: unknown): NormalizedIngestEvent {
     legacyEventName: canonical.legacyEventName,
     ts: parseDate(parsed.ts),
     props: payload,
+    editorId: propertyId(payload, "editor_id", "editorId"),
+    jobId: propertyId(payload, "job_id", "jobId"),
     path: parsed.path,
     referrer: parsed.referrer || parsed.referer,
     sessionId: parsed.sessionId || parsed.session_id || payloadSessionId,

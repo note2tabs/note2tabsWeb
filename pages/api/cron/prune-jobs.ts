@@ -26,14 +26,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const failedCutoff = new Date(Date.now() - FAILED_MAX_AGE_DAYS * 24 * 60 * 60 * 1000);
   const stuckRunningCutoff = new Date(Date.now() - STUCK_RUNNING_MAX_AGE_HOURS * 60 * 60 * 1000);
   const gtePreferenceCutoff = new Date(Date.now() - GTE_PREFERENCE_MAX_AGE_HOURS * 60 * 60 * 1000);
+  // A temporary analytics outage must not let cleanup erase undelivered outcomes.
+  const pendingAnalytics = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT id FROM jobs WHERE input->'transcriptionAnalytics'->>'version' = '1'
+      AND COALESCE(input->'transcriptionAnalytics'->>'terminalDelivered', 'false') != 'true'
+      AND status IN ('succeeded', 'failed')
+  `;
+  const deliveredOrUntracked = { notIn: pendingAnalytics.map(job => job.id) };
 
   const [succeededDeleted, failedDeleted, runningDeleted, activeLaneDeleted, inputSettingDeleted, trackPlaybackDeleted] =
     await Promise.all([
       prisma.jobs.deleteMany({
-        where: { status: "succeeded", createdAt: { lt: succeededCutoff } },
+        where: { status: "succeeded", createdAt: { lt: succeededCutoff }, id: deliveredOrUntracked },
       }),
       prisma.jobs.deleteMany({
-        where: { status: "failed", createdAt: { lt: failedCutoff } },
+        where: { status: "failed", createdAt: { lt: failedCutoff }, id: deliveredOrUntracked },
       }),
       prisma.jobs.deleteMany({
         where: { status: "running", createdAt: { lt: stuckRunningCutoff } },

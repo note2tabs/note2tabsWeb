@@ -139,7 +139,7 @@ const LEGACY_EVENT_NAMES: Record<string, string> = {
 export function sendEvent(event: string, payload?: EventPayload) {
   if (typeof window === "undefined") return;
   const normalizedEvent = LEGACY_EVENT_NAMES[event] || event;
-  if (normalizedEvent === ANALYTICS_EVENTS.tabGenerationSucceeded) {
+  if (normalizedEvent === ANALYTICS_EVENTS.tabGenerationSucceeded || normalizedEvent === "transcription_result_viewed") {
     publishTranscriptionCompletedForPremiumPrompt();
   }
   if (process.env.NODE_ENV !== "production") return;

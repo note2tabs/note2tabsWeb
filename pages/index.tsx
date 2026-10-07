@@ -104,6 +104,7 @@ type TabsResponse = {
   verificationRequired?: boolean;
   heavyPreviewUsed?: boolean;
   workerPool?: string;
+  analyticsServerTracked?: boolean;
   unverifiedTranscriptionUsed?: boolean;
 };
 type CreditsResponse = {
@@ -1015,7 +1016,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
           isPremiumUser && !isStaffUser,
           isStaffUser
         );
-        sendTranscriptionStartedEvents(transcriptionModel, {
+        if (!data.analyticsServerTracked) sendTranscriptionStartedEvents(transcriptionModel, {
           ...researchProperties,
           jobId: data.jobId,
           transcription_worker_pool: data.workerPool,
@@ -1105,7 +1106,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         isPremiumUser && !isStaffUser,
         isStaffUser
       );
-      sendTranscriptionStartedEvents(transcriptionModel, {
+      if (!data.analyticsServerTracked) sendTranscriptionStartedEvents(transcriptionModel, {
         ...researchProperties,
         jobId: data.jobId || data.tabJobId,
         acceptance_status: "accepted",

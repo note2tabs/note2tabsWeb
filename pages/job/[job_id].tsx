@@ -659,12 +659,15 @@ export default function JobPage() {
         recordedMethod ?? getQueryStringValue(router.query.transcriptionMethod), modelHint
       ),
       transcription_worker_pool: getFirstJobValue(displayJob, ["workerPool"]),
+      access_type: getFirstJobValue(displayJob, ["accessType"]),
+      subscription_plan: getFirstJobValue(displayJob, ["subscriptionPlan"]),
+      heavy_preview: getFirstJobValue(displayJob, ["heavyPreview"]),
     };
   }, [displayJob, router.query.transcriptionMethod, modelHint]);
   const isHeavyPreview = useMemo(() => {
     if (!router.isReady) return false;
-    return parseBooleanFlag(getQueryStringValue(router.query.heavyPreview)) ?? false;
-  }, [router.isReady, router.query.heavyPreview]);
+    return parseBooleanValue(getFirstJobValue(displayJob, ["heavyPreview"])) ?? parseBooleanFlag(getQueryStringValue(router.query.heavyPreview)) ?? false;
+  }, [displayJob, router.isReady, router.query.heavyPreview]);
   const durationHintSeconds = useMemo(() => {
     const queryDuration =
       parsePositiveNumber(getQueryStringValue(router.query.duration)) ??
@@ -739,21 +742,24 @@ export default function JobPage() {
       separate_guitar: separateGuitarHint,
       multiple_guitars: loadedMultipleGuitars,
     };
-    sendEvent(ANALYTICS_EVENTS.jobCompleted, {
-      ...properties,
-      $insert_id: `job-completed:${job_id}`,
-    });
-    sendEvent(ANALYTICS_EVENTS.tabGenerationSucceeded, {
-      ...properties,
-      $insert_id: `transcription-succeeded:${job_id}`,
-    });
-    if (isHeavyPreview) {
-      sendEvent(ANALYTICS_EVENTS.heavyPreviewCompleted, {
+    sendEvent("transcription_result_viewed", properties);
+    if (getFirstJobValue(displayJob, ["analyticsServerTracked"]) !== true) {
+      sendEvent(ANALYTICS_EVENTS.jobCompleted, {
         ...properties,
-        $insert_id: `heavy-preview-completed:${job_id}`,
+        $insert_id: `job-completed:${job_id}`,
       });
+      sendEvent(ANALYTICS_EVENTS.tabGenerationSucceeded, {
+        ...properties,
+        $insert_id: `transcription-succeeded:${job_id}`,
+      });
+      if (isHeavyPreview) {
+        sendEvent(ANALYTICS_EVENTS.heavyPreviewCompleted, {
+          ...properties,
+          $insert_id: `heavy-preview-completed:${job_id}`,
+        });
+      }
     }
-  }, [durationHintSeconds, isHeavyPreview, job_id, loadedMultipleGuitars, modeHint, modelHint, modelAnalyticsProperties, separateGuitarHint, showReviewUi]);
+  }, [displayJob, durationHintSeconds, isHeavyPreview, job_id, loadedMultipleGuitars, modeHint, modelHint, modelAnalyticsProperties, separateGuitarHint, showReviewUi]);
 
 
   const fetchJob = async (
@@ -1117,14 +1123,22 @@ export default function JobPage() {
       quantize,
     };
     sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportStarted, eventProperties);
+    const importStartedAt = Date.now();
     try {
       const result = await performJobImportToEditor(jobToImport, targetEditorChoice, quantize);
-      if (!result) return false;
+      if (!result) {
+        sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportFailed, {
+          ...eventProperties, error_code: "editor_import_not_ready",
+          import_elapsed_sec: (Date.now() - importStartedAt) / 1000,
+        });
+        return false;
+      }
       sendEvent(ANALYTICS_EVENTS.transcriptionImportedToEditor, {
         ...eventProperties,
         target: result.target,
         import_format: result.importFormat,
         editor_id: result.editorId,
+        import_elapsed_sec: (Date.now() - importStartedAt) / 1000,
       });
       await router.push(result.href);
       return true;
@@ -1132,6 +1146,7 @@ export default function JobPage() {
       sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportFailed, {
         ...eventProperties,
         error_code: categorizeAnalyticsError(error, "editor_import_failed"),
+        import_elapsed_sec: (Date.now() - importStartedAt) / 1000,
       });
       throw error;
     }

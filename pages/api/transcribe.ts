@@ -6,6 +6,7 @@ import { IncomingForm, type File as FormidableFile } from "formidable";
 import { promises as fs } from "fs";
 import { authOptions } from "./auth/[...nextauth]";
 import { prisma } from "../../lib/prisma";
+import { registerTranscriptionAnalytics } from "../../lib/transcriptionAnalytics";
 import {
   type CreditsSummary,
   buildDevCreditsSummary,
@@ -1040,7 +1041,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
+    let analyticsServerTracked = false;
+    if (backendJobId && session?.user?.id) {
+      try {
+        analyticsServerTracked = await registerTranscriptionAnalytics({
+          req, jobId: backendJobId, userId: session.user.id,
+          model: transcriptionModel, workerPool: backendWorkerPool,
+          durationSec, mode: mode || "file", plan: subscriptionPlan,
+          preview: Boolean(heavyPreviewUsed), creditsUsed: requiredCredits,
+          accessType: heavyPreviewUsed ? "preview" : ["ADMIN", "MODERATOR", "MOD"].includes(user?.role || "") ? "staff" : isPremium ? "paid" : "free",
+        });
+      } catch {
+        // Analytics must not invalidate an already accepted transcription.
+        console.warn("Could not register server transcription analytics");
+      }
+    }
+
     return res.status(202).json({
+      analyticsServerTracked,
       tokensRemaining: updatedTokens,
       credits: user ? creditsAfter : undefined,
       jobId: backendJobId,

@@ -5,6 +5,7 @@ import { prisma } from "../../../lib/prisma";
 import { buildUniqueTabJobLabel, deriveTabJobBaseLabel } from "../../../lib/tabJobNames";
 import { normalizePositiveDurationSec } from "../../../lib/transcriptionDuration";
 import { sendTranscriptionCompleteEmailOnce } from "../../../lib/transcriptionCompleteEmail";
+import { getServerTranscriptionAnalytics } from "../../../lib/transcriptionAnalytics";
 import { attachFunctionTiming } from "../../../lib/functionTiming";
 import {
   parseStoredTabPayload,
@@ -664,6 +665,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         typeof getFirstJobValue(payload, ["status"]) === "string"
           ? String(getFirstJobValue(payload, ["status"])).toLowerCase()
           : null;
+      if (["done", "succeeded", "failed", "error"].includes(normalizedStatus || "")) {
+        try {
+          const analytics = await getServerTranscriptionAnalytics(jobId, session.user.id);
+          payload.analyticsServerTracked = analytics?.tracked === true;
+          if (analytics?.workerPool) payload.workerPool = analytics.workerPool;
+          if (analytics?.accessType) payload.accessType = analytics.accessType;
+          if (analytics?.subscriptionPlan) payload.subscriptionPlan = analytics.subscriptionPlan;
+          if (typeof analytics?.heavyPreview === "boolean") payload.heavyPreview = analytics.heavyPreview;
+        } catch {
+          // Unknown tracking state must not produce a duplicate server outcome.
+          payload.analyticsServerTracked = true;
+        }
+      }
       if (
         session?.user?.id &&
         normalizedStatus &&
@@ -738,6 +752,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         job_id: getStringValue(payload, ["job_id", "jobId", "id"]) || jobId,
         status: getStringValue(payload, ["status"]) || (upstream.ok ? "processing" : "error"),
       };
+      if (typeof payload.analyticsServerTracked === "boolean") {
+        responsePayload.analyticsServerTracked = payload.analyticsServerTracked;
+      }
+      if (typeof payload.heavyPreview === "boolean") responsePayload.heavyPreview = payload.heavyPreview;
       const stringFieldMap: Array<{ field: string; keys: string[] }> = [
         { field: "type", keys: ["type"] },
         { field: "rawStatus", keys: ["rawStatus", "raw_status"] },
@@ -748,6 +766,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         { field: "workflowState", keys: ["workflowState", "workflow_state"] },
         { field: "transcriptionMethod", keys: ["transcriptionMethod", "transcription_method"] },
         { field: "workerPool", keys: ["workerPool"] },
+        { field: "accessType", keys: ["accessType"] },
+        { field: "subscriptionPlan", keys: ["subscriptionPlan"] },
         { field: "currentStepKey", keys: ["currentStepKey", "current_step_key"] },
         { field: "currentStepLabel", keys: ["currentStepLabel", "current_step_label"] },
         { field: "currentStepDetail", keys: ["currentStepDetail", "current_step_detail"] },
