@@ -1,0 +1,136 @@
+{
+  "projectId": 208789,
+  "auditedAt": "2026-10-07",
+  "insights": [
+    {
+      "id": 5219230,
+      "query": {
+        "kind": "InsightVizNode",
+        "source": {
+          "kind": "TrendsQuery",
+          "tags": {
+            "productKey": "product_analytics"
+          },
+          "series": [
+            {
+              "kind": "EventsNode",
+              "math": "total",
+              "name": "transcription_started_light_model",
+              "event": "transcription_started_light_model",
+              "custom_name": "Basic Pitch Light (legacy)"
+            },
+            {
+              "kind": "EventsNode",
+              "math": "total",
+              "name": "transcription_started_msmodel_small",
+              "event": "transcription_started_msmodel_small",
+              "custom_name": "MuScriptor Small Light"
+            }
+          ],
+          "version": 4,
+          "interval": "day",
+          "properties": [
+            {
+              "key": "environment",
+              "type": "event",
+              "operator": "is_not",
+              "value": "preview"
+            },
+            {
+              "key": "is_test",
+              "type": "event",
+              "operator": "is_not",
+              "value": "true"
+            }
+          ],
+          "trendsFilter": {
+            "display": "ActionsLineGraph",
+            "showLegend": true,
+            "hideWeekends": false,
+            "metricSummary": "total",
+            "legendPosition": "bottom",
+            "yAxisScaleType": "linear",
+            "showAnnotations": true,
+            "metricShowChange": true,
+            "yAxisStartAtZero": true,
+            "showMultipleYAxes": false,
+            "showValuesOnSeries": false,
+            "smoothingIntervals": 1,
+            "showPercentStackView": false,
+            "stackBreakdownValues": false,
+            "aggregationAxisFormat": "numeric",
+            "resultCustomizationBy": "value",
+            "excludeBoxPlotOutliers": true,
+            "metricColorByDirection": false,
+            "showAlertThresholdLines": false
+          },
+          "filterTestAccounts": false
+        }
+      },
+      "description": "Separate series for historical Basic Pitch Light and new MuScriptor Small Light. New MuScriptor events begin after the frontend deployment; historical events remain unchanged. Preview and tagged tests excluded."
+    },
+    {
+      "id": 5361357,
+      "query": {
+        "kind": "DataVisualizationNode",
+        "source": {
+          "kind": "HogQLQuery",
+          "query": "SELECT coalesce(nullIf(toString(properties.transcription_backend_method), ''), nullIf(toString(properties.transcription_model_implementation), ''), multiIf(coalesce(nullIf(toString(properties.transcription_model_id), ''), toString(properties.transcriptionModel)) = 'msmodel_small', 'msmodel_small', coalesce(nullIf(toString(properties.transcription_model_id), ''), toString(properties.transcriptionModel)) = 'light', 'basic_pitch', coalesce(nullIf(toString(properties.transcription_model_id), ''), toString(properties.transcriptionModel)) = 'heavy', 'yourmt3', coalesce(nullIf(toString(properties.transcription_model_id), ''), toString(properties.transcriptionModel)) = 'super_heavy', 'msmodel', 'unknown')) AS model, count() AS starts FROM events WHERE coalesce(toString(properties.environment), '') != 'preview' AND coalesce(toString(properties.is_test), 'false') != 'true' AND event='transcription_started' AND timestamp >= now() - INTERVAL 30 DAY GROUP BY model ORDER BY starts DESC"
+        },
+        "display": "ActionsPie",
+        "chartSettings": {
+          "xAxis": {
+            "column": "model"
+          },
+          "yAxis": [
+            {
+              "column": "starts",
+              "settings": {
+                "formatting": {
+                  "prefix": "",
+                  "suffix": ""
+                }
+              }
+            }
+          ],
+          "showLegend": true
+        },
+        "tableSettings": {
+          "columns": [
+            {
+              "column": "model",
+              "settings": {
+                "formatting": {
+                  "prefix": "",
+                  "suffix": ""
+                }
+              }
+            },
+            {
+              "column": "starts",
+              "settings": {
+                "formatting": {
+                  "prefix": "",
+                  "suffix": ""
+                }
+              }
+            }
+          ]
+        }
+      },
+      "description": "Starts by actual model implementation: basic_pitch (legacy Light), msmodel_small (new Light), yourmt3 (retired Medium), msmodel (Heavy). Historical ids are mapped at query time. Preview and tagged test traffic excluded."
+    },
+    {
+      "id": 5725114,
+      "query": {
+        "kind": "DataVisualizationNode",
+        "source": {
+          "kind": "HogQLQuery",
+          "query": "SELECT model, duration_bucket, input_source, count() AS users, sum(did_return_d7) AS retained_users, round(sum(did_return_d7) / count(), 3) AS d7_retention FROM (\n SELECT model, duration_bucket, input_source, first_start_at,\n arrayExists(t -> toDate(t) > toDate(first_start_at) AND t <= first_start_at + INTERVAL 7 DAY, activity_times) AS did_return_d7\n FROM (\n SELECT person_id, minIf(timestamp, event = 'transcription_started') AS first_start_at,\n argMinIf(coalesce(nullIf(toString(properties.transcription_backend_method), ''), nullIf(toString(properties.transcription_model_implementation), ''), multiIf(coalesce(nullIf(toString(properties.transcription_model_id), ''), toString(properties.transcriptionModel)) = 'msmodel_small', 'msmodel_small', coalesce(nullIf(toString(properties.transcription_model_id), ''), toString(properties.transcriptionModel)) = 'light', 'basic_pitch', coalesce(nullIf(toString(properties.transcription_model_id), ''), toString(properties.transcriptionModel)) = 'heavy', 'yourmt3', coalesce(nullIf(toString(properties.transcription_model_id), ''), toString(properties.transcriptionModel)) = 'super_heavy', 'msmodel', 'unknown')), timestamp, event = 'transcription_started') AS model,\n argMinIf(multiIf(coalesce(toFloat(properties.durationSec), 0) <= 30, '0-30s', coalesce(toFloat(properties.durationSec), 0) <= 120, '31-120s', coalesce(toFloat(properties.durationSec), 0) <= 300, '121-300s', '300s+'), timestamp, event = 'transcription_started') AS duration_bucket,\n argMinIf(coalesce(nullIf(toString(properties.input_source), ''), nullIf(toString(properties.mode), ''), 'unknown'), timestamp, event = 'transcription_started') AS input_source,\n groupArrayIf(timestamp, event IN ('transcription_started', 'transcription_succeeded', 'transcription_imported_to_editor', 'gte_session_started', 'gte_practice_started', 'gte_editor_saved', 'product_home_viewed')) AS activity_times\n FROM events WHERE timestamp >= now() - INTERVAL 90 DAY AND coalesce(toString(properties.environment), '') != 'preview' AND coalesce(toString(properties.is_test), 'false') != 'true'\n GROUP BY person_id HAVING countIf(event = 'transcription_started') > 0\n )\n WHERE first_start_at <= now() - INTERVAL 7 DAY\n) GROUP BY model, duration_bucket, input_source ORDER BY users DESC LIMIT 100"
+        },
+        "display": "ActionsTable"
+      },
+      "description": "Observational D7 comparison by model implementation, duration and source. Legacy Light maps to basic_pitch; new Light is msmodel_small. Cohorts require a complete seven-day window. No historical events are rewritten. Preview and tagged tests excluded."
+    }
+  ]
+}

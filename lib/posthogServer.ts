@@ -19,6 +19,46 @@ export function isPostHogConfigured() {
   return Boolean(getPostHogConfig().token);
 }
 
+type IngestCapture = {
+  distinctId: string;
+  event: string;
+  uuid: string;
+  timestamp: Date;
+  properties: Record<string, unknown>;
+  disableGeoip?: boolean;
+};
+
+// The batch API without sent_at preserves the exact event timestamp. SDK clock
+// skew correction changes retry timestamps and defeats PostHog deduplication.
+export function createPostHogIngestClient() {
+  const { token, host } = getPostHogConfig();
+  if (!token) return null;
+  const batch: Array<Record<string, unknown>> = [];
+  return {
+    capture(event: IngestCapture) {
+      batch.push({
+        event: event.event, distinct_id: event.distinctId, uuid: event.uuid,
+        timestamp: event.timestamp.toISOString(),
+        properties: {
+          ...event.properties,
+          $lib: "note2tabs_server_proxy",
+          ...(event.disableGeoip ? { $geoip_disable: true } : {}),
+        },
+      });
+    },
+    async flush() {
+      if (!batch.length) return;
+      const response = await fetch(`${host.replace(/\/$/, "")}/batch/`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ api_key: token, batch }),
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!response.ok) throw new Error("PostHog batch delivery failed");
+      batch.length = 0;
+    },
+  };
+}
+
 export function createPostHogServerClient() {
   const { token, host } = getPostHogConfig();
   if (!token) return null;

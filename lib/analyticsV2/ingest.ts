@@ -1,8 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { isIP } from "node:net";
+import { createHash } from "node:crypto";
 import {
-  createPostHogServerClient,
-  flushPostHogServerClientInBackground,
+  createPostHogIngestClient,
   isPostHogConfigured,
 } from "../posthogServer";
 import {
@@ -27,6 +27,7 @@ export type IngestContext = {
   source?: string;
   body?: unknown;
   cookies?: Record<string, string>;
+  geo?: { countryCode?: string; continentCode?: string };
 };
 
 export type IngestResult = {
@@ -152,7 +153,7 @@ export async function ingestAnalyticsEvents(
     };
   }
 
-  const client = createPostHogServerClient();
+  const client = createPostHogIngestClient();
   if (!client) {
     throw new Error("PostHog is not configured.");
   }
@@ -166,12 +167,12 @@ export async function ingestAnalyticsEvents(
   const forwardedProto = header(context.req, "x-forwarded-proto") || "https";
   const userAgent = header(context.req, "user-agent");
   const clientIp = trustedAnalyticsClientIp(context.req);
-  const edgeCountry = isTrustedVercelRequest()
+  const edgeCountry = edgeCode(context.geo?.countryCode) || (isTrustedVercelRequest()
     ? edgeCode(header(context.req, "x-vercel-ip-country"))
-    : undefined;
-  const edgeContinent = isTrustedVercelRequest()
+    : undefined);
+  const edgeContinent = edgeCode(context.geo?.continentCode) || (isTrustedVercelRequest()
     ? edgeCode(header(context.req, "x-vercel-ip-continent"))
-    : undefined;
+    : undefined);
 
   for (const event of events) {
     validatePropsSizeOrThrow(event.props);
@@ -232,13 +233,17 @@ export async function ingestAnalyticsEvents(
     if (edgeContinent) properties.$geoip_continent_code = edgeContinent;
 
     client.capture({
+      uuid: analyticsEventUuid(event.eventId),
       distinctId,
       event: event.name === "page_viewed" ? "$pageview" : event.name,
       timestamp: event.ts,
       properties,
+      // Outbox calls have no visitor IP. Never geolocate Vercel's datacenter.
+      ...(context.source === "transcription_job_outbox" ? { disableGeoip: true } : {}),
     });
   }
-  flushPostHogServerClientInBackground(client);
+  // Await delivery before Vercel can freeze the request's execution.
+  await client.flush();
 
   return {
     ok: true,
@@ -248,4 +253,10 @@ export async function ingestAnalyticsEvents(
     dualWritten: 0,
     blocked: 0,
   };
+}
+
+export function analyticsEventUuid(eventId: string) {
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId)) return eventId;
+  const hex = createHash("sha256").update(eventId).digest("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }

@@ -1,24 +1,46 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { capture, flushPostHogServerClientInBackground } = vi.hoisted(() => ({
+const { capture, flush } = vi.hoisted(() => ({
   capture: vi.fn(),
-  flushPostHogServerClientInBackground: vi.fn(),
+  flush: vi.fn(async () => undefined),
 }));
 
 vi.mock("../../lib/posthogServer", () => ({
   isPostHogConfigured: vi.fn(() => true),
-  createPostHogServerClient: vi.fn(() => ({
+  createPostHogIngestClient: vi.fn(() => ({
     capture,
+    flush,
   })),
-  flushPostHogServerClientInBackground,
 }));
 
 import { ingestAnalyticsEvents } from "../../lib/analyticsV2/ingest";
 
 describe("PostHog analytics ingestion", () => {
+  it("preserves job and editor correlation from properties in both event formats", async () => {
+    await ingestAnalyticsEvents({ accountId: "owner", body: { events: [
+      { event_id: "import-1", name: "transcription_imported_to_editor", props: { job_id: "job-1", editor_id: "editor-1" } },
+      { event_id: "import-2", event: "transcribe_success", payload: { jobId: "job-2", editorId: "editor-2" } },
+    ] } });
+    expect(capture.mock.calls[0][0].properties).toMatchObject({ job_id: "job-1", editor_id: "editor-1" });
+    expect(capture.mock.calls[1][0].properties).toMatchObject({ job_id: "job-2", editor_id: "editor-2" });
+  });
+
+  it("uses stable capture UUIDs and timestamps when retrying", async () => {
+    const input = { accountId: "owner", body: { name: "transcription_succeeded", event_id: "succeeded:job-1", ts: "2026-10-07T12:00:00.000Z" } };
+    await ingestAnalyticsEvents(input);
+    await ingestAnalyticsEvents(input);
+    expect(capture.mock.calls[0][0].uuid).toMatch(/^[a-f0-9-]{36}$/);
+    expect(capture.mock.calls[0][0].uuid).toBe(capture.mock.calls[1][0].uuid);
+    expect(capture.mock.calls[0][0].timestamp).toEqual(capture.mock.calls[1][0].timestamp);
+  });
+
+  it("does not acknowledge delivery before flush finishes", async () => {
+    flush.mockRejectedValueOnce(new Error("Capture unavailable"));
+    await expect(ingestAnalyticsEvents({ body: { name: "transcription_succeeded" } })).rejects.toThrow("Capture unavailable");
+  });
   beforeEach(() => {
     capture.mockClear();
-    flushPostHogServerClientInBackground.mockClear();
+    flush.mockClear();
     vi.unstubAllEnvs();
   });
 
@@ -52,7 +74,7 @@ describe("PostHog analytics ingestion", () => {
         }),
       })
     );
-    expect(flushPostHogServerClientInBackground).toHaveBeenCalledOnce();
+    expect(flush).toHaveBeenCalledOnce();
   });
 
   it("maps canonical page views to PostHog page views", async () => {
