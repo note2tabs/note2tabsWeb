@@ -64,6 +64,45 @@ export type TimedVisualAnchor = {
   x: number;
 };
 
+type WrappedTabPlayheadPositionInput = {
+  cursorX: number;
+  playheadFrame: number;
+  framesPerBar: number;
+  barCount: number;
+  barsPerRow: number;
+  barStartXs: number[];
+  rowStride: number;
+};
+
+/** Converts a continuous tab-score coordinate into the wrapped desktop row. */
+export const getWrappedTabPlayheadPosition = ({
+  cursorX,
+  playheadFrame,
+  framesPerBar,
+  barCount,
+  barsPerRow,
+  barStartXs,
+  rowStride,
+}: WrappedTabPlayheadPositionInput) => {
+  const safeFramesPerBar = Math.max(1, framesPerBar);
+  const safeBarCount = Math.max(1, Math.round(barCount));
+  const safeBarsPerRow = Math.max(1, Math.round(barsPerRow));
+  const barIndex = clamp(
+    Math.floor(Math.max(0, playheadFrame) / safeFramesPerBar),
+    0,
+    safeBarCount - 1
+  );
+  const rowIndex = Math.floor(barIndex / safeBarsPerRow);
+  const firstBar = rowIndex * safeBarsPerRow;
+  const sourceLeft = barStartXs[firstBar] ?? LEFT_LABEL_WIDTH;
+
+  return {
+    rowIndex,
+    x: LEFT_LABEL_WIDTH + cursorX - sourceLeft,
+    y: rowIndex * Math.max(0, rowStride),
+  };
+};
+
 type NotePlacement = EditorTabViewPlacement & {
   noteId: number;
 };
