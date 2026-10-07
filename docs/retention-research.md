@@ -84,3 +84,74 @@ Editor activation-path changes remain outside this branch because that work has 
 - Treat reminder timing as causal only when assignment balance and the holdout are present.
 - Prefer activation and retained-user rates over opens; email opens are unreliable.
 - Review results after at least one complete D14 observation window.
+
+## MuScriptor Light rollout (2026-10-07)
+
+The visible tier remains Light, but analytics distinguishes its implementation.
+New Light events use `model`, `transcriptionModel` and `transcription_model_id`
+`msmodel_small`; historical Basic Pitch events keep `light`. New events also
+include `transcription_backend_method`, `transcription_model_implementation`,
+`transcription_model_display_name`, `transcription_model_tier`, and
+`transcription_analytics_version=model_implementation_v2`.
+
+- Legacy Basic Pitch: id `light`, backend `basic_pitch`, start event
+  `transcription_started_light_model` (new Light requests never emit this).
+- MuScriptor Small Light: id/backend `msmodel_small`, start event
+  `transcription_started_msmodel_small`.
+- MuScriptor Medium Heavy: id `super_heavy`, backend `msmodel`.
+- Retired YourMT3 Medium: historical id `heavy`, backend `yourmt3`.
+
+The canonical `transcription_started` event remains unchanged, with the new
+implementation dimensions. Start, upload, queued, failure, completion and editor
+import events share model identity where available. Completion/import reads the
+stored job method first; new job links also carry `transcriptionMethod`. Old
+Light links with no implementation metadata resolve to Basic Pitch. History/job
+links with a recorded method need no UI model hint. Unknown jobs are not labeled
+as MuScriptor by default.
+
+Research payloads use `retention_v3` and `transcription_flow_version=original_mix_v2`,
+with `instrument_questions_shown`, `audio_separation_used`, and
+`track_separator_used` false. Legacy separation flags remain false for new
+submissions; they no longer represent answers about the recording's contents.
+
+Three existing live PostHog insights were updated without rewriting events:
+
+- [Light starts: Basic Pitch vs MuScriptor Small](https://eu.posthog.com/project/208789/insights/aLU1PzqE)
+- [Transcription model usage (30d)](https://eu.posthog.com/project/208789/insights/zAtcsgBK)
+- [D7 retention by transcription model and recording profile](https://eu.posthog.com/project/208789/insights/bIVod06e)
+
+Usage and retention prefer implementation metadata, then map historical ids at
+query time. Start trends have separate named series and a visible legend. All
+three saved queries executed successfully after update. At verification, the
+30-day usage chart returned 1,867 Basic Pitch, 322 YourMT3 and 66 MuScriptor Medium
+starts; MuScriptor Small had no production starts. Its new series begins only
+when the prepared frontend rollout ships. D7 results require a mature window.
+
+The before/after query definitions are saved in
+`muscriptor-model-analytics-posthog.json` for review or rollback. This follows
+PostHog's [event versioning guidance](https://posthog.com/docs/product-analytics/best-practices)
+and uses [event-property breakdowns](https://posthog.com/docs/product-analytics/trends/breakdowns).
+
+Validation: 88 targeted frontend analytics/API/job tests and TypeScript passed.
+Backend compact-status and API-security tests also passed. The webpack
+production build also passed; public trust metrics used their existing local
+fallback because no database connection was supplied. Live charts are updated;
+frontend/API changes remain in the isolated worktree and are not deployed.
+
+### Heavy service pool tracking
+
+The prepared backend split keeps both Heavy pools on MuScriptor medium and at
+zero minimum instances. Accepted transcription events now include
+`transcription_worker_pool` from the backend acceptance response. Completion and
+import events use the root job's recorded `workerPool`, forwarded by compact job
+status. Values are `paid_speed`, `preview_cost`, and `legacy_preview` while the
+preview rollout flag is disabled. These indicate intended routing, not a measured
+latency guarantee. Both Heavy pools retain model implementation `msmodel`;
+Small and historic Basic Pitch remain distinct. No client-submitted pool field
+selects the backend worker. This tracking is prepared locally and not deployed.
+
+Pool metadata forwarding checks passed alongside model analytics tests (58 tests),
+TypeScript checking, and the production webpack build. Backend tier routing,
+worker isolation, preview duration checks, and trigger repair passed (59 tests
+plus 19 subtests across the focused backend regression suite). The medium image
+build, GPU benchmarks, and end-to-end preview queue validation remain pending.

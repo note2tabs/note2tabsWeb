@@ -58,8 +58,8 @@ export default function PricingPage() {
     return () => query.removeEventListener("change", update);
   }, []);
   const pricingFaqs = [
-    { question: "Which transcription models does each plan include?", answer: `Free includes Light and Medium. ${showPro ? "Premium and Pro also include Heavy" : "Premium also includes Heavy"}. Light suits clear guitar recordings, Medium handles more complex recordings, and Heavy is our most detailed model for complex, multi-instrument recordings.` },
-    { question: "How do transcription credits work?", answer: `A 60-second recording uses ${calculateTranscriptionCredits(60, "light")} credits with Light, ${calculateTranscriptionCredits(60, "heavy")} with Medium, or ${calculateTranscriptionCredits(60, "super_heavy")} with Heavy.` },
+    { question: "Which transcription models does each plan include?", answer: `Free includes Light and a one-time Heavy preview. ${showPro ? "Premium and Pro also include Heavy" : "Premium also includes Heavy"}. Light handles guitar and multi-instrument recordings, and Heavy is our most detailed model for complex, multi-instrument recordings.` },
+    { question: "How do transcription credits work?", answer: `A 60-second recording uses ${calculateTranscriptionCredits(60, "light")} credits with Light or ${calculateTranscriptionCredits(60, "super_heavy")} with Heavy.` },
     { question: "How does billing work?", answer: `Subscriptions are charged when you subscribe. Premium is ${formatLocalizedPrice("PREMIUM", billingInterval, displayCurrency)} per ${billingInterval === "yearly" ? "year" : "month"}${showPro ? ` and Pro is ${formatLocalizedPrice("PRO", billingInterval, displayCurrency)} per ${billingInterval === "yearly" ? "year" : "month"}` : ""}. Your subscription renews at the selected interval until cancelled.` },
     { question: "What happens to unused credits?", answer: `Free credits do not roll over. Premium credits roll over up to ${PLAN_CATALOG.PREMIUM.rolloverCap}${showPro ? ` and Pro credits up to ${PLAN_CATALOG.PRO.rolloverCap}` : ""}.` },
     { question: "Can I cancel anytime?", answer: "Yes. Cancel in account settings to stop your next renewal. Access continues through the current billing period." },
@@ -293,17 +293,17 @@ export default function PricingPage() {
               <li><strong>{plan.monthlyCredits}</strong> credits every month</li>
               <li>{paid ? "Full-length audio-file transcription" : `Audio clips up to ${MAX_FREE_FILE_SNIPPET_SEC} seconds`}</li>
               <li>{paid ? `Credits roll over, up to ${plan.rolloverCap}` : "No credit rollover"}</li>
-              <li>{plan.id === "PRO" ? "Everything in Premium + priority email support" : paid ? "Light, Medium and Heavy models" : "Light and Medium models, tab editor and practice tools"}</li>
+              <li>{plan.id === "PRO" ? "Everything in Premium + priority email support" : paid ? "Light and Heavy models" : "Light model, tab editor and practice tools"}</li>
             </ul>
           </article>;
         })}
       </section>
-      <p className="pricing-credit-note">A 60-second recording uses {calculateTranscriptionCredits(60, "light")} credits with Light, {calculateTranscriptionCredits(60, "heavy")} with Medium, or {calculateTranscriptionCredits(60, "super_heavy")} with Heavy. Credits refresh monthly.</p>
+      <p className="pricing-credit-note">A 60-second recording uses {calculateTranscriptionCredits(60, "light")} credits with Light or {calculateTranscriptionCredits(60, "super_heavy")} with Heavy. Credits refresh monthly.</p>
       <details className="pricing-comparison"><summary>Compare all limits</summary><div className="pricing-comparison-scroll"><table><caption>Recording and upload limits</caption><thead><tr><th scope="col">Limit</th>{["FREE", "PREMIUM", ...(showPro ? ["PRO"] : [])].map((id) => <th scope="col" key={id}>{PLAN_CATALOG[id as keyof typeof PLAN_CATALOG].name}</th>)}</tr></thead><tbody>
         <tr><th scope="row">Upload size</th>{["FREE", "PREMIUM", ...(showPro ? ["PRO"] : [])].map((id) => <td key={id}>{PLAN_CATALOG[id as keyof typeof PLAN_CATALOG].maxUploadBytes / (1024 * 1024)} MB</td>)}</tr>
         <tr><th scope="row">YouTube clip length</th><td>Up to {MAX_FREE_YOUTUBE_SNIPPET_SEC} seconds</td><td>Within selected window</td>{showPro && <td>Within selected window</td>}</tr>
         <tr><th scope="row">YouTube selection window</th>{["FREE", "PREMIUM", ...(showPro ? ["PRO"] : [])].map((id) => <td key={id}>First {PLAN_CATALOG[id as keyof typeof PLAN_CATALOG].youtubePositionLimitSeconds / 60} minutes</td>)}</tr>
-      </tbody></table></div><p>Light suits clear guitar recordings. Medium handles more complex recordings. Heavy is our most detailed model and requires Premium or Pro.</p></details>
+      </tbody></table></div><p>Light handles guitar and multi-instrument recordings. Heavy is our most detailed model and requires Premium or Pro.</p></details>
       <section className="pricing-page__faq" aria-labelledby="pricing-faq-title"><div className="pricing-page__section-heading"><h2 id="pricing-faq-title">Questions before you start?</h2></div><div className="pricing-page__faq-list">{pricingFaqs.map((faq) => <details key={faq.question}><summary>{faq.question}</summary><p>{faq.answer}</p></details>)}</div></section>
       {checkoutError && <div className="error pricing-page__error" role="alert">{checkoutError}</div>}
       <p className="pricing-status" role="status" aria-live="polite">{checkoutBusy ? "Opening checkout…" : ""}</p>

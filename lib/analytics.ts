@@ -78,7 +78,9 @@ export const ANALYTICS_EVENTS = {
   uploadStorageSucceeded: "upload_storage_succeeded",
   uploadStorageFailed: "upload_storage_failed",
   tabGenerationStarted: "transcription_started",
+  // Historical Basic Pitch event: new Light submissions must never emit this.
   transcriptionStartedLightModel: "transcription_started_light_model",
+  transcriptionStartedMuScriptorSmallModel: "transcription_started_msmodel_small",
   transcriptionStartedMediumModel: "transcription_started_medium_model",
   transcriptionStartedHeavyModel: "transcription_started_heavy_model",
   heavyPreviewShown: "heavy_preview_shown",
@@ -170,7 +172,7 @@ export function getTranscriptionStartedModelEvent(
   if (transcriptionModel === "heavy") {
     return ANALYTICS_EVENTS.transcriptionStartedMediumModel;
   }
-  return ANALYTICS_EVENTS.transcriptionStartedLightModel;
+  return ANALYTICS_EVENTS.transcriptionStartedMuScriptorSmallModel;
 }
 
 export function sendTranscriptionStartedEvents(

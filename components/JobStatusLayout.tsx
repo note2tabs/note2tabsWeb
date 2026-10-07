@@ -13,6 +13,8 @@ export type JobResponse = {
   job_id: string;
   status: JobStatus;
   type?: string | null;
+  transcriptionMethod?: string | null;
+  workerPool?: string | null;
   rawStatus?: string | null;
   progress?: number | null;
   createdAt?: string | null;

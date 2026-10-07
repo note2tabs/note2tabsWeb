@@ -88,7 +88,7 @@ describe("localized pricing", () => {
       for (const interval of ["monthly", "yearly"] as const) {
         const usdAmount = localizedPriceAmount(plan, interval, "USD");
         for (const currency of DISPLAY_CURRENCIES.filter(
-          (candidate) => !["SEK", "DKK", "BRL", "INR", "IDR", "CNY", "MXN", "PHP", "MYR", "THB", "ZAR", "PLN", "KRW"].includes(candidate)
+          (candidate): candidate is keyof typeof currencyPerEuro => !["SEK", "DKK", "BRL", "INR", "IDR", "CNY", "MXN", "PHP", "MYR", "THB", "ZAR", "PLN", "KRW"].includes(candidate)
         )) {
           const usdEquivalent = usdAmount * currencyPerEuro[currency] / usdPerEuro;
           expect(
