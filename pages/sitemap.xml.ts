@@ -1,6 +1,6 @@
-import portugueseArticleRevisions from "../lib/i18n/blog/revisions.json";
-import { isLocalizedPublicPath, LOCALIZED_PUBLIC_PATHS, localeHref, stripLocale } from "../lib/i18n/locale";
-import { portuguesePilotIndexable } from "../lib/i18n/pilot";
+import {articleLocales} from "../lib/i18n/blog/availability";
+import { isLocalizedPublicPath, LOCALIZED_PUBLIC_PATHS, localeHref, stripLocale, TRANSLATED_LOCALES } from "../lib/i18n/locale";
+import { localizedPilotIndexable } from "../lib/i18n/pilot";
 import type { GetServerSideProps } from "next";
 import { prisma } from "../lib/prisma";
 import { withPrismaReadRetry } from "../lib/prismaRetry";
@@ -83,7 +83,8 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
     return [];
   });
 
-  const paths = [...staticPaths, ...(portuguesePilotIndexable() ? staticPaths.map(path => localeHref(path, "pt-BR")) : [])];
+  const releasedLocales = TRANSLATED_LOCALES.filter(localizedPilotIndexable);
+  const paths = [...staticPaths, ...releasedLocales.flatMap(locale => staticPaths.map(path => localeHref(path, locale)))];
   const entries: SitemapEntry[] = paths.map((path) => ({
     loc: buildUrl(baseUrl, path),
     ...(recentlyUpdatedSeoPaths.has(path)
@@ -95,23 +96,24 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
       : {}),
   }));
 
-  const translatedArticles = new Set<string>();
+  const translatedArticles = new Map<string, typeof releasedLocales>();
   posts.forEach((post) => {
     entries.push({
       loc: buildUrl(baseUrl, `/blog/${post.slug}`),
       lastmod: post.updatedAt.toISOString(),
     });
-    if (portuguesePilotIndexable() && (portugueseArticleRevisions as Record<string, string>)[post.slug] === post.updatedAt.toISOString()) {
-      translatedArticles.add(`/blog/${post.slug}`);
-      entries.push({loc: buildUrl(baseUrl, localeHref(`/blog/${post.slug}`, "pt-BR")), lastmod: post.updatedAt.toISOString()});
+    const locales = releasedLocales.filter(locale => articleLocales(post.slug, post.updatedAt.toISOString()).includes(locale));
+    if (locales.length) {
+      translatedArticles.set(`/blog/${post.slug}`, locales);
+      for (const locale of locales) entries.push({loc: buildUrl(baseUrl, localeHref(`/blog/${post.slug}`, locale)), lastmod: post.updatedAt.toISOString()});
     }
   });
 
   const alternateLinks = (entry: SitemapEntry) => {
     const path = stripLocale(new URL(entry.loc).pathname);
-    if (!portuguesePilotIndexable() || !(staticPaths.includes(path) || translatedArticles.has(path))) return "";
-    return ["en", "pt-BR", "x-default"].map(language => {
-      const href = buildUrl(baseUrl, localeHref(path, language === "pt-BR" ? "pt-BR" : "en"));
+    if (!releasedLocales.length || !(staticPaths.includes(path) || translatedArticles.has(path))) return "";
+    return ["en", ...(translatedArticles.get(path) || releasedLocales), "x-default"].map(language => {
+      const href = buildUrl(baseUrl, localeHref(path, language === "pt-BR" ? "pt-BR" : language === "es" ? "es" : "en"));
       return `\n    <xhtml:link rel="alternate" hreflang="${language}" href="${escapeXml(href)}"/>`;
     }).join("");
   };

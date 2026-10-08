@@ -1,7 +1,7 @@
 import type { AppLocale } from "../lib/i18n/locale";
 import { useLocale } from "../lib/i18n/react";
-import { isLocalizedPublicPath, LOCALIZED_PUBLIC_PATHS, localeHref, stripLocale } from "../lib/i18n/locale";
-import { portuguesePilotIndexable } from "../lib/i18n/pilot";
+import { isLocalizedPublicPath, LOCALIZED_PUBLIC_PATHS, localeHref, stripLocale, TRANSLATED_LOCALES } from "../lib/i18n/locale";
+import { localizedPilotIndexable } from "../lib/i18n/pilot";
 import Head from "next/head";
 import { getConfiguredSiteUrl } from "../lib/siteUrl";
 
@@ -55,6 +55,7 @@ type SeoHeadProps = {
   title: string;
   contentLocale?: AppLocale;
   hasTranslation?: boolean;
+  translatedLocales?: AppLocale[];
   description?: string;
   canonicalPath?: string;
   canonicalUrl?: string;
@@ -89,6 +90,7 @@ export default function SeoHead({
   title,
   contentLocale,
   hasTranslation = true,
+  translatedLocales,
   description = DEFAULT_DESCRIPTION,
   canonicalPath,
   canonicalUrl,
@@ -104,9 +106,10 @@ export default function SeoHead({
   const { locale: routeLocale, t } = useLocale();
   const locale = contentLocale || routeLocale;
   const sourcePath = stripLocale(canonicalPath || "/");
-  const translated = locale === "pt-BR";
+  const translated = locale !== "en";
   const hasAlternate = hasTranslation && isLocalizedPublicPath(sourcePath);
-  const indexable = portuguesePilotIndexable();
+  const indexable = localizedPilotIndexable(locale);
+  const releasedLocales = TRANSLATED_LOCALES.filter(target => localizedPilotIndexable(target) && (!translatedLocales || translatedLocales.includes(target)));
   const canonical = canonicalizeUrl(canonicalUrl || localeHref(sourcePath, locale));
   title = t(title);
   description = t(description);
@@ -132,12 +135,12 @@ export default function SeoHead({
       <title>{title}</title>
       <meta key="description" name="description" content={description} />
       <link key="canonical" rel="canonical" href={canonical} />
-      {hasAlternate && (indexable || translated) && <>
+      {hasAlternate && (releasedLocales.length > 0 || translated) && <>
         <link key="alternate-en" rel="alternate" hrefLang="en" href={absoluteUrl(sourcePath)} />
-        {indexable && <link key="alternate-pt-br" rel="alternate" hrefLang="pt-BR" href={absoluteUrl(localeHref(sourcePath, "pt-BR"))} />}
+        {releasedLocales.map(target => <link key={`alternate-${target}`} rel="alternate" hrefLang={target} href={absoluteUrl(localeHref(sourcePath, target))} />)}
         <link key="alternate-default" rel="alternate" hrefLang="x-default" href={absoluteUrl(sourcePath)} />
       </>}
-      <meta property="og:locale" content={translated ? "pt_BR" : "en_US"} />
+      <meta property="og:locale" content={locale === "pt-BR" ? "pt_BR" : locale === "es" ? "es_ES" : "en_US"} />
       <meta key="robots" name="robots" content={noindex ? `noindex,${nofollow ? "nofollow" : "follow"}` : INDEX_ROBOTS_DIRECTIVE} />
       <meta key="googlebot" name="googlebot" content={noindex ? `noindex,${nofollow ? "nofollow" : "follow"}` : INDEX_ROBOTS_DIRECTIVE} />
       <meta key="og:title" property="og:title" content={title} />

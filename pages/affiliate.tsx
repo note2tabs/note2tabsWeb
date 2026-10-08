@@ -12,7 +12,7 @@ type AffiliateData = {
   commissions: Commission[];
 };
 
-const money = (amount: number, currency = "usd", locale = "en") => new Intl.NumberFormat(locale === "pt-BR" ? "pt-BR" : "en-US", {
+const money = (amount: number, currency = "usd", locale = "en") => new Intl.NumberFormat(locale === "en" ? "en-US" : locale, {
   style: "currency", currency: currency.toUpperCase(), minimumFractionDigits: 2,
 }).format(amount / 100);
 
@@ -111,7 +111,7 @@ export default function AffiliatePage() {
           {affiliate.commissions.length === 0 ? <div className="affiliateEmptyState"><div className="affiliateEmptyGraphic" aria-hidden="true"><span/><span/><span/></div>
             <h3>{t("Your first referral will appear here")}</h3><p>{t("Share your link with musicians who would benefit from editable tabs, transcription, and practice tools.")}</p></div> :
             <div className="affiliateTableWrap"><table className="affiliateTable"><thead><tr><th>{t("Commission")}</th><th>{t("Status")}</th><th>{t("Created")}</th><th>{t("Available")}</th></tr></thead><tbody>
-              {affiliate.commissions.map((item) => <tr key={item.id}><td><strong className={item.status === "PAID" ? "affiliateStatMoney" : ""}>{t(money(item.amount, item.currency, locale))}</strong></td><td><span className={`affiliateCommissionStatus affiliateCommissionStatus${item.status}`}>{t(item.status.toLowerCase())}</span></td><td>{t(new Date(item.createdAt).toLocaleDateString(locale === "pt-BR" ? "pt-BR" : "en-US"))}</td><td>{t(new Date(item.availableAt).toLocaleDateString(locale === "pt-BR" ? "pt-BR" : "en-US"))}</td></tr>)}
+              {affiliate.commissions.map((item) => <tr key={item.id}><td><strong className={item.status === "PAID" ? "affiliateStatMoney" : ""}>{t(money(item.amount, item.currency, locale))}</strong></td><td><span className={`affiliateCommissionStatus affiliateCommissionStatus${item.status}`}>{t(item.status.toLowerCase())}</span></td><td>{t(new Date(item.createdAt).toLocaleDateString(locale === "en" ? "en-US" : locale))}</td><td>{t(new Date(item.availableAt).toLocaleDateString(locale === "en" ? "en-US" : locale))}</td></tr>)}
             </tbody></table></div>}
         </section>
       </>}

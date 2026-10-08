@@ -1,19 +1,21 @@
 /** User-facing routes. The interactive /gte editor remains in English. */
-export type AppLocale = "en" | "pt-BR";
-export const LOCALE_VERSION = "pt-br-site-2";
+export type AppLocale = "en" | "pt-BR" | "es";
+export const LOCALE_VERSION = "multilingual-site-3";
 export const LOCALIZED_PUBLIC_PATHS = ["/","/transcribe","/pricing","/editor","/about","/contact","/terms","/privacy","/affiliate-program","/internship-application","/features","/audio-to-guitar-tab-converter","/mp3-to-guitar-tabs","/youtube-to-guitar-tabs","/ai-guitar-tab-generator","/free-guitar-tab-maker","/online-guitar-tab-editor","/blog"] as const;
 export const LOCALIZED_FLOW_PATHS = [
   ...LOCALIZED_PUBLIC_PATHS, "/auth/login", "/auth/signup", "/auth/verify-email",
   "/reset-password", "/premium/welcome", "/settings", "/home", "/shared", "/tabs", "/account", "/history", "/affiliate", "/email/unsubscribe", "/email/share-preferences",
 ];
 export function normalizeLocale(value: unknown): AppLocale {
-  return typeof value === "string" && value.toLowerCase() === "pt-br" ? "pt-BR" : "en";
+  if (typeof value !== "string") return "en";
+  const code = value.toLowerCase();
+  return code === "pt-br" ? "pt-BR" : code === "es" ? "es" : "en";
 }
 export function localeFromPath(path: string): AppLocale {
-  return /^\/pt-br(?:\/|[?#]|$)/i.test(path) ? "pt-BR" : "en";
+  return /^\/pt-br(?:\/|[?#]|$)/i.test(path) ? "pt-BR" : /^\/es(?:\/|[?#]|$)/i.test(path) ? "es" : "en";
 }
 export function stripLocale(path: string) {
-  const result = path.replace(/^\/pt-br(?=\/|[?#]|$)/i, "") || "/";
+  const result = path.replace(/^\/(?:pt-br|es)(?=\/|[?#]|$)/i, "") || "/";
   return /^[?#]/.test(result) ? `/${result}` : result;
 }
 export function supportsLocalizedPath(path: string) {
@@ -33,9 +35,9 @@ export function preferredLocaleFromCookie(cookie: string): AppLocale {
 export function localeHref(path: string, locale: AppLocale): string {
   if (!path.startsWith("/") || path.startsWith("//")) return path;
   const english = stripLocale(path).replace(/^\/transcriber(?=[?#]|$)/, "/transcribe");
-  if (locale !== "pt-BR" || !supportsLocalizedPath(english)) return english;
-  // A single canonical root, with no competing /pt-br/ variant.
-  return `/pt-br${english.replace(/^\/(?=[?#]|$)/, "")}`;
+  if (locale === "en" || !supportsLocalizedPath(english)) return english;
+  // A single canonical root for each language, without a trailing-slash variant.
+  return `${localePrefix(locale)}${english.replace(/^\/(?=[?#]|$)/, "")}`;
 }
 export function localeAnalytics(path: string, source = "url") {
   return { content_locale: localeFromPath(path), locale_source: source, locale_version: LOCALE_VERSION };
@@ -56,4 +58,16 @@ export function localeSwitchHref(path: string, locale: AppLocale) {
 export function isLocalizedPublicPath(path: string) {
   const pathname = stripLocale(path).split(/[?#]/)[0].replace(/\/$/, "") || "/";
   return LOCALIZED_PUBLIC_PATHS.includes(pathname as typeof LOCALIZED_PUBLIC_PATHS[number]) || /^\/features\/[^/]+$/.test(pathname) || /^\/blog\/(?:[^/]+|(?:category|tag|cluster)\/[^/]+)$/.test(pathname);
+}
+
+export const TRANSLATED_LOCALES = ["pt-BR", "es"] as const;
+export function localePrefix(locale: AppLocale) { return locale === "en" ? "" : locale === "pt-BR" ? "/pt-br" : "/es"; }
+export function localeEnabled(locale: AppLocale) { return locale === "en" || (locale === "pt-BR" ? process.env.NEXT_PUBLIC_PT_BR_AVAILABLE : process.env.NEXT_PUBLIC_ES_AVAILABLE) === "true"; }
+export function localeMarket(country: unknown) {
+  const code = typeof country === "string" && /^[A-Za-z]{2}$/.test(country) ? country.toUpperCase() : "unknown";
+  return code === "BR" ? "brazil" : code === "ES" ? "spain" : ["AR","BO","CL","CO","CR","CU","DO","EC","GT","HN","MX","NI","PA","PE","PR","PY","SV","UY","VE"].includes(code) ? "spanish_latin_america" : code === "unknown" ? "unknown" : "other";
+}
+export function localeCohort(locale: AppLocale, country: unknown) {
+ const visitor_country = typeof country === "string" && /^[A-Za-z]{2}$/.test(country) ? country.toUpperCase() : "unknown";
+ return {content_locale: locale, visitor_country, visitor_market: localeMarket(visitor_country), localization_cohort: `${locale}:${visitor_country}`};
 }

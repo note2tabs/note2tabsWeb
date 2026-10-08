@@ -1,3 +1,5 @@
+import {localeCohort, LOCALE_VERSION} from "./i18n/locale";
+import {requestLocale} from "./i18n/request";
 import type { NextApiRequest } from "next";
 import { prisma } from "./prisma";
 import { isPostHogConfigured } from "./posthogServer";
@@ -56,6 +58,8 @@ export async function registerTranscriptionAnalytics(input: {
     anonId: cookies[ANALYTICS_ANON_COOKIE],
     ...(process.env.VERCEL ? { geo: { countryCode: validCode(country), continentCode: validCode(continent) } } : {}),
     properties: {
+      ...localeCohort(requestLocale({...input.req, cookies: {...cookies, ...input.req.cookies}}), process.env.VERCEL ? validCode(country) : undefined),
+      locale_version: LOCALE_VERSION,
       ...(attribution || {}),
       ...(attribution ? { traffic_source: attribution.first_touch_source, traffic_medium: attribution.first_touch_medium } : {}),
       ...getTranscriptionModelAnalyticsProperties(input.model),

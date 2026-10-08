@@ -18,7 +18,7 @@ const withCurrencyPreference = (request: NextRequest, response: NextResponse) =>
 };
 
 export default async function proxy(request: NextRequest) {
-  if (request.nextUrl.pathname.startsWith("/pt-br") || request.nextUrl.pathname === "/pricing") {
+  if ((request.nextUrl.pathname.startsWith("/pt-br") || request.nextUrl.pathname === "/es" || request.nextUrl.pathname.startsWith("/es/")) || request.nextUrl.pathname === "/pricing") {
     return withCurrencyPreference(request, NextResponse.next());
   }
   // Authentication handoffs use the public transcriber to restore a pending
@@ -40,5 +40,5 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/pricing", "/pt-br", "/pt-br/pricing"],
+  matcher: ["/", "/pricing", "/pt-br", "/pt-br/pricing", "/es", "/es/pricing"],
 };

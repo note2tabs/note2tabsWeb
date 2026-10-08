@@ -30,8 +30,8 @@ export const getServerSideProps: GetServerSideProps = async ({ res, resolvedUrl 
 
   const items = posts
     .map((post) => {
-      const translated = locale === "pt-BR" ? articleTranslation(post.slug, post.updatedAt.toISOString(), post.title) : null;
-      const link = `${baseUrl}${localeHref(`/blog/${post.slug}`, translated ? "pt-BR" : "en")}`;
+      const translated = locale !== "en" ? articleTranslation(post.slug, post.updatedAt.toISOString(), post.title, locale) : null;
+      const link = `${baseUrl}${localeHref(`/blog/${post.slug}`, translated ? locale : "en")}`;
       const pubDate = (post.publishedAt || post.publishAt || post.updatedAt).toUTCString();
       return `
       <item>
@@ -50,7 +50,7 @@ export const getServerSideProps: GetServerSideProps = async ({ res, resolvedUrl 
     <title>Note2Tabs Blog</title>
     <link>${baseUrl}${localeHref("/blog", locale)}</link>
     <language>${locale}</language>
-    <description>${locale === "pt-BR" ? "Guias e novidades para criar tablaturas com Note2Tabs." : "Guides and updates for Note2Tabs guitar tab creation."}</description>
+    <description>${locale === "pt-BR" ? "Guias e novidades para criar tablaturas com Note2Tabs." : locale === "es" ? "Guías y novedades para crear tablaturas con Note2Tabs." : "Guides and updates for Note2Tabs guitar tab creation."}</description>
     ${items}
   </channel>
 </rss>`;

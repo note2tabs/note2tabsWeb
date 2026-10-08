@@ -56,7 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const returnPath = localeHref(typeof req.body?.returnTo === "string" && stripLocale(req.body.returnTo) === "/home" ? "/home" : "/settings", locale);
     const portal = await stripeClient.billingPortal.sessions.create({
       customer: customer.id,
-      ...(locale === "pt-BR" ? {locale: "pt-BR" as const} : {}),
+      ...(locale !== "en" ? {locale: locale} : {}),
       return_url: `${baseUrl}${returnPath}`,
     });
 

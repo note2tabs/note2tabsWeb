@@ -100,6 +100,14 @@ describe("durable transcription analytics", () => {
     });
   });
 
+  it("preserves the Spanish country cohort through delayed completion events", async () => {
+    vi.stubEnv("NODE_ENV","production");vi.stubEnv("VERCEL_ENV","production");vi.stubEnv("VERCEL","1");vi.stubEnv("NEXT_PUBLIC_ES_REVIEWED","true");
+    mocks.query.mockResolvedValue([{pool:null,prepareType:"transcription_prepare_msmodel_small"}]);
+    await registerTranscriptionAnalytics({req:{headers:{cookie:"n2t_locale=es","x-vercel-ip-country":"MX"}} as any,jobId:"job",userId:"owner",model:"light",durationSec:30,mode:"FILE",plan:"FREE",accessType:"free",preview:false,creditsUsed:2});
+    const analytics=JSON.parse(mocks.update.mock.calls[0][1]);
+    expect(analytics.properties).toMatchObject({content_locale:"es",visitor_country:"MX",localization_cohort:"es:MX"});
+    for(const event of transcriptionLifecycleEvents({...job,analytics}))expect(event.props).toMatchObject({content_locale:"es",visitor_country:"MX",localization_cohort:"es:MX"});
+  });
   it("keeps preview deployments on browser tracking", async () => {
     vi.stubEnv("NODE_ENV", "production"); vi.stubEnv("VERCEL_ENV", "preview");
     expect(await registerTranscriptionAnalytics({

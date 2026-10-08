@@ -208,7 +208,7 @@ export default function JobStatusLayout({
             </div>
             {(elapsedLabel || typicalDurationLabel) && (
               <div className="job-progress-meta" aria-label={t("Transcription timing")}>
-                {elapsedLabel && <span>{locale === "pt-BR" ? elapsedLabel.replace(/^Elapsed /, "Tempo decorrido: ") : elapsedLabel}</span>}
+                {elapsedLabel && <span>{locale !== "en" ? t("Elapsed {duration}", {duration: elapsedLabel.replace(/^Elapsed /, "")}) : elapsedLabel}</span>}
                 {typicalDurationLabel && <span>{typicalDurationLabel}</span>}
               </div>
             )}

@@ -16,6 +16,15 @@ vi.mock("../../lib/posthogServer", () => ({
 import { ingestAnalyticsEvents } from "../../lib/analyticsV2/ingest";
 
 describe("PostHog analytics ingestion", () => {
+  it("separates Spanish countries and English traffic using trusted edge geography", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    for (const [path,country,cohort,market] of [["/es/editor","ES","es:ES","spain"],["/es/editor","MX","es:MX","spanish_latin_america"],["/editor","MX","en:MX","spanish_latin_america"],["/pt-br/editor","BR","pt-BR:BR","brazil"]]) {
+      await ingestAnalyticsEvents({req:{headers:{"x-vercel-ip-country":country}} as any, body:{event_id:cohort,name:"page_viewed",path,props:{visitor_country:"spoofed",visitor_market:"spoofed",localization_cohort:"spoofed",content_locale:"pt-BR"}}});
+      expect(capture.mock.calls.at(-1)![0].properties).toMatchObject({visitor_country:country,visitor_market:market,localization_cohort:cohort});
+    }
+    await ingestAnalyticsEvents({body:{name:"page_viewed",path:"/es/editor",props:{visitor_country:"ES"}}});
+    expect(capture.mock.calls.at(-1)![0].properties).toMatchObject({visitor_country:"unknown",localization_cohort:"es:unknown"});
+  });
   it("preserves job and editor correlation from properties in both event formats", async () => {
     await ingestAnalyticsEvents({ accountId: "owner", body: { events: [
       { event_id: "import-1", name: "transcription_imported_to_editor", props: { job_id: "job-1", editor_id: "editor-1" } },

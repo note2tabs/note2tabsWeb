@@ -61,7 +61,7 @@ const shortDate = (value: string | null, locale: string) => {
   if (!value) return null;
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return null;
-  return new Intl.DateTimeFormat(locale === "pt-BR" ? "pt-BR" : "en-US", { month: "short", day: "numeric" }).format(date);
+  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : locale, { month: "short", day: "numeric" }).format(date);
 };
 
 const editorName = (editor: EditorListItem) => editor.name?.trim() || "Untitled tab";

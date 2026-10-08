@@ -1,3 +1,4 @@
+import {localeCohort} from "../../../lib/i18n/locale";
 import { normalizeLocale } from "../../../lib/i18n/locale";
 import type { NextApiRequest, NextApiResponse } from "next";
 import type Stripe from "stripe";
@@ -228,10 +229,10 @@ function trackSubscriptionStarted(
     event: "subscription_started",
     uuid: stablePostHogEventUuid(`subscription-started:${session.id}`),
     properties: {
+      environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "development",
       plan: PLAN_CATALOG[plan].analyticsId,
       source: normalizePremiumFunnelSource(session.metadata?.premiumFunnelSource),
-      content_locale: normalizeLocale(session.metadata?.note2tabsLocale),
-      visitor_country: session.metadata?.note2tabsVisitorCountry,
+      ...localeCohort(normalizeLocale(session.metadata?.note2tabsLocale), session.metadata?.note2tabsVisitorCountry),
       device_type: session.metadata?.note2tabsDeviceType,
       reason: normalizePremiumFunnelReason(session.metadata?.premiumFunnelReason),
       funnel_id: funnelId || undefined,
@@ -301,6 +302,7 @@ function trackSubscriptionLifecycle(
     distinctId: userId,
     event: lifecycleEvent,
     properties: {
+      environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "development",
       plan: "premium_monthly",
       event_source: "stripe_webhook",
       ...properties,
@@ -379,14 +381,14 @@ async function trackCheckoutLifecycle(
     distinctId,
     event,
     properties: {
+      environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "development",
       checkout_session_id: session.id,
       checkout_attempt_id: session.metadata?.note2tabsCheckoutAttemptId || undefined,
       plan: checkoutAnalyticsPlan(session),
       billing_interval: session.metadata?.note2tabsBillingInterval || undefined,
       site_display_currency: session.metadata?.note2tabsDisplayCurrency || undefined,
       source: normalizePremiumFunnelSource(session.metadata?.premiumFunnelSource),
-      content_locale: normalizeLocale(session.metadata?.note2tabsLocale),
-      visitor_country: session.metadata?.note2tabsVisitorCountry,
+      ...localeCohort(normalizeLocale(session.metadata?.note2tabsLocale), session.metadata?.note2tabsVisitorCountry),
       device_type: session.metadata?.note2tabsDeviceType,
       reason: normalizePremiumFunnelReason(session.metadata?.premiumFunnelReason),
       funnel_id: normalizePremiumFunnelId(session.metadata?.premiumFunnelId) || undefined,
@@ -1166,8 +1168,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const isRenewal = invoice.billing_reason === "subscription_cycle";
       if (userId && invoice.amount_paid > 0) {
         trackSubscriptionLifecycle(userId, "subscription_payment_succeeded", event.id, {
-          content_locale: normalizeLocale(premiumSubscription.metadata?.note2tabsLocale),
-          visitor_country: premiumSubscription.metadata?.note2tabsVisitorCountry,
+          ...localeCohort(normalizeLocale(premiumSubscription.metadata?.note2tabsLocale), premiumSubscription.metadata?.note2tabsVisitorCountry),
           device_type: premiumSubscription.metadata?.note2tabsDeviceType,
           billing_interval: premiumSubscription.metadata?.note2tabsBillingInterval,
           plan: PLAN_CATALOG[plan].analyticsId,

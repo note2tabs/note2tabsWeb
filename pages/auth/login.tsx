@@ -36,7 +36,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const nextHref = useMemo(() => {
     const raw = Array.isArray(router.query.next) ? router.query.next[0] : router.query.next;
-    return localePath(normalizeSafeReturnPath(raw, locale === "pt-BR" ? "/transcribe" : "/home"));
+    return localePath(normalizeSafeReturnPath(raw, locale !== "en" ? "/transcribe" : "/home"));
   }, [router.query.next, locale, localePath]);
   const signupHref =
     nextHref === "/" ? "/auth/signup" : `/auth/signup?next=${encodeURIComponent(nextHref)}`;

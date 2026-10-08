@@ -1,4 +1,4 @@
-import articleRevisions from "../../lib/i18n/blog/revisions.json";
+import {articleLocales} from "../../lib/i18n/blog/availability";
 import { localeHref } from "../../lib/i18n/locale";
 import { useLocale } from "../../lib/i18n/react";
 import type { GetStaticPaths, GetStaticProps } from "next";
@@ -22,7 +22,7 @@ type PostPageProps = {
     excerpt: string;
     contentMode: "PLAIN" | "LATEX";
     contentHtml: string;
-    contentLanguage?: "en" | "pt-BR";
+    contentLanguage?: "en" | "pt-BR" | "es";
     coverImageUrl: string | null;
     publishedAt: string | null;
     publishAt: string | null;
@@ -113,8 +113,10 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
         imageUrl={ogImage}
         ogType="article"
         contentLocale={articleLocale}
-        hasTranslation={(articleRevisions as Record<string, string>)[post.slug] === post.updatedAt}
-        noindex={locale === "pt-BR" && post.contentLanguage === "en"}
+        canonicalPath={`/blog/${post.slug}`}
+        translatedLocales={articleLocales(post.slug, post.updatedAt)}
+        hasTranslation={articleLocales(post.slug, post.updatedAt).length > 0}
+        noindex={locale !== "en" && post.contentLanguage === "en"}
         articlePublishedTime={published}
         articleModifiedTime={new Date(post.updatedAt).toISOString()}
         jsonLd={[jsonLd, breadcrumbJsonLd]}
@@ -157,7 +159,7 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
 
         <div className="post-reader-layout">
           <article className="post-content">
-            {locale === "pt-BR" && post.contentLanguage === "en" && <p className="locale-scope-note">{t("This article has been updated. Its Portuguese translation is being reviewed.")}</p>}
+            {locale !== "en" && post.contentLanguage === "en" && <p className="locale-scope-note">{t("This article has been updated. Its Portuguese translation is being reviewed.")}</p>}
             <div lang={post.contentLanguage || "en"} className="post-prose" dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
             <nav className="post-tool-paths" aria-label={t("Related Note2Tabs tools")}>
               <span className="post-product-eyebrow">{t("Use the right tool")}</span>

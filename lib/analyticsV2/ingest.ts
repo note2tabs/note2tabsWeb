@@ -1,3 +1,4 @@
+import {localeCohort, localeFromPath, normalizeLocale} from "../i18n/locale";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { isIP } from "node:net";
 import { createHash } from "node:crypto";
@@ -78,6 +79,7 @@ const SERVER_CONTROLLED_PROPERTIES = new Set([
   "analytics_transport",
   "environment",
   "ingest_source",
+  "visitor_country", "visitor_market", "localization_cohort",
 ]);
 
 function clientEventProperties(props: Record<string, unknown>) {
@@ -196,6 +198,7 @@ export async function ingestAnalyticsEvents(
 
     const properties = sanitizeAnalyticsProperties({
         ...clientEventProperties(event.props),
+        ...localeCohort(event.path ? localeFromPath(event.path) : normalizeLocale(event.props.content_locale), edgeCountry || (context.source === "transcription_job_outbox" ? event.props.visitor_country : undefined)),
         $insert_id: event.eventId,
         $current_url: currentUrl,
         ...(safeHost ? { $host: safeHost } : {}),

@@ -1,3 +1,4 @@
+import {localeCohort} from "../../../lib/i18n/locale";
 import { localizeCheckoutReturnPaths } from "../../../lib/i18n/checkout";
 import { requestLocale } from "../../../lib/i18n/request";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -39,7 +40,7 @@ async function trackCheckoutEvent(
   client.capture({
     distinctId,
     event,
-    properties,
+    properties: {...properties, environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "development"},
     ...(insertId ? { uuid: stablePostHogEventUuid(insertId) } : {}),
   });
   try {
@@ -177,8 +178,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   await trackCheckoutEvent(session.user.id, "checkout_session_requested", {
     plan: selectedPlan.analyticsId,
     billing_interval: billingInterval,
-    content_locale: contentLocale,
-    visitor_country: visitorCountry,
+    ...localeCohort(contentLocale, visitorCountry),
     source,
     reason,
     funnel_id: funnelId,
@@ -277,7 +277,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ? { customer: existingCustomer.id }
           : { customer_email: session.user.email }),
         mode: "subscription",
-        ...(contentLocale === "pt-BR" ? {locale: "pt-BR" as const} : {}),
+        ...(contentLocale !== "en" ? {locale: contentLocale} : {}),
         payment_method_collection: "always",
         line_items: [{ price: selectedConfig.priceId, quantity: 1 }],
         client_reference_id: funnelId,
@@ -305,8 +305,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await trackCheckoutEvent(session.user.id, "checkout_started", {
       plan: selectedPlan.analyticsId,
       billing_interval: billingInterval,
-    content_locale: contentLocale,
-    visitor_country: visitorCountry,
+    ...localeCohort(contentLocale, visitorCountry),
       source,
       reason,
       funnel_id: funnelId,
@@ -335,8 +334,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           checkout_session_id: checkout.id,
           plan: selectedPlan.analyticsId,
           billing_interval: billingInterval,
-    content_locale: contentLocale,
-    visitor_country: visitorCountry,
+    ...localeCohort(contentLocale, visitorCountry),
           trial_included: trialIncluded,
           offer_mode: trialIncluded ? "seven_day_trial" : "immediate_charge",
         },
@@ -369,8 +367,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await trackCheckoutEvent(session.user.id, "checkout_failed", {
       plan: selectedPlan.analyticsId,
       billing_interval: billingInterval,
-    content_locale: contentLocale,
-    visitor_country: visitorCountry,
+    ...localeCohort(contentLocale, visitorCountry),
       source,
       reason,
       funnel_id: funnelId,

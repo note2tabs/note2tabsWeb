@@ -91,7 +91,7 @@ export function PremiumPromptCard({
         <Link href={href} onClick={onClick}>{t("See plans")}</Link>
         <button type="button" onClick={onDismiss}>{t("Not now")}</button>
       </div>
-      <small>{locale === "pt-BR" ? t("Choose a plan. Cancel anytime.") : "Plans from $5.99/month · Cancel anytime"}</small>
+      <small>{locale !== "en" ? t("Choose a plan. Cancel anytime.") : "Plans from $5.99/month · Cancel anytime"}</small>
     </aside>
   );
 }

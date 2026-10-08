@@ -1,4 +1,4 @@
-import { stripLocale, localeFromPath } from "./i18n/locale";
+import { stripLocale, localeFromPath, localePrefix } from "./i18n/locale";
 import type { CaptureResult } from "posthog-js";
 
 type AnalyticsProperties = Record<string, unknown>;
@@ -64,7 +64,7 @@ function stripQueryAndHash(value: string) {
 }
 
 function templatePrivateRoute(pathname: string) {
-  const prefix = localeFromPath(pathname) === "pt-BR" ? "/pt-br" : "";
+  const prefix = localePrefix(localeFromPath(pathname));
   pathname = stripLocale(pathname);
   const patterns: Array<[RegExp, string]> = [
     [/^\/reset-password\/[^/]+/i, "/reset-password/[token]"],

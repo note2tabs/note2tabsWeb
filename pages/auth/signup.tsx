@@ -37,7 +37,7 @@ export default function SignupPage() {
   const shareEmailClickTracked = useRef(false);
   const nextHref = useMemo(() => {
     const raw = Array.isArray(router.query.next) ? router.query.next[0] : router.query.next;
-    return localePath(normalizeSafeReturnPath(raw, locale === "pt-BR" ? "/transcribe" : "/transcriber"));
+    return localePath(normalizeSafeReturnPath(raw, locale !== "en" ? "/transcribe" : "/transcriber"));
   }, [router.query.next, locale, localePath]);
   const loginHref =
     nextHref === "/" ? "/auth/login" : `/auth/login?next=${encodeURIComponent(nextHref)}`;

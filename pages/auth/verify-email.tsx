@@ -35,7 +35,7 @@ export default function VerifyEmailPage() {
   }, [router.query.sent]);
   const nextHref = useMemo(() => {
     const raw = Array.isArray(router.query.next) ? router.query.next[0] : router.query.next;
-    return localePath(normalizeSafeReturnPath(raw, locale === "pt-BR" ? "/transcribe" : "/home"));
+    return localePath(normalizeSafeReturnPath(raw, locale !== "en" ? "/transcribe" : "/home"));
   }, [router.query.next, locale, localePath]);
   const loginHref =
     nextHref === "/" ? "/auth/login" : `/auth/login?next=${encodeURIComponent(nextHref)}`;

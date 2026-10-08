@@ -354,7 +354,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
   useEffect(() => {
     if (!shouldRedirectToProductHome) return;
-    void router.replace(locale === "pt-BR" ? "/transcribe" : "/home");
+    void router.replace(locale !== "en" ? "/transcribe" : "/home");
   }, [router, shouldRedirectToProductHome]);
 
   useEffect(() => {
@@ -1645,7 +1645,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
               <div className="hero-title-row">
                 <h1 className="hero-title">{t("Convert Any Song to Guitar Tabs")}</h1>
               </div>
-              <p className="hero-subtitle hero-subtitle--conversion">{t(" Turn recordings into guitar tab you can edit, practice, and export. ")}</p>{locale === "pt-BR" && <p className="locale-scope-note">{t("The tab editor (/gte) is in English.")}</p>}
+              <p className="hero-subtitle hero-subtitle--conversion">{t(" Turn recordings into guitar tab you can edit, practice, and export. ")}</p>{locale !== "en" && <p className="locale-scope-note">{t("The tab editor (/gte) is in English.")}</p>}
             </div>
             <form
               id="transcriber-start"
@@ -2212,7 +2212,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 <p className="pricing-plan__reassurance">
                   {pricingBillingInterval === "yearly"
                     ? <><span>{formatLocalizedPrice("PREMIUM", "yearly", displayCurrency)}{t(" billed today · ")}</span><span className="pricing-plan__saving">{t("Save ")}{localizedAnnualSaving("PREMIUM", displayCurrency)}{t(" per year")}</span><span>{t(" · Cancel anytime")}</span></>
-                    : locale === "pt-BR" ? t("{price} billed today · Cancel anytime", {price: formatLocalizedPrice("PREMIUM", "monthly", displayCurrency)}) : premiumOfferReassurance(offerEligibility, "control", formatLocalizedPrice("PREMIUM", "monthly", displayCurrency))}
+                    : locale !== "en" ? t("{price} billed today · Cancel anytime", {price: formatLocalizedPrice("PREMIUM", "monthly", displayCurrency)}) : premiumOfferReassurance(offerEligibility, "control", formatLocalizedPrice("PREMIUM", "monthly", displayCurrency))}
                 </p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">

@@ -96,7 +96,7 @@ const accountInitials = (name: string | null, email: string) => {
 };
 
 const formatSettingsDate = (value: string, locale: string) =>
-  new Intl.DateTimeFormat(locale === "pt-BR" ? "pt-BR" : "en-US", {
+  new Intl.DateTimeFormat(locale === "en" ? "en-US" : locale, {
     year: "numeric",
     month: "short",
     day: "numeric",

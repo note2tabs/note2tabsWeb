@@ -74,6 +74,13 @@ export async function sendPasswordResetEmail(
 ) {
   const locale = options?.locale || "en";
   const url = buildPasswordResetUrl(token, locale);
+  if (locale === "es") {
+    const name = options?.name?.trim() || "";
+    const greeting = name ? `¡Hola, ${name}!` : "¡Hola!";
+    return sendTransactionalEmail({to: email, subject: "Restablece tu contraseña de Note2Tabs",
+      text: `${greeting}\n\nRecibimos una solicitud para restablecer tu contraseña. Abre el enlace:\n${url}\n\nTu código: ${code}\n\nEl enlace y el código caducan en una hora. Si no hiciste esta solicitud, ignora este correo.`,
+      html: renderProductEmail({locale, title: "Restablece tu contraseña", preview: "Usa el enlace y el código de seis dígitos para restablecer tu contraseña.", greeting: escapeEmailHtml(greeting), bodyHtml: `<p>Recibimos una solicitud para restablecer tu contraseña.</p><p>Tu código: <strong>${escapeEmailHtml(code)}</strong></p>`, action: {label: "Restablecer contraseña", url}, secondaryHtml: "El enlace y el código caducan en una hora. Si no hiciste esta solicitud, ignora este correo."})});
+  }
   if (locale === "pt-BR") {
     const name = options?.name?.trim() || "";
     const greeting = name ? `Olá, ${name}!` : "Olá!";

@@ -63,6 +63,13 @@ export async function sendVerificationEmail(
 ) {
   const locale = options?.locale || "en";
   const url = buildVerificationUrl(token, email, options?.returnTo, locale);
+  if (locale === "es") {
+    const name = options?.name?.trim() || "";
+    const greeting = name ? `¡Hola, ${name}!` : "¡Hola!";
+    return sendTransactionalEmail({to: email, subject: "Verifica tu cuenta de Note2Tabs",
+      text: `${greeting}\n\nVerifica tu correo para terminar de crear tu cuenta y usar el transcriptor:\n${url}\n\nEste enlace caduca en 24 horas. Si no creaste esta cuenta, ignora este correo.`,
+      html: renderProductEmail({locale, title: "Verifica tu correo", preview: "Verifica tu correo para terminar de crear tu cuenta de Note2Tabs.", greeting: escapeEmailHtml(greeting), bodyHtml: "<p>Verifica tu correo para terminar de crear tu cuenta y usar el transcriptor.</p>", action: {label: "Verificar correo", url}, secondaryHtml: "Este enlace caduca en 24 horas. Si no creaste esta cuenta, ignora este correo."})});
+  }
   if (locale === "pt-BR") {
     const name = options?.name?.trim() || "";
     const greeting = name ? `Olá, ${name}!` : "Olá!";

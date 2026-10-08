@@ -70,14 +70,14 @@ export default function SavedTabsPage({ tabs }: Props) {
                       <Link href={reviewHref} className="tabs-row-main">
                         <p className="tabs-row-main-title">{job.sourceLabel || "Untitled recording"}</p>
                         <p className="muted text-small tabs-row-main-meta">
-                          {t(sourceTypeLabel(job.sourceType))} {t(" · ")}<time dateTime={job.createdAt}>{t(new Date(job.createdAt).toLocaleString(locale === "pt-BR" ? "pt-BR" : "en-US"))}</time>
+                          {t(sourceTypeLabel(job.sourceType))} {t(" · ")}<time dateTime={job.createdAt}>{t(new Date(job.createdAt).toLocaleString(locale === "en" ? "en-US" : locale))}</time>
                         </p>
                       </Link>
                     ) : (
                       <div className="tabs-row-main">
                         <p className="tabs-row-main-title">{job.sourceLabel || "Untitled recording"}</p>
                         <p className="muted text-small tabs-row-main-meta">
-                          {t(sourceTypeLabel(job.sourceType))} {t(" · ")}<time dateTime={job.createdAt}>{t(new Date(job.createdAt).toLocaleString(locale === "pt-BR" ? "pt-BR" : "en-US"))}</time>
+                          {t(sourceTypeLabel(job.sourceType))} {t(" · ")}<time dateTime={job.createdAt}>{t(new Date(job.createdAt).toLocaleString(locale === "en" ? "en-US" : locale))}</time>
                         </p>
                       </div>
                     )}
