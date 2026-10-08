@@ -15,7 +15,7 @@ export default function TranscriptionModelValueNote({
   onSelectHeavy,
   heavyPreviewAvailable = false,
 }: TranscriptionModelValueNoteProps) {
-  const { t, locale, href: localePath } = useLocale();
+  const { t } = useLocale();
   if (model === "light") {
     return (
       <p className={`model-value-note${isPremium ? "" : " model-value-note--premium"}`}>

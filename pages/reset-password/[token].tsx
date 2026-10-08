@@ -6,7 +6,7 @@ import { FormEvent, useEffect, useState } from "react";
 import NoIndexHead from "../../components/NoIndexHead";
 
 export default function ResetPasswordTokenPage() {
-  const { t, locale, href: localePath } = useLocale();
+  const { t, locale } = useLocale();
   const router = useRouter();
   const { token } = router.query;
   const [code, setCode] = useState("");

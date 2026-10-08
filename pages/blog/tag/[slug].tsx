@@ -1,5 +1,6 @@
+import { useLocale } from "../../../lib/i18n/react";
 import type { GetStaticPaths, GetStaticProps } from "next";
-import Link from "next/link";
+import Link from "../../../components/LocaleLink";
 import { prisma } from "../../../lib/prisma";
 import { withPrismaReadRetry } from "../../../lib/prismaRetry";
 import { estimateReadingTime, getPublishedWhere } from "../../../lib/blog";
@@ -21,7 +22,8 @@ type TagPageProps = {
 };
 
 export default function BlogTagPage({ tag, posts }: TagPageProps) {
-  const description = `Articles tagged with ${tag.name}.`;
+  const { t } = useLocale();
+  const description = t("Articles tagged with {name}.", {name: t(tag.name)});
   const canonicalPath = `/blog/tag/${tag.slug}`;
   const jsonLd = {
     "@context": "https://schema.org",
@@ -51,7 +53,7 @@ export default function BlogTagPage({ tag, posts }: TagPageProps) {
   return (
     <main className="page blog-page">
       <SeoHead
-        title={`${tag.name} Articles | Note2Tabs Blog`}
+        title={t("{name} Articles | Note2Tabs Blog", {name: t(tag.name)})}
         description={description}
         canonicalPath={canonicalPath}
         noindex={!shouldIndexBlogArchive("tag", tag.slug)}
@@ -61,23 +63,21 @@ export default function BlogTagPage({ tag, posts }: TagPageProps) {
         <header className="blog-hero blog-hero--compact">
           <div className="blog-hero-copy">
             <p className="blog-breadcrumb">
-              <Link href="/blog">Blog</Link> <span>/</span> Tag
-            </p>
-            <h1 className="page-title">Tag: {tag.name}</h1>
-            <p className="page-subtitle">Posts that cover this topic.</p>
+              <Link href="/blog">{t("Blog")}</Link> <span>{t("/")}</span> {t(" Tag")}</p>
+            <h1 className="page-title">{t("Tag: ")}{t(tag.name)}</h1>
+            <p className="page-subtitle">{t("Posts that cover this topic.")}</p>
           </div>
           <div className="blog-hero-actions">
             <div className="blog-hero-metrics">
-              <span>{posts.length} posts</span>
+              <span>{posts.length} {t(" posts")}</span>
             </div>
             <Link href="/blog" className="button-secondary button-small">
-              Back to blog
-            </Link>
+              {t("Back to blog")}</Link>
           </div>
         </header>
 
         <section className="blog-section">
-          {posts.length === 0 && <div className="blog-empty">No posts found for this tag.</div>}
+          {posts.length === 0 && <div className="blog-empty">{t("No posts found for this tag.")}</div>}
           <div className="blog-grid">
             {posts.map((post) => (
               <BlogPostCard
@@ -118,6 +118,7 @@ export const getStaticProps: GetStaticProps<TagPageProps> = async (ctx) => {
     select: {
       id: true,
       title: true,
+        updatedAt: true,
       slug: true,
       excerpt: true,
       content: true,
@@ -135,6 +136,7 @@ export const getStaticProps: GetStaticProps<TagPageProps> = async (ctx) => {
       posts: postsRaw.map((post) => ({
         id: post.id,
         title: post.title,
+    updatedAt: post.updatedAt.toISOString(),
         slug: post.slug,
         excerpt: post.excerpt,
         readingMinutes: estimateReadingTime(post.content || "").minutes,

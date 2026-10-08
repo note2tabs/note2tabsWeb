@@ -1,9 +1,11 @@
+import { useLocale } from "../lib/i18n/react";
 import SeoLandingPage from "../components/SeoLandingPage";
 
 export default function FreeGuitarTabMakerPage() {
+  const { t } = useLocale();
   return (
     <SeoLandingPage
-      title="Free Guitar Tab Maker"
+      title={t("Free Guitar Tab Maker")}
       metaTitle="Free Guitar Tab Maker | Note2Tabs"
       description="Make guitar tabs online for free. Write notes and chords, arrange sections, play and practise your tab, or start from an audio transcription."
       canonicalPath="/free-guitar-tab-maker"

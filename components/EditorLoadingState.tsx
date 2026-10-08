@@ -6,7 +6,7 @@ type EditorLoadingStateProps = {
 export function EditorLoadingState({
   label = "Preparing your editor",
 }: EditorLoadingStateProps) {
-  const { t, locale, href: localePath } = useLocale();
+  const { t } = useLocale();
   return (
     <div className="gte-editor-loading" role="status" aria-live="polite" aria-label={t(label)}>
       <div className="gte-editor-loading__screen" aria-hidden="true">

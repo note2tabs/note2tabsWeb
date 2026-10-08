@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { useLocale } from "../lib/i18n/react";
+import Link from "./LocaleLink";
 import { useEffect, useRef, useState } from "react";
 import Note2TabsSelect from "./Note2TabsSelect";
 import {
@@ -26,6 +27,7 @@ export default function SubscriptionRetentionDialog({
   onOpenPortal,
   onAlternative,
 }: Props) {
+  const { t } = useLocale();
   const [step, setStep] = useState<"intent" | "retention">("intent");
   const [goal, setGoal] = useState<SubscriptionRetentionGoal | "">("");
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -64,41 +66,38 @@ export default function SubscriptionRetentionDialog({
           ref={closeButtonRef}
           type="button"
           className="subscription-retention-close"
-          aria-label="Close subscription management"
+          aria-label={t("Close subscription management")}
           onClick={onClose}
           disabled={busy}
         >
-          ×
-        </button>
+          {t("×")}</button>
 
         {step === "intent" ? (
           <>
-            <h2 id="subscription-retention-title">Manage {planName}</h2>
+            <h2 id="subscription-retention-title">{t("Manage ")}{t(planName)}</h2>
             <p id="subscription-retention-description" className="muted">
-              What would you like to do? Billing details open directly in Stripe.
-            </p>
+              {t("What would you like to do? Billing details open directly in Stripe.")}</p>
             <div className="subscription-retention-choices">
               <button type="button" className="subscription-retention-choice" onClick={() => onOpenPortal("billing")} disabled={busy}>
-                <strong>Payment and billing details</strong>
-                <span>Update your card, view invoices, or manage billing information.</span>
+                <strong>{t("Payment and billing details")}</strong>
+                <span>{t("Update your card, view invoices, or manage billing information.")}</span>
               </button>
               <button type="button" className="subscription-retention-choice" onClick={() => {
                 onCancellationIntent();
                 setStep("retention");
               }} disabled={busy}>
-                <strong>I am thinking about ending {planName}</strong>
-                <span>Review your options before continuing to Stripe.</span>
+                <strong>{t("I am thinking about ending ")}{t(planName)}</strong>
+                <span>{t("Review your options before continuing to Stripe.")}</span>
               </button>
             </div>
           </>
         ) : (
           <>
-            <h2 id="subscription-retention-title">Before you cancel</h2>
+            <h2 id="subscription-retention-title">{t("Before you cancel")}</h2>
             <p id="subscription-retention-description" className="muted">
-              What did you originally want Note2Tabs to help you do? Let’s make sure there is nothing valuable left unfinished.
-            </p>
+              {t("What did you originally want Note2Tabs to help you do? Let’s make sure there is nothing valuable left unfinished.")}</p>
             <label className="form-group">
-              <span className="label">I signed up to…</span>
+              <span className="label">{t("I signed up to…")}</span>
               <Note2TabsSelect
                 value={goal}
                 onChange={setGoal}
@@ -109,17 +108,17 @@ export default function SubscriptionRetentionDialog({
 
             {valueReminder && goal && (
               <div className="subscription-retention-save">
-                <strong>{valueReminder.title}</strong>
-                <p>{valueReminder.detail}</p>
+                <strong>{t(valueReminder.title)}</strong>
+                <p>{t(valueReminder.detail)}</p>
                 <Link href={valueReminder.href} className="settingsButton settingsButtonPrimary" onClick={() => onAlternative(goal, valueReminder.href)}>
-                  {valueReminder.action}
+                  {t(valueReminder.action)}
                 </Link>
               </div>
             )}
 
             <div className="subscription-retention-actions">
               <button type="button" className="button-secondary button-small" onClick={onClose} disabled={busy}>
-                Keep {planName}
+                {t("Keep ")}{t(planName)}
               </button>
               <button
                 type="button"
@@ -127,12 +126,11 @@ export default function SubscriptionRetentionDialog({
                 onClick={() => goal && onOpenPortal("cancellation", goal)}
                 disabled={!goal || busy}
               >
-                {busy ? "Opening Stripe…" : "Continue to cancellation"}
+                {t(busy ? "Opening Stripe…" : "Continue to cancellation")}
               </button>
             </div>
             <button type="button" className="subscription-retention-back" onClick={() => setStep("intent")} disabled={busy}>
-              Back to billing options
-            </button>
+              {t("Back to billing options")}</button>
           </>
         )}
       </section>

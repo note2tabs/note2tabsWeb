@@ -1,5 +1,8 @@
+import articleRevisions from "../../lib/i18n/blog/revisions.json";
+import { localeHref } from "../../lib/i18n/locale";
+import { useLocale } from "../../lib/i18n/react";
 import type { GetStaticPaths, GetStaticProps } from "next";
-import Link from "next/link";
+import Link from "../../components/LocaleLink";
 import { prisma } from "../../lib/prisma";
 import { withPrismaReadRetry } from "../../lib/prismaRetry";
 import { estimateReadingTime, getPublishedWhere } from "../../lib/blog";
@@ -19,6 +22,7 @@ type PostPageProps = {
     excerpt: string;
     contentMode: "PLAIN" | "LATEX";
     contentHtml: string;
+    contentLanguage?: "en" | "pt-BR";
     coverImageUrl: string | null;
     publishedAt: string | null;
     publishAt: string | null;
@@ -38,12 +42,14 @@ type PostPageProps = {
 };
 
 export default function BlogPostPage({ post, readingMinutes, wordCount, toc, relatedPosts }: PostPageProps) {
+  const { t, locale, href: localePath } = useLocale();
+  const articleLocale = post.contentLanguage || locale;
   const title = post.seoTitle || post.title;
   const description = post.seoDescription || post.excerpt;
-  const canonical = normalizeCanonicalUrl(post.canonicalUrl) || absoluteUrl(`/blog/${post.slug}`);
+  const canonical = (articleLocale === "en" ? normalizeCanonicalUrl(post.canonicalUrl) : null) || absoluteUrl(localeHref(`/blog/${post.slug}`, articleLocale));
   const ogImage = post.coverImageUrl || DEFAULT_OG_IMAGE;
   const published = post.publishedAt || post.publishAt || undefined;
-  const displayDate = formatBlogDate(post.publishedAt ?? post.publishAt);
+  const displayDate = formatBlogDate(post.publishedAt ?? post.publishAt, locale);
   const hasTaxonomy = post.categories.length > 0 || post.tags.length > 0 || post.clusters.length > 0;
   const pageTitle = /\bNote2Tabs\b/i.test(title) ? title : `${title} | Note2Tabs`;
   const isTranscriptionGuide = /\b(audio|ai|youtube|mp3|wav|transcri|song-to)\b/i.test(
@@ -101,11 +107,14 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
   return (
     <main className="page blog-post">
       <SeoHead
-        title={pageTitle}
+        title={t(pageTitle)}
         description={description}
         canonicalUrl={canonical}
         imageUrl={ogImage}
         ogType="article"
+        contentLocale={articleLocale}
+        hasTranslation={(articleRevisions as Record<string, string>)[post.slug] === post.updatedAt}
+        noindex={locale === "pt-BR" && post.contentLanguage === "en"}
         articlePublishedTime={published}
         articleModifiedTime={new Date(post.updatedAt).toISOString()}
         jsonLd={[jsonLd, breadcrumbJsonLd]}
@@ -114,22 +123,22 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
       <div className="container stack">
         <header className="post-header post-header--reader">
           <p className="blog-breadcrumb">
-            <Link href="/blog">Blog</Link> <span>/</span> <span>{post.title}</span>
+            <Link href="/blog">{t("Blog")}</Link> <span>{t("/")}</span> <span>{post.title}</span>
           </p>
-          <span className="blog-kicker">{post.categories[0]?.name || "Note2Tabs journal"}</span>
+          <span className="blog-kicker">{t(post.categories[0]?.name || "Note2Tabs journal")}</span>
           <h1 className="post-title">{post.title}</h1>
           <p className="post-meta-line">
             <Link href="/about">{post.authorName}</Link>
             {displayDate && (
               <>
-                <span aria-hidden="true">·</span>
-                <span>{displayDate}</span>
+                <span aria-hidden="true">{t("·")}</span>
+                <span>{t(displayDate)}</span>
               </>
             )}
-            <span aria-hidden="true">·</span>
-            <span>{readingMinutes} min read</span>
+            <span aria-hidden="true">{t("·")}</span>
+            <span>{readingMinutes} {t(" min read")}</span>
           </p>
-          <p className="post-lead">{post.excerpt}</p>
+          <p className="post-lead">{t(post.excerpt)}</p>
         </header>
 
         {post.coverImageUrl && (
@@ -148,9 +157,10 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
 
         <div className="post-reader-layout">
           <article className="post-content">
-            <div className="post-prose" dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
-            <nav className="post-tool-paths" aria-label="Related Note2Tabs tools">
-              <span className="post-product-eyebrow">Use the right tool</span>
+            {locale === "pt-BR" && post.contentLanguage === "en" && <p className="locale-scope-note">{t("This article has been updated. Its Portuguese translation is being reviewed.")}</p>}
+            <div lang={post.contentLanguage || "en"} className="post-prose" dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
+            <nav className="post-tool-paths" aria-label={t("Related Note2Tabs tools")}>
+              <span className="post-product-eyebrow">{t("Use the right tool")}</span>
               <div>
                 {productPaths.map((path) => (
                   <BlogProductLink
@@ -160,33 +170,33 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
                     cta="blog_related_tool"
                     placement="article_contextual_links"
                   >
-                    <strong>{path.label}</strong>
-                    <span>{path.description}</span>
+                    <strong>{t(path.label)}</strong>
+                    <span>{t(path.description)}</span>
                   </BlogProductLink>
                 ))}
               </div>
             </nav>
           </article>
-          <aside className="post-reader-rail" aria-label="Article navigation and Note2Tabs tools">
+          <aside className="post-reader-rail" aria-label={t("Article navigation and Note2Tabs tools")}>
             {toc.length > 1 && (
-              <nav className="toc" aria-label="On this page">
-                <h2>On this page</h2>
+              <nav className="toc" aria-label={t("On this page")}>
+                <h2>{t("On this page")}</h2>
                 <ul>
                   {toc.map((item) => (
                     <li key={item.id} className={`toc-level-${item.level}`}>
-                      <a href={`#${item.id}`}>{item.text}</a>
+                      <a href={`#${item.id}`}>{t(item.text)}</a>
                     </li>
                   ))}
                 </ul>
               </nav>
             )}
             <section className="post-product-card">
-              <span className="post-product-eyebrow">Try Note2Tabs</span>
-              <h2>{isTranscriptionGuide ? "Turn a recording into playable tabs" : "Put this guide into practice"}</h2>
+              <span className="post-product-eyebrow">{t("Try Note2Tabs")}</span>
+              <h2>{t(isTranscriptionGuide ? "Turn a recording into playable tabs" : "Put this guide into practice")}</h2>
               <p>
-                {isTranscriptionGuide
+                {t(isTranscriptionGuide
                   ? "Create a structured transcription, then open it in the editor—or use either tool on its own."
-                  : "Write, arrange, play back, and export guitar tabs in the browser. No transcription required."}
+                  : "Write, arrange, play back, and export guitar tabs in the browser. No transcription required.")}
               </p>
               <BlogProductLink
                 href={isTranscriptionGuide ? "/transcribe" : "/editor"}
@@ -195,7 +205,7 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
                 placement="article_sidebar_primary"
                 className="button-primary"
               >
-                {isTranscriptionGuide ? "Transcribe a song" : "Open the editor"}
+                {t(isTranscriptionGuide ? "Transcribe a song" : "Open the editor")}
               </BlogProductLink>
               <BlogProductLink
                 href={isTranscriptionGuide ? "/editor" : "/transcribe"}
@@ -204,23 +214,21 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
                 placement="article_sidebar_secondary"
                 className="post-product-link"
               >
-                {isTranscriptionGuide ? "Or create a tab yourself" : "Or transcribe a recording"} →
-              </BlogProductLink>
+                {t(isTranscriptionGuide ? "Or create a tab yourself" : "Or transcribe a recording")} {t(" →")}</BlogProductLink>
             </section>
           </aside>
         </div>
 
         <section className="post-end-cta" aria-labelledby="post-end-cta-title">
           <div>
-            <span className="post-product-eyebrow">Two complete tools</span>
-            <h2 id="post-end-cta-title">Take your next tab from idea to playback</h2>
+            <span className="post-product-eyebrow">{t("Two complete tools")}</span>
+            <h2 id="post-end-cta-title">{t("Take your next tab from idea to playback")}</h2>
             <p>
-              Build tabs directly in the editor, transcribe a recording, or move naturally between both.
-            </p>
+              {t("Build tabs directly in the editor, transcribe a recording, or move naturally between both.")}</p>
           </div>
           <div className="post-end-cta-actions">
-            <BlogProductLink href="/editor" articleSlug={post.slug} cta="blog_editor" placement="article_end" className="button-primary">Try the tab editor</BlogProductLink>
-            <BlogProductLink href="/transcribe" articleSlug={post.slug} cta="blog_transcribe" placement="article_end" className="button-secondary">Transcribe audio</BlogProductLink>
+            <BlogProductLink href="/editor" articleSlug={post.slug} cta="blog_editor" placement="article_end" className="button-primary">{t("Try the tab editor")}</BlogProductLink>
+            <BlogProductLink href="/transcribe" articleSlug={post.slug} cta="blog_transcribe" placement="article_end" className="button-secondary">{t("Transcribe audio")}</BlogProductLink>
           </div>
         </section>
 
@@ -228,11 +236,11 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
           <section className="post-taxonomy post-taxonomy--inline">
             {post.categories.length > 0 && (
               <>
-                <h2>Categories</h2>
+                <h2>{t("Categories")}</h2>
                 <div className="tag-row">
                   {post.categories.map((cat) => (
                     <Link key={cat.id} href={`/blog/category/${cat.slug}`}>
-                      {cat.name}
+                      {t(cat.name)}
                     </Link>
                   ))}
                 </div>
@@ -240,11 +248,11 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
             )}
             {post.tags.length > 0 && (
               <>
-                <h2>Tags</h2>
+                <h2>{t("Tags")}</h2>
                 <div className="tag-row">
                   {post.tags.map((tag) => (
                     <Link key={tag.id} href={`/blog/tag/${tag.slug}`}>
-                      {tag.name}
+                      {t(tag.name)}
                     </Link>
                   ))}
                 </div>
@@ -252,12 +260,12 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
             )}
             {post.clusters.length > 0 && (
               <>
-                <h2>Topic clusters</h2>
+                <h2>{t("Topic clusters")}</h2>
                 <div className="tag-row">
                   {post.clusters.map((cluster) => (
                     <Link key={cluster.id} href={`/blog/cluster/${cluster.slug}`}>
-                      {cluster.name}
-                      {cluster.isPillar ? " (pillar)" : ""}
+                      {t(cluster.name)}
+                      {t(cluster.isPillar ? " (pillar)" : "")}
                     </Link>
                   ))}
                 </div>
@@ -268,10 +276,10 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
 
         {relatedPosts.length > 0 && (
           <section className="related-posts">
-            <h2 className="section-title">Related posts</h2>
+            <h2 className="section-title">{t("Related posts")}</h2>
             <div className="blog-grid">
               {relatedPosts.map((rel) => (
-                <BlogPostCard key={rel.id} slug={rel.slug} title={rel.title} />
+                <BlogPostCard key={rel.id} slug={rel.slug} title={t(rel.title)} />
               ))}
             </div>
           </section>
@@ -377,7 +385,7 @@ export const getStaticProps: GetStaticProps<PostPageProps> = async (ctx) => {
     },
     orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
     take: 4,
-    select: { id: true, title: true, slug: true },
+    select: { id: true, title: true, slug: true, updatedAt: true },
   }));
 
   return {
@@ -407,7 +415,7 @@ export const getStaticProps: GetStaticProps<PostPageProps> = async (ctx) => {
       readingMinutes: minutes,
       wordCount: words,
       toc: contentToc,
-      relatedPosts,
+      relatedPosts: relatedPosts.map(row => ({...row, updatedAt: row.updatedAt.toISOString()})),
     },
     // Query strings no longer create separate server-rendered variants. One
     // cached article is shared by readers and crawlers, then refreshed hourly.

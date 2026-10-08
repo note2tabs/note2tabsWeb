@@ -1,6 +1,9 @@
+import { translatedError } from "../lib/i18n/translate";
+import { relativeUpdatedAt } from "../lib/i18n/dates";
+import { useLocale } from "../lib/i18n/react";
 import type { GetServerSideProps } from "next";
-import Link from "next/link";
-import { useRouter } from "next/router";
+import Link from "../components/LocaleLink";
+import { useLocaleRouter as useRouter } from "../lib/i18n/react";
 import { getServerSession } from "next-auth/next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import NoIndexHead from "../components/NoIndexHead";
@@ -17,24 +20,9 @@ type Props = {
   role?: string;
 };
 
-const relativeUpdatedAt = (value?: string) => {
-  if (!value) return "Recently edited";
-  const timestamp = new Date(value).getTime();
-  if (!Number.isFinite(timestamp)) return "Recently edited";
-  const elapsed = Math.max(0, Date.now() - timestamp);
-  const minutes = Math.floor(elapsed / 60_000);
-  if (minutes < 1) return "Updated just now";
-  if (minutes < 60) return `Updated ${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `Updated ${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `Updated ${days}d ago`;
-  return `Updated ${new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(
-    new Date(timestamp)
-  )}`;
-};
 
 function SharedTabArtwork() {
+  const { t, locale } = useLocale();
   return (
     <span className="shared-page__art" aria-hidden="true">
       <span className="shared-page__art-lines">
@@ -56,6 +44,7 @@ function SharedFilterMenu<T extends string>({
   options: Array<{ value: T; label: string }>;
   onChange: (value: T) => void;
 }) {
+  const { t, locale } = useLocale();
   const rootRef = useRef<HTMLDetailsElement>(null);
   const selected = options.find((option) => option.value === value) || options[0];
 
@@ -74,15 +63,15 @@ function SharedFilterMenu<T extends string>({
         rootRef.current.querySelector("summary")?.focus();
       }
     }}>
-      <summary aria-label={`${label}: ${selected.label}`}><span>{selected.label}</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></summary>
-      <div role="listbox" aria-label={label}>
+      <summary aria-label={t("{name}: {value}", {name: t(label), value: t(selected.label)})}><span>{t(selected.label)}</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></summary>
+      <div role="listbox" aria-label={t(label)}>
         {options.map((option) => (
           <button key={option.value} type="button" role="option" aria-selected={option.value === value} onClick={() => {
             onChange(option.value);
             if (rootRef.current) rootRef.current.open = false;
           }}>
             <span className="shared-page__filter-check" aria-hidden="true">{option.value === value && <svg viewBox="0 0 16 16"><path d="m3 8 3 3 7-7" /></svg>}</span>
-            <span>{option.label}</span>
+            <span>{t(option.label)}</span>
           </button>
         ))}
       </div>
@@ -91,6 +80,7 @@ function SharedFilterMenu<T extends string>({
 }
 
 export default function SharedWithYouPage({ role }: Props) {
+  const { t, locale } = useLocale();
   const router = useRouter();
   const shareEmailClickTracked = useRef(false);
   const [pending, setPending] = useState<PendingCanvasShare[]>([]);
@@ -131,17 +121,17 @@ export default function SharedWithYouPage({ role }: Props) {
   );
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const filteredShared = useMemo(() => [...shared]
-    .filter((editor) => !normalizedQuery || (editor.name || "Untitled").toLocaleLowerCase().includes(normalizedQuery))
+    .filter((editor) => !normalizedQuery || (editor.name || t("Untitled")).toLocaleLowerCase().includes(normalizedQuery))
     .filter((editor) => access === "all" || editor.role === access)
     .sort((left, right) => sort === "name"
       ? (left.name || "Untitled").localeCompare(right.name || "Untitled")
       : new Date(right.updatedAt || 0).getTime() - new Date(left.updatedAt || 0).getTime()),
   [access, normalizedQuery, shared, sort]);
   const filteredPending = useMemo(() => pending.filter((share) =>
-    (!normalizedQuery || (share.name || "Untitled").toLocaleLowerCase().includes(normalizedQuery))
+    (!normalizedQuery || (share.name || t("Untitled")).toLocaleLowerCase().includes(normalizedQuery))
     && (access === "all" || share.role === access)), [access, normalizedQuery, pending]);
   const filteredOutgoing = useMemo(() => outgoing.map((entry) => {
-    const tabMatches = !normalizedQuery || (entry.name || "Untitled").toLocaleLowerCase().includes(normalizedQuery);
+    const tabMatches = !normalizedQuery || (entry.name || t("Untitled")).toLocaleLowerCase().includes(normalizedQuery);
     const visibleCollaborators = entry.collaborators.filter((collaborator) =>
       (access === "all" || collaborator.role === access)
       && (tabMatches || collaborator.email.toLocaleLowerCase().includes(normalizedQuery)));
@@ -248,7 +238,7 @@ export default function SharedWithYouPage({ role }: Props) {
 
   return (
     <>
-      <NoIndexHead title="Shared with you | Note2Tabs" canonicalPath="/shared" />
+      <NoIndexHead title={t("Shared with you | Note2Tabs")} canonicalPath="/shared" />
       <main className="product-home product-home--studio">
         <div className="container product-studio-layout">
           <WorkspaceSidebar
@@ -261,41 +251,41 @@ export default function SharedWithYouPage({ role }: Props) {
           <div className="product-studio shared-page">
             <header className="shared-page__header">
               <div>
-                <h1>Shared tabs</h1>
+                <h1>{t("Shared tabs")}</h1>
               </div>
               {!loading && (
-                <div className="shared-page__summary" aria-label="Sharing summary">
-                  <span><strong>{shared.length}</strong> shared with you</span>
+                <div className="shared-page__summary" aria-label={t("Sharing summary")}>
+                  <span><strong>{shared.length}</strong> {t(" shared with you")}</span>
                   <i aria-hidden="true" />
-                  <span><strong>{outgoing.reduce((total, entry) => total + entry.collaborators.length, 0)}</strong> collaborators</span>
+                  <span><strong>{outgoing.reduce((total, entry) => total + entry.collaborators.length, 0)}</strong> {t(" collaborators")}</span>
                 </div>
               )}
             </header>
 
             <div className="shared-page__toolbar">
-              <div className="shared-page__tabs" role="tablist" aria-label="Shared tab views">
-                <button id="shared-tab-with-me" type="button" role="tab" aria-selected={view === "with-me"} aria-controls="shared-panel-with-me" tabIndex={view === "with-me" ? 0 : -1} onKeyDown={handleTabKeyDown} onClick={() => selectView("with-me")}>Shared with me</button>
-                <button id="shared-tab-by-me" type="button" role="tab" aria-selected={view === "by-me"} aria-controls="shared-panel-by-me" tabIndex={view === "by-me" ? 0 : -1} onKeyDown={handleTabKeyDown} onClick={() => selectView("by-me")}>Shared by me</button>
+              <div className="shared-page__tabs" role="tablist" aria-label={t("Shared tab views")}>
+                <button id="shared-tab-with-me" type="button" role="tab" aria-selected={view === "with-me"} aria-controls="shared-panel-with-me" tabIndex={view === "with-me" ? 0 : -1} onKeyDown={handleTabKeyDown} onClick={() => selectView("with-me")}>{t("Shared with me")}</button>
+                <button id="shared-tab-by-me" type="button" role="tab" aria-selected={view === "by-me"} aria-controls="shared-panel-by-me" tabIndex={view === "by-me" ? 0 : -1} onKeyDown={handleTabKeyDown} onClick={() => selectView("by-me")}>{t("Shared by me")}</button>
               </div>
               <div className="shared-page__filters">
-                <label className="shared-page__search"><span aria-hidden="true">⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search shared tabs" aria-label="Search shared tabs" /></label>
+                <label className="shared-page__search"><span aria-hidden="true">{t("⌕")}</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("Search shared tabs")} aria-label={t("Search shared tabs")} /></label>
                 <SharedFilterMenu label="Filter by access" value={access} onChange={setAccess} options={[{ value: "all", label: "All access" }, { value: "editor", label: "Can edit" }, { value: "viewer", label: "View only" }]} />
                 <SharedFilterMenu label="Sort shared tabs" value={sort} onChange={setSort} options={[{ value: "modified", label: "Last modified" }, { value: "name", label: "Name" }]} />
               </div>
             </div>
 
-            {error && <div className="product-home__error" role="alert"><span>{error}</span><button type="button" onClick={() => void load()}>Try again</button></div>}
+            {error && <div className="product-home__error" role="alert"><span>{translatedError(error, locale)}</span><button type="button" onClick={() => void load()}>{t("Try again")}</button></div>}
 
             {view === "with-me" && (loading || filteredPending.length > 0) && <section className="shared-page__section shared-page__section--invites" aria-labelledby="pending-heading">
-              <header><div><h2 id="pending-heading">Invitations</h2></div>{!loading && <span>{filteredPending.length}</span>}</header>
+              <header><div><h2 id="pending-heading">{t("Invitations")}</h2></div>{!loading && <span>{filteredPending.length}</span>}</header>
               {loading ? (
-                <div className="shared-page__skeleton" aria-label="Loading invitations" />
+                <div className="shared-page__skeleton" aria-label={t("Loading invitations")} />
               ) : (
                 <ul className="shared-page__invite-list">
                   {filteredPending.map((share) => (
                     <li key={share.shareId}>
-                      <span className="shared-page__invite-icon" aria-hidden="true">↗</span>
-                      <span className="shared-page__invite-copy"><strong>{share.name || "Untitled"}</strong><small>You were invited to {share.role === "editor" ? "edit this tab" : "view this tab"}</small></span>
+                      <span className="shared-page__invite-icon" aria-hidden="true">{t("↗")}</span>
+                      <span className="shared-page__invite-copy"><strong>{share.name || t("Untitled")}</strong><small>{t("You were invited to ")}{t(share.role === "editor" ? "edit this tab" : "view this tab")}</small></span>
                       <span className="shared-page__invite-actions">
                         <button
                           className="shared-page__button shared-page__button--primary"
@@ -303,7 +293,7 @@ export default function SharedWithYouPage({ role }: Props) {
                           onClick={() => void handleAccept(share)}
                           disabled={acceptingId === share.shareId}
                         >
-                          {acceptingId === share.shareId ? "Accepting..." : "Accept"}
+                          {t(acceptingId === share.shareId ? "Accepting..." : "Accept")}
                         </button>
                         <button
                           className="shared-page__button"
@@ -311,7 +301,7 @@ export default function SharedWithYouPage({ role }: Props) {
                           onClick={() => void handleDecline(share)}
                           disabled={decliningId === share.shareId}
                         >
-                          {decliningId === share.shareId ? "Declining..." : "Decline"}
+                          {t(decliningId === share.shareId ? "Declining..." : "Decline")}
                         </button>
                       </span>
                     </li>
@@ -322,16 +312,16 @@ export default function SharedWithYouPage({ role }: Props) {
 
             {view === "with-me" && <section id="shared-panel-with-me" role="tabpanel" aria-labelledby="shared-tab-with-me" className="shared-page__section shared-page__section--table">
               {loading ? (
-                <div className="shared-page__rows" aria-label="Loading shared tabs">{[0, 1, 2].map((item) => <div className="shared-page__row-skeleton" key={item} />)}</div>
+                <div className="shared-page__rows" aria-label={t("Loading shared tabs")}>{[0, 1, 2].map((item) => <div className="shared-page__row-skeleton" key={item} />)}</div>
               ) : filteredShared.length === 0 ? (
-                <div className="shared-page__empty"><span aria-hidden="true">↗</span><div><h3>{query || access !== "all" ? "No matching tabs" : "No shared tabs yet"}</h3><p>{query || access !== "all" ? "Try changing your search or access filter." : "When someone invites you to a tab, it will appear here after you accept it."}</p></div>{(query || access !== "all") && <button type="button" onClick={clearFilters}>Clear filters</button>}</div>
+                <div className="shared-page__empty"><span aria-hidden="true">{t("↗")}</span><div><h3>{t(query || access !== "all" ? "No matching tabs" : "No shared tabs yet")}</h3><p>{t(query || access !== "all" ? "Try changing your search or access filter." : "When someone invites you to a tab, it will appear here after you accept it.")}</p></div>{(query || access !== "all") && <button type="button" onClick={clearFilters}>{t("Clear filters")}</button>}</div>
               ) : (
-                <div className="shared-page__rows"><table><thead><tr><th>Tab</th><th>Access</th><th>Modified</th><th><span className="sr-only">Open</span></th></tr></thead><tbody>{filteredShared.map((editor) => (
+                <div className="shared-page__rows"><table><thead><tr><th>{t("Tab")}</th><th>{t("Access")}</th><th>{t("Modified")}</th><th><span className="sr-only">{t("Open")}</span></th></tr></thead><tbody>{filteredShared.map((editor) => (
                   <tr key={editor.id}>
-                    <th scope="row"><Link href={`/gte/${editor.id}`} onPointerDown={() => void gteApi.prefetchEditor(editor.id).catch(() => {})}><SharedTabArtwork /><span className="shared-page__tab-copy"><strong>{editor.name || "Untitled"}</strong></span></Link></th>
-                    <td><small>{editor.role === "editor" ? "Can edit" : "View only"}</small></td>
-                    <td><em>{relativeUpdatedAt(editor.updatedAt)}</em></td>
-                    <td><Link href={`/gte/${editor.id}`} aria-label={`Open ${editor.name || "Untitled"}`}>→</Link></td>
+                    <th scope="row"><Link href={`/gte/${editor.id}`} onPointerDown={() => void gteApi.prefetchEditor(editor.id).catch(() => {})}><SharedTabArtwork /><span className="shared-page__tab-copy"><strong>{editor.name || t("Untitled")}</strong></span></Link></th>
+                    <td><small>{t(editor.role === "editor" ? "Can edit" : "View only")}</small></td>
+                    <td><em>{relativeUpdatedAt(editor.updatedAt, locale)}</em></td>
+                    <td><Link href={`/gte/${editor.id}`} aria-label={t("Open {name}", {name: editor.name || t("Untitled")})}>{t("→")}</Link></td>
                   </tr>
                 ))}</tbody></table></div>
               )}
@@ -339,35 +329,35 @@ export default function SharedWithYouPage({ role }: Props) {
 
             {view === "by-me" && <section id="shared-panel-by-me" role="tabpanel" aria-labelledby="shared-tab-by-me" className="shared-page__section shared-page__section--table">
               {loading ? (
-                <div className="shared-page__skeleton" aria-label="Loading collaborators" />
+                <div className="shared-page__skeleton" aria-label={t("Loading collaborators")} />
               ) : filteredOutgoing.length === 0 ? (
-                <div className="shared-page__empty"><span aria-hidden="true">＋</span><div><h3>{query || access !== "all" ? "No matching shared tabs" : "No collaborators yet"}</h3><p>{query || access !== "all" ? "Try changing your search or access filter." : "Open one of your tabs and choose Share to invite someone."}</p></div>{query || access !== "all" ? <button type="button" onClick={clearFilters}>Clear filters</button> : <Link href="/gte">View your tabs →</Link>}</div>
+                <div className="shared-page__empty"><span aria-hidden="true">{t("＋")}</span><div><h3>{t(query || access !== "all" ? "No matching shared tabs" : "No collaborators yet")}</h3><p>{t(query || access !== "all" ? "Try changing your search or access filter." : "Open one of your tabs and choose Share to invite someone.")}</p></div>{query || access !== "all" ? <button type="button" onClick={clearFilters}>{t("Clear filters")}</button> : <Link href="/gte">{t("View your tabs →")}</Link>}</div>
               ) : (
                 <ul className="shared-page__outgoing">
                   {filteredOutgoing.map((entry) => (
                     <li key={entry.canvasId} className="shared-page__outgoing-card">
                       <details>
                         <summary>
-                          <span className="shared-page__outgoing-name">{entry.name || "Untitled"}</span>
+                          <span className="shared-page__outgoing-name">{t(entry.name || t("Untitled"))}</span>
                           <span className="shared-page__outgoing-meta">
-                          <span className="shared-page__outgoing-count">{entry.visibleCollaborators.length} {entry.visibleCollaborators.length === 1 ? "collaborator" : "collaborators"}</span>
+                          <span className="shared-page__outgoing-count">{entry.visibleCollaborators.length} {t(entry.visibleCollaborators.length === 1 ? "collaborator" : "collaborators")}</span>
                             <svg className="shared-page__chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
                           </span>
                         </summary>
                         <div className="shared-page__outgoing-body">
-                          <Link href={`/gte/${entry.canvasId}`} className="shared-page__open-tab">Open tab →</Link>
+                          <Link href={`/gte/${entry.canvasId}`} className="shared-page__open-tab">{t("Open tab →")}</Link>
                           <ul>
                             {entry.visibleCollaborators.map((collaborator) => (
                               <li key={collaborator.shareId}>
                                 <span className="shared-page__avatar" aria-hidden="true">{collaborator.email.slice(0, 1).toUpperCase()}</span>
-                                <span className="shared-page__person"><strong>{collaborator.email}</strong><small>{collaborator.role === "editor" ? "Can edit" : "View only"}{collaborator.status === "pending" ? " · Invitation pending" : ""}</small></span>
+                                <span className="shared-page__person"><strong>{collaborator.email}</strong><small>{t(collaborator.role === "editor" ? "Can edit" : "View only")}{t(collaborator.status === "pending" ? " · Invitation pending" : "")}</small></span>
                                 <button
                                   className="shared-page__remove"
                                   type="button"
                                   onClick={() => void handleRevokeCollaborator(entry.canvasId, collaborator.shareId)}
                                   disabled={revokingId === collaborator.shareId}
                                 >
-                                  {revokingId === collaborator.shareId ? "Removing..." : "Remove"}
+                                  {t(revokingId === collaborator.shareId ? "Removing..." : "Remove")}
                                 </button>
                               </li>
                             ))}

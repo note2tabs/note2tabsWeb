@@ -1,3 +1,5 @@
+import { useLocale } from "../../../lib/i18n/react";
+import { translatedError } from "../../../lib/i18n/translate";
 import type { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../api/auth/[...nextauth]";
@@ -8,14 +10,15 @@ type Props = {
 };
 
 export default function EditTabRedirect({ error }: Props) {
+  const { t, locale } = useLocale();
   if (error) {
     return (
       <>
         <NoIndexHead title="Could not reopen transcription | Note2Tabs" canonicalPath="/tabs" />
       <main className="page">
         <div className="container stack">
-          <h1 className="page-title">Could not reopen transcription</h1>
-          <p className="page-subtitle">{error}</p>
+          <h1 className="page-title">{t("Could not reopen transcription")}</h1>
+          <p className="page-subtitle">{translatedError(error, locale)}</p>
         </div>
       </main>
       </>
@@ -26,8 +29,8 @@ export default function EditTabRedirect({ error }: Props) {
       <NoIndexHead title="Redirecting | Note2Tabs" canonicalPath="/tabs" />
     <main className="page">
       <div className="container stack">
-        <h1 className="page-title">Redirecting...</h1>
-        <p className="page-subtitle">Opening your transcription review.</p>
+        <h1 className="page-title">{t("Redirecting...")}</h1>
+        <p className="page-subtitle">{t("Opening your transcription review.")}</p>
       </div>
     </main>
     </>

@@ -31,7 +31,7 @@ type Props = {
 };
 
 export default function PremiumWelcomePage({ previewMode }: Props) {
-  const { t, locale, href: localePath } = useLocale();
+  const { t, href: localePath } = useLocale();
   const router = useRouter();
   const { data: session, status: sessionStatus, update } = useSession();
   const [state, setState] = useState<WelcomeState>(previewMode ? "ready" : "checking");

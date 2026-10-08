@@ -20,13 +20,14 @@ type PremiumHomeCalloutCardProps = {
 };
 
 export function PremiumHomeCalloutCard({ href, onClick }: PremiumHomeCalloutCardProps) {
+  const { t } = useLocale();
   return (
-    <aside className="premium-home-callout" aria-label="Longer YouTube transcription options">
+    <aside className="premium-home-callout" aria-label={t("Longer YouTube transcription options")}>
       <div>
-        <strong>Need a longer section?</strong>
-        <p>Free accounts can transcribe 30 seconds at a time. Premium unlocks longer YouTube sections within the first 10 minutes.</p>
+        <strong>{t("Need a longer section?")}</strong>
+        <p>{t("Free accounts can transcribe 30 seconds at a time. Premium unlocks longer YouTube sections within the first 10 minutes.")}</p>
       </div>
-      <Link href={href} onClick={onClick}>See longer options</Link>
+      <Link href={href} onClick={onClick}>{t("See longer options")}</Link>
     </aside>
   );
 }

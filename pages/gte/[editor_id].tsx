@@ -1,5 +1,7 @@
+import { requestLocale } from "../../lib/i18n/request";
+import { localeSwitchHref } from "../../lib/i18n/locale";
 import { GetServerSideProps } from "next";
-import Link from "next/link";
+import Link from "../../components/LocaleLink";
 import {
   useCallback,
   useEffect,
@@ -14,7 +16,7 @@ import {
 import { getServerSession } from "next-auth/next";
 import { useSession } from "next-auth/react";
 import { authOptions } from "../api/auth/[...nextauth]";
-import { useRouter } from "next/router";
+import { useLocaleRouter as useRouter, useLocale } from "../../lib/i18n/react";
 import dynamic from "next/dynamic";
 import { createPortal } from "react-dom";
 import { ANALYTICS_EVENTS, sendEvent } from "../../lib/analytics";
@@ -1680,7 +1682,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const transcriberHref = isGuestMode
     ? "/#hero"
     : `/?appendEditorId=${encodeURIComponent(editorId)}#hero`;
-  const transcriberNewHref = "/transcriber";
+  const { href: localePath } = useLocale();
+  const transcriberNewHref = localePath("/transcribe");
   const transcriberAppendHref = `/transcriber?appendEditorId=${encodeURIComponent(editorId)}`;
   const isPaidUser = Boolean(
     session?.user?.subscriptionPlan && session.user.subscriptionPlan !== "FREE"
@@ -11461,7 +11464,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   if (!session?.user?.id) {
     return {
       redirect: {
-        destination: `/auth/login?next=${encodeURIComponent(ctx.resolvedUrl || `/gte/${editorId}`)}`,
+        destination: localeSwitchHref(`/auth/login?next=${encodeURIComponent(ctx.resolvedUrl || `/gte/${editorId}`)}`, requestLocale({body: undefined, cookies: ctx.req.cookies})),
         permanent: false,
       },
     };

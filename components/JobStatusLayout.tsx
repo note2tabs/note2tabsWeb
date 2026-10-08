@@ -159,7 +159,7 @@ export default function JobStatusLayout({
   onVideoComplete,
   shareUrls,
 }: JobStatusLayoutProps) {
-  const { t, locale, href: localePath } = useLocale();
+  const { t, locale } = useLocale();
   const isPendingJob =
     !job || job.status === "queued" || job.status === "pending" || job.status === "processing" || job.status === "running";
   const [messageIndex, setMessageIndex] = useState(0);

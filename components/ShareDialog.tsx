@@ -1,3 +1,5 @@
+import { translatedError } from "../lib/i18n/translate";
+import { useLocale } from "../lib/i18n/react";
 import { useEffect, useState } from "react";
 import { gteApi } from "../lib/gteApi";
 import type { CanvasShare, SharedEditorRole } from "../types/gte";
@@ -9,6 +11,7 @@ type ShareDialogProps = {
 };
 
 export default function ShareDialog({ editorId, onClose }: ShareDialogProps) {
+  const { t, locale } = useLocale();
   const [shares, setShares] = useState<CanvasShare[]>([]);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState("");
@@ -73,14 +76,13 @@ export default function ShareDialog({ editorId, onClose }: ShareDialogProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" role="dialog" aria-modal="true">
       <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-slate-900">Share this editor</h2>
+          <h2 className="text-sm font-semibold text-slate-900">{t("Share this editor")}</h2>
           <button
             type="button"
             onClick={onClose}
             className="rounded-md px-2 py-1 text-xs text-slate-500 hover:bg-slate-100"
           >
-            Close
-          </button>
+            {t("Close")}</button>
         </div>
 
         <form onSubmit={handleInvite} className="mt-4 flex items-center gap-2">
@@ -88,7 +90,7 @@ export default function ShareDialog({ editorId, onClose }: ShareDialogProps) {
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            placeholder="Collaborator's email"
+            placeholder={t("Collaborator's email")}
             className="h-9 flex-1 rounded-md border border-slate-200 px-2 text-sm"
             disabled={submitting}
           />
@@ -105,19 +107,18 @@ export default function ShareDialog({ editorId, onClose }: ShareDialogProps) {
             disabled={submitting}
             className="h-9 rounded-md bg-slate-900 px-3 text-xs font-semibold text-white disabled:opacity-50"
           >
-            {submitting ? "Inviting..." : "Invite"}
+            {t(submitting ? "Inviting..." : "Invite")}
           </button>
         </form>
         <p className="mt-2 text-[11px] leading-4 text-slate-500">
-          You can share with anyone. If they do not have a Note2Tabs account, we will email them an invitation to join and open the tab.
-        </p>
-        {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+          {t("You can share with anyone. If they do not have a Note2Tabs account, we will email them an invitation to join and open the tab.")}</p>
+        {error && <p className="mt-2 text-xs text-red-600">{translatedError(error, locale)}</p>}
 
         <div className="mt-4 max-h-64 overflow-y-auto">
           {loading ? (
-            <p className="text-xs text-slate-500">Loading collaborators...</p>
+            <p className="text-xs text-slate-500">{t("Loading collaborators...")}</p>
           ) : shares.length === 0 ? (
-            <p className="text-xs text-slate-500">No one else has access yet.</p>
+            <p className="text-xs text-slate-500">{t("No one else has access yet.")}</p>
           ) : (
             <ul className="divide-y divide-slate-100">
               {shares.map((share) => (
@@ -125,8 +126,8 @@ export default function ShareDialog({ editorId, onClose }: ShareDialogProps) {
                   <div>
                     <div className="font-medium text-slate-800">{share.email}</div>
                     <div className="text-xs text-slate-500">
-                      {share.role === "editor" ? "Can edit" : "Can view"}
-                      {share.status === "pending" ? " · invite pending" : ""}
+                      {t(share.role === "editor" ? "Can edit" : "Can view")}
+                      {t(share.status === "pending" ? " · invite pending" : "")}
                     </div>
                   </div>
                   <button
@@ -134,8 +135,7 @@ export default function ShareDialog({ editorId, onClose }: ShareDialogProps) {
                     onClick={() => handleRevoke(share.shareId)}
                     className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
                   >
-                    Remove
-                  </button>
+                    {t("Remove")}</button>
                 </li>
               ))}
             </ul>

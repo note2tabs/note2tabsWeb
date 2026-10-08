@@ -997,6 +997,16 @@ describe("stripe premium flow", () => {
       });
     });
 
+    it("returns Portuguese users to localized account pages without changing the Stripe customer", async () => {
+      stripeMock.customers.list.mockResolvedValue({data: [{id: "cus_123", email: "user@example.com"}]});
+      stripeMock.subscriptions.list.mockResolvedValue({data: [premiumSubscription({id: "sub_123"})]});
+      const handler = (await import("../../pages/api/stripe/create-portal-session")).default;
+      const {req, res} = createMocks({method: "POST", body: {locale: "pt-BR", returnTo: "/pt-br/home"}, headers: {host: "note2tabs.test", "x-forwarded-proto": "https"}});
+      await handler(req as any, res as any);
+      expect(res._getStatusCode()).toBe(200);
+      expect(stripeMock.billingPortal.sessions.create).toHaveBeenCalledWith({customer: "cus_123", locale: "pt-BR", return_url: "https://note2tabs.test/pt-br/home"});
+    });
+
     it("does not accept an arbitrary portal return URL", async () => {
       stripeMock.customers.list.mockResolvedValue({
         data: [{ id: "cus_123", email: "user@example.com" }],

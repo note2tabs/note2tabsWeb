@@ -1,5 +1,6 @@
+import type { AppLocale } from "../lib/i18n/locale";
 import { useLocale } from "../lib/i18n/react";
-import { LOCALIZED_PUBLIC_PATHS, localeHref, stripLocale } from "../lib/i18n/locale";
+import { isLocalizedPublicPath, LOCALIZED_PUBLIC_PATHS, localeHref, stripLocale } from "../lib/i18n/locale";
 import { portuguesePilotIndexable } from "../lib/i18n/pilot";
 import Head from "next/head";
 import { getConfiguredSiteUrl } from "../lib/siteUrl";
@@ -52,6 +53,8 @@ type JsonLd = Record<string, unknown>;
 
 type SeoHeadProps = {
   title: string;
+  contentLocale?: AppLocale;
+  hasTranslation?: boolean;
   description?: string;
   canonicalPath?: string;
   canonicalUrl?: string;
@@ -84,6 +87,8 @@ const canonicalizeUrl = (value: string) => {
 
 export default function SeoHead({
   title,
+  contentLocale,
+  hasTranslation = true,
   description = DEFAULT_DESCRIPTION,
   canonicalPath,
   canonicalUrl,
@@ -96,10 +101,11 @@ export default function SeoHead({
   articlePublishedTime,
   articleModifiedTime,
 }: SeoHeadProps) {
-  const { locale, t } = useLocale();
+  const { locale: routeLocale, t } = useLocale();
+  const locale = contentLocale || routeLocale;
   const sourcePath = stripLocale(canonicalPath || "/");
   const translated = locale === "pt-BR";
-  const hasAlternate = LOCALIZED_PUBLIC_PATHS.includes(sourcePath as typeof LOCALIZED_PUBLIC_PATHS[number]);
+  const hasAlternate = hasTranslation && isLocalizedPublicPath(sourcePath);
   const indexable = portuguesePilotIndexable();
   const canonical = canonicalizeUrl(canonicalUrl || localeHref(sourcePath, locale));
   title = t(title);

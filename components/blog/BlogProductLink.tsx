@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import Link from "next/link";
+import Link from "../LocaleLink";
 import { trackCtaClick } from "../../lib/analytics";
 
 type BlogProductLinkProps = ComponentProps<typeof Link> & {

@@ -1,4 +1,4 @@
-# Brazilian Portuguese acquisition pilot
+# Brazilian Portuguese site localization
 
 Branch: `codex/pt-br-localization-pilot`, based on `origin/main` at `b0bdb29a`.
 
@@ -19,20 +19,29 @@ The earlier PostHog review found 242 Brazilian visitors, 86 signup users, 92 tra
 | Password reset | `/pt-br/reset-password`, `/pt-br/reset-password/[token]` |
 | Transcription progress | `/pt-br/job/[job_id]` |
 | Checkout success | `/pt-br/premium/welcome` |
+| Editor landing and feature guides | `/pt-br/editor`, `/pt-br/features`, `/pt-br/features/[slug]` |
+| Product guides and converters | `/pt-br/audio-to-guitar-tab-converter`, `/pt-br/mp3-to-guitar-tabs`, `/pt-br/youtube-to-guitar-tabs`, `/pt-br/ai-guitar-tab-generator`, `/pt-br/free-guitar-tab-maker` |
+| Workspace, sharing, settings and history | `/pt-br/home`, `/pt-br/shared`, `/pt-br/settings`, `/pt-br/tabs/...` |
+| About, contact and legal pages | `/pt-br/about`, `/pt-br/contact`, `/pt-br/terms`, `/pt-br/privacy` |
+| Affiliates and internship application | `/pt-br/affiliate-program`, `/pt-br/affiliate`, `/pt-br/internship-application` |
+| Published blog, archives and RSS | `/pt-br/blog/...` |
+| Email preferences | `/pt-br/email/unsubscribe`, `/pt-br/email/share-preferences` |
 
 Shared navigation, conversion prompts, billing FAQs and checkout-cancellation feedback are translated. Verification, reset and transcription-completion emails accept a validated locale; names and recording titles remain escaped user content. Stripe Checkout receives `pt-BR`, with locale-preserving success/cancel links and localized account handoffs. No price IDs, payment methods, entitlements or billing rules are changed.
 
-The editor, account settings, historical blogs, feature guides and legal policies remain English, with a visible scope notice and labelled fallback links. Support is offered via the existing address; Portuguese-speaking support is not promised. Existing subscription-lifecycle/trial marketing messages remain English and must be reviewed separately before enabling them for this locale. No automatic blog or legal translation is generated.
+English and Brazilian Portuguese are the supported website languages. All public and account surfaces are translated; the interactive `/gte` editor and its library remain English. Their navigation retains the chosen language when returning to translated pages. Internal admin/moderation tools remain English. Support is offered via the existing address; Portuguese-speaking support is not promised. Existing subscription-lifecycle/trial marketing emails remain English and are outside this website expansion.
+
+The 26 published blog articles have file-backed Portuguese editions in `lib/i18n/blog/pt-BR`. These editions follow the original structure and meaning with more concise Portuguese phrasing. Bibliographic titles and English editor control names remain recognizable. Each edition records the English source revision. Updated or new articles fall back to the original, visibly marked language, until a corresponding translation is added. Stale translations are excluded from Portuguese article sitemap pairs. Article bodies compile through the existing sanitizer on the server; no blog database content is changed. New translations, including legal text, remain draft copy subject to the existing native/legal review gate.
 
 ## Run and release gate
 
-For local preview, run `npm run dev -- --port 3107` and open `http://localhost:3107/pt-br`. Development uses the repository's existing local/no-database behavior unless configured otherwise. For a production-mode preview, build and start with `VERCEL_ENV=preview`.
+For local preview, run `npm run dev -- --port 3108` and open `http://localhost:3108/pt-br`. Development uses the repository's existing local/no-database behavior unless configured otherwise. For a production-mode preview, build and start with `VERCEL_ENV=preview`. This worktree shares a symlinked dependency directory, so build it with `VERCEL_ENV=preview npm run build -- --webpack`.
 
 Draft pages are available in development and Vercel preview, with `noindex` in page metadata and response headers. Normal production returns 404 and hides the Portuguese selector until **`NEXT_PUBLIC_PT_BR_REVIEWED=true`** is explicitly configured and the application is rebuilt. Preview deployments remain noindex even with the review flag enabled. Account and job routes stay noindex after release.
 
 The flag is a release assertion, not proof of a review. No native-speaker or legal/billing sign-off has occurred in this implementation. Do not enable it merely to expose a preview. Production deployment and publication are outside this branch task.
 
-After review, the three public pages get self canonicals, reciprocal `en` / `pt-BR` / `x-default` links, and sitemap annotations. English URLs remain the originals. Only existing translated routes can receive `/pt-br`; unsupported pages retain their English URLs. This follows [Google's localized-page guidance](https://developers.google.com/search/docs/specialty/international/localized-versions). There is no language redirect based on IP or browser language.
+After review, translated public pages get self canonicals, reciprocal `en` / `pt-BR` / `x-default` links, and sitemap annotations. English URLs remain the originals. Only existing translated routes can receive `/pt-br`; unsupported pages retain their English URLs. This follows [Google's localized-page guidance](https://developers.google.com/search/docs/specialty/international/localized-versions). There is no language redirect based on IP or browser language.
 
 ## Translation review
 
@@ -49,9 +58,9 @@ UI source messages are in `lib/i18n/en.json`; drafts are in `pt-BR.json`. Keys a
 | guitar | guitarra; review when “violão” is also accurate for the input |
 | Free plan | Grátis |
 
-Use direct, natural Brazilian Portuguese with “você.” Do not promise perfect transcription, Portuguese support staffing, Pix availability, or a free trial that the billing configuration does not actually offer. Preserve warnings about ownership, public URLs, recordings, uploads and English legal documents.
+Use direct, natural Brazilian Portuguese with “você.” Do not promise perfect transcription, Portuguese support staffing, Pix availability, or a free trial that the billing configuration does not actually offer. Preserve warnings about ownership, public URLs, recordings and uploads.
 
-Before release, a native Brazilian guitar player should review the full public/signup/transcription/checkout journey and email previews. A billing reviewer must verify displayed monthly/yearly prices, credit costs, rollover caps, actual charge currency, taxes, renewal and cancellation copy against Stripe test mode. Review failed checkout, expired verification/reset links, upload-size gates and Google login errors. Legal policies stay English pending a separate qualified review.
+Before release, a native Brazilian guitar player should review the full public/signup/transcription/checkout journey and email previews. A billing reviewer must verify displayed monthly/yearly prices, credit costs, rollover caps, actual charge currency, taxes, renewal and cancellation copy against Stripe test mode. Review failed checkout, expired verification/reset links, upload-size gates and Google login errors. Portuguese legal drafts require a separate qualified review before release.
 
 Language is separate from currency. Brazilian formatting uses decimal commas through `Intl`; BRL is selected by existing country/currency preference, not by choosing Portuguese. SSR pricing and structured data share the same currency. A browser language choice is saved for 30 days in `n2t_locale` and in local storage when selected; it is not an account-level cross-device preference. Completion email locale comes from the authenticated final-status request. A future background completion sender needs a durable account/job preference.
 
@@ -61,7 +70,7 @@ Client page and funnel events carry `content_locale`, `locale_source` and `local
 
 Use first paid invoice per user/invoice as the paid endpoint, separating renewals. Build an ordered, same-user funnel: localized landing → signup → verification → transcription start → success → pricing → checkout → positive paid invoice. Compare Portuguese and English users from Brazil within acquisition channel, device and currency. Also measure **new Portuguese organic queries/impressions and new customers** in Search Console: conversion uplift alone cannot quantify newly reachable demand. Query-level acquisition evidence remains a launch prerequisite for evaluating SEO expansion.
 
-Start with one locale and these three public pages after review. Suggested decision rules (hypotheses, not statistically derived promises):
+Start with this one locale after review. Suggested decision rules (hypotheses, not statistically derived promises):
 
 - Collect at least four weeks and 100 checkout handoffs; extend observation if paid volume is too low to resolve uncertainty.
 - Expand only if contribution revenue per Brazilian acquired user improves, newly reached Portuguese organic customers appear, and completion/error/support guardrails hold. Report intervals and channel mix, not only a percentage uplift.
@@ -70,14 +79,16 @@ Start with one locale and these three public pages after review. Suggested decis
 
 ## Validation and remaining limits
 
-140 tests across 16 focused unit/integration suites pass; the optimized Next.js build includes TypeScript checking. Automated checks cover catalog/placeholder parity, locale routes, checkout resume/cancel destinations, Brazilian price formatting, email escaping and links, review gating, and prefixed sensitive-route replay/privacy protection. Existing pricing, email, analytics and welcome tests run alongside them. Production and preview builds are checked separately; normal production was checked to return 404 for the unreviewed Portuguese pilot.
+132 tests across nine focused unit/integration suites pass; the optimized Next.js preview build includes TypeScript checking. Automated checks cover catalog/placeholder parity, locale routes, checkout resume/cancel destinations, Brazilian price formatting, email escaping and links, review gating, and prefixed sensitive-route replay/privacy protection. Existing pricing, email, analytics and welcome tests run alongside them. Production and preview builds are checked separately; normal production was checked to return 404 for the unreviewed Portuguese pilot.
 
 No external account was created, no email was sent and no paid Stripe transaction was executed during local QA. Live Google OAuth, email delivery, Stripe test-mode tax/payment-method behavior and native-speaker review still require the configured staging environment. The implementation creates no database schema or production data changes.
 
-### Layout review
+### Expanded site validation (October 8, 2026)
 
-Navigation retains the chosen language through English-only destinations. Visiting `/editor` or `/gte` does not reset Portuguese links back to the transcriber, pricing or authentication flows. Content language remains determined by the route; explicitly selecting English resets navigation to English. Browser QA verified the editor round trip, an editor reload, and the reverse English selection; the production preview build and 16 localization/SEO tests pass.
+The expansion passes 132 tests across nine focused suites covering localization, source revision checks, article compilation and TOC anchors, redirects, billing portal returns, existing Brazilian price catalog behavior, authentication and job access. The preview production build passes with Webpack and TypeScript. Static translation calls have complete matching English/Portuguese catalog coverage.
 
-The shared layouts accommodate English and Brazilian Portuguese without locale-specific height estimates. Plan cards share natural row sizes on desktop and stack below 1001px; header navigation collapses below 961px. Form actions have equal widths, converter controls wrap, workflow-card descriptions align, and footer headings share a row.
+The blog source was read from published content only. No database writes, emails, purchases or live account changes were performed. Account-specific authenticated views are covered by code review and mocked authorization/billing tests, not a real signed-in account. Native-language and legal review remain pending.
 
-Browser QA checked all 10 localized route templates in both languages at 320px, 820px and 1440px: 60 page/viewport combinations without document overflow or clipped buttons. Dynamic reset-link and job routes were checked in their loading/unauthenticated states; authenticated job results and account-specific plan buttons were reviewed in code, not exercised with a live account. Twelve English destination pages also passed the 320px checks. Monthly and annual pricing, homepage card rows, and YouTube input controls received additional visual checks. The production preview build and 40 existing pricing/localization/SEO tests pass. Desktop and mobile pricing screenshots are saved alongside this document.
+Browser QA covered 342 page/viewport combinations: 31 site templates and all 26 articles, in English and Brazilian Portuguese at 320px, 820px and 1440px. No document overflow or clipped action buttons was found. The editor landing page feature headings and descriptions, and workflow headings and descriptions, share measured row positions on desktop. All translated articles rendered Portuguese bodies and self canonicals. Desktop and mobile editor landing screenshots are saved beside this document.
+
+The final navigation check opened the blank `/gte` editor from `/pt-br/editor`, returned home, and reached the Portuguese transcriber. Selecting English switched the page and links to English and closed the chooser. The shared desktop editor heading was checked again in both languages at all three widths. Screenshots: `pt-br-editor-desktop.jpg` and `pt-br-editor-mobile.jpg`.

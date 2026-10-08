@@ -1,5 +1,6 @@
+import { useLocale } from "../lib/i18n/react";
 import Image from "next/image";
-import Link from "next/link";
+import Link from "./LocaleLink";
 import {
   SEO_OPPORTUNITY_CONTENT_LAST_MODIFIED,
   getSeoFeaturePage,
@@ -68,6 +69,7 @@ const featureVisuals: Record<string, FeatureVisual> = {
 };
 
 export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
+  const { t } = useLocale();
   const visual = featureVisuals[page.slug] || featureVisuals["guitar-tab-editor-shortcuts"];
   const relatedPages = page.relatedSlugs
     .map((slug) => getSeoFeaturePage(slug))
@@ -112,28 +114,28 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
 
   return (
     <>
-      <SeoHead title={page.metaTitle} description={page.description} canonicalPath={canonicalPath} jsonLd={jsonLd} />
+      <SeoHead title={t(page.metaTitle)} description={page.description} canonicalPath={canonicalPath} jsonLd={jsonLd} />
       <main className={`feature-story feature-story--${visual.tone}`}>
         <section className="feature-story-hero">
           <div className="container feature-story-hero-grid">
             <div className="feature-story-hero-copy">
-              <nav className="feature-story-breadcrumb" aria-label="Breadcrumb">
-                <Link href="/editor">Guitar tab editor</Link>
-                <span aria-hidden="true">/</span>
-                <Link href="/features">Features</Link>
-                <span aria-hidden="true">/</span>
-                <span>{visual.label}</span>
+              <nav className="feature-story-breadcrumb" aria-label={t("Breadcrumb")}>
+                <Link href="/editor">{t("Guitar tab editor")}</Link>
+                <span aria-hidden="true">{t("/")}</span>
+                <Link href="/features">{t("Features")}</Link>
+                <span aria-hidden="true">{t("/")}</span>
+                <span>{t(visual.label)}</span>
               </nav>
-              <h1>{page.title}</h1>
-              <p>{page.description}</p>
+              <h1>{t(page.title)}</h1>
+              <p>{t(page.description)}</p>
               <div className="feature-story-actions">
-                <Link href="/editor" className="button-primary">Try the editor free</Link>
-                <Link href="/transcribe" className="button-secondary">Transcribe audio to tabs</Link>
+                <Link href="/editor" className="button-primary">{t("Try the editor free")}</Link>
+                <Link href="/transcribe" className="button-secondary">{t("Transcribe audio to tabs")}</Link>
               </div>
-              <div className="feature-story-proof" aria-label="Product highlights">
-                <span>Runs in your browser</span>
-                <span>Guest mode available</span>
-                <span>Editable results</span>
+              <div className="feature-story-proof" aria-label={t("Product highlights")}>
+                <span>{t("Runs in your browser")}</span>
+                <span>{t("Guest mode available")}</span>
+                <span>{t("Editable results")}</span>
               </div>
             </div>
 
@@ -141,11 +143,11 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
               <div className="feature-story-window">
                 <div className="feature-story-window-bar" aria-hidden="true">
                   <i /><i /><i />
-                  <span>note2tabs.com/editor</span>
+                  <span>{t("note2tabs.com/editor")}</span>
                 </div>
                 <Image
                   src={visual.image}
-                  alt={visual.imageAlt}
+                  alt={t(visual.imageAlt)}
                   width={visual.image.includes("training") ? 1242 : visual.image.includes("collage") ? 822 : 1897}
                   height={visual.image.includes("training") ? 772 : visual.image.includes("collage") ? 604 : 949}
                   priority
@@ -153,9 +155,9 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
                 />
               </div>
               <aside className="feature-story-callout">
-                <span>{visual.label}</span>
-                <strong>{visual.headline}</strong>
-                <p>{visual.note}</p>
+                <span>{t(visual.label)}</span>
+                <strong>{t(visual.headline)}</strong>
+                <p>{t(visual.note)}</p>
               </aside>
             </div>
           </div>
@@ -164,15 +166,15 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
         <section className="feature-story-steps" aria-labelledby="feature-workflow-title">
           <div className="container">
             <div className="feature-story-section-heading">
-              <span>One focused workflow</span>
-              <h2 id="feature-workflow-title">From first input to a playable result.</h2>
+              <span>{t("One focused workflow")}</span>
+              <h2 id="feature-workflow-title">{t("From first input to a playable result.")}</h2>
             </div>
             <div className="feature-story-step-grid">
               {page.steps.map((step, index) => (
                 <article key={step.title}>
-                  <span>{String(index + 1).padStart(2, "0")}</span>
-                  <h3>{step.title}</h3>
-                  <p>{step.body}</p>
+                  <span>{t(String(index + 1).padStart(2, "0"))}</span>
+                  <h3>{t(step.title)}</h3>
+                  <p>{t(step.body)}</p>
                 </article>
               ))}
             </div>
@@ -182,15 +184,15 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
         <section className="feature-story-overview">
           <div className="container feature-story-overview-grid">
             <div className="feature-story-overview-copy">
-              <span className="feature-story-kicker">Built around the instrument</span>
-              <h2>{page.detail.title}</h2>
-              {page.detail.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+              <span className="feature-story-kicker">{t("Built around the instrument")}</span>
+              <h2>{t(page.detail.title)}</h2>
+              {page.detail.paragraphs.map((paragraph) => <p key={paragraph}>{t(paragraph)}</p>)}
             </div>
             <div className="feature-story-benefits">
               {page.detail.benefits.map((benefit, index) => (
                 <article key={benefit.title}>
-                  <span>{String(index + 1).padStart(2, "0")}</span>
-                  <div><h3>{benefit.title}</h3><p>{benefit.body}</p></div>
+                  <span>{t(String(index + 1).padStart(2, "0"))}</span>
+                  <div><h3>{t(benefit.title)}</h3><p>{t(benefit.body)}</p></div>
                 </article>
               ))}
             </div>
@@ -201,13 +203,13 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
           <div className="container feature-story-detail-list">
             {page.contentSections.map((section, index) => (
               <article className="feature-story-detail" key={section.title}>
-                <div className="feature-story-detail-index">0{index + 1}</div>
+                <div className="feature-story-detail-index">{t("0")}{index + 1}</div>
                 <div className="feature-story-detail-copy">
-                  <h2>{section.title}</h2>
-                  {section.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+                  <h2>{t(section.title)}</h2>
+                  {section.paragraphs.map((paragraph) => <p key={paragraph}>{t(paragraph)}</p>)}
                 </div>
                 {section.bullets?.length ? (
-                  <ul>{section.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}</ul>
+                  <ul>{section.bullets.map((bullet) => <li key={bullet}>{t(bullet)}</li>)}</ul>
                 ) : (
                   <div className="feature-story-detail-mark" aria-hidden="true"><span /><span /><span /></div>
                 )}
@@ -219,15 +221,15 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
         <section className="feature-story-faq">
           <div className="container feature-story-faq-grid">
             <div className="feature-story-section-heading">
-              <span>Good to know</span>
-              <h2>Questions before you start.</h2>
-              <p>Open the editor in guest mode, then sign in only when you want to save your work.</p>
+              <span>{t("Good to know")}</span>
+              <h2>{t("Questions before you start.")}</h2>
+              <p>{t("Open the editor in guest mode, then sign in only when you want to save your work.")}</p>
             </div>
             <div className="feature-story-faq-list">
               {page.faqs.map((faq) => (
                 <details key={faq.question}>
-                  <summary>{faq.question}</summary>
-                  <p>{faq.answer}</p>
+                  <summary>{t(faq.question)}</summary>
+                  <p>{t(faq.answer)}</p>
                 </details>
               ))}
             </div>
@@ -237,23 +239,23 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
         <section className="feature-story-related">
           <div className="container">
             <div className="feature-story-related-heading">
-              <div><span className="feature-story-kicker">Keep exploring</span><h2>More ways to shape a better tab.</h2></div>
-              <Link href="/features">View all features →</Link>
+              <div><span className="feature-story-kicker">{t("Keep exploring")}</span><h2>{t("More ways to shape a better tab.")}</h2></div>
+              <Link href="/features">{t("View all features →")}</Link>
             </div>
             <div className="feature-story-related-grid">
               {relatedPages.map((related, index) => (
                 <Link href={`/features/${related.slug}`} key={related.slug}>
-                  <span>0{index + 1}</span>
-                  <h3>{related.title}</h3>
-                  <p>{related.description}</p>
-                  <strong>Explore feature →</strong>
+                  <span>{t("0")}{index + 1}</span>
+                  <h3>{t(related.title)}</h3>
+                  <p>{t(related.description)}</p>
+                  <strong>{t("Explore feature →")}</strong>
                 </Link>
               ))}
               <Link href="/editor">
-                <span>03</span>
-                <h3>Online guitar tab editor</h3>
-                <p>Write a tab from scratch, import a file, or open a transcription in the same complete browser editor.</p>
-                <strong>Open the editor →</strong>
+                <span>{t("03")}</span>
+                <h3>{t("Online guitar tab editor")}</h3>
+                <p>{t("Write a tab from scratch, import a file, or open a transcription in the same complete browser editor.")}</p>
+                <strong>{t("Open the editor →")}</strong>
               </Link>
             </div>
           </div>
@@ -261,10 +263,10 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
 
         <section className="feature-story-cta">
           <div className="container feature-story-cta-card">
-            <div><span>Ready when you are</span><h2>Create your next guitar tab.</h2><p>Start blank, import a file, or begin with a transcription. No installation required.</p></div>
+            <div><span>{t("Ready when you are")}</span><h2>{t("Create your next guitar tab.")}</h2><p>{t("Start blank, import a file, or begin with a transcription. No installation required.")}</p></div>
             <div className="feature-story-actions">
-              <Link href="/editor" className="button-primary">Try the editor free</Link>
-              <Link href="/transcribe" className="button-secondary">Start with audio</Link>
+              <Link href="/editor" className="button-primary">{t("Try the editor free")}</Link>
+              <Link href="/transcribe" className="button-secondary">{t("Start with audio")}</Link>
             </div>
           </div>
         </section>

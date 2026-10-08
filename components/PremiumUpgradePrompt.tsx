@@ -77,7 +77,7 @@ export function PremiumPromptCard({
   onClick,
   preview = false,
 }: PremiumPromptCardProps) {
-  const { t, locale, href: localePath } = useLocale();
+  const { t, locale } = useLocale();
   const copy = promptCopy[reason];
   return (
     <aside className={`premium-upgrade-prompt${preview ? " premium-upgrade-prompt--preview" : ""}`} aria-label={t("Premium subscription")}>

@@ -212,7 +212,7 @@ const parseYouTubeId = (value: string): string | null => {
 const formatTrustMetric = (value: number) => new Intl.NumberFormat("en-US").format(value);
 
 export default function HomePage({ trustMetrics }: HomePageProps) {
-  const { t, locale, href: localePath } = useLocale();
+  const { t, locale } = useLocale();
   const formatLocalizedAmount = (...args: Parameters<typeof rawAmount>) => rawAmount(args[0], args[1], locale);
   const formatLocalizedPrice = (...args: Parameters<typeof rawPrice>) => rawPrice(args[0], args[1], args[2], locale);
   const localizedAnnualSaving = (...args: Parameters<typeof rawSaving>) => rawSaving(args[0], args[1], locale);
@@ -1645,7 +1645,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
               <div className="hero-title-row">
                 <h1 className="hero-title">{t("Convert Any Song to Guitar Tabs")}</h1>
               </div>
-              <p className="hero-subtitle hero-subtitle--conversion">{t(" Turn recordings into guitar tab you can edit, practice, and export. ")}</p>{locale === "pt-BR" && <p className="locale-scope-note">{t("Transcription and pricing in Portuguese. The editor, help and legal documents are in English.")}</p>}
+              <p className="hero-subtitle hero-subtitle--conversion">{t(" Turn recordings into guitar tab you can edit, practice, and export. ")}</p>{locale === "pt-BR" && <p className="locale-scope-note">{t("The tab editor (/gte) is in English.")}</p>}
             </div>
             <form
               id="transcriber-start"

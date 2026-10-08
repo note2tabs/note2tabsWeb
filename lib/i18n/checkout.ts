@@ -4,7 +4,7 @@ export function localizeCheckoutReturnPaths(paths: {success: string; cancel: str
   return {
     success: localeHref(paths.success.replace(/next=([^&]+)/, (_, next: string) =>
       `next=${encodeURIComponent(localeHref(decodeURIComponent(next), locale))}`), locale),
-    cancel: localeHref(paths.cancel.startsWith("/settings") ? "/pricing?upgrade=cancel" : paths.cancel, locale),
-    manage: paths.manage,
+    cancel: localeHref(paths.cancel, locale),
+    manage: localeHref(paths.manage, locale),
   };
 }

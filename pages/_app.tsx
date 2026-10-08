@@ -1,4 +1,4 @@
-import { localeFromPath } from "../lib/i18n/locale";
+import { stripLocale, localeFromPath } from "../lib/i18n/locale";
 import { translate } from "../lib/i18n/translate";
 import { DisplayCurrencyContext } from "../lib/useDisplayCurrency";
 import { LocaleProvider } from "../lib/i18n/react";
@@ -32,7 +32,7 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
   const router = useRouter();
   const isGteEditorPage =
     router.pathname === "/gte/[editor_id]" || router.pathname === "/dev/heavy-preview-editor";
-  const isProductHomePage = router.pathname === "/home" || router.pathname === "/shared";
+  const isProductHomePage = stripLocale(router.pathname) === "/home" || stripLocale(router.pathname) === "/shared";
 
   useEffect(() => {
     return installStaleChunkRecovery(router.events, {

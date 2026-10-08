@@ -1,3 +1,4 @@
+import { useLocale } from "../lib/i18n/react";
 import { useEffect, useRef } from "react";
 import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
 
@@ -16,6 +17,7 @@ export default function PostValuePremiumPrompt({
   editorId,
   trigger,
 }: PostValuePremiumPromptProps) {
+  const { t } = useLocale();
   const promptRef = useRef<HTMLElement | null>(null);
   const viewedRef = useRef(false);
 
@@ -44,17 +46,17 @@ export default function PostValuePremiumPrompt({
 
   if (!open) return null;
   return (
-    <aside ref={promptRef} className="heavy-preview-editor-prompt post-value-premium-prompt" aria-label="Premium plans">
-      <button type="button" className="heavy-preview-editor-prompt__close" onClick={onClose} aria-label="Dismiss Premium offer">×</button>
+    <aside ref={promptRef} className="heavy-preview-editor-prompt post-value-premium-prompt" aria-label={t("Premium plans")}>
+      <button type="button" className="heavy-preview-editor-prompt__close" onClick={onClose} aria-label={t("Dismiss Premium offer")}>{t("×")}</button>
       <div className="heavy-preview-editor-prompt__copy">
-        <strong>Get more from your transcriptions</strong>
-        <p>Use the Heavy model, transcribe larger files, and get 100 monthly credits.</p>
+        <strong>{t("Get more from your transcriptions")}</strong>
+        <p>{t("Use the Heavy model, transcribe larger files, and get 100 monthly credits.")}</p>
       </div>
       <div className="heavy-preview-editor-prompt__actions">
-        <button type="button" className="button-primary button-small" onClick={onUpgrade}>See plans</button>
-        <button type="button" className="heavy-preview-editor-prompt__later" onClick={onClose}>Not now</button>
+        <button type="button" className="button-primary button-small" onClick={onUpgrade}>{t("See plans")}</button>
+        <button type="button" className="heavy-preview-editor-prompt__later" onClick={onClose}>{t("Not now")}</button>
       </div>
-      <small className="heavy-preview-editor-prompt__reassurance">Plans from $5.99/month · Cancel anytime</small>
+      <small className="heavy-preview-editor-prompt__reassurance">{t("Plans from $5.99/month · Cancel anytime")}</small>
     </aside>
   );
 }

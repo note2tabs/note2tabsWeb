@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { useLocale } from "../lib/i18n/react";
+import Link from "./LocaleLink";
 import { trackCtaClick } from "../lib/analytics";
 import { gteApi } from "../lib/gteApi";
 import type { EditorListItem } from "../types/gte";
@@ -42,33 +43,30 @@ export default function WorkspaceSidebar({
   isPremium,
   analyticsSurface,
 }: WorkspaceSidebarProps) {
+  const { t } = useLocale();
   const track = (cta: string) =>
     trackCtaClick(cta, { surface: analyticsSurface, plan: isPremium ? "premium" : "free" });
 
   return (
-    <aside className="product-studio-sidebar" aria-label="Workspace navigation">
+    <aside className="product-studio-sidebar" aria-label={t("Workspace navigation")}>
       <nav>
         <Link href="/home" className={active === "home" ? "is-active" : undefined} onClick={() => track(`${analyticsSurface}_sidebar_home`)}>
           <SidebarIcon name="home" />
-          Home
-        </Link>
+          {t("Home")}</Link>
         <Link href="/transcribe" className={active === "transcriber" ? "is-active" : undefined} onClick={() => track(`${analyticsSurface}_sidebar_transcribe`)}>
           <SidebarIcon name="transcriber" />
-          Transcriber
-        </Link>
+          {t("Transcriber")}</Link>
         <Link href="/gte" className={active === "tabs" ? "is-active" : undefined} onClick={() => track(`${analyticsSurface}_sidebar_editors`)}>
           <SidebarIcon name="tabs" />
-          My tabs
-        </Link>
+          {t("My tabs")}</Link>
         <Link href="/shared" className={active === "shared" ? "is-active" : undefined} onClick={() => track(`${analyticsSurface}_sidebar_shared`)}>
           <SidebarIcon name="shared" />
-          Shared with you
-        </Link>
+          {t("Shared with you")}</Link>
       </nav>
       <div className="product-studio-sidebar__recent">
         <header>
-          <span>Recent tabs</span>
-          <Link href="/gte">View all</Link>
+          <span>{t("Recent tabs")}</span>
+          <Link href="/gte">{t("View all")}</Link>
         </header>
         {recentEditors.slice(0, 4).map((editor) => (
           <Link
@@ -76,10 +74,10 @@ export default function WorkspaceSidebar({
             href={`/gte/${editor.id}`}
             onPointerDown={() => void gteApi.prefetchEditor(editor.id).catch(() => {})}
           >
-            {editorName(editor)}
+            {editor.name?.trim() || t("Untitled tab")}
           </Link>
         ))}
-        {!loading && recentEditors.length === 0 && <small>No tabs yet</small>}
+        {!loading && recentEditors.length === 0 && <small>{t("No tabs yet")}</small>}
       </div>
       {!isPremium && (
         <Link
@@ -87,9 +85,9 @@ export default function WorkspaceSidebar({
           href="/pricing?source=product_home"
           onClick={() => track(`${analyticsSurface}_sidebar_premium`)}
         >
-          <strong>Premium</strong>
-          <span>More credits and full-song uploads</span>
-          <i>Explore →</i>
+          <strong>{t("Premium")}</strong>
+          <span>{t("More credits and full-song uploads")}</span>
+          <i>{t("Explore →")}</i>
         </Link>
       )}
     </aside>

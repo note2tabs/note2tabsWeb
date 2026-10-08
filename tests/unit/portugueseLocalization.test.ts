@@ -19,7 +19,7 @@ afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.clearAllMocks();
 
 describe("Portuguese acquisition pilot", () => {
   it("retains the chosen navigation language through English-only destinations", () => {
-    for (const path of ["/editor", "/gte", "/gte/private-editor", "/about", "/blog/song"]) {
+    for (const path of ["/gte", "/gte/private-editor"]) {
       const navigationLocale = navigationLocaleForPath(path, "pt-BR");
       expect(localeFromPath(path)).toBe("en");
       expect(localeHref("/transcribe", navigationLocale)).toBe("/pt-br/transcribe");
@@ -42,11 +42,11 @@ describe("Portuguese acquisition pilot", () => {
     expect(translate(" month ", "en")).toBe(" month ");
     expect(translate(" and Pro is {price} per {period}", "pt-BR", {price: "R$ 54,90", period: "mês"})).toBe(" e o Pro custa R$ 54,90 por mês");
   });
-  it("keeps unsupported editor/legal/blog URLs and external URLs intact", () => {
+  it("keeps the interactive editor and external URLs intact", () => {
     expect(localeHref("/transcriber?resumeTranscription=1", "pt-BR")).toBe("/pt-br/transcribe?resumeTranscription=1");
     expect(localeHref("/?resumeTranscription=1#hero", "pt-BR")).toBe("/pt-br?resumeTranscription=1#hero");
     expect(localeHref("/pt-br?resumeTranscription=1#hero", "en")).toBe("/?resumeTranscription=1#hero");
-    for (const path of ["/gte/private", "/editor", "/privacy", "/blog/song", "https://stripe.com/checkout", "//example.com"]) expect(localeHref(path, "pt-BR")).toBe(path);
+    for (const path of ["/gte/private", "https://stripe.com/checkout", "//example.com"]) expect(localeHref(path, "pt-BR")).toBe(path);
     expect(localeFromPath("/pt-brain")).toBe("en");
     expect(normalizeLocale("pt-PT")).toBe("en");
   });
@@ -91,7 +91,7 @@ describe("Portuguese acquisition pilot", () => {
     const localized = localizeCheckoutReturnPaths(paths, "pt-BR");
     expect(localized.cancel).toBe("/pt-br/transcribe?resumeTranscription=1&upgrade=cancel");
     expect(new URL(localized.success, "https://example.com").searchParams.get("next")).toBe("/pt-br/transcribe?resumeTranscription=1");
-    expect(localized.manage).toBe(paths.manage);
+    expect(localized.manage).toBe("/pt-br/settings?upgrade=manage");
   });
   it("keeps known actionable errors and hides unknown backend details", () => {
     expect(translatedError("Password must be at least 10 characters.", "pt-BR")).toContain("10 caracteres");

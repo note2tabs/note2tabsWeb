@@ -55,7 +55,7 @@ export const shouldShowPremiumNav = (
   sessionStatus !== "loading" && (!hasSession || !hasPremiumAccess);
 
 export default function NavBar({ editorRevealMode = false }: NavBarProps) {
-  const { t, locale, href: localePath } = useLocale();
+  const { t, href: localePath } = useLocale();
   const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -71,9 +71,9 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
   const scrollFrameRef = useRef<number | null>(null);
   const editorMouseNearTopRef = useRef(false);
   const editorAtPageTopRef = useRef(true);
-  const isReadingArticle = router.pathname === "/blog/[slug]";
+  const isReadingArticle = stripLocale(router.pathname) === "/blog/[slug]";
   const isHome = stripLocale(router.pathname) === "/";
-  const isProductHome = router.pathname === "/home";
+  const isProductHome = stripLocale(router.pathname) === "/home";
   const role = session?.user?.role || "";
   const isAdmin = role === "ADMIN";
   const hasPremiumAccess = ["PREMIUM", "ADMIN", "MODERATOR", "MOD"].includes(role);
@@ -300,7 +300,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
                               key={item.href}
                               href={item.href}
                               role="menuitem"
-                              aria-current={router.pathname === item.href ? "page" : undefined}
+                              aria-current={stripLocale(router.pathname) === item.href ? "page" : undefined}
                               onClick={() => {
                                 setAdminMenuOpen(false);
                                 setProfileMenuOpen(false);
@@ -332,7 +332,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
                       try {
                         await resetPostHogIdentity();
                         await signOut({ redirect: false });
-                        window.location.href = "/";
+                        window.location.href = localePath("/");
                       } catch {
                         setSignOutError(t("Could not sign out. Check your connection and try again."));
                         setSignOutBusy(false);

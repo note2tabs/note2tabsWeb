@@ -2,7 +2,7 @@ import { useLocale } from "../lib/i18n/react";
 import Link from "./LocaleLink";
 
 export default function FooterBar() {
-  const { t, locale, href: localePath } = useLocale();
+  const { t } = useLocale();
   return (
     <footer className="footer-shell" data-nosnippet>
       <div className="container footer-layout">

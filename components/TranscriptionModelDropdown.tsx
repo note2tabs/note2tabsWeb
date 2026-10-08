@@ -26,7 +26,7 @@ export default function TranscriptionModelDropdown({
   verificationRequired = false,
   onLockedHeavySelect,
 }: TranscriptionModelDropdownProps) {
-  const { t, locale, href: localePath } = useLocale();
+  const { t } = useLocale();
   const detailsRef = useRef<HTMLDetailsElement | null>(null);
   const selected =
     TRANSCRIPTION_MODEL_OPTIONS.find((option) => option.value === value) ??

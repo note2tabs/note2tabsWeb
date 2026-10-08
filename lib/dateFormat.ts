@@ -1,13 +1,9 @@
-const blogDateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-  timeZone: "UTC",
-});
-
-export const formatBlogDate = (value?: string | null) => {
+import type { AppLocale } from "./i18n/locale";
+export const formatBlogDate = (value?: string | null, locale: AppLocale = "en") => {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return blogDateFormatter.format(date);
+  return new Intl.DateTimeFormat(locale === "pt-BR" ? "pt-BR" : "en-US", {
+    month: "short", day: "numeric", year: "numeric", timeZone: "UTC",
+  }).format(date);
 };

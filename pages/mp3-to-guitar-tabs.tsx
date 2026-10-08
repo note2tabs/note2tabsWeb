@@ -1,9 +1,11 @@
+import { useLocale } from "../lib/i18n/react";
 import SeoLandingPage from "../components/SeoLandingPage";
 
 export default function Mp3ToGuitarTabsPage() {
+  const { t } = useLocale();
   return (
     <SeoLandingPage
-      title="MP3 to Guitar Tabs Converter"
+      title={t("MP3 to Guitar Tabs Converter")}
       metaTitle="MP3 to Guitar Tabs Converter – Online & Editable"
       description="Convert MP3 audio to playable, editable guitar tabs online. Select a song section, generate tablature, then practise, edit, and export it with Note2Tabs."
       canonicalPath="/mp3-to-guitar-tabs"

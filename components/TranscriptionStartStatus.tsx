@@ -5,7 +5,7 @@ type TranscriptionStartStatusProps = {
 };
 
 export default function TranscriptionStartStatus({ status, compact = false }: TranscriptionStartStatusProps) {
-  const { t, locale, href: localePath } = useLocale();
+  const { t } = useLocale();
   return (
     <div
       className={`transcription-start-panel${compact ? " transcription-start-panel--compact" : ""}`}

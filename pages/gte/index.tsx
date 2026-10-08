@@ -1,9 +1,9 @@
 import { GetServerSideProps } from "next";
-import Link from "next/link";
+import Link from "../../components/LocaleLink";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
-import { useRouter } from "next/router";
+import { useLocaleRouter as useRouter } from "../../lib/i18n/react";
 import { gteApi } from "../../lib/gteApi";
 import type { EditorListItem, EditorSnapshot } from "../../types/gte";
 import { clearGuestDraft, GTE_GUEST_EDITOR_ID, readGuestDraft } from "../../lib/gteGuestDraft";

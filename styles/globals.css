@@ -14405,3 +14405,42 @@ input[type="number"] {
   .nav .logo { font-size: .9rem; }
   .language-selector summary { gap: 4px; padding: 8px 6px; }
 }
+
+/* Translated copy participates in shared rows, so longer labels stay aligned. */
+.editor-v2-actions, .editor-v2-paths, .feature-story-hero-actions { align-items: stretch; }
+.editor-v2-feature-grid article > div { min-width: 0; }
+.settingsRowMain, .settingsRowValue, .settingsNav button, .shared-page__person { min-width: 0; overflow-wrap: anywhere; }
+.settingsRowValue { flex-wrap: wrap; }
+.affiliateInfoPrimary, .affiliateInfoSecondary, .affiliatePrimaryButton, .affiliateSecondaryButton, .settingsButton { max-width: 100%; white-space: normal; text-align: center; overflow-wrap: anywhere; }
+.affiliateInfoPrimary svg, .affiliateInfoSecondary svg, .affiliatePrimaryButton svg { flex-shrink: 0; }
+.blog-card, .blog-card-body { min-width: 0; overflow-wrap: anywhere; }
+.blog-card-meta, .blog-card-tags { flex-wrap: wrap; }
+@supports (grid-template-rows: subgrid) {
+  @media (min-width: 761px) {
+    .how-step, .editor-v2-step-grid article, .feature-story-step-grid article {
+      display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: 0;
+    }
+    .how-step p, .editor-v2-step-grid article p { align-self: start; }
+    .seo-landing-resource-card { grid-row: span 2; grid-template-rows: subgrid; }
+    .feature-story-related-grid > a, .features-hub-card {
+      display: grid; grid-row: span 4; grid-template-rows: subgrid; row-gap: 0;
+    }
+    .feature-story-related-grid strong, .features-hub-card > strong { align-self: end; margin-top: 0; }
+    .features-hub-card-top { align-self: start; }
+    .features-hub-card h3 { align-self: start; }
+    .editor-v2-paths > a, .editor-v2-paths > button { display: grid; grid-row: span 2; grid-template-rows: subgrid; row-gap: 8px; }
+  }
+}
+.blog-card-body { display: flex; flex-direction: column; }
+.blog-card-meta { margin-top: auto; }
+@supports (grid-template-rows: subgrid) {
+  @media (min-width: 761px) {
+    .editor-v2-feature-grid article { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-row: span 2; grid-template-rows: subgrid; row-gap: 0; }
+    .editor-v2-feature-grid article > span { grid-row: 1 / span 2; }
+    .editor-v2-feature-grid article > div { display: grid; grid-column: 2; grid-row: span 2; grid-template-rows: subgrid; }
+    .editor-v2-feature-grid h2, .editor-v2-feature-grid p { align-self: start; }
+  }
+}
+@media (min-width: 1001px) {
+  .editor-v2-hero-copy h1 { font-size: clamp(3.5rem, 4.8vw, 4.8rem); max-width: none; text-wrap: balance; }
+}

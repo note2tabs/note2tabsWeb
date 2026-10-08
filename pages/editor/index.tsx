@@ -1,6 +1,8 @@
-import Link from "next/link";
+import { translatedError } from "../../lib/i18n/translate";
+import { useLocale } from "../../lib/i18n/react";
+import Link from "../../components/LocaleLink";
 import Image from "next/image";
-import { useRouter } from "next/router";
+import { useLocaleRouter as useRouter } from "../../lib/i18n/react";
 import { useSession } from "next-auth/react";
 import { useState } from "react";
 import { gteApi } from "../../lib/gteApi";
@@ -92,6 +94,7 @@ const editorFaqs = [
 ] as const;
 
 export default function EditorLandingPage() {
+  const { t, locale } = useLocale();
   const router = useRouter();
   const { data: session, status } = useSession();
   const [creating, setCreating] = useState(false);
@@ -173,7 +176,7 @@ export default function EditorLandingPage() {
   return (
     <>
       <SeoHead
-        title="Online Guitar Tab Editor – Write, Play & Practise Tabs | Note2Tabs"
+        title={t("Online Guitar Tab Editor – Write, Play & Practise Tabs | Note2Tabs")}
         description={editorDescription}
         canonicalPath="/editor"
         jsonLd={editorJsonLd}
@@ -183,56 +186,55 @@ export default function EditorLandingPage() {
         <section className="editor-v2-hero">
           <div className="container editor-v2-hero-grid">
             <div className="editor-v2-hero-copy">
-              <span className="editor-v2-kicker">Online guitar tab editor</span>
-              <h1>Write, play, and practise guitar tabs online.</h1>
-              <p>{editorDescription}</p>
+              <span className="editor-v2-kicker">{t("Online guitar tab editor")}</span>
+              <h1>{t("Write, play, and practise guitar tabs online.")}</h1>
+              <p>{t(editorDescription)}</p>
               <div className="editor-v2-actions">
                 <button type="button" onClick={() => void handleCreate()} className="button-primary" disabled={creating}>
-                  {creating ? "Starting..." : "Start a blank tab"}
+                  {t(creating ? "Starting..." : "Start a blank tab")}
                 </button>
                 <Link href={LIBRARY_PATH} className="button-secondary">
-                  Open library
-                </Link>
+                  {t("Open library")}</Link>
               </div>
-              <div className="editor-v2-proof" aria-label="Editor highlights">
-                <span>No installation</span>
-                <span>Guest mode</span>
-                <span>30+ guitar-specific tools</span>
+              <div className="editor-v2-proof" aria-label={t("Editor highlights")}>
+                <span>{t("No installation")}</span>
+                <span>{t("Guest mode")}</span>
+                <span>{t("30+ guitar-specific tools")}</span>
               </div>
-              {error && <div className="error editor-landing-error" role="alert">{error}</div>}
+              {error && <div className="error editor-landing-error" role="alert">{translatedError(error, locale)}</div>}
             </div>
 
-            <div className="editor-v2-hero-visual" aria-label="Preview of the Note2Tabs guitar tab editor">
+            <div className="editor-v2-hero-visual" aria-label={t("Preview of the Note2Tabs guitar tab editor")}>
               <div className="editor-v2-window">
                 <div className="editor-v2-window-bar" aria-hidden="true">
                   <span />
                   <span />
                   <span />
-                  <em>note2tabs.com/editor</em>
+                  <em>{t("note2tabs.com/editor")}</em>
                 </div>
                 <Image
                   src="/images/editor-previews/Editor-main.webp"
-                  alt="Note2Tabs guitar tab editor showing a song arranged into editable sections"
+                  alt={t("Note2Tabs guitar tab editor showing a song arranged into editable sections")}
                   width={1897}
                   height={949}
                   priority
                   sizes="(max-width: 900px) calc(100vw - 36px), 54vw"
                 />
               </div>
-              <div className="editor-v2-float editor-v2-float--top">30+ editing tools</div>
-              <div className="editor-v2-float editor-v2-float--bottom">Play · loop · practise</div>
+              <div className="editor-v2-float editor-v2-float--top">{t("30+ editing tools")}</div>
+              <div className="editor-v2-float editor-v2-float--bottom">{t("Play · loop · practise")}</div>
             </div>
           </div>
         </section>
 
-        <section className="editor-v2-feature-strip" aria-label="What you can edit">
+        <section className="editor-v2-feature-strip" aria-label={t("What you can edit")}>
           <div className="container editor-v2-feature-grid">
             {editAreas.map((area, index) => (
               <article key={area.title}>
-                <span>{String(index + 1).padStart(2, "0")}</span>
+                <span>{t(String(index + 1).padStart(2, "0"))}</span>
                 <div>
-                  <h2>{area.title}</h2>
-                  <p>{area.body}</p>
+                  <h2>{t(area.title)}</h2>
+                  <p>{t(area.body)}</p>
                 </div>
               </article>
             ))}
@@ -243,25 +245,23 @@ export default function EditorLandingPage() {
           <div className="container editor-v2-showcase-stack">
             <article className="editor-v2-showcase-row">
               <div className="editor-v2-showcase-copy">
-                <span className="editor-v2-kicker">Built for guitar decisions</span>
-                <h2>Choose the fingering—not just the note.</h2>
+                <span className="editor-v2-kicker">{t("Built for guitar decisions")}</span>
+                <h2>{t("Choose the fingering—not just the note.")}</h2>
                 <p>
-                  The same pitch can live in several places on the fretboard. Compare positions, choose realistic chord
-                  shapes, snap ideas to a key, and keep phrases in a hand position that makes musical sense.
-                </p>
+                  {t("The same pitch can live in several places on the fretboard. Compare positions, choose realistic chord shapes, snap ideas to a key, and keep phrases in a hand position that makes musical sense.")}</p>
                 <ul>
-                  <li><Link href="/features/guitar-tab-fingering-optimizer">Automatic fingering suggestions</Link></li>
-                  <li><Link href="/features/guitar-tab-fingering-optimizer">String and fret optimization</Link></li>
-                  <li>Chord shapes and playing coordinates</li>
+                  <li><Link href="/features/guitar-tab-fingering-optimizer">{t("Automatic fingering suggestions")}</Link></li>
+                  <li><Link href="/features/guitar-tab-fingering-optimizer">{t("String and fret optimization")}</Link></li>
+                  <li>{t("Chord shapes and playing coordinates")}</li>
                 </ul>
                 <Link href="/features" className="editor-v2-showcase-link">
-                  Explore all guitar tab editor features <span aria-hidden="true">→</span>
+                  {t("Explore all guitar tab editor features ")}<span aria-hidden="true">{t("→")}</span>
                 </Link>
               </div>
               <div className="editor-v2-showcase-image editor-v2-showcase-image--tools">
                 <Image
                   src="/images/editor-previews/collage.webp"
-                  alt="Guitar-focused editing tools for fingerings, chords, and fretboard positions"
+                  alt={t("Guitar-focused editing tools for fingerings, chords, and fretboard positions")}
                   width={822}
                   height={604}
                   sizes="(max-width: 820px) calc(100vw - 36px), 48vw"
@@ -271,26 +271,23 @@ export default function EditorLandingPage() {
 
             <article className="editor-v2-showcase-row editor-v2-showcase-row--reverse">
               <div className="editor-v2-showcase-copy">
-                <span className="editor-v2-kicker">Edit and practise together</span>
-                <h2>Hear it, loop it, learn it.</h2>
+                <span className="editor-v2-kicker">{t("Edit and practise together")}</span>
+                <h2>{t("Hear it, loop it, learn it.")}</h2>
                 <p>
-                  Write a tab yourself or open one created by the transcriber, then play it with guitar sounds, loop
-                  difficult sections, and use train mode to build speed gradually.
-                </p>
+                  {t("Write a tab yourself or open one created by the transcriber, then play it with guitar sounds, loop difficult sections, and use train mode to build speed gradually.")}</p>
                 <ul>
-                  <li>Section-based playback</li>
-                  <li><Link href="/features/guitar-tab-practice-trainer">Practice loops and speed training</Link></li>
+                  <li>{t("Section-based playback")}</li>
+                  <li><Link href="/features/guitar-tab-practice-trainer">{t("Practice loops and speed training")}</Link></li>
                   <li>
                     <Link href="/features/guitar-tab-import-export">
-                      Import Guitar Pro, MIDI, MusicXML, or ASCII tab
-                    </Link>
+                      {t("Import Guitar Pro, MIDI, MusicXML, or ASCII tab")}</Link>
                   </li>
                 </ul>
               </div>
               <div className="editor-v2-showcase-image editor-v2-showcase-image--training">
                 <Image
                   src="/images/editor-previews/collage-training.webp"
-                  alt="Playback, looping, and speed-training tools in the guitar tab editor"
+                  alt={t("Playback, looping, and speed-training tools in the guitar tab editor")}
                   width={1242}
                   height={772}
                   sizes="(max-width: 820px) calc(100vw - 36px), 48vw"
@@ -303,30 +300,30 @@ export default function EditorLandingPage() {
         <section className="editor-v2-steps">
           <div className="container">
             <div className="editor-v2-section-heading">
-              <span className="editor-v2-kicker">Simple workflow</span>
-              <h2>From first note to playable tab.</h2>
+              <span className="editor-v2-kicker">{t("Simple workflow")}</span>
+              <h2>{t("From first note to playable tab.")}</h2>
             </div>
             <div className="editor-v2-step-grid">
               {editorSteps.map((step, index) => (
                 <article key={step.title}>
                   <span>{index + 1}</span>
-                  <h3>{step.title}</h3>
-                  <p>{step.body}</p>
+                  <h3>{t(step.title)}</h3>
+                  <p>{t(step.body)}</p>
                 </article>
               ))}
             </div>
             <div className="editor-v2-paths">
               <Link href="/ai-guitar-tab-generator">
-                <span>Have a recording?</span>
-                <strong>Create a guitar tab with AI →</strong>
+                <span>{t("Have a recording?")}</span>
+                <strong>{t("Create a guitar tab with AI →")}</strong>
               </Link>
               <Link href="/audio-to-guitar-tab-converter">
-                <span>Have an MP3 or WAV?</span>
-                <strong>Convert audio to tab →</strong>
+                <span>{t("Have an MP3 or WAV?")}</span>
+                <strong>{t("Convert audio to tab →")}</strong>
               </Link>
               <button type="button" onClick={() => void handleCreate()} disabled={creating}>
-                <span>Already know the part?</span>
-                <strong>Start from a blank tab →</strong>
+                <span>{t("Already know the part?")}</span>
+                <strong>{t("Start from a blank tab →")}</strong>
               </button>
             </div>
           </div>
@@ -335,15 +332,15 @@ export default function EditorLandingPage() {
         <section className="editor-v2-faq">
           <div className="container editor-v2-faq-grid">
             <div className="editor-v2-section-heading">
-              <span className="editor-v2-kicker">Before you start</span>
-              <h2>Questions, answered.</h2>
-              <p>Guest mode opens immediately. Create an account only when you want to save your work.</p>
+              <span className="editor-v2-kicker">{t("Before you start")}</span>
+              <h2>{t("Questions, answered.")}</h2>
+              <p>{t("Guest mode opens immediately. Create an account only when you want to save your work.")}</p>
             </div>
             <div className="editor-faq-list">
               {editorFaqs.map((faq) => (
                 <details className="editor-faq-item" key={faq.question}>
-                  <summary>{faq.question}</summary>
-                  <p>{faq.answer}</p>
+                  <summary>{t(faq.question)}</summary>
+                  <p>{t(faq.answer)}</p>
                 </details>
               ))}
             </div>
@@ -353,12 +350,12 @@ export default function EditorLandingPage() {
         <section className="editor-v2-cta">
           <div className="container editor-v2-cta-card">
             <div>
-              <span className="editor-v2-kicker">Your next riff starts here</span>
-              <h2>Open a blank tab. Make it yours.</h2>
-              <p>No installation and no account required to begin.</p>
+              <span className="editor-v2-kicker">{t("Your next riff starts here")}</span>
+              <h2>{t("Open a blank tab. Make it yours.")}</h2>
+              <p>{t("No installation and no account required to begin.")}</p>
             </div>
             <button type="button" onClick={() => void handleCreate()} className="button-primary" disabled={creating}>
-              {creating ? "Starting..." : "Start creating free"}
+              {t(creating ? "Starting..." : "Start creating free")}
             </button>
           </div>
         </section>

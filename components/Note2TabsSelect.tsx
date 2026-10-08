@@ -1,3 +1,4 @@
+import { useLocale } from "../lib/i18n/react";
 import { useEffect, useId, useRef } from "react";
 
 export type Note2TabsSelectOption<T extends string = string> = {
@@ -22,6 +23,7 @@ export default function Note2TabsSelect<T extends string>({
   disabled = false,
   className = "",
 }: Props<T>) {
+  const { t } = useLocale();
   const rootRef = useRef<HTMLDetailsElement>(null);
   const summaryRef = useRef<HTMLElement>(null);
   const listboxId = useId();
@@ -57,15 +59,15 @@ export default function Note2TabsSelect<T extends string>({
     >
       <summary
         ref={summaryRef}
-        aria-label={`${label}: ${selected?.label || ""}`}
+        aria-label={`${t(label)}: ${t(selected?.label || "")}`}
         aria-controls={listboxId}
         aria-disabled={disabled}
         onClick={(event) => { if (disabled) event.preventDefault(); }}
       >
-        <span>{selected?.label}</span>
+        <span>{t(selected?.label || "")}</span>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
       </summary>
-      <div id={listboxId} className="note2tabs-select__menu" role="listbox" aria-label={label}>
+      <div id={listboxId} className="note2tabs-select__menu" role="listbox" aria-label={t(label)}>
         {options.map((option) => (
           <button
             key={option.value}
@@ -81,7 +83,7 @@ export default function Note2TabsSelect<T extends string>({
             <span className="note2tabs-select__check" aria-hidden="true">
               {option.value === value && <svg viewBox="0 0 16 16"><path d="m3 8 3 3 7-7" /></svg>}
             </span>
-            <span>{option.label}</span>
+            <span>{t(option.label)}</span>
           </button>
         ))}
       </div>

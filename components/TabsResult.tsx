@@ -1,3 +1,4 @@
+import { useLocale } from "../lib/i18n/react";
 import { useMemo, useState } from "react";
 import { copyText } from "../lib/clipboard";
 
@@ -8,6 +9,7 @@ type TabsResultProps = {
 };
 
 export default function TabsResult({ segments, sourceLabel, audioUrl }: TabsResultProps) {
+  const { t } = useLocale();
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
 
   const joinedText = useMemo(
@@ -30,11 +32,11 @@ export default function TabsResult({ segments, sourceLabel, audioUrl }: TabsResu
   return (
     <div className="stack" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
       <div className="card stack">
-        <h3 className="label">Details</h3>
-        <p className="muted text-small">Source: {sourceLabel || "Unknown source"}</p>
+        <h3 className="label">{t("Details")}</h3>
+        <p className="muted text-small">{t("Source: ")}{sourceLabel || "Unknown source"}</p>
         {audioUrl ? (
           <div className="stack" style={{ gap: "8px" }}>
-            <p className="label">Preview</p>
+            <p className="label">{t("Preview")}</p>
             <audio controls src={audioUrl} className="card-outline" />
           </div>
         ) : null}
@@ -43,20 +45,19 @@ export default function TabsResult({ segments, sourceLabel, audioUrl }: TabsResu
       <div className="card stack">
         <div className="page-header">
           <h3 className="section-title" style={{ margin: 0 }}>
-            Generated Tabs
-          </h3>
+            {t("Generated Tabs")}</h3>
           <button type="button" onClick={handleCopy} className="button-secondary button-small" aria-live="polite">
-            {copyState === "copied" ? "Copied" : copyState === "error" ? "Copy failed" : "Copy tabs"}
+            {t(copyState === "copied" ? "Copied" : copyState === "error" ? "Copy failed" : "Copy tabs")}
           </button>
         </div>
         <div className="stack">
           {segments.map((segment, idx) => (
             <div key={idx} className="card-outline">
               <p className="muted text-small" style={{ marginBottom: "8px" }}>
-                Segment {idx + 1}
+                {t("Segment ")}{idx + 1}
               </p>
               <pre className="tab-block">
-{segment.join("\n")}
+{t(segment.join("\n"))}
               </pre>
             </div>
           ))}

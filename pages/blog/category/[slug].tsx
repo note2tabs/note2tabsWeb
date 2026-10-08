@@ -1,5 +1,6 @@
+import { useLocale } from "../../../lib/i18n/react";
 import type { GetStaticPaths, GetStaticProps } from "next";
-import Link from "next/link";
+import Link from "../../../components/LocaleLink";
 import { prisma } from "../../../lib/prisma";
 import { withPrismaReadRetry } from "../../../lib/prismaRetry";
 import { estimateReadingTime, getPublishedWhere } from "../../../lib/blog";
@@ -29,7 +30,8 @@ type CategoryPageProps = {
 };
 
 export default function BlogCategoryPage({ category, posts, pillarPost }: CategoryPageProps) {
-  const description = category.description || `Browse Note2Tabs posts about ${category.name}.`;
+  const { t } = useLocale();
+  const description = category.description || t("Browse Note2Tabs posts about {name}.", {name: t(category.name)});
   const canonicalPath = `/blog/category/${category.slug}`;
   const jsonLd = {
     "@context": "https://schema.org",
@@ -59,7 +61,7 @@ export default function BlogCategoryPage({ category, posts, pillarPost }: Catego
   return (
     <main className="page blog-page">
       <SeoHead
-        title={`${category.name} Guides | Note2Tabs Blog`}
+        title={t("{name} Guides | Note2Tabs Blog", {name: t(category.name)})}
         description={description}
         canonicalPath={canonicalPath}
         noindex={!shouldIndexBlogArchive("category", category.slug)}
@@ -69,30 +71,28 @@ export default function BlogCategoryPage({ category, posts, pillarPost }: Catego
         <header className="blog-hero blog-hero--compact">
           <div className="blog-hero-copy">
             <p className="blog-breadcrumb">
-              <Link href="/blog">Blog</Link> <span>/</span> Category
-            </p>
-            <h1 className="page-title">{category.name}</h1>
+              <Link href="/blog">{t("Blog")}</Link> <span>{t("/")}</span> {t(" Category")}</p>
+            <h1 className="page-title">{t(category.name)}</h1>
             <p className="page-subtitle">
-              {category.description || "Curated guides and posts for this category."}
+              {t(category.description || "Curated guides and posts for this category.")}
             </p>
           </div>
           <div className="blog-hero-actions">
             <div className="blog-hero-metrics">
-              <span>{posts.length} posts</span>
-              {pillarPost && <span>Pillar included</span>}
+              <span>{posts.length} {t(" posts")}</span>
+              {pillarPost && <span>{t("Pillar included")}</span>}
             </div>
             <Link href="/blog" className="button-secondary button-small">
-              Back to blog
-            </Link>
+              {t("Back to blog")}</Link>
           </div>
         </header>
 
         {pillarPost && (
           <section className="blog-section blog-feature">
-            <h2 className="section-title">Pillar post</h2>
+            <h2 className="section-title">{t("Pillar post")}</h2>
             <BlogPostCard
               slug={pillarPost.slug}
-              title={pillarPost.title}
+              title={t(pillarPost.title)}
               excerpt={pillarPost.excerpt}
               coverImageUrl={pillarPost.coverImageUrl}
               publishedAt={pillarPost.publishedAt}
@@ -102,8 +102,8 @@ export default function BlogCategoryPage({ category, posts, pillarPost }: Catego
         )}
 
         <section className="blog-section">
-          <h2 className="section-title">Posts</h2>
-          {posts.length === 0 && <div className="blog-empty">No posts found in this category yet.</div>}
+          <h2 className="section-title">{t("Posts")}</h2>
+          {posts.length === 0 && <div className="blog-empty">{t("No posts found in this category yet.")}</div>}
           <div className="blog-grid">
             {posts.map((post) => (
               <BlogPostCard
@@ -144,6 +144,7 @@ export const getStaticProps: GetStaticProps<CategoryPageProps> = async (ctx) => 
     select: {
       id: true,
       title: true,
+        updatedAt: true,
       slug: true,
       excerpt: true,
       content: true,
@@ -168,6 +169,7 @@ export const getStaticProps: GetStaticProps<CategoryPageProps> = async (ctx) => 
         ? {
             id: pillarCandidate.id,
             title: pillarCandidate.title,
+            updatedAt: pillarCandidate.updatedAt.toISOString(),
             slug: pillarCandidate.slug,
             excerpt: pillarCandidate.excerpt,
             coverImageUrl: pillarCandidate.coverImageUrl,
@@ -177,6 +179,7 @@ export const getStaticProps: GetStaticProps<CategoryPageProps> = async (ctx) => 
       posts: postsRaw.map((post) => ({
         id: post.id,
         title: post.title,
+    updatedAt: post.updatedAt.toISOString(),
         slug: post.slug,
         excerpt: post.excerpt,
         readingMinutes: estimateReadingTime(post.content || "").minutes,

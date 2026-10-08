@@ -17,7 +17,7 @@ function render(localePath: string, canonicalPath: string) {
 describe("Portuguese SEO and route regression", () => {
   it("keeps self canonicals and reciprocal alternates on all reviewed public pairs", () => {
     vi.stubEnv("NODE_ENV","production"); vi.stubEnv("VERCEL_ENV","production"); vi.stubEnv("NEXT_PUBLIC_PT_BR_REVIEWED","true");
-    for (const path of ["/","/transcribe","/pricing"]) {
+    for (const path of ["/","/transcribe","/pricing","/editor","/privacy","/features/guitar-tab-fingering-optimizer"]) {
       const localized = path === "/" ? "/pt-br" : `/pt-br${path}`;
       const en = render(path,path); const pt = render(localized,path);
       expect(en).toContain(`rel="canonical" href="https://www.note2tabs.com${path}"`);
@@ -44,7 +44,7 @@ describe("Portuguese SEO and route regression", () => {
     const pairs=urls.filter(url => /<loc>[^<]*\/(pt-br\/)?(pricing|transcribe)<\/loc>|<loc>[^<]*\/(pt-br)?<\/loc>/.test(url));
     expect(pairs).toHaveLength(6);
     for (const entry of pairs) expect(entry).toContain('hreflang="pt-BR"');
-    expect(xml).not.toContain("/pt-br/auth/"); expect(xml).not.toContain("/pt-br/editor");
+    expect(xml).not.toContain("/pt-br/auth/"); expect(xml).toContain("/pt-br/editor");
     vi.stubEnv("NEXT_PUBLIC_PT_BR_REVIEWED","false"); write.mockClear(); await sitemap({res} as any);
     expect(write.mock.calls[0][0]).not.toContain("/pt-br");
   });

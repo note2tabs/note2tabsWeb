@@ -1,4 +1,5 @@
-import { LOCALIZED_PUBLIC_PATHS, localeHref, stripLocale } from "../lib/i18n/locale";
+import portugueseArticleRevisions from "../lib/i18n/blog/revisions.json";
+import { isLocalizedPublicPath, LOCALIZED_PUBLIC_PATHS, localeHref, stripLocale } from "../lib/i18n/locale";
 import { portuguesePilotIndexable } from "../lib/i18n/pilot";
 import type { GetServerSideProps } from "next";
 import { prisma } from "../lib/prisma";
@@ -82,7 +83,7 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
     return [];
   });
 
-  const paths = [...staticPaths, ...(portuguesePilotIndexable() ? LOCALIZED_PUBLIC_PATHS.map(path => localeHref(path, "pt-BR")) : [])];
+  const paths = [...staticPaths, ...(portuguesePilotIndexable() ? staticPaths.map(path => localeHref(path, "pt-BR")) : [])];
   const entries: SitemapEntry[] = paths.map((path) => ({
     loc: buildUrl(baseUrl, path),
     ...(recentlyUpdatedSeoPaths.has(path)
@@ -94,16 +95,21 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
       : {}),
   }));
 
+  const translatedArticles = new Set<string>();
   posts.forEach((post) => {
     entries.push({
       loc: buildUrl(baseUrl, `/blog/${post.slug}`),
       lastmod: post.updatedAt.toISOString(),
     });
+    if (portuguesePilotIndexable() && (portugueseArticleRevisions as Record<string, string>)[post.slug] === post.updatedAt.toISOString()) {
+      translatedArticles.add(`/blog/${post.slug}`);
+      entries.push({loc: buildUrl(baseUrl, localeHref(`/blog/${post.slug}`, "pt-BR")), lastmod: post.updatedAt.toISOString()});
+    }
   });
 
   const alternateLinks = (entry: SitemapEntry) => {
     const path = stripLocale(new URL(entry.loc).pathname);
-    if (!portuguesePilotIndexable() || !LOCALIZED_PUBLIC_PATHS.includes(path as typeof LOCALIZED_PUBLIC_PATHS[number])) return "";
+    if (!portuguesePilotIndexable() || !(staticPaths.includes(path) || translatedArticles.has(path))) return "";
     return ["en", "pt-BR", "x-default"].map(language => {
       const href = buildUrl(baseUrl, localeHref(path, language === "pt-BR" ? "pt-BR" : "en"));
       return `\n    <xhtml:link rel="alternate" hreflang="${language}" href="${escapeXml(href)}"/>`;

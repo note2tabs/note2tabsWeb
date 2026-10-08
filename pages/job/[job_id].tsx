@@ -613,7 +613,7 @@ function getFinalizedJobFromResponse(payload: Record<string, unknown> | null): J
 }
 
 export default function JobPage() {
-  const { t, locale, href: localePath } = useLocale();
+  const { t, locale } = useLocale();
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
   const { job_id } = router.query;

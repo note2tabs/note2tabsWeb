@@ -5,7 +5,7 @@ import Link from "../../components/LocaleLink";
 import NoIndexHead from "../../components/NoIndexHead";
 
 export default function RequestResetPage() {
-  const { t, locale, href: localePath } = useLocale();
+  const { t, locale } = useLocale();
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

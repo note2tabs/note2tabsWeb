@@ -11,6 +11,8 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      {source: "/pt-br/online-guitar-tab-editor", destination: "/pt-br/editor", permanent: true},
+      {source: "/pt-br/transcriber", destination: "/pt-br/transcribe", permanent: true},
       {
         source: "/transcriber",
         has: [{ type: "host", value: "note2tabs.com" }],

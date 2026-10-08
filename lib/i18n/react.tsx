@@ -8,6 +8,7 @@ export function LocaleProvider({ children, path }: { children: ReactNode; path: 
   const locale = localeFromPath(path);
   const [preferredLocale, setPreferredLocale] = useState<AppLocale>(locale);
   useEffect(() => {
+    document.documentElement.lang = locale;
     if (locale === "pt-BR") document.cookie = "n2t_locale=pt-BR; Path=/; Max-Age=2592000; SameSite=Lax";
     setPreferredLocale(preferredLocaleFromCookie(document.cookie));
   }, [path, locale]);

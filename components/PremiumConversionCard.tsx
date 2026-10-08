@@ -46,7 +46,7 @@ export default function PremiumConversionCard({
   reassurance = "",
   tracking,
 }: PremiumConversionCardProps) {
-  const { t, locale, href: localePath } = useLocale();
+  const { t, locale } = useLocale();
   const cardRef = useRef<HTMLElement | null>(null);
   const viewedRef = useRef(false);
   const [funnel, setFunnel] = useState<PremiumFunnelContext | null>(null);
@@ -105,14 +105,14 @@ export default function PremiumConversionCard({
   return (
     <aside ref={cardRef} className="premium-conversion-card" aria-label={t("Premium subscription")}>
       <div className="premium-conversion-card__copy">
-        <span>{planLabel}</span>
-        <h3>{title}</h3>
-        <p>{description}</p>
+        <span>{t(planLabel)}</span>
+        <h3>{t(title)}</h3>
+        <p>{t(description)}</p>
       </div>
       <div className="premium-conversion-card__action">
         {resolvedHref ? (
           <Link href={resolvedHref} className="button-primary button-small" onClick={trackClick}>
-            {actionLabel}
+            {t(actionLabel)}
           </Link>
         ) : (
           <button
@@ -124,12 +124,12 @@ export default function PremiumConversionCard({
             }}
             disabled={busy}
           >
-            {busy ? t("Opening checkout…") : actionLabel}
+            {busy ? t("Opening checkout…") : t(actionLabel)}
           </button>
         )}
         <small>
           {locale === "pt-BR" ? t("Final price and billing details are shown at checkout.") : reassurance || "$5.99 billed today · Cancel anytime"}
-          {resetMessage ? ` · ${resetMessage}` : ""}
+          {t(resetMessage ? ` · ${resetMessage}` : "")}
         </small>
       </div>
     </aside>
