@@ -98,7 +98,8 @@ const SYMBOLS: Record<DisplayCurrency, string> = {
   KRW: "₩",
 };
 
-export function formatLocalizedAmount(amount: number, currency: DisplayCurrency) {
+export function formatLocalizedAmount(amount: number, currency: DisplayCurrency, locale = "en") {
+  if (locale === "pt-BR") return new Intl.NumberFormat("pt-BR", {style: "currency", currency}).format(amount);
   const formatted = Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
   if (currency === "SEK" || currency === "NOK" || currency === "DKK") return `${formatted} kr`;
   if (currency === "CHF") return `CHF ${formatted}`;
@@ -111,17 +112,18 @@ export function formatLocalizedAmount(amount: number, currency: DisplayCurrency)
 export function formatLocalizedPrice(
   plan: PaidSubscriptionPlan,
   interval: BillingInterval,
-  currency: DisplayCurrency
+  currency: DisplayCurrency,
+  locale = "en"
 ) {
   const amount = localizedPriceAmount(plan, interval, currency);
-  return formatLocalizedAmount(amount, currency);
+  return formatLocalizedAmount(amount, currency, locale);
 }
 
-export function localizedAnnualSaving(plan: PaidSubscriptionPlan, currency: DisplayCurrency) {
+export function localizedAnnualSaving(plan: PaidSubscriptionPlan, currency: DisplayCurrency, locale = "en") {
   const monthly = PRICES[plan].monthly[currency];
   const yearly = PRICES[plan].yearly[currency];
   const saving = Math.round(monthly * 12 - yearly);
-  return formatLocalizedAmount(saving, currency);
+  return formatLocalizedAmount(saving, currency, locale);
 }
 
 export function readDisplayCurrencyCookie(cookieHeader: string): DisplayCurrency {

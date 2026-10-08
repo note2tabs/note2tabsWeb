@@ -4,6 +4,8 @@ const nextConfig = {
   // Feature branches must be reviewable without exposing unfinished plans on
   // the production deployment. Vercel replaces this at build time.
   env: {
+    NEXT_PUBLIC_PT_BR_PREVIEW: process.env.VERCEL_ENV === "preview" ? "true" : "false",
+    NEXT_PUBLIC_PT_BR_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_PT_BR_REVIEWED === "true" ? "true" : "false",
     NEXT_PUBLIC_PRO_PLAN_PREVIEW:
       process.env.VERCEL_ENV === "production" ? "false" : "true",
   },

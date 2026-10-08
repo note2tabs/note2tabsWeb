@@ -1,3 +1,4 @@
+import { requestLocale } from "../../../lib/i18n/request";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
@@ -731,6 +732,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               userId: session.user.id,
               jobId,
               tabJobId,
+              locale: requestLocale(req),
             });
           } catch (error) {
             // Email is helpful but must never turn a completed transcription

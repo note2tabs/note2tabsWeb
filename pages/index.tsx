@@ -1,13 +1,16 @@
-import Link from "next/link";
+import { localizedSignIn as signIn } from "../lib/i18n/auth";
+import { translatedError } from "../lib/i18n/translate";
+import { useLocale } from "../lib/i18n/react";
+import Link from "../components/LocaleLink";
 import Note2TabsSelect from "../components/Note2TabsSelect";
 import { PLAN_CATALOG, effectiveSubscriptionPlan, proPlanPresentationEnabled, type PaidSubscriptionPlan } from "../lib/subscriptionPlans";
 import type { BillingInterval } from "../lib/stripePremium";
 import Image from "next/image";
 import type { GetStaticProps } from "next";
-import { useRouter } from "next/router";
+import { useLocaleRouter as useRouter } from "../lib/i18n/react";
 import type { ChangeEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { signIn, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import {
   ANALYTICS_EVENTS,
   getAcceptedTranscriptionAccessType,
@@ -19,7 +22,7 @@ import { buildTranscriptionResearchProperties } from "../lib/retentionResearch";
 import { isDevelopmentClient, isLocalNoDbClientMode } from "../lib/clientDevMode";
 import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
 import { rememberCheckoutAttempt } from "../lib/checkoutTracking";
-import { formatLocalizedAmount, formatLocalizedPrice, localizedAnnualSaving } from "../lib/localizedPricing";
+import { formatLocalizedAmount as rawAmount, formatLocalizedPrice as rawPrice, localizedAnnualSaving as rawSaving } from "../lib/localizedPricing";
 import { useDisplayCurrency } from "../lib/useDisplayCurrency";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
@@ -209,6 +212,10 @@ const parseYouTubeId = (value: string): string | null => {
 const formatTrustMetric = (value: number) => new Intl.NumberFormat("en-US").format(value);
 
 export default function HomePage({ trustMetrics }: HomePageProps) {
+  const { t, locale, href: localePath } = useLocale();
+  const formatLocalizedAmount = (...args: Parameters<typeof rawAmount>) => rawAmount(args[0], args[1], locale);
+  const formatLocalizedPrice = (...args: Parameters<typeof rawPrice>) => rawPrice(args[0], args[1], args[2], locale);
+  const localizedAnnualSaving = (...args: Parameters<typeof rawSaving>) => rawSaving(args[0], args[1], locale);
   const { data: session, status: sessionStatus, update: updateSession } = useSession();
   const router = useRouter();
   const [mode, setMode] = useState<"FILE" | "YOUTUBE">("FILE");
@@ -320,7 +327,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     if (!appendEditorId || editorChoices.some((editor) => editor.id === appendEditorId)) {
       return editorChoices;
     }
-    return [{ id: appendEditorId, name: "Current editor" }, ...editorChoices];
+    return [{ id: appendEditorId, name: t("Current editor") }, ...editorChoices];
   }, [appendEditorId, editorChoices]);
   const youtubeId = useMemo(() => parseYouTubeId(youtubeUrl), [youtubeUrl]);
   const resolvedYtDuration = useMemo(() => {
@@ -347,7 +354,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
   useEffect(() => {
     if (!shouldRedirectToProductHome) return;
-    void router.replace("/home");
+    void router.replace(locale === "pt-BR" ? "/transcribe" : "/home");
   }, [router, shouldRedirectToProductHome]);
 
   useEffect(() => {
@@ -472,7 +479,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       const pending = await peekPendingTranscription();
       if (cancelled || resumeHandoffAttemptRef.current !== attemptId) return;
       if (!pending) {
-        setError("Your saved upload expired or could not be restored. Please choose it again to continue.");
+        setError(t("Your saved upload expired or could not be restored. Please choose it again to continue."));
         await router.replace("/#hero", undefined, { shallow: true });
         return;
       }
@@ -495,7 +502,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
       if (returnedFromBilling && requiresPremium && !premiumEntitlementReady) {
         setError(null);
-        setStatus("Payment received. Activating Premium and restoring your upload…");
+        setStatus(t("Payment received. Activating Premium and restoring your upload…"));
         if (typeof checkoutSessionId === "string") {
           await confirmPremiumCheckout(checkoutSessionId);
         }
@@ -510,7 +517,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         if (!premiumEntitlementReady) {
           setStatus(null);
           setError(
-            "Premium is still activating. Your upload is safe—reload this page to retry."
+            t("Premium is still activating. Your upload is safe—reload this page to retry.")
           );
           return;
         }
@@ -542,16 +549,16 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       }
 
       if (pending.mode === "FILE" && pending.file.size > MAX_PRESERVABLE_UPLOAD_BYTES) {
-        setError(`The restored file exceeds the ${formatMb(MAX_PRESERVABLE_UPLOAD_BYTES)} upload limit.`);
-        setStatus("Choose a smaller audio file to continue.");
+        setError(t("The restored file exceeds the {size} upload limit.", { size: formatMb(MAX_PRESERVABLE_UPLOAD_BYTES) }));
+        setStatus(t("Choose a smaller audio file to continue."));
       } else if (requiresPremium && !premiumEntitlementReady) {
-        setStatus("Your upload is restored. Upgrade to Premium to transcribe this file.");
+        setStatus(t("Your upload is restored. Upgrade to Premium to transcribe this file."));
       } else if (!canTranscribe) {
-        setError("Verify your email to start transcribing and unlock your free Heavy preview.");
-        setStatus("Your upload is restored and will remain available after verification.");
+        setError(t("Verify your email to start transcribing and unlock your free Heavy preview."));
+        setStatus(t("Your upload is restored and will remain available after verification."));
       } else {
 
-        setStatus("Welcome back — your transcription is ready to continue.");
+        setStatus(t("Welcome back — your transcription is ready to continue."));
       }
 
       sendEvent(ANALYTICS_EVENTS.authHandoffResumed, { mode: pending.mode, path: "/" });
@@ -560,7 +567,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
     void restorePendingTranscription()
       .catch(() => {
-        if (!cancelled) setError("You are signed in. Please choose the audio again to continue.");
+        if (!cancelled) setError(t("You are signed in. Please choose the audio again to continue."));
       });
 
     return () => {
@@ -703,20 +710,20 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     sessionStatus,
   ]);
   const submitLabel = authHandoffBusy
-    ? "Opening sign in…"
+    ? t("Opening sign in…")
     : loading
     ? mode === "YOUTUBE"
-      ? "Downloading..."
-      : "Generating..."
+      ? t("Downloading...")
+      : t("Generating...")
     : mode === "FILE" && !selectedFile
-    ? "Choose audio file"
+    ? t("Choose audio file")
     : sessionStatus === "loading"
-    ? "Checking account…"
+    ? t("Checking account…")
     : !isSignedIn
-    ? "Continue to sign in"
+    ? t("Continue to sign in")
     : heavyPreviewAvailable && transcriptionModel === "super_heavy"
-    ? "Use free Heavy preview"
-    : "Generate tabs";
+    ? t("Use free Heavy preview")
+    : t("Generate tabs");
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
@@ -777,7 +784,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   const openTabsInGuestEditor = async (segments: string[][]) => {
     const { stamps, totalFrames } = tabSegmentsToStamps(segments);
     if (stamps.length === 0) {
-      throw new Error("No tabs available to import into the guest editor.");
+      throw new Error(t("No tabs available to import into the guest editor."));
     }
     const guestLaneEditorId = buildLaneEditorRef(GTE_GUEST_EDITOR_ID, "ed-1");
     await gteApi.deleteEditor(GTE_GUEST_EDITOR_ID).catch(() => {});
@@ -794,35 +801,35 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
   const validateConvertInputs = () => {
     if (!transcriberSession && !disableDbInDev) {
-      setError("Sign in to start transcribing.");
+      setError(t("Sign in to start transcribing."));
       sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "signed_out", mode });
       signIn(undefined, { callbackUrl: "/" });
       return false;
     }
     if (transcriberSession && !canTranscribe) {
-      setError("Verify your email to start transcribing and unlock your free Heavy preview.");
+      setError(t("Verify your email to start transcribing and unlock your free Heavy preview."));
       sendEvent(ANALYTICS_EVENTS.verificationGateShown, { surface: "home_transcriber", mode });
       sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "email_unverified", mode });
       return false;
     }
 
     if (mode === "FILE" && !selectedFile) {
-      setError("Please select an audio file to transcribe.");
+      setError(t("Please select an audio file to transcribe."));
       sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "missing_file", mode });
       return false;
     }
 
     if (mode === "YOUTUBE" && !youtubeValid) {
-      setError("Please paste a valid YouTube link.");
+      setError(t("Please paste a valid YouTube link."));
       sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "invalid_youtube_url", mode });
       return false;
     }
     if (mode === "YOUTUBE" && (ytStartTime === null || ytEndTime === null)) {
-      setError("Start time and end time are required for YouTube download.");
+      setError(t("Start time and end time are required for YouTube download."));
       return false;
     }
     if (mode === "YOUTUBE" && ytStartTime !== null && ytEndTime !== null && ytEndTime <= ytStartTime) {
-      setError("End time must be after start time.");
+      setError(t("End time must be after start time."));
       return false;
     }
     if (
@@ -832,7 +839,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       !isPremiumUser &&
       ytEndTime - ytStartTime > MAX_FREE_YOUTUBE_SNIPPET_SEC
     ) {
-      setError(`Free YouTube clips must be ${MAX_FREE_YOUTUBE_SNIPPET_SEC} seconds or less.`);
+      setError(t("Free YouTube clips must be {seconds} seconds or less.", { seconds: MAX_FREE_YOUTUBE_SNIPPET_SEC }));
       return false;
     }
 
@@ -841,7 +848,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         ? maxUploadBytes
         : MAX_FREE_BYTES;
       if (selectedFile.size > maxBytes) {
-        setError(`File is too large. Max size is ${formatMb(maxBytes)} for your plan.`);
+        setError(t("File is too large. Max size is {size} for your plan.", { size: formatMb(maxBytes) }));
         sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, {
           reason: "file_too_large",
           mode,
@@ -854,25 +861,25 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
     if (mode === "FILE" && selectedFile && !fileTimeRangeValid) {
       setError(heavyPreviewAvailable && transcriptionModel === "super_heavy"
-        ? "Your one-time Heavy preview can include up to 30 seconds."
-        : "Selected file clip must be greater than 0 and within the file length.");
+        ? t("Your one-time Heavy preview can include up to 30 seconds.")
+        : t("Selected file clip must be greater than 0 and within the file length."));
       return false;
     }
     if (mode === "YOUTUBE") {
       if (ytStartTime !== null && ytStartTime < 0) {
-        setError("Start time must be 0 or greater.");
+        setError(t("Start time must be 0 or greater."));
         return false;
       }
       if (ytStartTime !== null && ytStartTime >= youtubeWindowSeconds) {
-        setError(`Start time must be before ${formatTimestamp(youtubeWindowSeconds)}.`);
+        setError(t("Start time must be before {time}.", { time: formatTimestamp(youtubeWindowSeconds) }));
         return false;
       }
       if (ytEndTime !== null && ytEndTime <= 0) {
-        setError("End time must be greater than 0.");
+        setError(t("End time must be greater than 0."));
         return false;
       }
       if (ytEndTime !== null && ytEndTime > youtubeWindowSeconds) {
-        setError(`End time must be ${formatTimestamp(youtubeWindowSeconds)} or earlier.`);
+        setError(t("End time must be {time} or earlier.", { time: formatTimestamp(youtubeWindowSeconds) }));
         return false;
       }
     }
@@ -881,8 +888,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
   const startConvert = async () => {
     if (convertInFlightRef.current || loading) return;
-    const transcribingStatusLabel = "Transcribing audio...";
-    const youtubeTranscribingStatusLabel = "Downloading YouTube audio and transcribing...";
+    const transcribingStatusLabel = t("Transcribing audio...");
+    const youtubeTranscribingStatusLabel = t("Downloading YouTube audio and transcribing...");
 
     convertInFlightRef.current = true;
 
@@ -890,7 +897,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     setImportError(null);
     setTabsResult(null);
     setTranscriberSegments(null);
-    setStatus(mode === "FILE" ? "Uploading audio..." : "Preparing YouTube download...");
+    setStatus(mode === "FILE" ? t("Uploading audio...") : t("Preparing YouTube download..."));
     setLoading(true);
     const researchProperties = buildTranscriptionResearchProperties({
       mode,
@@ -925,7 +932,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         if (isDevelopmentClient) {
           response = await postFileDirectly();
         } else {
-          const uploadStorageError = "We could not securely transfer this file. Check your connection and try again; the file is still selected.";
+          const uploadStorageError = t("We could not securely transfer this file. Check your connection and try again; the file is still selected.");
           sendEvent(ANALYTICS_EVENTS.uploadPresignStarted, { mode, size: selectedFile.size });
           const presignRes = await fetch("/api/uploads/presign", {
             method: "POST",
@@ -1006,7 +1013,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       }
 
       if (!response) {
-        throw new Error("Upload failed before transcription could start.");
+        throw new Error(t("Upload failed before transcription could start."));
       }
 
       const data = (await response.json().catch(() => ({}))) as { error?: string } & TabsResponse;
@@ -1042,7 +1049,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
             access_type: "preview",
           });
         }
-        setStatus("Getting things started. Opening progress screen...");
+        setStatus(t("Getting things started. Opening progress screen..."));
         sendEvent(ANALYTICS_EVENTS.tabGenerationQueued, {
           ...researchProperties,
           jobId: data.jobId,
@@ -1077,14 +1084,14 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         }
         if (data.verificationRequired) {
           await updateSession().catch(() => null);
-          setError("Verify your email to start transcribing and unlock your free Heavy preview.");
+          setError(t("Verify your email to start transcribing and unlock your free Heavy preview."));
           return;
         }
         if (response.status === 403 && data.credits) {
           setError(null);
           return;
         }
-        setError(data?.error || "We could not start this transcription. Your selection is still here, so you can try again.");
+        setError(data?.error || t("We could not start this transcription. Your selection is still here, so you can try again."));
         sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
           ...researchProperties,
           error_code: categorizeAnalyticsError(data?.error, "transcription_failed"),
@@ -1093,7 +1100,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         return;
       }
       if (!data.tabs || !Array.isArray(data.tabs)) {
-        setError("The transcription finished without a usable tab. Try a clearer section or switch models.");
+        setError(t("The transcription finished without a usable tab. Try a clearer section or switch models."));
         sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
           ...researchProperties,
           error_code: "no_tabs",
@@ -1136,7 +1143,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         segmentGroups: Array.isArray(data.transcriberSegments) ? data.transcriberSegments.length : undefined,
       });
       if (transcriberSession && data.tabJobId) {
-        setStatus("Tabs ready. Opening transcription...");
+        setStatus(t("Tabs ready. Opening transcription..."));
         await router.push(
           appendEditorId
             ? `/tabs/${data.tabJobId}?appendEditorId=${encodeURIComponent(appendEditorId)}`
@@ -1147,18 +1154,18 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       if (!transcriberSession) {
         if (disableDbInDev) {
           setTabsResult(nextTabs);
-          setStatus("Tabs ready.");
+          setStatus(t("Tabs ready."));
           return;
         }
         setTabsResult(nextTabs);
-        setStatus("Tabs ready.");
+        setStatus(t("Tabs ready."));
         return;
       }
       setTabsResult(nextTabs);
-      setStatus("Tabs ready. Choose an editor below.");
+      setStatus(t("Tabs ready. Choose an editor below."));
       return;
     } catch (err: any) {
-      setError(err?.message || "We could not reach the transcription service. Check your connection and try again.");
+      setError(err?.message || t("We could not reach the transcription service. Check your connection and try again."));
       sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
         ...researchProperties,
         error_code: categorizeAnalyticsError(err, "transcription_failed"),
@@ -1172,12 +1179,12 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   const handleConvert = async () => {
     if (convertInFlightRef.current || authHandoffInFlightRef.current || loading) return;
     if (sessionStatus === "loading") {
-      setStatus("Checking your account…");
+      setStatus(t("Checking your account…"));
       return;
     }
     if (!transcriberSession && !disableDbInDev) {
       if (mode === "FILE" && selectedFile && selectedFile.size > MAX_PRESERVABLE_UPLOAD_BYTES) {
-        setError(`Files over ${formatMb(MAX_PRESERVABLE_UPLOAD_BYTES)} cannot be preserved through sign-in.`);
+        setError(t("Files over {size} cannot be preserved through sign-in.", { size: formatMb(MAX_PRESERVABLE_UPLOAD_BYTES) }));
         sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, {
           reason: "file_too_large",
           mode,
@@ -1189,7 +1196,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       authHandoffInFlightRef.current = true;
       setAuthHandoffBusy(true);
       setError(null);
-      setStatus("Saving your selection before sign-in…");
+      setStatus(t("Saving your selection before sign-in…"));
       try {
         await savePendingTranscription(
           mode === "FILE" && selectedFile
@@ -1214,7 +1221,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
           `/auth/login?next=${encodeURIComponent("/transcribe?resumeTranscription=1")}`
         );
       } catch {
-        setError("We could not safely preserve this audio for sign-in. Please sign in first, then choose it again.");
+        setError(t("We could not safely preserve this audio for sign-in. Please sign in first, then choose it again."));
       } finally {
         authHandoffInFlightRef.current = false;
         setAuthHandoffBusy(false);
@@ -1265,7 +1272,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       }
       const { stamps, totalFrames } = tabSegmentsToStamps(tabsResult);
       if (stamps.length === 0) {
-        setImportError("No tabs available to import.");
+        setImportError(t("No tabs available to import."));
         return;
       }
       let targetEditorId = editorChoice;
@@ -1277,7 +1284,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       await router.push(`/gte/${targetEditorId}`);
     } catch (err: any) {
       setImportError(
-        err?.message || "We could not add this transcription to the editor. The transcription is still available; please try again."
+        err?.message || t("We could not add this transcription to the editor. The transcription is still available; please try again.")
       );
     } finally {
       setImportBusy(false);
@@ -1286,20 +1293,20 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
   const howSteps = [
     {
-      title: "Upload or paste a YouTube link",
-      text: "Start with a riff, solo, rehearsal recording, or YouTube clip.",
+      title: t("Upload or paste a YouTube link"),
+      text: t("Start with a riff, solo, rehearsal recording, or YouTube clip."),
       video: "/videos/upload.mp4",
       poster: "/videos/posters/upload-640.webp",
     },
     {
-      title: "Edit your guitar tabs",
-      text: "Arrange sections, choose fingerings, add techniques, and shape the tab your way.",
+      title: t("Edit your guitar tabs"),
+      text: t("Arrange sections, choose fingerings, add techniques, and shape the tab your way."),
       video: "/videos/edit.mp4",
       poster: "/videos/posters/edit.jpg",
     },
     {
-      title: "Practice and play",
-      text: "Play it back, practice with the editor, and export when it feels right.",
+      title: t("Practice and play"),
+      text: t("Play it back, practice with the editor, and export when it feels right."),
       video: "/videos/play.mp4",
       poster: "/videos/posters/play.jpg",
     },
@@ -1402,7 +1409,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       await openTabsInGuestEditor(tabsResult);
     } catch (err: any) {
       setImportError(
-        err?.message || "We could not open the editor. Your transcription is still available; please try again."
+        err?.message || t("We could not open the editor. Your transcription is still available; please try again.")
       );
     } finally {
       setImportBusy(false);
@@ -1440,6 +1447,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          locale,
           source: funnel.source,
           reason: funnel.reason,
           funnelId: funnel.funnelId,
@@ -1455,7 +1463,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
           billing_interval: pricingBillingInterval,
           ...premiumFunnelProperties(funnel),
         });
-        setPricingError(data?.error || "Checkout is temporarily unavailable. Please try again in a moment.");
+        setPricingError(data?.error || t("Checkout is temporarily unavailable. Please try again in a moment."));
         return;
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
@@ -1485,7 +1493,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         billing_interval: pricingBillingInterval,
         ...premiumFunnelProperties(funnel),
       });
-      setPricingError(err?.message || "We could not reach checkout. Check your connection and try again.");
+      setPricingError(err?.message || t("We could not reach checkout. Check your connection and try again."));
     } finally {
       setPricingBusy(false);
     }
@@ -1511,6 +1519,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          locale,
           returnTo: "/?resumeTranscription=1",
           source: funnel.source,
           reason: funnel.reason,
@@ -1519,7 +1528,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.url) {
-        throw new Error(payload?.error || "Checkout is temporarily unavailable. Please try again in a moment.");
+        throw new Error(payload?.error || t("Checkout is temporarily unavailable. Please try again in a moment."));
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
         plan: "premium_monthly",
@@ -1548,7 +1557,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       setPricingError(
         upgradeError instanceof Error
           ? upgradeError.message
-          : "We could not reach checkout. Check your connection and try again."
+          : t("We could not reach checkout. Check your connection and try again.")
       );
       setPricingBusy(false);
     }
@@ -1556,7 +1565,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
   const creditsSummaryLabel = displayedCredits ? String(displayedCredits.remaining) : "0";
   const creditsResetDate = isSignedIn && displayedCredits ? new Date(displayedCredits.resetAt) : null;
-  const creditsResetLabel = formatCreditResetDate(creditsResetDate);
+  const creditsResetLabel = formatCreditResetDate(creditsResetDate, locale);
   const creditsDaysUntilReset =
     creditsResetDate && !Number.isNaN(creditsResetDate.getTime())
       ? Math.max(0, Math.ceil((creditsResetDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
@@ -1570,11 +1579,11 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       "@id": `${SITE_URL}/#software-application`,
       name: SITE_NAME,
       applicationCategory: "MusicApplication",
-      applicationSubCategory: "Guitar tablature transcription and editing",
+      applicationSubCategory: t("Guitar tablature transcription and editing"),
       operatingSystem: "Web",
       url: `${SITE_URL}/`,
       description:
-        "Convert audio files and YouTube links into editable guitar tabs in the browser.",
+        t("Convert audio files and YouTube links into editable guitar tabs in the browser."),
       isPartOf: { "@id": WEBSITE_ID },
       provider: { "@id": ORGANIZATION_ID },
       offers: {
@@ -1617,8 +1626,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         }}
       />
       <SeoHead
-        title="AI Guitar Tab Generator – Audio & YouTube to Tabs | Note2Tabs"
-        description="Upload an MP3 or WAV, or paste a YouTube link to generate playable guitar tabs online. Edit, practise, and export every transcription in your browser."
+        title={t("AI Guitar Tab Generator – Audio & YouTube to Tabs | Note2Tabs")}
+        description={t("Upload an MP3 or WAV, or paste a YouTube link to generate playable guitar tabs online. Edit, practise, and export every transcription in your browser.")}
         canonicalPath="/"
         jsonLd={homeJsonLd}
       />
@@ -1632,13 +1641,11 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
           </div>
           <div className="container hero-stack hero-stack--centered">
             <div className="hero-heading" data-reveal>
-              <p className="hero-eyebrow">AI tabs built for guitarists</p>
+              <p className="hero-eyebrow">{t("AI tabs built for guitarists")}</p>
               <div className="hero-title-row">
-                <h1 className="hero-title">Convert Any Song to Guitar Tabs</h1>
+                <h1 className="hero-title">{t("Convert Any Song to Guitar Tabs")}</h1>
               </div>
-              <p className="hero-subtitle hero-subtitle--conversion">
-                Turn recordings into guitar tab you can edit, practice, and export.
-              </p>
+              <p className="hero-subtitle hero-subtitle--conversion">{t(" Turn recordings into guitar tab you can edit, practice, and export. ")}</p>{locale === "pt-BR" && <p className="locale-scope-note">{t("Transcription and pricing in Portuguese. The editor, help and legal documents are in English.")}</p>}
             </div>
             <form
               id="transcriber-start"
@@ -1672,15 +1679,12 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   </div>
                 </div>
                 {isSignedIn && displayedCredits && (
-                  <p className="hero-credits-inline">
-                    Credits: <strong>{creditsSummaryLabel}</strong>
+                  <p className="hero-credits-inline">{t(" Credits: ")}<strong>{creditsSummaryLabel}</strong>
                     {isSignedIn && creditsDaysUntilReset !== null && (
                       <span className="hero-credits-next">
                         {creditsDaysUntilReset === 0
-                          ? "• Next credits today"
-                          : `• Next credits in ${creditsDaysUntilReset} day${
-                              creditsDaysUntilReset === 1 ? "" : "s"
-                            }`}
+                          ? t("• Next credits today")
+                          : `• ${t(creditsDaysUntilReset === 1 ? "Next credits in {days} day" : "Next credits in {days} days", {days: creditsDaysUntilReset})}`}
                       </span>
                     )}
                   </p>
@@ -1754,13 +1758,11 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                         </span>
                         {mode === "FILE" ? (
                           <span className="funnel-file-label">
-                            {selectedFile ? selectedFile.name : "Upload audio file or drop it here"}
+                            {selectedFile ? selectedFile.name : t("Upload audio file or drop it here")}
                           </span>
                         ) : (
                           <>
-                            <label className="sr-only" htmlFor="home-youtube-url">
-                              YouTube link
-                            </label>
+                            <label className="sr-only" htmlFor="home-youtube-url">{t(" YouTube link ")}</label>
                             <input
                               id="home-youtube-url"
                               name="youtubeUrl"
@@ -1778,14 +1780,14 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                       type="file"
                       accept={AUDIO_ACCEPT}
                       className="native-file-input"
-                      aria-label="Choose audio file"
+                      aria-label={t("Choose audio file")}
                       disabled={mode !== "FILE" || loading}
                       onChange={onFileChange}
                     />
                   </div>
                 </div>
                 <div className="funnel-toolbar">
-                  <div className="mode-switch mode-switch--hero" role="group" aria-label="Input mode">
+                  <div className="mode-switch mode-switch--hero" role="group" aria-label={t("Input mode")}>
                     <button
                       type="button"
                       className={mode === "FILE" ? "active" : ""}
@@ -1795,9 +1797,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
                         trackCtaClick("mode_file", { surface: "hero_funnel" });
                       }}
-                    >
-                      Audio file
-                    </button>
+                    >{t(" Audio file ")}</button>
                     <button
                       type="button"
                       className={mode === "YOUTUBE" ? "active" : ""}
@@ -1807,9 +1807,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
                         trackCtaClick("mode_youtube", { surface: "hero_funnel" });
                       }}
-                    >
-                      YouTube link
-                    </button>
+                    >{t(" YouTube link ")}</button>
                   </div>
                   <div className="transcription-auth-cta transcription-auth-cta--toolbar">
                     <button
@@ -1824,7 +1822,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                     >
                       {submitLabel}
                     </button>
-                    {!isSignedIn && canSubmit && <p>A free account is required. Your selection will be saved.</p>}
+                    {!isSignedIn && canSubmit && <p>{t("A free account is required. Your selection will be saved.")}</p>}
                   </div>
                 </div>
               </div>
@@ -1833,9 +1831,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 <>
                   <div className="prompt-field prompt-field--compact">
                     <div className="advanced-grid">
-                    <label>
-                      Start time
-                      <input
+                    <label>{t(" Start time ")}<input
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9:]*"
@@ -1847,9 +1843,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                         required
                       />
                     </label>
-                    <label>
-                      End time
-                      <input
+                    <label>{t(" End time ")}<input
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9:]*"
@@ -1863,8 +1857,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                     </label>
                     <p className="advanced-note">
                       {isPremiumUser
-                        ? `Choose any clip length within the first ${youtubeWindowSeconds / 60} minutes.`
-                        : "Free clips can be up to 30 s."}
+                        ? t("Choose any clip length within the first {minutes} minutes.", { minutes: youtubeWindowSeconds / 60 })
+                        : t("Free clips can be up to 30 s.")}
                     </p>
                     </div>
                   </div>
@@ -1874,9 +1868,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
               {mode === "FILE" && selectedFile && (
                 <div className="prompt-field prompt-field--compact">
                   <div className="advanced-grid">
-                    <label>
-                      Start time
-                      <input
+                    <label>{t(" Start time ")}<input
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9:]*"
@@ -1888,9 +1880,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                         required
                       />
                     </label>
-                    <label>
-                      End time
-                      <input
+                    <label>{t(" End time ")}<input
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9:]*"
@@ -1903,26 +1893,26 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                       />
                     </label>
                     <p className="advanced-note">
-                      {isPremiumUser ? "Pick any section within the file." : "Free file uploads are limited to 60 s."}
+                      {isPremiumUser ? t("Pick any section within the file.") : t("Free file uploads are limited to 60 s.")}
                     </p>
                   </div>
                 </div>
               )}
 
               {status && !loading && !authHandoffBusy && <div className="status">{status}</div>}
-              {error && <div className="error" role="alert">{error}</div>}
+              {error && <div className="error" role="alert">{translatedError(error, locale)}</div>}
               {needsPremiumForSelectedFile && !showHeavyUpgrade && (
                 isSignedIn && !needsProForSelectedFile ? (
-                  <PremiumConversionCard title="Continue with this upload" description="Your file is still selected. Premium supports audio files up to 200 MB and full-length transcription." actionLabel="Continue with Premium" onAction={() => void handlePreservedUploadUpgrade()} busy={pricingBusy} tracking={{ source: "large_upload_gate", reason: "file_size_limit", surface: "file_size_limit_card", trigger: "oversized_file_selected" }} />
+                  <PremiumConversionCard title={t("Continue with this upload")} description={t("Your file is still selected. Premium supports audio files up to 200 MB and full-length transcription.")} actionLabel={t("Continue with Premium")} onAction={() => void handlePreservedUploadUpgrade()} busy={pricingBusy} tracking={{ source: "large_upload_gate", reason: "file_size_limit", surface: "file_size_limit_card", trigger: "oversized_file_selected" }} />
                 ) : (
-                  <PremiumConversionCard title={needsProForSelectedFile ? "This file needs Pro" : "This file needs Premium"} description={needsProForSelectedFile ? "This file is larger than Premium's 200 MB limit. Pro supports files up to 500 MB." : "Free uploads are limited to 50 MB. Premium supports files up to 200 MB."} actionLabel={needsProForSelectedFile ? "See Pro" : "See Premium"} planLabel={needsProForSelectedFile ? "Note2Tabs Pro" : undefined} reassurance={needsProForSelectedFile ? "$14.99 billed today · Cancel anytime" : undefined} href={premiumPricingHref({ source: "large_upload_gate", reason: needsProForSelectedFile ? "pro_file_size_limit" : "file_size_limit" })} tracking={{ source: "large_upload_gate", reason: needsProForSelectedFile ? "pro_file_size_limit" : "file_size_limit", surface: needsProForSelectedFile ? "pro_file_size_limit_card" : "file_size_limit_card", trigger: "oversized_file_selected" }} />
+                  <PremiumConversionCard title={needsProForSelectedFile ? t("This file needs Pro") : t("This file needs Premium")} description={needsProForSelectedFile ? t("This file is larger than Premium's 200 MB limit. Pro supports files up to 500 MB.") : t("Free uploads are limited to 50 MB. Premium supports files up to 200 MB.")} actionLabel={needsProForSelectedFile ? t("See Pro") : t("See Premium")} planLabel={needsProForSelectedFile ? "Note2Tabs Pro" : undefined} reassurance={needsProForSelectedFile ? "$14.99 billed today · Cancel anytime" : undefined} href={premiumPricingHref({ source: "large_upload_gate", reason: needsProForSelectedFile ? "pro_file_size_limit" : "file_size_limit" })} tracking={{ source: "large_upload_gate", reason: needsProForSelectedFile ? "pro_file_size_limit" : "file_size_limit", surface: needsProForSelectedFile ? "pro_file_size_limit_card" : "file_size_limit_card", trigger: "oversized_file_selected" }} />
                 )
               )}
               {!needsPremiumForSelectedFile && needsPremiumForFileDuration && !showHeavyUpgrade && (
-                <PremiumConversionCard title="Transcribe more of this file" description="Free accounts can select up to 60 seconds. Premium unlocks full-length audio-file transcription." actionLabel="See longer options" href={premiumPricingHref({ source: "premium_prompt", reason: "file_duration_limit" })} tracking={{ source: "premium_prompt", reason: "file_duration_limit", surface: "file_duration_limit_card", trigger: "long_file_selected" }} />
+                <PremiumConversionCard title={t("Transcribe more of this file")} description={t("Free accounts can select up to 60 seconds. Premium unlocks full-length audio-file transcription.")} actionLabel={t("See longer options")} href={premiumPricingHref({ source: "premium_prompt", reason: "file_duration_limit" })} tracking={{ source: "premium_prompt", reason: "file_duration_limit", surface: "file_duration_limit_card", trigger: "long_file_selected" }} />
               )}
               {showHeavyUpgrade && !isPremiumUser && (
-                <PremiumConversionCard title="Use the Heavy model" description="The Heavy model is available with Premium or Pro for our highest transcription accuracy." actionLabel="See plans" href={premiumPricingHref({ source: "heavy_model", reason: "heavy_model_locked" })} tracking={{ source: "heavy_model", reason: "heavy_model_locked", surface: "heavy_model_locked_card", trigger: "locked_model_selected" }} />
+                <PremiumConversionCard title={t("Use the Heavy model")} description={t("The Heavy model is available with Premium or Pro for our highest transcription accuracy.")} actionLabel={t("See plans")} href={premiumPricingHref({ source: "heavy_model", reason: "heavy_model_locked" })} tracking={{ source: "heavy_model", reason: "heavy_model_locked", surface: "heavy_model_locked_card", trigger: "locked_model_selected" }} />
               )}
               {needsPremiumForSelectedFile && pricingError && (
                 <div className="error" role="alert">{pricingError}</div>
@@ -1930,26 +1920,23 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
               {isSignedIn && !isEmailVerified && (
                 <div className="notice">
                   {unverifiedTranscriptionUsed
-                    ? "Verify your email to continue transcribing and unlock your free Heavy preview. "
-                    : "You can make one transcription now. Verify your email to keep transcribing and unlock your free Heavy preview. "}
-                  <Link href={verifyHref} className="button-link">
-                    Verify now
-                  </Link>
+                    ? t("Verify your email to continue transcribing and unlock your free Heavy preview. ")
+                    : t("You can make one transcription now. Verify your email to keep transcribing and unlock your free Heavy preview. ")}
+                  <Link href={verifyHref} className="button-link">{t(" Verify now ")}</Link>
                 </div>
               )}
               {isSignedIn && showCreditsLow && !needsPremiumForSelectedFile && !needsPremiumForFileDuration && !showHeavyUpgrade && (
                 isPremiumRole(transcriberSession?.user?.role) ? (
-                  <div className="notice">
-                    Your credits will be refreshed on {creditsResetLabel}.
+                  <div className="notice">{t(" Your credits will be refreshed on ")}{creditsResetLabel}.
                   </div>
                 ) : (
                   <PremiumConversionCard
-                    title="Keep transcribing today"
-                    description="Premium includes 100 monthly credits, rollover, and full-song audio uploads."
-                    actionLabel="Get Premium"
+                    title={t("Keep transcribing today")}
+                    description={t("Premium includes 100 monthly credits, rollover, and full-song audio uploads.")}
+                    actionLabel={t("Get Premium")}
                     onAction={() => void handlePricingClick("low_credits", "credits_low")}
                     busy={pricingBusy}
-                    resetMessage={`Free credits reset ${creditsResetLabel}`}
+                    resetMessage={t("Free credits reset {date}", { date: creditsResetLabel })}
                     tracking={{ source: "low_credits", reason: "credits_low", surface: "low_credits_card", trigger: "credits_threshold_reached" }}
                   />
                 )
@@ -1958,8 +1945,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
             <div className="hero-outcome-row" data-reveal>
               <span>MP3, WAV, M4A</span>
-              <span>YouTube clips</span>
-              <span>Editable tab</span>
+              <span>{t("YouTube clips")}</span>
+              <span>{t("Editable tab")}</span>
             </div>
 
           </div>
@@ -1970,8 +1957,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
             <div className="container results-shell">
               <div className="results-header">
                 <div>
-                  <h2>Your tabs are ready</h2>
-                  <p>Choose where to open the transcription.</p>
+                  <h2>{t("Your tabs are ready")}</h2>
+                  <p>{t("Choose where to open the transcription.")}</p>
                 </div>
                 <div className="results-actions">
                   {isSignedIn && (
@@ -1981,8 +1968,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                         value={editorChoice}
                         onChange={setEditorChoice}
                         disabled={editorLoading}
-                        label="Import destination"
-                        options={[{ value: "new", label: "New editor" }, ...editorChoicesForSelect.map((editor) => ({ value: editor.id, label: editor.name || "Untitled" }))]}
+                        label={t("Import destination")}
+                        options={[{ value: "new", label: t("New editor") }, ...editorChoicesForSelect.map((editor) => ({ value: editor.id, label: editor.name || t("Untitled") }))]}
                       />
                       <button
                         type="button"
@@ -1990,7 +1977,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                         onClick={() => void handleImportToEditor()}
                         disabled={importBusy || editorLoading}
                       >
-                        {importBusy ? "Importing..." : "Import to editor"}
+                        {importBusy ? t("Importing...") : t("Import to editor")}
                       </button>
                     </div>
                   )}
@@ -2001,21 +1988,19 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                       onClick={() => void handleOpenGuestEditor()}
                       disabled={importBusy}
                     >
-                      {importBusy ? "Opening..." : "Open in guest editor"}
+                      {importBusy ? t("Opening...") : t("Open in guest editor")}
                     </button>
                   )}
                 </div>
               </div>
-              {importError && <div className="error" role="alert">{importError}</div>}
+              {importError && <div className="error" role="alert">{translatedError(importError, locale)}</div>}
             </div>
           </section>
         )}
 
         <section ref={howRef} className="steps" id="how">
           <div className="container">
-            <h2 className="section-title" data-reveal>
-              How it works
-            </h2>
+            <h2 className="section-title" data-reveal>{t(" How it works ")}</h2>
 
             <div className="how-lovable" data-reveal>
               <div className="how-video-card">
@@ -2060,25 +2045,25 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         <section className="home-workflow-links" aria-labelledby="home-workflow-links-title">
           <div className="container">
             <div className="home-workflow-links-header">
-              <h2 id="home-workflow-links-title">Choose your guitar tab converter</h2>
-              <p>Start with the format you have, then play, edit, practise, and export the result in the same editor.</p>
+              <h2 id="home-workflow-links-title">{t("Choose your guitar tab converter")}</h2>
+              <p>{t("Start with the format you have, then play, edit, practise, and export the result in the same editor.")}</p>
             </div>
             <div className="home-workflow-link-grid">
               <Link href="/mp3-to-guitar-tabs">
-                <strong>Convert MP3 to guitar tabs</strong>
-                <span>Turn an MP3 recording into playable, editable guitar tablature online.</span>
+                <strong>{t("Convert MP3 to guitar tabs")}</strong>
+                <span>{t("Turn an MP3 recording into playable, editable guitar tablature online.")}</span>
               </Link>
               <Link href="/audio-to-guitar-tab-converter">
-                <strong>Convert WAV and other audio</strong>
-                <span>Upload a WAV or another audio recording and generate a structured guitar tab.</span>
+                <strong>{t("Convert WAV and other audio")}</strong>
+                <span>{t("Upload a WAV or another audio recording and generate a structured guitar tab.")}</span>
               </Link>
               <Link href="/youtube-to-guitar-tabs">
-                <strong>Convert a YouTube clip</strong>
-                <span>Paste a public link, choose a riff or solo, and transcribe the focused section.</span>
+                <strong>{t("Convert a YouTube clip")}</strong>
+                <span>{t("Paste a public link, choose a riff or solo, and transcribe the focused section.")}</span>
               </Link>
               <Link href="/ai-guitar-tab-generator">
-                <strong>Understand the AI workflow</strong>
-                <span>See how Note2Tabs turns a performance into structured, playable guitar tablature.</span>
+                <strong>{t("Understand the AI workflow")}</strong>
+                <span>{t("See how Note2Tabs turns a performance into structured, playable guitar tablature.")}</span>
               </Link>
             </div>
           </div>
@@ -2087,10 +2072,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         <section className="editor-showcase" id="editor-showcase">
           <div className="container">
             <div className="editor-showcase-header" data-reveal>
-              <h2>Create, edit and play your own guitar tabs.</h2>
-              <p>
-                Note2Tabs guitar-tab editor is a web-based workspace for making guitar tablature.
-              </p>
+              <h2>{t("Create, edit and play your own guitar tabs.")}</h2>
+              <p>{t(" Note2Tabs guitar-tab editor is a web-based workspace for making guitar tablature. ")}</p>
             </div>
 
             <div className="editor-showcase-sections">
@@ -2098,7 +2081,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 <div className="editor-showcase-image editor-showcase-image--workspace">
                   <Image
                     src="/images/editor-previews/Editor-main.webp"
-                    alt="Guitar tab editor workspace"
+                    alt={t("Guitar tab editor workspace")}
                     width="1897"
                     height="949"
                     loading="lazy"
@@ -2108,19 +2091,15 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   />
                 </div>
                 <div className="editor-showcase-text">
-                  <h3>A complete workspace for guitar tabs</h3>
-                  <p>
-                    Keep the whole song in one place: unlimited songs, unlimited tracks.
-                    The editor has over 30 unique tools helping you create tabs your way.
-                    From the first note to detailed arrangements and practice, everything you need is built into a single workflow.
-                  </p>
+                  <h3>{t("A complete workspace for guitar tabs")}</h3>
+                  <p>{t(" Keep the whole song in one place: unlimited songs, unlimited tracks. The editor has over 30 unique tools helping you create tabs your way. From the first note to detailed arrangements and practice, everything you need is built into a single workflow. ")}</p>
                 </div>
               </article>
               <article className="editor-showcase-row editor-showcase-row--reverse" data-reveal>
                 <div className="editor-showcase-image editor-showcase-image--tools">
                   <Image
                     src="/images/editor-previews/collage.webp"
-                    alt="Guitar tab editing tools"
+                    alt={t("Guitar tab editing tools")}
                     width="822"
                     height="604"
                     loading="lazy"
@@ -2130,14 +2109,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   />
                 </div>
                 <div className="editor-showcase-text">
-                  <h3>Tab-making tools tailored to guitarists</h3>
-                  <p>
-                    What sets us apart from standard guitar-tab editors is our set of specialised tools.
-                    Fingering selection and optimizer tools help you find cleaner positions faster instead
-                    of manually testing every string and fret combination. Our unique "playing-coordinate" system
-                    lets you pick where on the fretboard you'd like to play and "snap to key" lets you quickly type out riffs
-                    without thinking about theory.
-                  </p>
+                  <h3>{t("Tab-making tools tailored to guitarists")}</h3>
+                  <p>{t(" What sets us apart from standard guitar-tab editors is our set of specialised tools. Fingering selection and optimizer tools help you find cleaner positions faster instead of manually testing every string and fret combination. Our unique \"playing-coordinate\" system lets you pick where on the fretboard you'd like to play and \"snap to key\" lets you quickly type out riffs without thinking about theory. ")}</p>
                 </div>
               </article>
 
@@ -2145,7 +2118,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 <div className="editor-showcase-image editor-showcase-image--training">
                   <Image
                     src="/images/editor-previews/collage-training.webp"
-                    alt="Guitar tab practice and playback tools"
+                    alt={t("Guitar tab practice and playback tools")}
                     width="1242"
                     height="772"
                     loading="lazy"
@@ -2155,33 +2128,27 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   />
                 </div>
                 <div className="editor-showcase-text">
-                  <h3>Training tools for learning your riffs</h3>
-                  <p>
-                    Import text-tabs, use your transcribed or own creations and learn the riffs.
-                    Playback with different guitar sounds, loop difficult sections and follow along with
-                    train mode at increasing speeds.
-                  </p>
+                  <h3>{t("Training tools for learning your riffs")}</h3>
+                  <p>{t(" Import text-tabs, use your transcribed or own creations and learn the riffs. Playback with different guitar sounds, loop difficult sections and follow along with train mode at increasing speeds. ")}</p>
                 </div>
               </article>
             </div>
 
             <div className="editor-showcase-feature-list" data-reveal>
-              <h3>Editor features</h3>
+              <h3>{t("Editor features")}</h3>
               <ul>
-                <li><Link href="/features/guitar-tab-editor-shortcuts">Keyboard shortcuts for everything</Link></li>
-                <li><Link href="/features/guitar-tab-fingering-optimizer">String and fret optimization</Link></li>
-                <li><Link href="/features/guitar-tab-key-detector">Key detection and snap to key</Link></li>
-                <li><Link href="/features/guitar-tab-fingering-optimizer">Alternative note and chord fingerings</Link></li>
-                <li><Link href="/features/guitar-chord-strumming-editor">Chord tracks and strumming tools</Link></li>
-                <li><Link href="/features/guitar-tab-import-export">Import and export tab files</Link></li>
-                <li><Link href="/features/guitar-tab-practice-trainer">Playback loops and speed training</Link></li>
-                <li><Link href="/features/guitar-tab-editor-shortcuts">Browser-based tab creation</Link></li>
+                <li><Link href="/features/guitar-tab-editor-shortcuts">{t("Keyboard shortcuts for everything")}</Link></li>
+                <li><Link href="/features/guitar-tab-fingering-optimizer">{t("String and fret optimization")}</Link></li>
+                <li><Link href="/features/guitar-tab-key-detector">{t("Key detection and snap to key")}</Link></li>
+                <li><Link href="/features/guitar-tab-fingering-optimizer">{t("Alternative note and chord fingerings")}</Link></li>
+                <li><Link href="/features/guitar-chord-strumming-editor">{t("Chord tracks and strumming tools")}</Link></li>
+                <li><Link href="/features/guitar-tab-import-export">{t("Import and export tab files")}</Link></li>
+                <li><Link href="/features/guitar-tab-practice-trainer">{t("Playback loops and speed training")}</Link></li>
+                <li><Link href="/features/guitar-tab-editor-shortcuts">{t("Browser-based tab creation")}</Link></li>
               </ul>
             </div>
             <div className="editor-showcase-actions" data-reveal>
-              <Link href="/editor" className="button-primary">
-                Try the guitar tab editor
-              </Link>
+              <Link href="/editor" className="button-primary">{t(" Try the guitar tab editor ")}</Link>
             </div>
           </div>
         </section>
@@ -2189,47 +2156,43 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         <section className="pricing home-pricing" id="pricing">
           <div className="container">
             <div className="pricing-intro" data-reveal>
-              <h2>Choose your plan.</h2>
-              <p>Start free. Upgrade when you want more transcriptions and full songs.</p>
+              <h2>{t("Choose your plan.")}</h2>
+              <p>{t("Start free. Upgrade when you want more transcriptions and full songs.")}</p>
             </div>
-            {proPlanPresentationEnabled() && <div className="pricing-billing-toggle" role="group" aria-label="Billing interval" data-reveal>
-              <button type="button" aria-pressed={pricingBillingInterval === "monthly"} className={pricingBillingInterval === "monthly" ? "is-active" : ""} onClick={() => setPricingBillingInterval("monthly")}>Monthly</button>
-              <button type="button" aria-pressed={pricingBillingInterval === "yearly"} className={pricingBillingInterval === "yearly" ? "is-active" : ""} onClick={() => setPricingBillingInterval("yearly")}>Yearly <span>Save {localizedAnnualSaving("PRO", displayCurrency)}!</span></button>
+            {proPlanPresentationEnabled() && <div className="pricing-billing-toggle" role="group" aria-label={t("Billing interval")} data-reveal>
+              <button type="button" aria-pressed={pricingBillingInterval === "monthly"} className={pricingBillingInterval === "monthly" ? "is-active" : ""} onClick={() => setPricingBillingInterval("monthly")}>{t("Monthly")}</button>
+              <button type="button" aria-pressed={pricingBillingInterval === "yearly"} className={pricingBillingInterval === "yearly" ? "is-active" : ""} onClick={() => setPricingBillingInterval("yearly")}>{t("Yearly ")}<span>{t("Save ")}{localizedAnnualSaving("PRO", displayCurrency)}!</span></button>
             </div>}
             <div className={`pricing-page__plans home-pricing__plans${proPlanPresentationEnabled() ? " pricing-page__plans--three" : ""}`}>
               <article className="pricing-plan pricing-plan--free" data-reveal>
                 <div className="pricing-plan__top">
-                  <h3>Free</h3>
+                  <h3>{t("Free")}</h3>
                   <div className="pricing-plan__price">
                     <strong>{formatLocalizedAmount(0, displayCurrency)}</strong>
-                    <span>/ month</span>
+                    <span>/ {t("month")}</span>
                   </div>
                 </div>
-                <Link href="/transcribe" className="pricing-plan__cta pricing-plan__cta--secondary">
-                  Start free
-                </Link>
-                <p className="pricing-plan__reassurance">No credit card required</p>
+                <Link href="/transcribe" className="pricing-plan__cta pricing-plan__cta--secondary">{t(" Start free ")}</Link>
+                <p className="pricing-plan__reassurance">{t("No credit card required")}</p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
-                  <li><strong>10</strong> credits each month</li>
-                  <li>Light transcription model</li>
-                  <li>Audio clips up to 60 seconds</li>
-                  <li>Uploads up to 50 MB</li>
-                  <li>Full editor and practice tools</li>
+                  <li><strong>10</strong>{t(" credits each month")}</li>
+                  <li>{t("Light transcription model")}</li>
+                  <li>{t("Audio clips up to 60 seconds")}</li>
+                  <li>{t("Uploads up to 50 MB")}</li>
+                  <li>{t("Full editor and practice tools")}</li>
                 </ul>
               </article>
               <article
                 className="pricing-plan pricing-plan--premium"
                 data-reveal
               >
-                <div className="pricing-plan__badge">
-                  Most popular
-                </div>
+                <div className="pricing-plan__badge">{t(" Most popular ")}</div>
                 <div className="pricing-plan__top">
                   <h3>Premium</h3>
                   <div className="pricing-plan__price">
                     <strong>{formatLocalizedPrice("PREMIUM", pricingBillingInterval, displayCurrency)}</strong>
-                    <span>/ {pricingBillingInterval === "yearly" ? "year" : "month"}</span>
+                    <span>/ {pricingBillingInterval === "yearly" ? t("year") : t("month")}</span>
                   </div>
                 </div>
                 <button
@@ -2239,51 +2202,51 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   disabled={pricingBusy}
                 >
                   {pricingBusy
-                    ? "Opening checkout…"
+                    ? t("Opening checkout…")
                     : isPremiumUser
                       ? isStaffUser
-                        ? "Premium access included"
-                        : "Manage current plan"
-                      : premiumOfferCtaLabel(offerEligibility)}
+                        ? t("Premium access included")
+                        : t("Manage current plan")
+                      : t(premiumOfferCtaLabel(offerEligibility))}
                 </button>
                 <p className="pricing-plan__reassurance">
                   {pricingBillingInterval === "yearly"
-                    ? <><span>{formatLocalizedPrice("PREMIUM", "yearly", displayCurrency)} billed today · </span><span className="pricing-plan__saving">Save {localizedAnnualSaving("PREMIUM", displayCurrency)} per year</span><span> · Cancel anytime</span></>
-                    : premiumOfferReassurance(offerEligibility, "control", formatLocalizedPrice("PREMIUM", "monthly", displayCurrency))}
+                    ? <><span>{formatLocalizedPrice("PREMIUM", "yearly", displayCurrency)}{t(" billed today · ")}</span><span className="pricing-plan__saving">{t("Save ")}{localizedAnnualSaving("PREMIUM", displayCurrency)}{t(" per year")}</span><span>{t(" · Cancel anytime")}</span></>
+                    : locale === "pt-BR" ? t("{price} billed today · Cancel anytime", {price: formatLocalizedPrice("PREMIUM", "monthly", displayCurrency)}) : premiumOfferReassurance(offerEligibility, "control", formatLocalizedPrice("PREMIUM", "monthly", displayCurrency))}
                 </p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
-                  <li><strong>100</strong> credits each month—10× more</li>
-                  <li>Heavy model for complex recordings</li>
-                  <li>Unused credits roll over, up to 200</li>
-                  <li>Full-length audio-file transcription</li>
-                  <li>Uploads up to 200 MB</li>
-                  <li>Longer YouTube clips within the first 10 minutes</li>
+                  <li><strong>100</strong>{t(" credits each month—10× more")}</li>
+                  <li>{t("Heavy model for complex recordings")}</li>
+                  <li>{t("Unused credits roll over, up to 200")}</li>
+                  <li>{t("Full-length audio-file transcription")}</li>
+                  <li>{t("Uploads up to 200 MB")}</li>
+                  <li>{t("Longer YouTube clips within the first 10 minutes")}</li>
                 </ul>
               </article>
               {proPlanPresentationEnabled() && <article className="pricing-plan pricing-plan--pro" data-reveal>
                 <div className="pricing-plan__top">
                   <h3>Pro</h3>
-                  <div className="pricing-plan__price"><strong>{formatLocalizedPrice("PRO", pricingBillingInterval, displayCurrency)}</strong><span>/ {pricingBillingInterval === "yearly" ? "year" : "month"}</span></div>
+                  <div className="pricing-plan__price"><strong>{formatLocalizedPrice("PRO", pricingBillingInterval, displayCurrency)}</strong><span>/ {pricingBillingInterval === "yearly" ? t("year") : t("month")}</span></div>
                 </div>
                 <button type="button" className="pricing-plan__cta pricing-plan__cta--secondary" onClick={() => void handlePricingClick("home_pricing", "homepage_pro_card", "PRO")} disabled={pricingBusy}>
-                  {pricingBusy ? "Opening…" : currentPlan === "PRO" ? "Manage current plan" : currentPlan === "PREMIUM" ? "Upgrade to Pro" : "Choose Pro"}
+                  {pricingBusy ? t("Opening…") : currentPlan === "PRO" ? t("Manage current plan") : currentPlan === "PREMIUM" ? t("Upgrade to Pro") : t("Choose Pro")}
                 </button>
-                <p className="pricing-plan__reassurance">{pricingBillingInterval === "yearly" ? <><span>{formatLocalizedPrice("PRO", "yearly", displayCurrency)} billed today · </span><span className="pricing-plan__saving">Save {localizedAnnualSaving("PRO", displayCurrency)} per year</span></> : `${formatLocalizedPrice("PRO", "monthly", displayCurrency)} billed today · Cancel anytime`}</p>
+                <p className="pricing-plan__reassurance">{pricingBillingInterval === "yearly" ? <><span>{formatLocalizedPrice("PRO", "yearly", displayCurrency)}{t(" billed today · ")}</span><span className="pricing-plan__saving">{t("Save ")}{localizedAnnualSaving("PRO", displayCurrency)}{t(" per year")}</span></> : t("{price} billed today \u00b7 Cancel anytime", { price: formatLocalizedPrice("PRO", "monthly", displayCurrency) })}</p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
-                  <li>Everything in Premium</li>
-                  <li><strong>250</strong> credits each month</li>
-                  <li>Unused credits roll over, up to 500</li>
-                  <li>Uploads up to 500 MB</li>
-                  <li>YouTube selections within the first 20 minutes</li>
-                  <li>Priority email support and future early-access eligibility</li>
+                  <li>{t("Everything in Premium")}</li>
+                  <li><strong>250</strong>{t(" credits each month")}</li>
+                  <li>{t("Unused credits roll over, up to 500")}</li>
+                  <li>{t("Uploads up to 500 MB")}</li>
+                  <li>{t("YouTube selections within the first 20 minutes")}</li>
+                  <li>{t("Priority email support and future early-access eligibility")}</li>
                 </ul>
               </article>}
             </div>
             {pricingError && <div className="error" role="alert">{pricingError}</div>}
             <div className="home-pricing__details" data-reveal>
-              <Link href="/pricing">Compare all plan details</Link>
+              <Link href="/pricing">{t("Compare all plan details")}</Link>
             </div>
           </div>
         </section>
@@ -2291,19 +2254,13 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         <section className="bottom-transcriber" data-reveal>
           <div className="container">
             <div className="bottom-transcriber-shell">
-              <h2 className="bottom-transcriber-title">Ready to convert audio to tabs?</h2>
+              <h2 className="bottom-transcriber-title">{t("Ready to convert audio to tabs?")}</h2>
               <div className="bottom-transcriber-actions">
-                <Link href="#hero" className="button-primary">
-                  Start transcribing
-                </Link>
+                <Link href="#hero" className="button-primary">{t(" Start transcribing ")}</Link>
                 {isSignedIn && (
                   <>
-                    <Link href="/tabs" className="button-secondary">
-                      Recent transcriptions
-                    </Link>
-                    <Link href="/gte" className="button-secondary">
-                      Continue editing
-                    </Link>
+                    <Link href="/tabs" className="button-secondary">{t(" Recent transcriptions ")}</Link>
+                    <Link href="/gte" className="button-secondary">{t(" Continue editing ")}</Link>
                   </>
                 )}
               </div>
@@ -2312,18 +2269,18 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         </section>
 
         {trustMetrics && (
-          <section className="home-trust-signal" aria-label="Note2Tabs usage statistics">
+          <section className="home-trust-signal" aria-label={t("Note2Tabs usage statistics")}>
             <div className="container home-trust-signal-inner">
-              <p className="home-trust-signal-kicker">Made for guitarists, used in real workflows</p>
+              <p className="home-trust-signal-kicker">{t("Made for guitarists, used in real workflows")}</p>
               <div className="home-trust-signal-stats">
                 <div className="home-trust-signal-stat">
                   <strong>{formatTrustMetric(trustMetrics.transcriptionsCompleted)}</strong>
-                  <span>transcriptions completed</span>
+                  <span>{t("transcriptions completed")}</span>
                 </div>
                 <div className="home-trust-signal-divider" aria-hidden="true" />
                 <div className="home-trust-signal-stat">
                   <strong>{formatTrustMetric(trustMetrics.editorsCreated)}</strong>
-                  <span>editors created</span>
+                  <span>{t("editors created")}</span>
                 </div>
               </div>
             </div>

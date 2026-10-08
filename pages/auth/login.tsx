@@ -1,7 +1,10 @@
+import { normalizeSafeReturnPath } from "../../lib/safeReturnPath";
+import { translatedError } from "../../lib/i18n/translate";
+import { useLocale } from "../../lib/i18n/react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { getSession, signIn } from "next-auth/react";
-import Link from "next/link";
-import { useRouter } from "next/router";
+import Link from "../../components/LocaleLink";
+import { useLocaleRouter as useRouter } from "../../lib/i18n/react";
 import { generateFingerprint } from "../../lib/fingerprint";
 import NoIndexHead from "../../components/NoIndexHead";
 import { ANALYTICS_EVENTS, sendEvent } from "../../lib/analytics";
@@ -25,19 +28,16 @@ const authErrorMessage = (error?: string | string[]) => {
 };
 
 export default function LoginPage() {
+  const { t, locale, href: localePath } = useLocale();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const nextHref = useMemo(() => {
-    const raw = router.query.next;
-    const value = Array.isArray(raw) ? raw[0] : raw;
-    if (typeof value !== "string") return "/home";
-    const trimmed = value.trim();
-    if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return "/home";
-    return trimmed;
-  }, [router.query.next]);
+    const raw = Array.isArray(router.query.next) ? router.query.next[0] : router.query.next;
+    return localePath(normalizeSafeReturnPath(raw, locale === "pt-BR" ? "/transcribe" : "/home"));
+  }, [router.query.next, locale, localePath]);
   const signupHref =
     nextHref === "/" ? "/auth/signup" : `/auth/signup?next=${encodeURIComponent(nextHref)}`;
   const routeError = useMemo(() => authErrorMessage(router.query.error), [router.query.error]);
@@ -71,7 +71,7 @@ export default function LoginPage() {
         callbackUrl: nextHref,
       });
       if (res?.error) {
-        setError(authErrorMessage(res.error) ?? "We could not sign you in. Check your details and try again.");
+        setError(authErrorMessage(res.error) ?? t("We could not sign you in. Check your details and try again."));
       } else {
         sendEvent(ANALYTICS_EVENTS.loginSucceeded, {
           method: "credentials",
@@ -88,7 +88,7 @@ export default function LoginPage() {
         }
       }
     } catch {
-      setError("We could not reach the sign-in service. Check your connection and try again.");
+      setError(t("We could not reach the sign-in service. Check your connection and try again."));
     } finally {
       setLoading(false);
     }
@@ -96,17 +96,17 @@ export default function LoginPage() {
 
   return (
     <>
-      <NoIndexHead title="Log in | Note2Tabs" canonicalPath="/auth/login" />
+      <NoIndexHead title={t("Log in | Note2Tabs")} canonicalPath="/auth/login" />
     <main className="page page-tight">
       <div className="container">
         <div className="card auth-card auth-card--expanded stack">
           <div className="auth-card-header">
-            <h1 className="page-title">Log in</h1>
-            <p className="page-subtitle">Welcome back to Note2Tabs.</p>
+            <h1 className="page-title">{t("Log in")}</h1>
+            <p className="page-subtitle">{t("Welcome back to Note2Tabs.")}</p>
           </div>
           <form className="stack" onSubmit={handleSubmit}>
             <div className="form-group">
-              <label className="label" htmlFor="login-email">Email</label>
+              <label className="label" htmlFor="login-email">{t("Email")}</label>
               <input
                 id="login-email"
                 type="email"
@@ -119,7 +119,7 @@ export default function LoginPage() {
               />
             </div>
             <div className="form-group">
-              <label className="label" htmlFor="login-password">Password</label>
+              <label className="label" htmlFor="login-password">{t("Password")}</label>
               <input
                 id="login-password"
                 type="password"
@@ -131,13 +131,13 @@ export default function LoginPage() {
                 className="form-input"
               />
             </div>
-            {(error || routeError) && <div className="error" role="alert">{error || routeError}</div>}
+            {(error || routeError) && <div className="error" role="alert">{translatedError(error || routeError, locale)}</div>}
             <button type="submit" disabled={loading} className="button-primary">
-              {loading ? "Signing in..." : "Log in"}
+              {loading ? t("Signing in...") : t("Log in")}
             </button>
           </form>
           <div className="auth-card-divider" aria-hidden="true">
-            <span>or</span>
+            <span>{t("or")}</span>
           </div>
           <button
             type="button"
@@ -155,16 +155,10 @@ export default function LoginPage() {
             }}
             className="button-secondary"
           >
-            <img src="/icons/google.svg" alt="" width={17} height={16} aria-hidden="true" />
-            Continue with Google
-          </button>
+            <img src="/icons/google.svg" alt="" width={17} height={16} aria-hidden="true" />{t(" Continue with Google ")}</button>
           <div className="auth-links-row auth-links-row--between">
-            <Link href={signupHref} className="button-link">
-              Need an account? Sign up
-            </Link>
-            <Link href="/reset-password" className="button-link">
-              Forgot password?
-            </Link>
+            <Link href={signupHref} className="button-link">{t(" Need an account? Sign up ")}</Link>
+            <Link href="/reset-password" className="button-link">{t(" Forgot password? ")}</Link>
           </div>
         </div>
       </div>

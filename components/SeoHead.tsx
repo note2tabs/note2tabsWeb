@@ -1,3 +1,6 @@
+import { useLocale } from "../lib/i18n/react";
+import { LOCALIZED_PUBLIC_PATHS, localeHref, stripLocale } from "../lib/i18n/locale";
+import { portuguesePilotIndexable } from "../lib/i18n/pilot";
 import Head from "next/head";
 import { getConfiguredSiteUrl } from "../lib/siteUrl";
 
@@ -93,15 +96,42 @@ export default function SeoHead({
   articlePublishedTime,
   articleModifiedTime,
 }: SeoHeadProps) {
-  const canonical = canonicalizeUrl(canonicalUrl || canonicalPath || "/");
+  const { locale, t } = useLocale();
+  const sourcePath = stripLocale(canonicalPath || "/");
+  const translated = locale === "pt-BR";
+  const hasAlternate = LOCALIZED_PUBLIC_PATHS.includes(sourcePath as typeof LOCALIZED_PUBLIC_PATHS[number]);
+  const indexable = portuguesePilotIndexable();
+  const canonical = canonicalizeUrl(canonicalUrl || localeHref(sourcePath, locale));
+  title = t(title);
+  description = t(description);
+  noindex = noindex || (translated && !indexable);
   const image = imageUrl || DEFAULT_OG_IMAGE;
-  const structuredData = Array.isArray(jsonLd) ? jsonLd : jsonLd ? [jsonLd] : [];
+  const localizeSchema = (value: unknown, key = ""): unknown => {
+    if (typeof value === "string") {
+      if (key === "inLanguage") return locale;
+      if (["name", "description", "text"].includes(key)) return t(value);
+      if (["url", "item"].includes(key) && value.startsWith(SITE_URL)) {
+        return absoluteUrl(localeHref(value.slice(SITE_URL.length) || "/", locale));
+      }
+      return value;
+    }
+    if (Array.isArray(value)) return value.map((item) => localizeSchema(item));
+    if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, localizeSchema(item, key)]));
+    return value;
+  };
+  const structuredData = (Array.isArray(jsonLd) ? jsonLd : jsonLd ? [jsonLd] : []).map((item) => translated && item["@id"] !== WEBSITE_ID && item["@id"] !== ORGANIZATION_ID ? localizeSchema(item) : item);
 
   return (
     <Head>
       <title>{title}</title>
       <meta key="description" name="description" content={description} />
       <link key="canonical" rel="canonical" href={canonical} />
+      {hasAlternate && (indexable || translated) && <>
+        <link key="alternate-en" rel="alternate" hrefLang="en" href={absoluteUrl(sourcePath)} />
+        {indexable && <link key="alternate-pt-br" rel="alternate" hrefLang="pt-BR" href={absoluteUrl(localeHref(sourcePath, "pt-BR"))} />}
+        <link key="alternate-default" rel="alternate" hrefLang="x-default" href={absoluteUrl(sourcePath)} />
+      </>}
+      <meta property="og:locale" content={translated ? "pt_BR" : "en_US"} />
       <meta key="robots" name="robots" content={noindex ? `noindex,${nofollow ? "nofollow" : "follow"}` : INDEX_ROBOTS_DIRECTIVE} />
       <meta key="googlebot" name="googlebot" content={noindex ? `noindex,${nofollow ? "nofollow" : "follow"}` : INDEX_ROBOTS_DIRECTIVE} />
       <meta key="og:title" property="og:title" content={title} />

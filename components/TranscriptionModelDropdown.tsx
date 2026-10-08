@@ -1,3 +1,4 @@
+import { useLocale } from "../lib/i18n/react";
 import { useRef, type KeyboardEvent } from "react";
 import {
   TRANSCRIPTION_MODEL_OPTIONS,
@@ -25,6 +26,7 @@ export default function TranscriptionModelDropdown({
   verificationRequired = false,
   onLockedHeavySelect,
 }: TranscriptionModelDropdownProps) {
+  const { t, locale, href: localePath } = useLocale();
   const detailsRef = useRef<HTMLDetailsElement | null>(null);
   const selected =
     TRANSCRIPTION_MODEL_OPTIONS.find((option) => option.value === value) ??
@@ -32,9 +34,9 @@ export default function TranscriptionModelDropdown({
   const selectedBadge =
     selected.value === "super_heavy"
       ? verificationRequired
-        ? "Verify to unlock"
+        ? t("Verify to unlock")
         : heavyPreviewAvailable
-          ? "One 30 s preview"
+          ? t("One 30 s preview")
           : selected.badge
       : selected.badge;
 
@@ -63,15 +65,15 @@ export default function TranscriptionModelDropdown({
     >
       <summary
         id={id}
-        aria-label={`Transcription model: ${selected.label}, ${selectedBadge}`}
+        aria-label={t("Transcription model: {model}, {badge}", { model: t(selected.label), badge: t(selectedBadge) })}
         aria-disabled={disabled}
         onClick={(event) => {
           if (disabled) event.preventDefault();
         }}
       >
         <span className="model-dropdown-summary-copy">
-          <span>{selected.label}</span>
-          <span>{selectedBadge}</span>
+          <span>{t(selected.label)}</span>
+          <span>{t(selectedBadge)}</span>
         </span>
         <svg aria-hidden="true" viewBox="0 0 20 20" focusable="false">
           <path d="M5.5 7.5 10 12l4.5-4.5" />
@@ -82,10 +84,10 @@ export default function TranscriptionModelDropdown({
           const isHeavy = option.value === "super_heavy";
           const isLocked = isHeavy && !canUseHeavy;
           const heavyBadge = verificationRequired
-            ? "Verify to unlock"
+            ? t("Verify to unlock")
             : heavyPreviewAvailable
-              ? "One 30 s preview"
-              : "Premium or Pro";
+              ? t("One 30 s preview")
+              : t("Premium or Pro");
           return (
             <button
               key={option.value}
@@ -114,20 +116,20 @@ export default function TranscriptionModelDropdown({
               title={
                 isLocked
                   ? verificationRequired
-                    ? "Verify your email to unlock one free Heavy preview"
-                    : "Heavy requires Premium or Pro"
+                    ? t("Verify your email to unlock one free Heavy preview")
+                    : t("Heavy requires Premium or Pro")
                   : undefined
               }
             >
               <span className="model-dropdown-option-copy">
                 <span className="model-dropdown-option-heading">
-                  <span className="model-dropdown-option-title">{option.label}</span>
+                  <span className="model-dropdown-option-title">{t(option.label)}</span>
                   <span className="model-dropdown-option-badge">
-                    {isHeavy ? heavyBadge : option.badge}
+                    {t(isHeavy ? heavyBadge : option.badge)}
                   </span>
                 </span>
                 <span className="model-dropdown-option-description">
-                  {option.description}
+                  {t(option.description)}
                 </span>
               </span>
               <span className="model-dropdown-check" aria-hidden="true">

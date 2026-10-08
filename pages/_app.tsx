@@ -1,3 +1,8 @@
+import { localeFromPath } from "../lib/i18n/locale";
+import { translate } from "../lib/i18n/translate";
+import { DisplayCurrencyContext } from "../lib/useDisplayCurrency";
+import { LocaleProvider } from "../lib/i18n/react";
+import LanguageSelector from "../components/LanguageSelector";
 import type { AppProps } from "next/app";
 import dynamic from "next/dynamic";
 import Head from "next/head";
@@ -80,14 +85,15 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
   }, [router.events]);
 
   return (
-    <SessionProvider session={session} refetchInterval={0} refetchOnWindowFocus={false}>
+    <DisplayCurrencyContext.Provider value={pageProps.initialDisplayCurrency || "USD"}><LocaleProvider path={router.asPath}><SessionProvider session={session} refetchInterval={0} refetchOnWindowFocus={false}>
       <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
       <div className="app-shell">
         <RouteLoadingIndicator />
-        <a className="skip-link" href="#main-content">Skip to main content</a>
+        <a className="skip-link" href="#main-content">{translate("Skip to main content", localeFromPath(router.asPath))}</a>
         <NavBar editorRevealMode={isGteEditorPage} />
+        <LanguageSelector />
         <div
           id="main-content"
           className="flex-1"
@@ -104,6 +110,6 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         <AffiliateAttributionCapture />
         <CheckoutCancellationTracker />
       </div>
-    </SessionProvider>
+    </SessionProvider></LocaleProvider></DisplayCurrencyContext.Provider>
   );
 }

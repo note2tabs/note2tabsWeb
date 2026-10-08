@@ -1,3 +1,4 @@
+import { localeAnalytics } from "./i18n/locale";
 import { generateFingerprint } from "./fingerprint";
 import {
   sanitizeAnalyticsPathname,
@@ -159,6 +160,7 @@ export async function track(name: string, props: EventProps = {}) {
   void getFingerprintId();
   const eventProps = sanitizeAnalyticsProperties({
     ...getAcquisitionProperties(),
+    ...localeAnalytics(window.location.pathname),
     ...props,
   });
 

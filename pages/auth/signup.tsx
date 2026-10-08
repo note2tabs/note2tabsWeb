@@ -1,6 +1,9 @@
+import { normalizeSafeReturnPath } from "../../lib/safeReturnPath";
+import { translatedError } from "../../lib/i18n/translate";
+import { useLocale } from "../../lib/i18n/react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/router";
+import Link from "../../components/LocaleLink";
+import { useLocaleRouter as useRouter } from "../../lib/i18n/react";
 import { signIn } from "next-auth/react";
 import { generateFingerprint } from "../../lib/fingerprint";
 import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../../lib/analytics";
@@ -24,6 +27,7 @@ const authErrorMessage = (error?: string | string[]) => {
 };
 
 export default function SignupPage() {
+  const { t, locale, href: localePath } = useLocale();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -32,13 +36,9 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const shareEmailClickTracked = useRef(false);
   const nextHref = useMemo(() => {
-    const raw = router.query.next;
-    const value = Array.isArray(raw) ? raw[0] : raw;
-    if (typeof value !== "string") return "/transcriber";
-    const trimmed = value.trim();
-    if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return "/transcriber";
-    return trimmed;
-  }, [router.query.next]);
+    const raw = Array.isArray(router.query.next) ? router.query.next[0] : router.query.next;
+    return localePath(normalizeSafeReturnPath(raw, locale === "pt-BR" ? "/transcribe" : "/transcriber"));
+  }, [router.query.next, locale, localePath]);
   const loginHref =
     nextHref === "/" ? "/auth/login" : `/auth/login?next=${encodeURIComponent(nextHref)}`;
   const routeError = useMemo(() => authErrorMessage(router.query.error), [router.query.error]);
@@ -90,11 +90,12 @@ export default function SignupPage() {
           funnelSource: premiumFunnel?.source,
           funnelReason: premiumFunnel?.reason,
           returnTo: nextHref,
+          locale,
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data?.error || "We could not create your account. Please check the details and try again.");
+        setError(data?.error || t("We could not create your account. Please check the details and try again."));
         sendEvent(ANALYTICS_EVENTS.signupFailed, {
           method: "email",
           error_code: categorizeAnalyticsError(data?.error, "signup_failed"),
@@ -120,7 +121,7 @@ export default function SignupPage() {
       }).catch(() => null);
       await router.push(nextHref);
     } catch (requestError) {
-      setError("We could not reach the sign-up service. Check your connection and try again.");
+      setError(t("We could not reach the sign-up service. Check your connection and try again."));
       sendEvent(ANALYTICS_EVENTS.signupFailed, {
         method: "email",
         error_code: categorizeAnalyticsError(requestError, "signup_network_error"),
@@ -132,16 +133,16 @@ export default function SignupPage() {
 
   return (
     <>
-      <NoIndexHead title="Create your account | Note2Tabs" canonicalPath="/auth/signup" />
+      <NoIndexHead title={t("Create your account | Note2Tabs")} canonicalPath="/auth/signup" />
     <main className="page page-tight">
       <div className="container">
         <div className="card auth-card auth-card--expanded stack">
           <div className="auth-card-header">
-            <h1 className="page-title">Create your account</h1>
+            <h1 className="page-title">{t("Create your account")}</h1>
           </div>
           <form className="stack" onSubmit={handleSubmit}>
             <div className="form-group">
-              <label className="label" htmlFor="signup-name">Name (optional)</label>
+              <label className="label" htmlFor="signup-name">{t("Name (optional)")}</label>
               <input
                 id="signup-name"
                 type="text"
@@ -153,7 +154,7 @@ export default function SignupPage() {
               />
             </div>
             <div className="form-group">
-              <label className="label" htmlFor="signup-email">Email</label>
+              <label className="label" htmlFor="signup-email">{t("Email")}</label>
               <input
                 id="signup-email"
                 type="email"
@@ -166,7 +167,7 @@ export default function SignupPage() {
               />
             </div>
             <div className="form-group">
-              <label className="label" htmlFor="signup-password">Password</label>
+              <label className="label" htmlFor="signup-password">{t("Password")}</label>
               <input
                 id="signup-password"
                 type="password"
@@ -179,13 +180,13 @@ export default function SignupPage() {
                 className="form-input"
               />
             </div>
-            {(error || routeError) && <div className="error" role="alert">{error || routeError}</div>}
+            {(error || routeError) && <div className="error" role="alert">{translatedError(error || routeError, locale)}</div>}
             <button type="submit" disabled={loading} className="button-primary">
-              {loading ? "Creating account..." : "Sign up"}
+              {loading ? t("Creating account...") : t("Sign up")}
             </button>
           </form>
           <div className="auth-card-divider" aria-hidden="true">
-            <span>or</span>
+            <span>{t("or")}</span>
           </div>
           <button
             type="button"
@@ -203,13 +204,9 @@ export default function SignupPage() {
             }}
             className="button-secondary"
           >
-            <img src="/icons/google.svg" alt="" width={17} height={16} aria-hidden="true" />
-            Continue with Google
-          </button>
+            <img src="/icons/google.svg" alt="" width={17} height={16} aria-hidden="true" />{t(" Continue with Google ")}</button>
           <div className="auth-links-row auth-links-row--center">
-            <Link href={loginHref} className="button-link">
-              Already have an account? Log in
-            </Link>
+            <Link href={loginHref} className="button-link">{t(" Already have an account? Log in ")}</Link>
           </div>
         </div>
       </div>

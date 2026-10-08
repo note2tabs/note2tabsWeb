@@ -1,3 +1,4 @@
+import { normalizeLocale } from "../../../lib/i18n/locale";
 import type { NextApiRequest, NextApiResponse } from "next";
 import type Stripe from "stripe";
 import { stripeClient } from "../../../lib/stripe";
@@ -229,6 +230,9 @@ function trackSubscriptionStarted(
     properties: {
       plan: PLAN_CATALOG[plan].analyticsId,
       source: normalizePremiumFunnelSource(session.metadata?.premiumFunnelSource),
+      content_locale: normalizeLocale(session.metadata?.note2tabsLocale),
+      visitor_country: session.metadata?.note2tabsVisitorCountry,
+      device_type: session.metadata?.note2tabsDeviceType,
       reason: normalizePremiumFunnelReason(session.metadata?.premiumFunnelReason),
       funnel_id: funnelId || undefined,
       trial_included: session.metadata?.premiumTrialIncluded === "true",
@@ -250,6 +254,7 @@ type SubscriptionLifecycleEvent =
   | "subscription_cancellation_reversed"
   | "subscription_ended"
   | "subscription_payment_failed"
+  | "subscription_payment_succeeded"
   | "subscription_renewed"
   | "subscription_trial_reminder_sent"
   | "subscription_trial_started_notice_sent"
@@ -380,6 +385,9 @@ async function trackCheckoutLifecycle(
       billing_interval: session.metadata?.note2tabsBillingInterval || undefined,
       site_display_currency: session.metadata?.note2tabsDisplayCurrency || undefined,
       source: normalizePremiumFunnelSource(session.metadata?.premiumFunnelSource),
+      content_locale: normalizeLocale(session.metadata?.note2tabsLocale),
+      visitor_country: session.metadata?.note2tabsVisitorCountry,
+      device_type: session.metadata?.note2tabsDeviceType,
       reason: normalizePremiumFunnelReason(session.metadata?.premiumFunnelReason),
       funnel_id: normalizePremiumFunnelId(session.metadata?.premiumFunnelId) || undefined,
       checkout_status: session.status || undefined,
@@ -1156,6 +1164,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           : null;
       if (!identifier) return res.status(200).json({ received: true, ignored: "user_not_found" });
       const isRenewal = invoice.billing_reason === "subscription_cycle";
+      if (userId && invoice.amount_paid > 0) {
+        trackSubscriptionLifecycle(userId, "subscription_payment_succeeded", event.id, {
+          content_locale: normalizeLocale(premiumSubscription.metadata?.note2tabsLocale),
+          visitor_country: premiumSubscription.metadata?.note2tabsVisitorCountry,
+          device_type: premiumSubscription.metadata?.note2tabsDeviceType,
+          billing_interval: premiumSubscription.metadata?.note2tabsBillingInterval,
+          plan: PLAN_CATALOG[plan].analyticsId,
+          amount_paid_minor: invoice.amount_paid,
+          currency: invoice.currency,
+          billing_reason: invoice.billing_reason,
+          stripe_invoice_id: invoice.id,
+          is_renewal: isRenewal,
+        });
+      }
       await createAffiliateCommission(invoice, premiumSubscription);
       if (userId) await trackAffiliatePayment(invoice, premiumSubscription, userId, isRenewal);
       if (isRenewal) {

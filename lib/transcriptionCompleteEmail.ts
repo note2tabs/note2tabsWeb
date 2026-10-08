@@ -1,3 +1,4 @@
+import { localeHref, type AppLocale } from "./i18n/locale";
 import crypto from "crypto";
 import { sendTransactionalEmail } from "./email";
 import { prisma } from "./prisma";
@@ -8,6 +9,7 @@ type TranscriptionCompleteEmailInput = {
   jobId: string;
   sourceLabel?: string | null;
   editorId?: string | null;
+  locale?: AppLocale;
 };
 
 const MARKER_RETENTION_DAYS = 3650;
@@ -24,7 +26,14 @@ export function buildTranscriptionCompleteEmail(input: TranscriptionCompleteEmai
   const sourceLabel = input.sourceLabel?.trim() || "Your transcription";
   const editorUrl = input.editorId
     ? `${appBaseUrl()}/gte/${encodeURIComponent(input.editorId)}?source=transcription_complete_email`
-    : `${appBaseUrl()}/job/${encodeURIComponent(input.jobId)}?source=transcription_complete_email`;
+    : `${appBaseUrl()}${localeHref(`/job/${encodeURIComponent(input.jobId)}?source=transcription_complete_email`, input.locale || "en")}`;
+  if (input.locale === "pt-BR") {
+    const label = input.sourceLabel?.trim() || "Sua transcrição";
+    const greeting = input.name?.trim() ? `Olá, ${input.name.trim().split(/\s+/)[0]}!` : "Olá!";
+    return {subject: "Sua transcrição do Note2Tabs está pronta", editorUrl,
+      text: `${greeting}\n\n${label} está pronta. Abra no editor para ouvir, editar, praticar e exportar sua tablatura. O editor está em inglês.\n\n${editorUrl}`,
+      html: renderProductEmail({locale: "pt-BR", title: "Sua transcrição está pronta", preview: "Abra sua tablatura no editor.", greeting: escapeEmailHtml(greeting), bodyHtml: `<p><strong>${escapeEmailHtml(label)}</strong> está pronta. Abra no editor para ouvir, editar, praticar e exportar sua tablatura.</p><p>O editor está em inglês.</p>`, action: {label: "Abrir no editor", url: editorUrl}})};
+  }
   const subject = "Your Note2Tabs transcription is ready";
   const text = `Hi ${firstName},
 
@@ -61,6 +70,7 @@ export async function sendTranscriptionCompleteEmailOnce(input: {
   userId: string;
   jobId: string;
   tabJobId: string;
+  locale?: AppLocale;
 }) {
   const result = await prisma.tabJob.findFirst({
     where: { id: input.tabJobId, userId: input.userId },
@@ -93,6 +103,7 @@ export async function sendTranscriptionCompleteEmailOnce(input: {
     jobId: input.jobId,
     sourceLabel: result.sourceLabel,
     editorId: result.gteEditorId,
+    locale: input.locale,
   });
   try {
     const delivered = await sendTransactionalEmail({

@@ -1,3 +1,4 @@
+import { stripLocale, localeFromPath } from "./i18n/locale";
 import type { CaptureResult } from "posthog-js";
 
 type AnalyticsProperties = Record<string, unknown>;
@@ -63,6 +64,8 @@ function stripQueryAndHash(value: string) {
 }
 
 function templatePrivateRoute(pathname: string) {
+  const prefix = localeFromPath(pathname) === "pt-BR" ? "/pt-br" : "";
+  pathname = stripLocale(pathname);
   const patterns: Array<[RegExp, string]> = [
     [/^\/reset-password\/[^/]+/i, "/reset-password/[token]"],
     [/^\/gte\/[^/]+/i, "/gte/[editor_id]"],
@@ -71,9 +74,9 @@ function templatePrivateRoute(pathname: string) {
   ];
 
   for (const [pattern, replacement] of patterns) {
-    if (pattern.test(pathname)) return pathname.replace(pattern, replacement);
+    if (pattern.test(pathname)) return prefix + pathname.replace(pattern, replacement);
   }
-  return pathname;
+  return prefix + pathname;
 }
 
 export function sanitizeAnalyticsPathname(value: string | undefined | null) {
@@ -149,7 +152,7 @@ export function toAnalyticsCategory(value: unknown, fallback = "unknown") {
 }
 
 export function categorizeAnalyticsDestination(value: string | undefined | null) {
-  const path = sanitizeAnalyticsPathname(value);
+  const path = stripLocale(sanitizeAnalyticsPathname(value));
   if (path === "/") return "home";
   if (/^\/(?:transcribe|transcriber)(?:\/|$)/.test(path)) return "transcriber";
   if (/^\/pricing(?:\/|$)/.test(path)) return "pricing";

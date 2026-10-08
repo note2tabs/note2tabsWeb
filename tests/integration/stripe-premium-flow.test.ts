@@ -363,6 +363,19 @@ describe("stripe premium flow", () => {
       );
     });
 
+    it("keeps a Portuguese checkout and upload resume localized without changing billing", async () => {
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const {req,res} = createMocks({method:"POST",headers:{"x-vercel-ip-country":"BR"},body:{locale:"pt-BR",displayCurrency:"brl",returnTo:"/transcribe?resumeTranscription=1"}});
+      await handler(req as any,res as any);
+      expect(res._getStatusCode()).toBe(200);
+      const options = stripeMock.checkout.sessions.create.mock.calls[0][0];
+      expect(options).toMatchObject({locale:"pt-BR",line_items:[{price:"price_test_premium",quantity:1}],metadata:{note2tabsLocale:"pt-BR",note2tabsVisitorCountry:"BR"}});
+      expect(options.cancel_url).toContain("/pt-br/transcribe?resumeTranscription=1&upgrade=cancel");
+      const success = new URL(options.success_url);
+      expect(success.pathname).toBe("/pt-br/premium/welcome");
+      expect(success.searchParams.get("next")).toBe("/pt-br/transcribe?resumeTranscription=1");
+    });
+
     it("creates a checkout session with user metadata", async () => {
       const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
       const { req, res } = createMocks({
@@ -1699,6 +1712,20 @@ describe("stripe premium flow", () => {
 
       expect(res._getStatusCode()).toBe(200);
       expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it("attributes positive paid invoices to the originating locale rather than trial activation", async () => {
+      stripeMock.subscriptions.retrieve.mockResolvedValue(premiumSubscription({metadata:{userId:"user_1",note2tabsLocale:"pt-BR",note2tabsVisitorCountry:"BR"}}));
+      prismaMock.user.findUnique.mockResolvedValue({id:"user_1",role:"PREMIUM",tokensRemaining:100});
+      stripeMock.webhooks.constructEvent.mockReturnValue({id:"evt_paid_pt",type:"invoice.payment_succeeded",data:{object:premiumInvoice({billing_reason:"subscription_create",amount_paid:2190,currency:"brl"})}});
+      const handler = (await import("../../pages/api/stripe/webhook")).default;
+      const res=createResponse(); await handler(buildWebhookReq() as any,res as any);
+      expect(res._getStatusCode()).toBe(200);
+      expect(posthogMock.capture).toHaveBeenCalledWith(expect.objectContaining({event:"subscription_payment_succeeded",properties:expect.objectContaining({content_locale:"pt-BR",visitor_country:"BR",amount_paid_minor:2190,currency:"brl",is_renewal:false})}));
+      posthogMock.capture.mockClear();
+      stripeMock.webhooks.constructEvent.mockReturnValue({id:"evt_zero_pt",type:"invoice.payment_succeeded",data:{object:premiumInvoice({billing_reason:"subscription_create",amount_paid:0,currency:"brl"})}});
+      await handler(buildWebhookReq() as any,createResponse() as any);
+      expect(posthogMock.capture).not.toHaveBeenCalledWith(expect.objectContaining({event:"subscription_payment_succeeded"}));
     });
 
     it("adds monthly credits on renewal invoices without exceeding the rollover cap", async () => {

@@ -1,3 +1,4 @@
+import { describe, it, expect } from "vitest";
 import { stablePostHogEventUuid } from "../../lib/posthogServer";
 
 describe("stablePostHogEventUuid", () => {

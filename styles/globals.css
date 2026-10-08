@@ -14251,3 +14251,9 @@ input[type="number"] {
   .pricing-page--focused .pricing-billing-toggle button:last-child { flex-direction: column; gap: 2px; }
   .pricing-page--focused .pricing-billing-toggle__saving { font-size: .72rem; }
 }
+
+/* Phase-one locale selector: compact, keyboard-accessible, and wrap-safe. */
+.language-selector { display:flex; flex-wrap:wrap; justify-content:center; gap:8px 16px; padding:10px 16px; font-size:.8rem; }
+.language-selector a { color:inherit; text-decoration:underline; text-underline-offset:3px; }
+.language-selector a[aria-current="true"] { font-weight:700; }
+.locale-scope-note { max-width:760px; margin:16px auto; padding:12px 16px; color:#475569; font-size:.85rem; line-height:1.5; }

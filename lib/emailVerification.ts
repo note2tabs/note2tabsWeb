@@ -1,3 +1,4 @@
+import { localeHref, type AppLocale } from "./i18n/locale";
 import crypto from "crypto";
 import { prisma } from "./prisma";
 import { sendTransactionalEmail } from "./email";
@@ -43,9 +44,10 @@ export async function createEmailVerificationToken(userId: string) {
 export function buildVerificationUrl(
   token: string,
   email?: string,
-  returnTo?: string
+  returnTo?: string,
+  locale: AppLocale = "en"
 ) {
-  const url = new URL("/auth/verify-email", baseUrl());
+  const url = new URL(localeHref("/auth/verify-email", locale), baseUrl());
   url.searchParams.set("token", token);
   if (email) url.searchParams.set("email", email);
   if (returnTo) {
@@ -57,9 +59,17 @@ export function buildVerificationUrl(
 export async function sendVerificationEmail(
   email: string,
   token: string,
-  options?: { name?: string | null; returnTo?: string }
+  options?: { name?: string | null; returnTo?: string; locale?: AppLocale }
 ) {
-  const url = buildVerificationUrl(token, email, options?.returnTo);
+  const locale = options?.locale || "en";
+  const url = buildVerificationUrl(token, email, options?.returnTo, locale);
+  if (locale === "pt-BR") {
+    const name = options?.name?.trim() || "";
+    const greeting = name ? `Olá, ${name}!` : "Olá!";
+    return sendTransactionalEmail({to: email, subject: "Confirme sua conta do Note2Tabs",
+      text: `${greeting}\n\nConfirme seu e-mail para concluir a criação da conta e usar o transcritor:\n${url}\n\nEste link expira em 24 horas. Se você não criou esta conta, ignore este e-mail.`,
+      html: renderProductEmail({locale, title: "Confirme seu e-mail", preview: "Confirme seu e-mail para concluir a criação da conta no Note2Tabs.", greeting: escapeEmailHtml(greeting), bodyHtml: "<p>Confirme seu e-mail para concluir a criação da conta e usar o transcritor.</p>", action: {label: "Confirmar e-mail", url}, secondaryHtml: "Este link expira em 24 horas. Se você não criou esta conta, ignore este e-mail."})});
+  }
   const firstName = options?.name?.trim() || "there";
   const subject = "Verify your Note2Tabs account";
   const text = `Hi ${firstName},\n\nPlease verify your email to use the transcriber:\n${url}\n\nIf you didn't create this account, you can ignore this email.`;
@@ -78,11 +88,12 @@ export async function issueAndSendVerificationEmail(user: {
   id: string;
   email: string;
   name?: string | null;
-}, options?: { returnTo?: string }) {
+}, options?: { returnTo?: string; locale?: AppLocale }) {
   const token = await createEmailVerificationToken(user.id);
   const sent = await sendVerificationEmail(user.email, token, {
     name: user.name,
     returnTo: options?.returnTo,
+    locale: options?.locale,
   });
   return { token, sent };
 }

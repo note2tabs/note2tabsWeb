@@ -1,3 +1,4 @@
+import { localeHref, type AppLocale } from "./i18n/locale";
 import crypto from "crypto";
 import { prisma } from "./prisma";
 import { sendTransactionalEmail } from "./email";
@@ -40,8 +41,8 @@ export function normalizeResetCode(value: string) {
   return value.replace(/\s+/g, "").trim();
 }
 
-export function buildPasswordResetUrl(token: string) {
-  return `${baseUrl()}/reset-password/${encodeURIComponent(token)}`;
+export function buildPasswordResetUrl(token: string, locale: AppLocale = "en") {
+  return `${baseUrl()}${localeHref(`/reset-password/${encodeURIComponent(token)}`, locale)}`;
 }
 
 export async function createPasswordResetToken(userId: string) {
@@ -69,9 +70,17 @@ export async function sendPasswordResetEmail(
   email: string,
   token: string,
   code: string,
-  options?: { name?: string | null }
+  options?: { name?: string | null; locale?: AppLocale }
 ) {
-  const url = buildPasswordResetUrl(token);
+  const locale = options?.locale || "en";
+  const url = buildPasswordResetUrl(token, locale);
+  if (locale === "pt-BR") {
+    const name = options?.name?.trim() || "";
+    const greeting = name ? `Olá, ${name}!` : "Olá!";
+    return sendTransactionalEmail({to: email, subject: "Redefina sua senha do Note2Tabs",
+      text: `${greeting}\n\nRecebemos um pedido para redefinir sua senha. Abra o link:\n${url}\n\nSeu código: ${code}\n\nO link e o código expiram em uma hora. Se você não fez este pedido, ignore este e-mail.`,
+      html: renderProductEmail({locale, title: "Redefina sua senha", preview: "Use o link e o código de seis dígitos para redefinir sua senha.", greeting: escapeEmailHtml(greeting), bodyHtml: `<p>Recebemos um pedido para redefinir sua senha.</p><p>Seu código: <strong>${escapeEmailHtml(code)}</strong></p>`, action: {label: "Redefinir senha", url}, secondaryHtml: "O link e o código expiram em uma hora. Se você não fez este pedido, ignore este e-mail."})});
+  }
   const firstName = options?.name?.trim() || "there";
   const subject = "Reset your Note2Tabs password";
   const text = `Hi ${firstName},
@@ -99,8 +108,9 @@ export async function issueAndSendPasswordResetEmail(user: {
   id: string;
   email: string;
   name?: string | null;
+  locale?: AppLocale;
 }) {
   const { token, code, expires } = await createPasswordResetToken(user.id);
-  const sent = await sendPasswordResetEmail(user.email, token, code, { name: user.name });
+  const sent = await sendPasswordResetEmail(user.email, token, code, { name: user.name, locale: user.locale });
   return { token, code, expires, sent };
 }

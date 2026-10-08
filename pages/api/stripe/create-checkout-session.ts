@@ -1,3 +1,5 @@
+import { localizeCheckoutReturnPaths } from "../../../lib/i18n/checkout";
+import { requestLocale } from "../../../lib/i18n/request";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createHash } from "crypto";
 import { getServerSession } from "next-auth/next";
@@ -92,6 +94,9 @@ const resolveCheckoutReturnPaths = (requestedPath: unknown) => {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const startedAt = Date.now();
+  const contentLocale = requestLocale(req);
+  const rawCountry = req.headers["x-vercel-ip-country"];
+  const visitorCountry = typeof rawCountry === "string" && /^[A-Z]{2}$/.test(rawCountry) ? rawCountry : "unknown";
   const requestId = String(req.headers["x-vercel-id"] || "local");
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
@@ -172,6 +177,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   await trackCheckoutEvent(session.user.id, "checkout_session_requested", {
     plan: selectedPlan.analyticsId,
     billing_interval: billingInterval,
+    content_locale: contentLocale,
+    visitor_country: visitorCountry,
     source,
     reason,
     funnel_id: funnelId,
@@ -184,7 +191,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const baseUrl = getAppBaseUrl(req);
-    const returnPaths = resolveCheckoutReturnPaths(req.body?.returnTo);
+    const returnPaths = localizeCheckoutReturnPaths(resolveCheckoutReturnPaths(req.body?.returnTo), contentLocale);
     const referralCode = affiliateCodeFromRequest(req);
     const referredAffiliate = referralCode
       ? await prisma.affiliate.findFirst({
@@ -243,6 +250,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const checkoutMetadata = {
       userId: session.user.id,
       note2tabsPlan: requestedPlan.toLowerCase(),
+      note2tabsLocale: contentLocale,
+      note2tabsVisitorCountry: visitorCountry,
+      note2tabsDeviceType: deviceType,
       note2tabsBillingInterval: billingInterval,
       note2tabsPriceId: selectedConfig.priceId,
       premiumFunnelId: funnelId,
@@ -267,6 +277,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ? { customer: existingCustomer.id }
           : { customer_email: session.user.email }),
         mode: "subscription",
+        ...(contentLocale === "pt-BR" ? {locale: "pt-BR" as const} : {}),
         payment_method_collection: "always",
         line_items: [{ price: selectedConfig.priceId, quantity: 1 }],
         client_reference_id: funnelId,
@@ -294,6 +305,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await trackCheckoutEvent(session.user.id, "checkout_started", {
       plan: selectedPlan.analyticsId,
       billing_interval: billingInterval,
+    content_locale: contentLocale,
+    visitor_country: visitorCountry,
       source,
       reason,
       funnel_id: funnelId,
@@ -322,6 +335,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           checkout_session_id: checkout.id,
           plan: selectedPlan.analyticsId,
           billing_interval: billingInterval,
+    content_locale: contentLocale,
+    visitor_country: visitorCountry,
           trial_included: trialIncluded,
           offer_mode: trialIncluded ? "seven_day_trial" : "immediate_charge",
         },
@@ -354,6 +369,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await trackCheckoutEvent(session.user.id, "checkout_failed", {
       plan: selectedPlan.analyticsId,
       billing_interval: billingInterval,
+    content_locale: contentLocale,
+    visitor_country: visitorCountry,
       source,
       reason,
       funnel_id: funnelId,

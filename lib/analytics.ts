@@ -1,3 +1,4 @@
+import { localeAnalytics, normalizeLocale } from "./i18n/locale";
 import { publishTranscriptionCompletedForPremiumPrompt } from "./premiumPromptSignals";
 import { track as trackAnalyticsV2 } from "./analyticsV2";
 import {
@@ -145,6 +146,8 @@ export function sendEvent(event: string, payload?: EventPayload) {
   if (process.env.NODE_ENV !== "production") return;
   const properties = {
     ...getUtmParams(),
+    ...localeAnalytics(window.location.pathname),
+    preferred_locale: (() => { try { const value = window.localStorage.getItem("n2t:preferred-locale"); return value ? normalizeLocale(value) : undefined; } catch { return undefined; } })(),
     ...(payload || {}),
   };
   const sanitizedProperties = sanitizeAnalyticsProperties(properties);

@@ -4,6 +4,7 @@ type EmailAction = {
 };
 
 type ProductEmailInput = {
+  locale?: "en" | "pt-BR";
   title: string;
   preview: string;
   greeting?: string;
@@ -34,7 +35,7 @@ export function renderProductEmail(input: ProductEmailInput) {
     : "";
 
   return `<!doctype html>
-<html lang="en">
+<html lang="${input.locale === "pt-BR" ? "pt-BR" : "en"}">
   <body style="margin:0;padding:0;background:#f5f2eb;color:#17201d;">
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeEmailHtml(input.preview)}</div>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#f5f2eb;font-family:Arial,Helvetica,sans-serif;">

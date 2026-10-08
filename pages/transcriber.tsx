@@ -1,9 +1,12 @@
+import { localizedSignIn as signIn } from "../lib/i18n/auth";
+import { translatedError } from "../lib/i18n/translate";
+import { useLocale } from "../lib/i18n/react";
 import type { GetServerSideProps } from "next";
-import Link from "next/link";
-import { useRouter } from "next/router";
+import Link from "../components/LocaleLink";
+import { useLocaleRouter as useRouter } from "../lib/i18n/react";
 import type { ChangeEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { signIn, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import {
   ANALYTICS_EVENTS,
   getAcceptedTranscriptionAccessType,
@@ -188,6 +191,7 @@ const parseYouTubeId = (value: string): string | null => {
 };
 
 export default function TranscriberPage() {
+  const { t, locale, href: localePath } = useLocale();
   const { data: session, status: sessionStatus, update: updateSession } = useSession();
   const router = useRouter();
   const [mode, setMode] = useState<"FILE" | "YOUTUBE">("FILE");
@@ -299,7 +303,7 @@ export default function TranscriberPage() {
     if (!appendEditorId || editorChoices.some((editor) => editor.id === appendEditorId)) {
       return editorChoices;
     }
-    return [{ id: appendEditorId, name: "Current editor" }, ...editorChoices];
+    return [{ id: appendEditorId, name: t("Current editor") }, ...editorChoices];
   }, [appendEditorId, editorChoices]);
   const youtubeId = useMemo(() => parseYouTubeId(youtubeUrl), [youtubeUrl]);
   const resolvedYtDuration = useMemo(() => {
@@ -498,7 +502,7 @@ export default function TranscriberPage() {
       const pending = await peekPendingTranscription();
       if (cancelled || resumeHandoffAttemptRef.current !== attemptId) return;
       if (!pending) {
-        setError("Your saved upload expired or could not be restored. Please choose it again to continue.");
+        setError(t("Your saved upload expired or could not be restored. Please choose it again to continue."));
         await router.replace("/transcribe", undefined, { shallow: true });
         return;
       }
@@ -521,7 +525,7 @@ export default function TranscriberPage() {
 
       if (returnedFromBilling && requiresPremium && !premiumEntitlementReady) {
         setError(null);
-        setStatus("Payment received. Activating Premium and restoring your upload…");
+        setStatus(t("Payment received. Activating Premium and restoring your upload…"));
         if (typeof checkoutSessionId === "string") {
           await confirmPremiumCheckout(checkoutSessionId);
         }
@@ -536,7 +540,7 @@ export default function TranscriberPage() {
         if (!premiumEntitlementReady) {
           setStatus(null);
           setError(
-            "Premium is still activating. Your upload is safe—reload this page to retry."
+            t("Premium is still activating. Your upload is safe—reload this page to retry.")
           );
           return;
         }
@@ -567,15 +571,15 @@ export default function TranscriberPage() {
       }
 
       if (pending.mode === "FILE" && pending.file.size > MAX_PRESERVABLE_UPLOAD_BYTES) {
-        setError(`The restored file exceeds the ${formatMb(MAX_PRESERVABLE_UPLOAD_BYTES)} upload limit.`);
-        setStatus("Choose a smaller audio file to continue.");
+        setError(t("The restored file exceeds the {size} upload limit.", { size: formatMb(MAX_PRESERVABLE_UPLOAD_BYTES) }));
+        setStatus(t("Choose a smaller audio file to continue."));
       } else if (requiresPremium && !premiumEntitlementReady) {
-        setStatus("Your upload is restored. Upgrade to Premium to transcribe this file.");
+        setStatus(t("Your upload is restored. Upgrade to Premium to transcribe this file."));
       } else if (!canTranscribe) {
-        setError("Verify your email to start transcribing and unlock your free Heavy preview.");
-        setStatus("Your upload is restored and will remain available after verification.");
+        setError(t("Verify your email to start transcribing and unlock your free Heavy preview."));
+        setStatus(t("Your upload is restored and will remain available after verification."));
       } else {
-        setStatus("Welcome back — your transcription is ready to continue.");
+        setStatus(t("Welcome back — your transcription is ready to continue."));
       }
 
       sendEvent(ANALYTICS_EVENTS.authHandoffResumed, { mode: pending.mode, path: "/transcribe" });
@@ -583,7 +587,7 @@ export default function TranscriberPage() {
     };
 
     void restorePendingTranscription().catch(() => {
-      if (!cancelled) setError("You are signed in. Please choose the audio again to continue.");
+      if (!cancelled) setError(t("You are signed in. Please choose the audio again to continue."));
     });
 
     return () => {
@@ -726,22 +730,22 @@ export default function TranscriberPage() {
     sessionStatus,
   ]);
   const submitLabel = authHandoffBusy
-    ? "Opening sign in…"
+    ? t("Opening sign in…")
     : loading
     ? mode === "YOUTUBE"
-      ? "Downloading..."
-      : "Generating..."
+      ? t("Downloading...")
+      : t("Generating...")
     : mode === "FILE" && !selectedFile
-    ? "Choose audio file"
+    ? t("Choose audio file")
     : sessionStatus === "loading"
-    ? "Checking account…"
+    ? t("Checking account…")
     : !isSignedIn
-    ? "Continue to sign in"
+    ? t("Continue to sign in")
     : heavyPreviewAvailable && transcriptionModel === "super_heavy"
-    ? "Use free Heavy preview"
-    : "Generate tabs";
-  const transcribingStatusLabel = "Transcribing audio...";
-  const youtubeTranscribingStatusLabel = "Downloading YouTube audio and transcribing...";
+    ? t("Use free Heavy preview")
+    : t("Generate tabs");
+  const transcribingStatusLabel = t("Transcribing audio...");
+  const youtubeTranscribingStatusLabel = t("Downloading YouTube audio and transcribing...");
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
@@ -788,7 +792,7 @@ export default function TranscriberPage() {
   const openTabsInGuestEditor = async (segments: string[][]) => {
     const { stamps, totalFrames } = tabSegmentsToStamps(segments);
     if (stamps.length === 0) {
-      throw new Error("No tabs available to import into the guest editor.");
+      throw new Error(t("No tabs available to import into the guest editor."));
     }
     const guestLaneEditorId = buildLaneEditorRef(GTE_GUEST_EDITOR_ID, "ed-1");
     await gteApi.deleteEditor(GTE_GUEST_EDITOR_ID).catch(() => {});
@@ -809,13 +813,13 @@ export default function TranscriberPage() {
   const handleConvert = async () => {
     if (convertInFlightRef.current || authHandoffInFlightRef.current || loading) return;
     if (sessionStatus === "loading") {
-      setStatus("Checking your account…");
+      setStatus(t("Checking your account…"));
       return;
     }
 
     if (!transcriberSession && !disableDbInDev) {
       if (mode === "FILE" && selectedFile && selectedFile.size > MAX_PRESERVABLE_UPLOAD_BYTES) {
-        setError(`Files over ${formatMb(MAX_PRESERVABLE_UPLOAD_BYTES)} cannot be preserved through sign-in.`);
+        setError(t("Files over {size} cannot be preserved through sign-in.", { size: formatMb(MAX_PRESERVABLE_UPLOAD_BYTES) }));
         sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, {
           reason: "file_too_large",
           mode,
@@ -827,7 +831,7 @@ export default function TranscriberPage() {
       authHandoffInFlightRef.current = true;
       setAuthHandoffBusy(true);
       setError(null);
-      setStatus("Saving your selection before sign-in…");
+      setStatus(t("Saving your selection before sign-in…"));
       try {
         await savePendingTranscription(
           mode === "FILE" && selectedFile
@@ -852,7 +856,7 @@ export default function TranscriberPage() {
           `/auth/login?next=${encodeURIComponent("/transcribe?resumeTranscription=1")}`
         );
       } catch {
-        setError("We could not safely preserve this audio for sign-in. Please sign in first, then choose it again.");
+        setError(t("We could not safely preserve this audio for sign-in. Please sign in first, then choose it again."));
       } finally {
         authHandoffInFlightRef.current = false;
         setAuthHandoffBusy(false);
@@ -860,26 +864,26 @@ export default function TranscriberPage() {
       return;
     }
     if (transcriberSession && !canTranscribe) {
-      setError("Verify your email to start transcribing and unlock your free Heavy preview.");
+      setError(t("Verify your email to start transcribing and unlock your free Heavy preview."));
       sendEvent(ANALYTICS_EVENTS.verificationGateShown, { surface: "transcriber", mode });
       return;
     }
 
     if (mode === "FILE" && !selectedFile) {
-      setError("Please select an audio file to transcribe.");
+      setError(t("Please select an audio file to transcribe."));
       return;
     }
 
     if (mode === "YOUTUBE" && !youtubeValid) {
-      setError("Please paste a valid YouTube link.");
+      setError(t("Please paste a valid YouTube link."));
       return;
     }
     if (mode === "YOUTUBE" && (ytStartTime === null || ytEndTime === null)) {
-      setError("Start time and end time are required for YouTube download.");
+      setError(t("Start time and end time are required for YouTube download."));
       return;
     }
     if (mode === "YOUTUBE" && ytStartTime !== null && ytEndTime !== null && ytEndTime <= ytStartTime) {
-      setError("End time must be after start time.");
+      setError(t("End time must be after start time."));
       return;
     }
     if (
@@ -889,7 +893,7 @@ export default function TranscriberPage() {
       !isPremiumUser &&
       ytEndTime - ytStartTime > MAX_FREE_YOUTUBE_SNIPPET_SEC
     ) {
-      setError(`Free YouTube clips must be ${MAX_FREE_YOUTUBE_SNIPPET_SEC} seconds or less.`);
+      setError(t("Free YouTube clips must be {seconds} seconds or less.", { seconds: MAX_FREE_YOUTUBE_SNIPPET_SEC }));
       return;
     }
 
@@ -898,32 +902,32 @@ export default function TranscriberPage() {
         ? maxUploadBytes
         : MAX_FREE_BYTES;
       if (selectedFile.size > maxBytes) {
-        setError(`File is too large. Max size is ${formatMb(maxBytes)} for your plan.`);
+        setError(t("File is too large. Max size is {size} for your plan.", { size: formatMb(maxBytes) }));
         return;
       }
     }
 
     if (mode === "FILE" && selectedFile && !fileTimeRangeValid) {
       setError(heavyPreviewAvailable && transcriptionModel === "super_heavy"
-        ? "Your one-time Heavy preview can include up to 30 seconds."
-        : "Selected file clip must be greater than 0 and within the file length.");
+        ? t("Your one-time Heavy preview can include up to 30 seconds.")
+        : t("Selected file clip must be greater than 0 and within the file length."));
       return;
     }
     if (mode === "YOUTUBE") {
       if (ytStartTime !== null && ytStartTime < 0) {
-        setError("Start time must be 0 or greater.");
+        setError(t("Start time must be 0 or greater."));
         return;
       }
       if (ytStartTime !== null && ytStartTime >= youtubeWindowSeconds) {
-        setError(`Start time must be before ${formatTimestamp(youtubeWindowSeconds)}.`);
+        setError(t("Start time must be before {time}.", { time: formatTimestamp(youtubeWindowSeconds) }));
         return;
       }
       if (ytEndTime !== null && ytEndTime <= 0) {
-        setError("End time must be greater than 0.");
+        setError(t("End time must be greater than 0."));
         return;
       }
       if (ytEndTime !== null && ytEndTime > youtubeWindowSeconds) {
-        setError(`End time must be ${formatTimestamp(youtubeWindowSeconds)} or earlier.`);
+        setError(t("End time must be {time} or earlier.", { time: formatTimestamp(youtubeWindowSeconds) }));
         return;
       }
     }
@@ -943,7 +947,7 @@ export default function TranscriberPage() {
     setImportError(null);
     setTabsResult(null);
     setTranscriberSegments(null);
-    setStatus(mode === "FILE" ? transcribingStatusLabel : "Preparing YouTube...");
+    setStatus(mode === "FILE" ? transcribingStatusLabel : t("Preparing YouTube..."));
     setLoading(true);
     const researchProperties = buildTranscriptionResearchProperties({
       mode,
@@ -978,7 +982,7 @@ export default function TranscriberPage() {
         if (isDevelopmentClient) {
           response = await postFileDirectly();
         } else {
-          const uploadStorageError = "We could not securely transfer this file. Check your connection and try again; the file is still selected.";
+          const uploadStorageError = t("We could not securely transfer this file. Check your connection and try again; the file is still selected.");
           const presignRes = await fetch("/api/uploads/presign", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1075,7 +1079,7 @@ export default function TranscriberPage() {
             access_type: "preview",
           });
         }
-        setStatus("Opening progress screen...");
+        setStatus(t("Opening progress screen..."));
         sendEvent("transcribe_queued", {
           ...researchProperties,
           jobId: data.jobId,
@@ -1110,14 +1114,14 @@ export default function TranscriberPage() {
         }
         if (data.verificationRequired) {
           await updateSession().catch(() => null);
-          setError("Verify your email to start transcribing and unlock your free Heavy preview.");
+          setError(t("Verify your email to start transcribing and unlock your free Heavy preview."));
           return;
         }
         if (response.status === 403 && data.credits) {
           setError(null);
           return;
         }
-        setError(data?.error || "We could not start this transcription. Your selection is still here, so you can try again.");
+        setError(data?.error || t("We could not start this transcription. Your selection is still here, so you can try again."));
         sendEvent("transcribe_error", {
           ...researchProperties,
           error_code: categorizeAnalyticsError(data?.error, "transcription_failed"),
@@ -1126,7 +1130,7 @@ export default function TranscriberPage() {
         return;
       }
       if (!data.tabs || !Array.isArray(data.tabs)) {
-        setError("The transcription finished without a usable tab. Try a clearer section or switch models.");
+        setError(t("The transcription finished without a usable tab. Try a clearer section or switch models."));
         sendEvent("transcribe_error", {
           ...researchProperties,
           error_code: "no_tabs",
@@ -1167,7 +1171,7 @@ export default function TranscriberPage() {
         jobId: data.jobId,
       });
       if (transcriberSession && data.tabJobId) {
-        setStatus("Tabs ready. Opening transcription...");
+        setStatus(t("Tabs ready. Opening transcription..."));
         await router.push(
           appendEditorId
             ? `/tabs/${data.tabJobId}?appendEditorId=${encodeURIComponent(appendEditorId)}`
@@ -1178,18 +1182,18 @@ export default function TranscriberPage() {
       if (!transcriberSession) {
         if (disableDbInDev) {
           setTabsResult(nextTabs);
-          setStatus("Tabs ready. Select blocks below.");
+          setStatus(t("Tabs ready. Select blocks below."));
           return;
         }
         setTabsResult(nextTabs);
-        setStatus("Tabs ready.");
+        setStatus(t("Tabs ready."));
         return;
       }
       setTabsResult(nextTabs);
-      setStatus("Tabs ready. Import below.");
+      setStatus(t("Tabs ready. Import below."));
       return;
     } catch (err: any) {
-      setError(err?.message || "We could not reach the transcription service. Check your connection and try again.");
+      setError(err?.message || t("We could not reach the transcription service. Check your connection and try again."));
       sendEvent("transcribe_error", {
         ...researchProperties,
         error_code: categorizeAnalyticsError(err, "transcription_failed"),
@@ -1230,6 +1234,7 @@ export default function TranscriberPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          locale,
           returnTo: "/transcribe?resumeTranscription=1",
           source: funnel.source,
           reason: funnel.reason,
@@ -1238,7 +1243,7 @@ export default function TranscriberPage() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.url) {
-        throw new Error(payload?.error || "Checkout is temporarily unavailable. Please try again in a moment.");
+        throw new Error(payload?.error || t("Checkout is temporarily unavailable. Please try again in a moment."));
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
         plan: "premium_monthly",
@@ -1267,7 +1272,7 @@ export default function TranscriberPage() {
       setError(
         upgradeError instanceof Error
           ? upgradeError.message
-          : "We could not reach checkout. Check your connection and try again."
+          : t("We could not reach checkout. Check your connection and try again.")
       );
       setUpgradeBusy(false);
     }
@@ -1310,7 +1315,7 @@ export default function TranscriberPage() {
       }
       const { stamps, totalFrames } = tabSegmentsToStamps(tabsResult);
       if (stamps.length === 0) {
-        setImportError("No tabs available to import.");
+        setImportError(t("No tabs available to import."));
         return;
       }
       let targetEditorId = editorChoice;
@@ -1324,7 +1329,7 @@ export default function TranscriberPage() {
         laneId = resolvePrimaryLaneId(loaded);
       }
       if (!laneId) {
-        throw new Error("Could not find a track to import into.");
+        throw new Error(t("Could not find a track to import into."));
       }
       await gteApi.appendImportTab(buildLaneEditorRef(targetEditorId, laneId), { stamps, totalFrames });
       sendEvent(ANALYTICS_EVENTS.transcriptionImportedToEditor, {
@@ -1335,7 +1340,7 @@ export default function TranscriberPage() {
     } catch (err: any) {
       const message =
         err?.message ||
-        "We could not add this transcription to the editor. The transcription is still available; please try again.";
+        t("We could not add this transcription to the editor. The transcription is still available; please try again.");
       setImportError(message);
       sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportFailed, {
         ...eventProperties,
@@ -1384,7 +1389,7 @@ export default function TranscriberPage() {
     } catch (err: any) {
       const message =
         err?.message ||
-        "We could not open the editor. Your transcription is still available; please try again.";
+        t("We could not open the editor. Your transcription is still available; please try again.");
       setImportError(message);
       sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportFailed, {
         ...eventProperties,
@@ -1400,16 +1405,16 @@ export default function TranscriberPage() {
     : transcriberSession || disableDbInDev
     ? "-"
     : "10";
-  const creditsResetLabel = formatCreditResetDate(displayedCredits?.resetAt);
+  const creditsResetLabel = formatCreditResetDate(displayedCredits?.resetAt, locale);
   const showCreditsLow = displayedCredits && displayedCredits.remaining <= 3;
-  const resetLabelText = isPremiumRole(transcriberSession?.user?.role) ? "Next credits" : "Resets";
+  const resetLabelText = isPremiumRole(transcriberSession?.user?.role) ? t("Next credits") : t("Resets");
   const transcriberDescription =
-    "Upload audio or enter a YouTube segment to generate a structured, playable guitar tab you can open in the Note2Tabs editor.";
+    t("Upload audio or enter a YouTube segment to generate a structured, playable guitar tab you can open in the Note2Tabs editor.");
   const transcriberJsonLd = [
     {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
-      name: "Note2Tabs Transcriber",
+      name: t("Note2Tabs Transcriber"),
       applicationCategory: "MusicApplication",
       operatingSystem: "Web",
       url: absoluteUrl("/transcribe"),
@@ -1429,13 +1434,13 @@ export default function TranscriberPage() {
         {
           "@type": "ListItem",
           position: 1,
-          name: "Home",
+          name: t("Home"),
           item: absoluteUrl("/"),
         },
         {
           "@type": "ListItem",
           position: 2,
-          name: "Transcriber",
+          name: t("Transcriber"),
           item: absoluteUrl("/transcribe"),
         },
       ],
@@ -1472,7 +1477,7 @@ export default function TranscriberPage() {
         }}
       />
       <SeoHead
-        title="Audio to Guitar Tab Transcriber | Note2Tabs"
+        title={t("Audio to Guitar Tab Transcriber | Note2Tabs")}
         description={transcriberDescription}
         canonicalPath="/transcribe"
         jsonLd={transcriberJsonLd}
@@ -1488,13 +1493,12 @@ export default function TranscriberPage() {
           </div>
           <div className="container hero-stack hero-stack--centered">
             <div className="hero-heading" data-reveal>
-              <p className="hero-eyebrow">AI tabs built for guitarists</p>
+              <p className="hero-eyebrow">{t("AI tabs built for guitarists")}</p>
               <div className="hero-title-row">
-                <h1 className="hero-title">Convert Any Song to Guitar Tabs</h1>
+                <h1 className="hero-title">{t("Convert Any Song to Guitar Tabs")}</h1>
               </div>
-              <p className="hero-subtitle hero-subtitle--conversion">
-                Turn recordings into guitar tab you can edit, practice, and export.
-              </p>
+              <p className="hero-subtitle hero-subtitle--conversion">{t(" Turn recordings into guitar tab you can edit, practice, and export. ")}</p>
+              {locale === "pt-BR" && <p className="locale-scope-note">{t("Transcription and pricing in Portuguese. The editor, help and legal documents are in English.")}</p>}
             </div>
             <form
               className="prompt-shell prompt-shell--funnel"
@@ -1527,8 +1531,7 @@ export default function TranscriberPage() {
                   </div>
                 </div>
                 {isSignedIn && displayedCredits && (
-                  <p className="hero-credits-inline">
-                    Credits: <strong>{creditsUsageLabel}</strong>
+                  <p className="hero-credits-inline">{t(" Credits: ")}<strong>{creditsUsageLabel}</strong>
                     <span className="hero-credits-next">• {resetLabelText} {creditsResetLabel}</span>
                   </p>
                 )}
@@ -1594,11 +1597,11 @@ export default function TranscriberPage() {
                         </span>
                         {mode === "FILE" ? (
                           <span className="funnel-file-label">
-                            {selectedFile ? selectedFile.name : "Upload audio file or drop it here"}
+                            {selectedFile ? selectedFile.name : t("Upload audio file or drop it here")}
                           </span>
                         ) : (
                           <>
-                            <label className="sr-only" htmlFor="transcriber-youtube-url">YouTube link</label>
+                            <label className="sr-only" htmlFor="transcriber-youtube-url">{t("YouTube link")}</label>
                             <input
                               id="transcriber-youtube-url"
                               name="youtubeUrl"
@@ -1616,30 +1619,26 @@ export default function TranscriberPage() {
                       type="file"
                       accept={AUDIO_ACCEPT}
                       className="native-file-input"
-                      aria-label="Choose audio file"
+                      aria-label={t("Choose audio file")}
                       disabled={mode !== "FILE" || loading || authHandoffBusy}
                       onChange={onFileChange}
                     />
                   </div>
                 </div>
                 <div className="funnel-toolbar">
-                  <div className="mode-switch mode-switch--hero" role="group" aria-label="Input mode">
+                  <div className="mode-switch mode-switch--hero" role="group" aria-label={t("Input mode")}>
                     <button
                       type="button"
                       className={mode === "FILE" ? "active" : ""}
                       aria-pressed={mode === "FILE"}
                       onClick={() => { setMode("FILE"); }}
-                    >
-                      Audio file
-                    </button>
+                    >{t(" Audio file ")}</button>
                     <button
                       type="button"
                       className={mode === "YOUTUBE" ? "active" : ""}
                       aria-pressed={mode === "YOUTUBE"}
                       onClick={() => { setMode("YOUTUBE"); }}
-                    >
-                      YouTube link
-                    </button>
+                    >{t(" YouTube link ")}</button>
                   </div>
                   <div className="transcription-auth-cta transcription-auth-cta--toolbar">
                     <button
@@ -1654,7 +1653,7 @@ export default function TranscriberPage() {
                     >
                       {submitLabel}
                     </button>
-                    {!isSignedIn && canSubmit && <p>A free account is required. Your selection will be saved.</p>}
+                    {!isSignedIn && canSubmit && <p>{t("A free account is required. Your selection will be saved.")}</p>}
                   </div>
                 </div>
               </div>
@@ -1663,12 +1662,12 @@ export default function TranscriberPage() {
                 <>
                   <div className="prompt-field prompt-field--compact">
                     <div className="advanced-grid">
-                    <label>Start time<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="0:00" value={ytStartInput} onChange={(event) => handleYtStartInputChange(event.target.value)} onBlur={handleYtStartInputBlur} required /></label>
-                    <label>End time<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="0:30" value={ytEndInput} onChange={(event) => handleYtEndInputChange(event.target.value)} onBlur={handleYtEndInputBlur} required /></label>
+                    <label>{t("Start time")}<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="0:00" value={ytStartInput} onChange={(event) => handleYtStartInputChange(event.target.value)} onBlur={handleYtStartInputBlur} required /></label>
+                    <label>{t("End time")}<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="0:30" value={ytEndInput} onChange={(event) => handleYtEndInputChange(event.target.value)} onBlur={handleYtEndInputBlur} required /></label>
                     <p className="advanced-note">
                       {isPremiumUser
-                        ? `Choose any clip length within the first ${youtubeWindowSeconds / 60} minutes.`
-                        : "Free clips can be up to 30 s."}
+                        ? t("Choose any clip length within the first {minutes} minutes.", { minutes: youtubeWindowSeconds / 60 })
+                        : t("Free clips can be up to 30 s.")}
                     </p>
                     </div>
                   </div>
@@ -1678,50 +1677,47 @@ export default function TranscriberPage() {
               {mode === "FILE" && selectedFile && (
                 <div className="prompt-field prompt-field--compact">
                   <div className="advanced-grid">
-                    <label>Start time<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="0:00" value={fileStartInput} onChange={(event) => handleFileStartInputChange(event.target.value)} onBlur={handleFileStartInputBlur} required /></label>
-                    <label>End time<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="1:00" value={fileEndInput} onChange={(event) => handleFileEndInputChange(event.target.value)} onBlur={handleFileEndInputBlur} required /></label>
-                    <p className="advanced-note">{isPremiumUser ? "Pick any section within the file." : "Free file uploads are limited to 60 s."}</p>
+                    <label>{t("Start time")}<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="0:00" value={fileStartInput} onChange={(event) => handleFileStartInputChange(event.target.value)} onBlur={handleFileStartInputBlur} required /></label>
+                    <label>{t("End time")}<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="1:00" value={fileEndInput} onChange={(event) => handleFileEndInputChange(event.target.value)} onBlur={handleFileEndInputBlur} required /></label>
+                    <p className="advanced-note">{isPremiumUser ? t("Pick any section within the file.") : t("Free file uploads are limited to 60 s.")}</p>
                   </div>
                 </div>
               )}
 
               {status && !loading && !authHandoffBusy && <div className="status">{status}</div>}
-              {error && <div className="error" role="alert">{error}</div>}
+              {error && <div className="error" role="alert">{translatedError(error, locale)}</div>}
               {needsPremiumForSelectedFile && !showHeavyUpgrade && (
                 isSignedIn && !needsProForSelectedFile ? (
-                  <PremiumConversionCard title="Continue with this upload" description="Your file is still selected. Premium supports audio files up to 200 MB and full-length transcription." actionLabel="Continue with Premium" onAction={() => void handlePreservedUploadUpgrade()} busy={upgradeBusy} tracking={{ source: "large_upload_gate", reason: "file_size_limit", surface: "file_size_limit_card", trigger: "oversized_file_selected" }} />
+                  <PremiumConversionCard title={t("Continue with this upload")} description={t("Your file is still selected. Premium supports audio files up to 200 MB and full-length transcription.")} actionLabel={t("Continue with Premium")} onAction={() => void handlePreservedUploadUpgrade()} busy={upgradeBusy} tracking={{ source: "large_upload_gate", reason: "file_size_limit", surface: "file_size_limit_card", trigger: "oversized_file_selected" }} />
                 ) : (
-                  <PremiumConversionCard title={needsProForSelectedFile ? "This file needs Pro" : "This file needs Premium"} description={needsProForSelectedFile ? "This file is larger than Premium's 200 MB limit. Pro supports files up to 500 MB." : "Free uploads are limited to 50 MB. Premium supports files up to 200 MB."} actionLabel={needsProForSelectedFile ? "See Pro" : "See Premium"} planLabel={needsProForSelectedFile ? "Note2Tabs Pro" : undefined} reassurance={needsProForSelectedFile ? "$14.99 billed today · Cancel anytime" : undefined} href={premiumPricingHref({ source: "large_upload_gate", reason: needsProForSelectedFile ? "pro_file_size_limit" : "file_size_limit" })} tracking={{ source: "large_upload_gate", reason: needsProForSelectedFile ? "pro_file_size_limit" : "file_size_limit", surface: needsProForSelectedFile ? "pro_file_size_limit_card" : "file_size_limit_card", trigger: "oversized_file_selected" }} />
+                  <PremiumConversionCard title={needsProForSelectedFile ? t("This file needs Pro") : t("This file needs Premium")} description={needsProForSelectedFile ? t("This file is larger than Premium's 200 MB limit. Pro supports files up to 500 MB.") : t("Free uploads are limited to 50 MB. Premium supports files up to 200 MB.")} actionLabel={needsProForSelectedFile ? t("See Pro") : t("See Premium")} planLabel={needsProForSelectedFile ? "Note2Tabs Pro" : undefined} reassurance={needsProForSelectedFile ? "$14.99 billed today · Cancel anytime" : undefined} href={premiumPricingHref({ source: "large_upload_gate", reason: needsProForSelectedFile ? "pro_file_size_limit" : "file_size_limit" })} tracking={{ source: "large_upload_gate", reason: needsProForSelectedFile ? "pro_file_size_limit" : "file_size_limit", surface: needsProForSelectedFile ? "pro_file_size_limit_card" : "file_size_limit_card", trigger: "oversized_file_selected" }} />
                 )
               )}
               {!needsPremiumForSelectedFile && needsPremiumForFileDuration && !showHeavyUpgrade && (
-                <PremiumConversionCard title="Transcribe more of this file" description="Free accounts can select up to 60 seconds. Premium unlocks full-length audio-file transcription." actionLabel="See longer options" href={premiumPricingHref({ source: "premium_prompt", reason: "file_duration_limit" })} tracking={{ source: "premium_prompt", reason: "file_duration_limit", surface: "file_duration_limit_card", trigger: "long_file_selected" }} />
+                <PremiumConversionCard title={t("Transcribe more of this file")} description={t("Free accounts can select up to 60 seconds. Premium unlocks full-length audio-file transcription.")} actionLabel={t("See longer options")} href={premiumPricingHref({ source: "premium_prompt", reason: "file_duration_limit" })} tracking={{ source: "premium_prompt", reason: "file_duration_limit", surface: "file_duration_limit_card", trigger: "long_file_selected" }} />
               )}
               {showHeavyUpgrade && !isPremiumUser && (
-                <PremiumConversionCard title="Use the Heavy model" description="The Heavy model is available with Premium or Pro for our highest transcription accuracy." actionLabel="See plans" href={premiumPricingHref({ source: "heavy_model", reason: "heavy_model_locked" })} tracking={{ source: "heavy_model", reason: "heavy_model_locked", surface: "heavy_model_locked_card", trigger: "locked_model_selected" }} />
+                <PremiumConversionCard title={t("Use the Heavy model")} description={t("The Heavy model is available with Premium or Pro for our highest transcription accuracy.")} actionLabel={t("See plans")} href={premiumPricingHref({ source: "heavy_model", reason: "heavy_model_locked" })} tracking={{ source: "heavy_model", reason: "heavy_model_locked", surface: "heavy_model_locked_card", trigger: "locked_model_selected" }} />
               )}
               {isSignedIn && !isEmailVerified && (
                 <div className="notice">
                   {unverifiedTranscriptionUsed
-                    ? "Verify your email to continue transcribing and unlock your free Heavy preview. "
-                    : "You can make one transcription now. Verify your email to keep transcribing and unlock your free Heavy preview. "}
-                  <Link href={verifyHref} className="button-link">
-                    Verify now
-                  </Link>
+                    ? t("Verify your email to continue transcribing and unlock your free Heavy preview. ")
+                    : t("You can make one transcription now. Verify your email to keep transcribing and unlock your free Heavy preview. ")}
+                  <Link href={verifyHref} className="button-link">{t(" Verify now ")}</Link>
                 </div>
               )}
               {isSignedIn && showCreditsLow && !needsPremiumForSelectedFile && !needsPremiumForFileDuration && !showHeavyUpgrade && (
                 isPremiumRole(transcriberSession?.user?.role) ? (
-                  <div className="notice">
-                    Your credits will be refreshed on {creditsResetLabel}.
+                  <div className="notice">{t(" Your credits will be refreshed on ")}{creditsResetLabel}.
                   </div>
                 ) : (
                   <PremiumConversionCard
-                    title="Keep transcribing today"
-                    description="Premium includes 100 monthly credits, rollover, and full-song audio uploads."
-                    actionLabel="See Premium"
+                    title={t("Keep transcribing today")}
+                    description={t("Premium includes 100 monthly credits, rollover, and full-song audio uploads.")}
+                    actionLabel={t("See Premium")}
                     href={premiumPricingHref({ source: "low_credits", reason: "credits_low" })}
-                    resetMessage={`Free credits reset ${creditsResetLabel}`}
+                    resetMessage={t("Free credits reset {date}", { date: creditsResetLabel })}
                     tracking={{ source: "low_credits", reason: "credits_low", surface: "low_credits_card", trigger: "credits_threshold_reached" }}
                   />
                 )
@@ -1730,8 +1726,8 @@ export default function TranscriberPage() {
 
             <div className="hero-outcome-row" data-reveal>
               <span>MP3, WAV, M4A</span>
-              <span>YouTube clips</span>
-              <span>Editable tab</span>
+              <span>{t("YouTube clips")}</span>
+              <span>{t("Editable tab")}</span>
             </div>
 
           </div>
@@ -1742,8 +1738,8 @@ export default function TranscriberPage() {
             <div className="container results-shell">
               <div className="results-header">
                 <div>
-                  <h2>Your tabs are ready</h2>
-                  <p>Choose where to open the transcription.</p>
+                  <h2>{t("Your tabs are ready")}</h2>
+                  <p>{t("Choose where to open the transcription.")}</p>
                 </div>
                 <div className="results-actions">
                   {isSignedIn && (
@@ -1753,8 +1749,8 @@ export default function TranscriberPage() {
                         value={editorChoice}
                         onChange={setEditorChoice}
                         disabled={editorLoading}
-                        label="Import destination"
-                        options={[{ value: "new", label: "New editor" }, ...editorChoicesForSelect.map((editor) => ({ value: editor.id, label: editor.name || "Untitled" }))]}
+                        label={t("Import destination")}
+                        options={[{ value: "new", label: t("New editor") }, ...editorChoicesForSelect.map((editor) => ({ value: editor.id, label: editor.name || t("Untitled") }))]}
                       />
                       <button
                         type="button"
@@ -1762,7 +1758,7 @@ export default function TranscriberPage() {
                         onClick={() => void handleImportToEditor(false)}
                         disabled={importBusy || editorLoading}
                       >
-                        {importBusy ? "Importing..." : "Import to editor"}
+                        {importBusy ? t("Importing...") : t("Import to editor")}
                       </button>
                     </div>
                   )}
@@ -1773,12 +1769,12 @@ export default function TranscriberPage() {
                       onClick={() => void handleOpenGuestEditor(false)}
                       disabled={importBusy}
                     >
-                      {importBusy ? "Opening..." : "Open in guest editor"}
+                      {importBusy ? t("Opening...") : t("Open in guest editor")}
                     </button>
                   )}
                 </div>
               </div>
-              {importError && <div className="error" role="alert">{importError}</div>}
+              {importError && <div className="error" role="alert">{translatedError(importError, locale)}</div>}
             </div>
           </section>
         )}

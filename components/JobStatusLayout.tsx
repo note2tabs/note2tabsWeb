@@ -1,3 +1,5 @@
+import { useLocale } from "../lib/i18n/react";
+import { translatedError } from "../lib/i18n/translate";
 import { useEffect, useState } from "react";
 import TabViewer from "./TabViewer";
 import StemsList from "./StemsList";
@@ -157,6 +159,7 @@ export default function JobStatusLayout({
   onVideoComplete,
   shareUrls,
 }: JobStatusLayoutProps) {
+  const { t, locale, href: localePath } = useLocale();
   const isPendingJob =
     !job || job.status === "queued" || job.status === "pending" || job.status === "processing" || job.status === "running";
   const [messageIndex, setMessageIndex] = useState(0);
@@ -186,34 +189,33 @@ export default function JobStatusLayout({
           </div>
 
           <div className="job-progress-copy">
-            <p className="job-progress-phase">Creating your tab</p>
-            <p className="job-progress-subtitle">Keep this tab open.</p>
+            <p className="job-progress-phase">{t("Creating your tab")}</p>
+            <p className="job-progress-subtitle">{t("Keep this tab open.")}</p>
           </div>
 
           <div className="job-progress-bottom">
-            <p className="job-progress-message">{progressMessage}</p>
+            <p className="job-progress-message">{t(progressMessage)}</p>
             <div
               className="job-progress-track"
               role="progressbar"
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={progressPercent}
-              aria-valuetext={progressMessage}
-              aria-label="Transcription activity"
+              aria-valuetext={t(progressMessage)}
+              aria-label={t("Transcription activity")}
             >
               <div className="job-progress-fill" style={{ width: `${progressPercent}%` }} />
             </div>
             {(elapsedLabel || typicalDurationLabel) && (
-              <div className="job-progress-meta" aria-label="Transcription timing">
-                {elapsedLabel && <span>{elapsedLabel}</span>}
+              <div className="job-progress-meta" aria-label={t("Transcription timing")}>
+                {elapsedLabel && <span>{locale === "pt-BR" ? elapsedLabel.replace(/^Elapsed /, "Tempo decorrido: ") : elapsedLabel}</span>}
                 {typicalDurationLabel && <span>{typicalDurationLabel}</span>}
               </div>
             )}
           </div>
 
           <p className="sr-only">
-            {progressMessage} Progress is {progressPercent}% and this page updates automatically.
-          </p>
+            {t(progressMessage)}{t(" Progress is ")}{progressPercent}{t("% and this page updates automatically. ")}</p>
         </div>
       </div>
     );
@@ -222,15 +224,13 @@ export default function JobStatusLayout({
   if (job.status === "error" || job.status === "failed") {
     return (
       <div className="card job-error-card" role="alert">
-        <p className="job-error-card__eyebrow">Transcription stopped</p>
-        <h2 className="job-error-card__title">We could not finish this tab</h2>
+        <p className="job-error-card__eyebrow">{t("Transcription stopped")}</p>
+        <h2 className="job-error-card__title">{t("We could not finish this tab")}</h2>
         <p className="job-error-card__message">
-          {job.error_message || "Try the recording again, or choose a different section or model."}
+          {translatedError(job.error_message, locale) || t("Try the recording again, or choose a different section or model.")}
         </p>
         <div className="button-row job-error-card__actions">
-          <button type="button" onClick={onRestart} className="button-primary button-small">
-            Return to transcriber
-          </button>
+          <button type="button" onClick={onRestart} className="button-primary button-small">{t(" Return to transcriber ")}</button>
         </div>
       </div>
     );
@@ -243,8 +243,8 @@ export default function JobStatusLayout({
     return (
       <div className="card stack">
         <div className="stack" style={{ gap: "6px" }}>
-          <h2 style={{ margin: 0 }}>Watch a short video to unlock your tabs</h2>
-          <p className="muted text-small">The tab will unlock automatically when the video ends.</p>
+          <h2 style={{ margin: 0 }}>{t("Watch a short video to unlock your tabs")}</h2>
+          <p className="muted text-small">{t("The tab will unlock automatically when the video ends.")}</p>
         </div>
         <div className="stack" style={{ maxWidth: "560px" }}>
           <video
@@ -265,13 +265,9 @@ export default function JobStatusLayout({
         </div>
         <div className="button-row">
           {enablePrimis && (
-            <button type="button" onClick={onRetryAd} className="button-secondary button-small">
-              Retry ad
-            </button>
+            <button type="button" onClick={onRetryAd} className="button-secondary button-small">{t(" Retry ad ")}</button>
           )}
-          <button type="button" onClick={onSkipAd} className="button-secondary button-small">
-            Skip ad (unlock now)
-          </button>
+          <button type="button" onClick={onSkipAd} className="button-secondary button-small">{t(" Skip ad (unlock now) ")}</button>
         </div>
       </div>
     );
@@ -282,9 +278,9 @@ export default function JobStatusLayout({
       <div className="card">
         <div className="page-header" style={{ gap: "12px" }}>
           <p style={{ fontWeight: 600, margin: 0 }}>
-            {job.song_title || "Untitled"} {job.artist ? <span className="muted">- {job.artist}</span> : null}
+            {job.song_title || t("Untitled")} {job.artist ? <span className="muted">- {job.artist}</span> : null}
           </p>
-          <span className="badge">Ready</span>
+          <span className="badge">{t("Ready")}</span>
         </div>
       </div>
 
@@ -293,11 +289,9 @@ export default function JobStatusLayout({
           <div>
             <h3 className="label">Preview</h3>
             {hasAudio ? (
-              <audio controls src={job.audio_preview_url || undefined} className="card-outline">
-                Your browser does not support the audio element.
-              </audio>
+              <audio controls src={job.audio_preview_url || undefined} className="card-outline">{t(" Your browser does not support the audio element. ")}</audio>
             ) : (
-              <p className="muted text-small">No audio preview available.</p>
+              <p className="muted text-small">{t("No audio preview available.")}</p>
             )}
           </div>
           <StemsList stems={stems.filter(Boolean) as Stem[]} />
@@ -311,15 +305,11 @@ export default function JobStatusLayout({
       <div className="button-row">
         {onImportToEditor && (
           <button type="button" onClick={onImportToEditor} className="button-primary button-small" disabled={importBusy}>
-            {importBusy ? "Importing..." : importButtonLabel}
+            {importBusy ? t("Importing...") : t(importButtonLabel)}
           </button>
         )}
-        <button type="button" onClick={onDownloadTabs} className="button-secondary button-small">
-          Download Tab (TXT)
-        </button>
-        <button type="button" onClick={onRestart} className="button-primary button-small">
-          Start a new transcription
-        </button>
+        <button type="button" onClick={onDownloadTabs} className="button-secondary button-small">{t(" Download Tab (TXT) ")}</button>
+        <button type="button" onClick={onRestart} className="button-primary button-small">{t(" Start a new transcription ")}</button>
         {shareUrls && (
           <div className="button-row">
             <a
@@ -327,21 +317,17 @@ export default function JobStatusLayout({
               target="_blank"
               rel="noreferrer"
               className="button-secondary button-small"
-            >
-              Share on X
-            </a>
+            >{t(" Share on X ")}</a>
             <a
               href={shareUrls.reddit}
               target="_blank"
               rel="noreferrer"
               className="button-secondary button-small"
-            >
-              Share on Reddit
-            </a>
+            >{t(" Share on Reddit ")}</a>
           </div>
         )}
       </div>
-      {importError ? <div className="error" role="alert">{importError}</div> : null}
+      {importError ? <div className="error" role="alert">{translatedError(importError, locale)}</div> : null}
     </div>
   );
 }

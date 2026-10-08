@@ -1,9 +1,11 @@
+import { useLocale } from "../lib/i18n/react";
 type TranscriptionStartStatusProps = {
   status: string;
   compact?: boolean;
 };
 
 export default function TranscriptionStartStatus({ status, compact = false }: TranscriptionStartStatusProps) {
+  const { t, locale, href: localePath } = useLocale();
   return (
     <div
       className={`transcription-start-panel${compact ? " transcription-start-panel--compact" : ""}`}
@@ -17,7 +19,7 @@ export default function TranscriptionStartStatus({ status, compact = false }: Tr
       <div className="transcription-start-progress" aria-hidden="true">
         <span />
       </div>
-      <p>This can take a moment while we upload and prepare your audio, so keep this tab open.</p>
+      <p>{t("This can take a moment while we upload and prepare your audio, so keep this tab open.")}</p>
     </div>
   );
 }

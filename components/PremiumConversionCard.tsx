@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { useLocale } from "../lib/i18n/react";
+import Link from "./LocaleLink";
 import { useEffect, useRef, useState } from "react";
 import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../lib/analytics";
 import {
@@ -42,9 +43,10 @@ export default function PremiumConversionCard({
   href,
   resetMessage,
   planLabel = "Note2Tabs Premium",
-  reassurance = "$5.99 billed today · Cancel anytime",
+  reassurance = "",
   tracking,
 }: PremiumConversionCardProps) {
+  const { t, locale, href: localePath } = useLocale();
   const cardRef = useRef<HTMLElement | null>(null);
   const viewedRef = useRef(false);
   const [funnel, setFunnel] = useState<PremiumFunnelContext | null>(null);
@@ -101,7 +103,7 @@ export default function PremiumConversionCard({
   const resolvedHref = href && funnel ? premiumPricingHref(funnel) : href;
 
   return (
-    <aside ref={cardRef} className="premium-conversion-card" aria-label="Premium subscription">
+    <aside ref={cardRef} className="premium-conversion-card" aria-label={t("Premium subscription")}>
       <div className="premium-conversion-card__copy">
         <span>{planLabel}</span>
         <h3>{title}</h3>
@@ -122,11 +124,11 @@ export default function PremiumConversionCard({
             }}
             disabled={busy}
           >
-            {busy ? "Opening checkout…" : actionLabel}
+            {busy ? t("Opening checkout…") : actionLabel}
           </button>
         )}
         <small>
-          {reassurance}
+          {locale === "pt-BR" ? t("Final price and billing details are shown at checkout.") : reassurance || "$5.99 billed today · Cancel anytime"}
           {resetMessage ? ` · ${resetMessage}` : ""}
         </small>
       </div>

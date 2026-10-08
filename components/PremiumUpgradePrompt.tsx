@@ -1,5 +1,7 @@
-import Link from "next/link";
-import { useRouter } from "next/router";
+import { stripLocale } from "../lib/i18n/locale";
+import { useLocale } from "../lib/i18n/react";
+import Link from "./LocaleLink";
+import { useLocaleRouter as useRouter } from "../lib/i18n/react";
 import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../lib/analytics";
@@ -28,6 +30,7 @@ export function getInitialPremiumPromptReason(
   credits: number | null,
   returningUser = false
 ): PromptReason | null {
+  pathname = stripLocale(pathname);
   const isTranscriber = pathname === "/transcribe" || pathname === "/transcriber";
   if (!isTranscriber) return null;
   if (credits === 0) return "no_credits";
@@ -74,20 +77,21 @@ export function PremiumPromptCard({
   onClick,
   preview = false,
 }: PremiumPromptCardProps) {
+  const { t, locale, href: localePath } = useLocale();
   const copy = promptCopy[reason];
   return (
-    <aside className={`premium-upgrade-prompt${preview ? " premium-upgrade-prompt--preview" : ""}`} aria-label="Premium subscription">
-      <button type="button" className="premium-upgrade-prompt__close" onClick={onDismiss} aria-label="Dismiss Premium offer">
+    <aside className={`premium-upgrade-prompt${preview ? " premium-upgrade-prompt--preview" : ""}`} aria-label={t("Premium subscription")}>
+      <button type="button" className="premium-upgrade-prompt__close" onClick={onDismiss} aria-label={t("Dismiss Premium offer")}>
         <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="m5.5 5.5 9 9m0-9-9 9" /></svg>
       </button>
       <span className="premium-upgrade-prompt__eyebrow">Note2Tabs Premium</span>
-      <strong>{copy.title}</strong>
-      <p>{copy.body}</p>
+      <strong>{t(copy.title)}</strong>
+      <p>{t(copy.body)}</p>
       <div className="premium-upgrade-prompt__actions">
-        <Link href={href} onClick={onClick}>See plans</Link>
-        <button type="button" onClick={onDismiss}>Not now</button>
+        <Link href={href} onClick={onClick}>{t("See plans")}</Link>
+        <button type="button" onClick={onDismiss}>{t("Not now")}</button>
       </div>
-      <small>Plans from $5.99/month · Cancel anytime</small>
+      <small>{locale === "pt-BR" ? t("Choose a plan. Cancel anytime.") : "Plans from $5.99/month · Cancel anytime"}</small>
     </aside>
   );
 }
@@ -108,6 +112,7 @@ function isLaterCalendarDay(timestamp: number) {
 }
 
 export default function PremiumUpgradePrompt() {
+  const { t, locale, href: localePath } = useLocale();
   const router = useRouter();
   const { data: session, status } = useSession();
   const [reason, setReason] = useState<PromptReason | null>(null);
@@ -117,7 +122,7 @@ export default function PremiumUpgradePrompt() {
   const role = session?.user?.role;
   const isEligible = status === "authenticated" &&
     !hasPremiumAccess(role, session?.user?.subscriptionPlan) &&
-    !EXCLUDED_ROUTES.has(router.pathname) && !router.pathname.startsWith("/gte");
+    !EXCLUDED_ROUTES.has(stripLocale(router.pathname)) && !router.pathname.startsWith("/gte");
 
   useEffect(() => {
     setReason(null);

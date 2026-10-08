@@ -1,3 +1,5 @@
+import { LOCALIZED_PUBLIC_PATHS, localeHref, stripLocale } from "../lib/i18n/locale";
+import { portuguesePilotIndexable } from "../lib/i18n/pilot";
 import type { GetServerSideProps } from "next";
 import { prisma } from "../lib/prisma";
 import { withPrismaReadRetry } from "../lib/prismaRetry";
@@ -80,7 +82,8 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
     return [];
   });
 
-  const entries: SitemapEntry[] = staticPaths.map((path) => ({
+  const paths = [...staticPaths, ...(portuguesePilotIndexable() ? LOCALIZED_PUBLIC_PATHS.map(path => localeHref(path, "pt-BR")) : [])];
+  const entries: SitemapEntry[] = paths.map((path) => ({
     loc: buildUrl(baseUrl, path),
     ...(recentlyUpdatedSeoPaths.has(path)
       ? {
@@ -98,17 +101,21 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
     });
   });
 
-  const body = entries
-    .map(
-      (entry) => `
+  const alternateLinks = (entry: SitemapEntry) => {
+    const path = stripLocale(new URL(entry.loc).pathname);
+    if (!portuguesePilotIndexable() || !LOCALIZED_PUBLIC_PATHS.includes(path as typeof LOCALIZED_PUBLIC_PATHS[number])) return "";
+    return ["en", "pt-BR", "x-default"].map(language => {
+      const href = buildUrl(baseUrl, localeHref(path, language === "pt-BR" ? "pt-BR" : "en"));
+      return `\n    <xhtml:link rel="alternate" hreflang="${language}" href="${escapeXml(href)}"/>`;
+    }).join("");
+  };
+  const body = entries.map(entry => `
   <url>
-    <loc>${escapeXml(entry.loc)}</loc>${entry.lastmod ? `\n    <lastmod>${entry.lastmod}</lastmod>` : ""}
-  </url>`
-    )
-    .join("");
+    <loc>${escapeXml(entry.loc)}</loc>${entry.lastmod ? `\n    <lastmod>${entry.lastmod}</lastmod>` : ""}${alternateLinks(entry)}
+  </url>`).join("");
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${body}
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">${body}
 </urlset>`;
 
   res.setHeader("Content-Type", "text/xml");

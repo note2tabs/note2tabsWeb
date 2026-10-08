@@ -1,8 +1,9 @@
-import { Html, Head, Main, NextScript } from "next/document";
+import NextDocument, { Html, Head, Main, NextScript, type DocumentContext, type DocumentInitialProps } from "next/document";
+import { localeFromPath, type AppLocale } from "../lib/i18n/locale";
 
-export default function Document() {
+export default function Document({ contentLocale = "en" }: DocumentInitialProps & { contentLocale?: AppLocale }) {
   return (
-    <Html lang="en">
+    <Html lang={contentLocale}>
       <Head>
         <meta name="google-adsense-account" content="ca-pub-3904018627841872" />
         <style
@@ -104,3 +105,8 @@ export default function Document() {
     </Html>
   );
 }
+
+Document.getInitialProps = async (context: DocumentContext) => ({
+  ...await NextDocument.getInitialProps(context),
+  contentLocale: localeFromPath(context.req?.url || context.pathname),
+});

@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { useLocale } from "../lib/i18n/react";
+import Link from "./LocaleLink";
 import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../lib/analytics";
@@ -31,6 +32,7 @@ export function PremiumHomeCalloutCard({ href, onClick }: PremiumHomeCalloutCard
 }
 
 export default function PremiumHomeCallout({ show = false }: { show?: boolean }) {
+  const { t, locale, href: localePath } = useLocale();
   const { data: session, status } = useSession();
   const [funnel, setFunnel] = useState<PremiumFunnelContext | null>(null);
   const [visible, setVisible] = useState(false);

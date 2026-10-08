@@ -1,3 +1,4 @@
+import { useLocale } from "../lib/i18n/react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { trackCheckoutCancellation } from "../lib/checkoutTracking";
@@ -16,6 +17,7 @@ type CancellationContext = NonNullable<ReturnType<typeof trackCheckoutCancellati
 
 export default function CheckoutCancellationTracker() {
   const router = useRouter();
+  const {t} = useLocale();
   const [context, setContext] = useState<CancellationContext | null>(null);
 
   useEffect(() => {
@@ -37,17 +39,17 @@ export default function CheckoutCancellationTracker() {
 
   return (
     <aside
-      aria-label="Checkout feedback"
+      aria-label={t("Checkout feedback")}
       className="fixed bottom-5 right-5 z-[80] w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-black/10 bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.16)]"
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-slate-950">What stopped you today?</p>
-          <p className="mt-1 text-xs leading-5 text-slate-500">Optional—one click helps us improve checkout.</p>
+          <p className="text-sm font-semibold text-slate-950">{t("What stopped you today?")}</p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">{t("Optional—one click helps us improve checkout.")}</p>
         </div>
         <button
           type="button"
-          aria-label="Dismiss checkout feedback"
+          aria-label={t("Dismiss checkout feedback")}
           onClick={() => {
             sendEvent(ANALYTICS_EVENTS.checkoutAbandonmentReasonDismissed, sharedProperties);
             setContext(null);
@@ -72,7 +74,7 @@ export default function CheckoutCancellationTracker() {
             }}
             className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
           >
-            {label}
+            {t(label)}
           </button>
         ))}
       </div>

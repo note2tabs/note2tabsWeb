@@ -1,3 +1,4 @@
+import { requestLocale } from "../../../lib/i18n/request";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../lib/prisma";
 import { issueAndSendPasswordResetEmail } from "../../../lib/passwordReset";
@@ -27,6 +28,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       id: user.id,
       email: user.email,
       name: user.name,
+      locale: requestLocale(req),
     });
 
     return res.status(200).json({

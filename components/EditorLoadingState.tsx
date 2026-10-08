@@ -1,3 +1,4 @@
+import { useLocale } from "../lib/i18n/react";
 type EditorLoadingStateProps = {
   label?: string;
 };
@@ -5,8 +6,9 @@ type EditorLoadingStateProps = {
 export function EditorLoadingState({
   label = "Preparing your editor",
 }: EditorLoadingStateProps) {
+  const { t, locale, href: localePath } = useLocale();
   return (
-    <div className="gte-editor-loading" role="status" aria-live="polite" aria-label={label}>
+    <div className="gte-editor-loading" role="status" aria-live="polite" aria-label={t(label)}>
       <div className="gte-editor-loading__screen" aria-hidden="true">
         <div className="gte-editor-loading__toolbar">
           <span className="gte-loading-block gte-loading-block--title" />
@@ -25,7 +27,7 @@ export function EditorLoadingState({
           <span className="gte-editor-loading__rail gte-editor-loading__rail--medium" />
         </div>
       </div>
-      <p className="gte-editor-loading__label">{label}…</p>
+      <p className="gte-editor-loading__label">{t(label)}…</p>
     </div>
   );
 }

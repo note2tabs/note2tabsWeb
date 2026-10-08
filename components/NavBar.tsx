@@ -1,7 +1,10 @@
-import Link from "next/link";
+import { stripLocale } from "../lib/i18n/locale";
+import { localizedSignIn as signIn } from "../lib/i18n/auth";
+import { useLocale } from "../lib/i18n/react";
+import Link from "./LocaleLink";
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/router";
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useLocaleRouter as useRouter } from "../lib/i18n/react";
+import { useSession, signOut } from "next-auth/react";
 import { clearPendingTranscription } from "../lib/pendingTranscription";
 import { resetPostHogIdentity } from "../lib/posthogClient";
 
@@ -51,6 +54,7 @@ export const shouldShowPremiumNav = (
   sessionStatus !== "loading" && (!hasSession || !hasPremiumAccess);
 
 export default function NavBar({ editorRevealMode = false }: NavBarProps) {
+  const { t, locale, href: localePath } = useLocale();
   const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -67,7 +71,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
   const editorMouseNearTopRef = useRef(false);
   const editorAtPageTopRef = useRef(true);
   const isReadingArticle = router.pathname === "/blog/[slug]";
-  const isHome = router.pathname === "/";
+  const isHome = stripLocale(router.pathname) === "/";
   const isProductHome = router.pathname === "/home";
   const role = session?.user?.role || "";
   const isAdmin = role === "ADMIN";
@@ -77,7 +81,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
   const logoHref = sessionStatus === "authenticated" ? "/home" : "/";
   const navPillClass = (section: PrimaryNavSection, extraClass = "") =>
     `nav-pill${extraClass ? ` ${extraClass}` : ""}${
-      isPrimaryNavSectionActive(router.pathname, section) ? " nav-pill--active" : ""
+      isPrimaryNavSectionActive(stripLocale(router.pathname), section) ? " nav-pill--active" : ""
     }`;
 
   useEffect(() => {
@@ -188,38 +192,32 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
         <nav
           id="primary-navigation"
           className={`nav-links ${menuOpen ? "open" : ""}${isReadingArticle ? " nav-links--reading" : ""}`}
-          aria-label="Primary navigation"
+          aria-label={t("Primary navigation")}
         >
           {(sessionStatus === "authenticated" || isProductHome) && (
             <Link
               href="/home"
               className={navPillClass("home")}
               aria-current={isProductHome ? "page" : undefined}
-            >
-              Home
-            </Link>
+            >{t(" Home ")}</Link>
           )}
           <Link
             href={editorHref}
             className={navPillClass("editor")}
-            aria-current={isPrimaryNavSectionActive(router.pathname, "editor") ? "page" : undefined}
-          >
-            Editor
-          </Link>
+            aria-current={isPrimaryNavSectionActive(stripLocale(router.pathname), "editor") ? "page" : undefined}
+          >{t(" Editor ")}</Link>
           <Link
             href="/transcribe"
             className={navPillClass("transcriber")}
-            aria-current={isPrimaryNavSectionActive(router.pathname, "transcriber") ? "page" : undefined}
-          >
-            Transcriber
-          </Link>
+            aria-current={isPrimaryNavSectionActive(stripLocale(router.pathname), "transcriber") ? "page" : undefined}
+          >{t(" Transcriber ")}</Link>
           {shouldShowPremiumNav(sessionStatus, Boolean(session), hasPremiumAccess) && (
             <Link
               href={session ? premiumHref : "/pricing"}
               className={navPillClass("premium", session ? "nav-premium-link" : "")}
-              aria-current={isPrimaryNavSectionActive(router.pathname, "premium") ? "page" : undefined}
+              aria-current={isPrimaryNavSectionActive(stripLocale(router.pathname), "premium") ? "page" : undefined}
             >
-              {session ? "Premium" : "Pricing"}
+              {session ? "Premium" : t("Pricing")}
             </Link>
           )}
           <div
@@ -232,16 +230,12 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
             }`}
           >
             {sessionStatus === "loading" && (
-              <span className="nav-session-loading" role="status" aria-label="Checking sign-in status" />
+              <span className="nav-session-loading" role="status" aria-label={t("Checking sign-in status")} />
             )}
             {sessionStatus === "unauthenticated" && (
               <>
-                <button type="button" onClick={() => signIn(undefined, { callbackUrl: "/home" })}>
-                  Log in
-                </button>
-                <Link href="/auth/signup" className="nav-cta">
-                  Start free
-                </Link>
+                <button type="button" onClick={() => signIn(undefined, { callbackUrl: "/home" })}>{t(" Log in ")}</button>
+                <Link href="/auth/signup" className="nav-cta">{t(" Start free ")}</Link>
               </>
             )}
             {session && (
@@ -249,7 +243,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
                 <button
                   type="button"
                   className={`nav-profile-toggle${profileMenuOpen ? " open" : ""}`}
-                  aria-label="Open settings menu"
+                  aria-label={t("Open settings menu")}
                   aria-haspopup="menu"
                   aria-expanded={profileMenuOpen}
                   aria-controls="nav-profile-menu"
@@ -278,16 +272,10 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
                       className="nav-profile-menu__premium"
                       role="menuitem"
                       onClick={() => setProfileMenuOpen(false)}
-                    >
-                      Explore Premium
-                    </Link>
+                    >{t(" Explore Premium ")}</Link>
                   )}
-                  <Link href="/home" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
-                    Home
-                  </Link>
-                  <Link href="/gte" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
-                    My editors
-                  </Link>
+                  <Link href="/home" role="menuitem" onClick={() => setProfileMenuOpen(false)}>{t(" Home ")}</Link>
+                  <Link href="/gte" role="menuitem" onClick={() => setProfileMenuOpen(false)}>{t(" My editors ")}</Link>
                   {isAdmin && (
                     <div className="nav-admin-tools" role="none">
                       <button
@@ -299,7 +287,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
                         aria-controls="nav-admin-tools-menu"
                         onClick={() => setAdminMenuOpen((open) => !open)}
                       >
-                        <span>Admin tools</span>
+                        <span>{t("Admin tools")}</span>
                         <svg viewBox="0 0 12 12" aria-hidden="true" focusable="false">
                           <path d="m3 4.5 3 3 3-3" />
                         </svg>
@@ -324,9 +312,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
                       )}
                     </div>
                   )}
-                  <Link href="/settings" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
-                    Settings
-                  </Link>
+                  <Link href="/settings" role="menuitem" onClick={() => setProfileMenuOpen(false)}>{t(" Settings ")}</Link>
                   <button
                     type="button"
                     role="menuitem"
@@ -338,7 +324,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
                       try {
                         await clearPendingTranscription();
                       } catch {
-                        setSignOutError("Could not securely clear your saved upload. Please try signing out again.");
+                        setSignOutError(t("Could not securely clear your saved upload. Please try signing out again."));
                         setSignOutBusy(false);
                         return;
                       }
@@ -347,12 +333,12 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
                         await signOut({ redirect: false });
                         window.location.href = "/";
                       } catch {
-                        setSignOutError("Could not sign out. Check your connection and try again.");
+                        setSignOutError(t("Could not sign out. Check your connection and try again."));
                         setSignOutBusy(false);
                       }
                     }}
                   >
-                    {signOutBusy ? "Signing out…" : "Sign out"}
+                    {signOutBusy ? t("Signing out…") : t("Sign out")}
                   </button>
                   {signOutError && (
                     <div role="none">
@@ -373,12 +359,10 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
               setMenuOpen((prev) => !prev);
               setProfileMenuOpen(false);
             }}
-            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-label={menuOpen ? t("Close menu") : t("Open menu")}
             aria-expanded={menuOpen}
             aria-controls="primary-navigation"
-          >
-            Menu
-          </button>
+          >{t(" Menu ")}</button>
         </div>
       </div>
     </header>

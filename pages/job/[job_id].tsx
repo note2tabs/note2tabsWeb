@@ -1,7 +1,10 @@
+import { localizedSignIn as signIn } from "../../lib/i18n/auth";
+import { translatedError } from "../../lib/i18n/translate";
+import { useLocale } from "../../lib/i18n/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Script from "next/script";
-import { useRouter } from "next/router";
-import { signIn, useSession } from "next-auth/react";
+import { useLocaleRouter as useRouter } from "../../lib/i18n/react";
+import { useSession } from "next-auth/react";
 import JobStatusLayout, {
   type JobResponse,
   type PendingJobPresentation,
@@ -610,6 +613,7 @@ function getFinalizedJobFromResponse(payload: Record<string, unknown> | null): J
 }
 
 export default function JobPage() {
+  const { t, locale, href: localePath } = useLocale();
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
   const { job_id } = router.query;
@@ -790,7 +794,7 @@ export default function JobPage() {
       const fallback: JobResponse = {
         job_id: id,
         status: "error",
-        error_message: publicJobError("Could not fetch job status."),
+        error_message: publicJobError(t("Could not fetch job status.")),
       };
       setJob(fallback);
       if (pollTimeoutRef.current) {
@@ -1167,7 +1171,7 @@ export default function JobPage() {
       if (isFinalizedStatus) {
         const importableJob = await waitForImportableJob(displayJob);
         if (!importableJob) {
-          throw new Error("Tabs are still getting ready for the editor. Please try again in a moment.");
+          throw new Error(t("Tabs are still getting ready for the editor. Please try again in a moment."));
         }
         importedSuccessfully = await importJobToEditor(importableJob, targetEditorChoice, true);
         return;
@@ -1224,8 +1228,8 @@ export default function JobPage() {
     } catch (err: any) {
       const message =
         err?.message === "No importable tab groups are available for this transcription."
-          ? "Tabs are still getting ready for the editor. Please try again in a moment."
-          : err?.message || "We could not finish preparing these tracks for the editor. Please try again in a moment.";
+          ? t("Tabs are still getting ready for the editor. Please try again in a moment.")
+          : err?.message || t("We could not finish preparing these tracks for the editor. Please try again in a moment.");
       setReviewError(message);
     } finally {
       setReviewBusy(false);
@@ -1257,14 +1261,14 @@ export default function JobPage() {
   };
 
   const showAdGate = isFinalizedJob && !hasWatchedAd;
-  const title = showReviewUi ? "Opening editor - Note2Tabs" : "Preparing Tabs - Note2Tabs";
+  const title = showReviewUi ? t("Opening editor - Note2Tabs") : t("Preparing Tabs - Note2Tabs");
 
   return (
     <>
       <NoIndexHead
         title={title}
         canonicalPath={`/job/${encodeURIComponent(typeof job_id === "string" ? job_id : "")}`}
-        description="Job status on Note2Tabs."
+        description={t("Job status on Note2Tabs.")}
       />
       {loadAdScript && (
         <Script
@@ -1276,7 +1280,7 @@ export default function JobPage() {
         <div className="container stack">
           <div className="page-header job-route-header">
             <div>
-              <h1 className="page-title">{showReviewUi ? "Opening your editor" : "Preparing your guitar tab"}</h1>
+              <h1 className="page-title">{showReviewUi ? t("Opening your editor") : t("Preparing your guitar tab")}</h1>
             </div>
             {!showReviewUi && (
               <button type="button" onClick={() => void router.push("/")} className="button-ghost button-small">
@@ -1288,10 +1292,10 @@ export default function JobPage() {
           <div className="job-route-content">
           {showReviewUi ? (
             <div className="stack">
-              <EditorLoadingState label="Quantizing transcription and opening your editor" />
+              <EditorLoadingState label={t("Quantizing transcription and opening your editor")} />
               {reviewError ? (
                 <div className="stack-tight">
-                  <div className="error" role="alert">{reviewError}</div>
+                  <div className="error" role="alert">{translatedError(reviewError, locale)}</div>
                   <button
                     type="button"
                     className="button-primary button-small"
@@ -1301,9 +1305,7 @@ export default function JobPage() {
                       setReviewError(null);
                       void automaticallyOpenEditor();
                     }}
-                  >
-                    Retry opening editor
-                  </button>
+                  >{t(" Retry opening editor ")}</button>
                 </div>
               ) : null}
             </div>

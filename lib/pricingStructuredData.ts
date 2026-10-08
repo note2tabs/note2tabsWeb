@@ -1,4 +1,5 @@
-export function buildPricingProductStructuredData(showPro: boolean) {
+import { localizedPriceAmount, type DisplayCurrency } from "./localizedPricing";
+export function buildPricingProductStructuredData(showPro: boolean, currency: DisplayCurrency = "USD") {
   return {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -7,8 +8,8 @@ export function buildPricingProductStructuredData(showPro: boolean) {
       "@type": "AggregateOffer",
       offerCount: showPro ? 5 : 3,
       lowPrice: "0",
-      highPrice: showPro ? "149.99" : "59.99",
-      priceCurrency: "USD",
+      highPrice: localizedPriceAmount(showPro ? "PRO" : "PREMIUM", "yearly", currency).toFixed(2),
+      priceCurrency: currency,
     },
   } as const;
 }

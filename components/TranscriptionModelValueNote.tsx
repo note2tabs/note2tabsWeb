@@ -1,3 +1,4 @@
+import { useLocale } from "../lib/i18n/react";
 import type { TranscriptionModelChoice } from "../lib/transcriptionModels";
 
 type TranscriptionModelValueNoteProps = {
@@ -14,16 +15,17 @@ export default function TranscriptionModelValueNote({
   onSelectHeavy,
   heavyPreviewAvailable = false,
 }: TranscriptionModelValueNoteProps) {
+  const { t, locale, href: localePath } = useLocale();
   if (model === "light") {
     return (
       <p className={`model-value-note${isPremium ? "" : " model-value-note--premium"}`}>
         <span>
           {isPremium
-            ? "Working with a complex recording? Heavy offers our highest accuracy."
-            : "Need more accuracy? The Heavy model is available with Premium or Pro."}
+            ? t("Working with a complex recording? Heavy offers our highest accuracy.")
+            : t("Need more accuracy? The Heavy model is available with Premium or Pro.")}
         </span>
         <button type="button" onClick={onSelectHeavy} className="model-value-note__action">
-          {isPremium ? "Use Heavy" : "See plans"}
+          {isPremium ? t("Use Heavy") : t("See plans")}
         </button>
       </p>
     );
@@ -33,15 +35,15 @@ export default function TranscriptionModelValueNote({
     return (
       <p className="model-value-note">
         {heavyPreviewAvailable
-          ? "Your verified account includes one 30-second Heavy preview. It is available once; subscribe for continued Heavy access."
-          : "Heavy uses our most detailed model for complex multi-instrument transcription."}
+          ? t("Your verified account includes one 30-second Heavy preview. It is available once; subscribe for continued Heavy access.")
+          : t("Heavy uses our most detailed model for complex multi-instrument transcription.")}
       </p>
     );
   }
 
   return (
     <p className="model-value-note">
-      <span>Light selected for multi-instrument transcription.</span>
+      <span>{t("Light selected for multi-instrument transcription.")}</span>
     </p>
   );
 }

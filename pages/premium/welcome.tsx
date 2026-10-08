@@ -1,6 +1,8 @@
+import { useLocale } from "../../lib/i18n/react";
+import { localeFromPath, localeHref } from "../../lib/i18n/locale";
 import type { GetServerSideProps } from "next";
-import Link from "next/link";
-import { useRouter } from "next/router";
+import Link from "../../components/LocaleLink";
+import { useLocaleRouter as useRouter } from "../../lib/i18n/react";
 import { getServerSession } from "next-auth/next";
 import { useSession } from "next-auth/react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -29,6 +31,7 @@ type Props = {
 };
 
 export default function PremiumWelcomePage({ previewMode }: Props) {
+  const { t, locale, href: localePath } = useLocale();
   const router = useRouter();
   const { data: session, status: sessionStatus, update } = useSession();
   const [state, setState] = useState<WelcomeState>(previewMode ? "ready" : "checking");
@@ -38,8 +41,8 @@ export default function PremiumWelcomePage({ previewMode }: Props) {
   const sessionRef = useRef(session);
   sessionRef.current = session;
   const destination = useMemo(
-    () => premiumWelcomeDestination(router.query.next),
-    [router.query.next]
+    () => localePath(premiumWelcomeDestination(router.query.next)),
+    [router.query.next, localePath]
   );
   const resumesUpload = isResumingTranscription(destination);
   const currentPlan = previewMode
@@ -180,45 +183,36 @@ export default function PremiumWelcomePage({ previewMode }: Props) {
 
           {state === "checking" ? (
             <>
-              <p className="premium-welcome-eyebrow">Activating {plan.name}</p>
-              <h1>Getting {plan.name} ready…</h1>
-              <p>Your signup is complete. We’re syncing your new limits now.</p>
+              <p className="premium-welcome-eyebrow">{t("Activating ")}{plan.name}</p>
+              <h1>{t("Getting ")}{plan.name}{t(" ready…")}</h1>
+              <p>{t("Your signup is complete. We’re syncing your new limits now.")}</p>
               <div className="premium-welcome-loader" aria-hidden="true" />
             </>
           ) : state === "delayed" ? (
             <>
-              <p className="premium-welcome-eyebrow">{plan.name} is activating</p>
-              <h1>{plan.name} is almost ready.</h1>
-              <p>
-                Your signup was confirmed, but your account is taking a little longer to update.
-                No action is needed—check again in a moment.
-              </p>
-              <button className="premium-welcome-primary" type="button" onClick={() => router.reload()}>
-                Check again
-              </button>
-              <Link className="premium-welcome-secondary" href="/settings">
-                View plan settings
-              </Link>
+              <p className="premium-welcome-eyebrow">{plan.name}{t(" is activating")}</p>
+              <h1>{plan.name}{t(" is almost ready.")}</h1>
+              <p>{t(" Your signup was confirmed, but your account is taking a little longer to update. No action is needed—check again in a moment. ")}</p>
+              <button className="premium-welcome-primary" type="button" onClick={() => router.reload()}>{t(" Check again ")}</button>
+              <Link className="premium-welcome-secondary" href="/settings">{t(" View plan settings ")}</Link>
             </>
           ) : (
             <>
-              <h1>You’re all set!</h1>
+              <h1>{t("You’re all set!")}</h1>
               <p>
                 {currentPlan === "PRO"
-                  ? "Pro is active now, with more room for frequent transcription and the Heavy model."
-                  : "Thanks for choosing Note2Tabs Premium. Premium is active, with more room for full songs, the Heavy model, and credits that roll over."}
+                  ? t("Pro is active now, with more room for frequent transcription and the Heavy model.")
+                  : t("Thanks for choosing Note2Tabs Premium. Premium is active, with more room for full songs, the Heavy model, and credits that roll over.")}
               </p>
-              <div className="premium-welcome-access" aria-label="Premium access now available">
-                <div><span>Monthly capacity</span><strong>{plan.monthlyCredits} credits</strong></div>
-                <div><span>Credit rollover</span><strong>Up to {plan.rolloverCap}</strong></div>
-                <div><span>Audio uploads</span><strong>Up to {Math.round(plan.maxUploadBytes / 1024 / 1024)} MB</strong></div>
+              <div className="premium-welcome-access" aria-label={t("Premium access now available")}>
+                <div><span>{t("Monthly capacity")}</span><strong>{plan.monthlyCredits}{t(" credits")}</strong></div>
+                <div><span>{t("Credit rollover")}</span><strong>{t("Up to ")}{plan.rolloverCap}</strong></div>
+                <div><span>{t("Audio uploads")}</span><strong>{t("Up to ")}{Math.round(plan.maxUploadBytes / 1024 / 1024)} MB</strong></div>
               </div>
               <Link className="premium-welcome-primary" href={destination} onClick={trackContinue}>
-                {resumesUpload ? "Continue your transcription" : `Transcribe with ${plan.name}`}
+                {resumesUpload ? t("Continue your transcription") : t("Transcribe with {plan}", {plan: plan.name})}
               </Link>
-              <Link className="premium-welcome-secondary" href="/gte">
-                Go to my tabs
-              </Link>
+              <Link className="premium-welcome-secondary" href="/gte">{t(" Go to my tabs ")}</Link>
             </>
           )}
         </section>
@@ -235,7 +229,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
   if (!session?.user?.id) {
     const callbackUrl = encodeURIComponent(ctx.resolvedUrl || "/premium/welcome");
-    return { redirect: { destination: `/auth/login?next=${callbackUrl}`, permanent: false } };
+    return { redirect: { destination: localeHref(`/auth/login?next=${callbackUrl}`, localeFromPath(ctx.resolvedUrl)), permanent: false } };
   }
   return { props: { session, previewMode: false } };
 };
