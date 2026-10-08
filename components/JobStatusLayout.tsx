@@ -284,7 +284,7 @@ export default function JobStatusLayout({
         </div>
       </div>
 
-      <div className="stack" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+      <div className="stack" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))" }}>
         <div className="card stack">
           <div>
             <h3 className="label">Preview</h3>

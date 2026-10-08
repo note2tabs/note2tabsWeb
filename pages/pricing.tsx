@@ -286,7 +286,7 @@ export default function PricingPage() {
             <div className="pricing-plan__top"><h2>{t(plan.name)}</h2>
               <p>{plan.id === "FREE" ? t("Try short recordings.") : plan.id === "PREMIUM" ? t("For full songs.") : t("For frequent transcription.")}</p>
               <div className="pricing-plan__price"><strong>{paid ? formatLocalizedPrice(paidId, billingInterval, displayCurrency) : formatLocalizedAmount(0, displayCurrency)}</strong><span>/ {paid && billingInterval === "yearly" ? t("year") : t("month")}</span></div>
-              {paid && billingInterval === "yearly" && <p className="pricing-plan__saving"><span className="pricing-plan__saving-amount">{t("Save ")}{localizedAnnualSaving(paidId, displayCurrency)}{t(" per year")}</span>{t(" · Billed annually")}</p>}
+              <p className="pricing-plan__saving">{paid && billingInterval === "yearly" && <><span className="pricing-plan__saving-amount">{t("Save ")}{localizedAnnualSaving(paidId, displayCurrency)}{t(" per year")}</span>{t(" · Billed annually")}</>}</p>
             </div>
             {!paid ? <Link href="/transcribe" className="pricing-plan__cta pricing-plan__cta--secondary" onClick={() => trackCtaClick("pricing_start_free", { surface: "pricing_page" })}>{t("Start free")}</Link>
               : included || current ? <Link href={included ? "/transcribe" : "/settings"} className="pricing-plan__cta pricing-plan__cta--secondary">{included ? t("{plan} access included", { plan: plan.name }) : t("Manage current plan")}</Link>
