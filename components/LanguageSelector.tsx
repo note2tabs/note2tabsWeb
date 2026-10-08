@@ -27,6 +27,7 @@ export default function LanguageSelector() {
   const select = (target: AppLocale) => {
     if (menuRef.current) menuRef.current.open = false;
     document.cookie = `n2t_locale=${target}; Path=/; Max-Age=2592000; SameSite=Lax`;
+    window.dispatchEvent(new Event("note2tabs:locale-changed"));
     try { window.localStorage.setItem("n2t:preferred-locale", target); } catch { /* choice still works without storage */ }
     sendEvent("language_selected", { previous_locale: locale, selected_locale: target, locale_source: "selector", locale_version: LOCALE_VERSION });
   };

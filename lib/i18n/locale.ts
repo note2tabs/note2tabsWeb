@@ -21,6 +21,14 @@ export function supportsLocalizedPath(path: string) {
   return LOCALIZED_FLOW_PATHS.includes(pathname as typeof LOCALIZED_FLOW_PATHS[number]) ||
     /^\/reset-password\/[^/]+$/.test(pathname) || /^\/job\/[^/]+$/.test(pathname);
 }
+/** English-only destinations must not erase the language chosen for navigation. */
+export function navigationLocaleForPath(path: string, preferredLocale: AppLocale): AppLocale {
+  return supportsLocalizedPath(path) ? localeFromPath(path) : preferredLocale;
+}
+export function preferredLocaleFromCookie(cookie: string): AppLocale {
+  const value = cookie.split(";").map(part => part.trim()).find(part => part.startsWith("n2t_locale="))?.slice("n2t_locale=".length);
+  return normalizeLocale(value);
+}
 export function localeHref(path: string, locale: AppLocale): string {
   if (!path.startsWith("/") || path.startsWith("//")) return path;
   const english = stripLocale(path).replace(/^\/transcriber(?=[?#]|$)/, "/transcribe");

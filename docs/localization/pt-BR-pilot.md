@@ -76,6 +76,8 @@ No external account was created, no email was sent and no paid Stripe transactio
 
 ### Layout review
 
+Navigation retains the chosen language through English-only destinations. Visiting `/editor` or `/gte` does not reset Portuguese links back to the transcriber, pricing or authentication flows. Content language remains determined by the route; explicitly selecting English resets navigation to English. Browser QA verified the editor round trip, an editor reload, and the reverse English selection; the production preview build and 16 localization/SEO tests pass.
+
 The shared layouts accommodate English and Brazilian Portuguese without locale-specific height estimates. Plan cards share natural row sizes on desktop and stack below 1001px; header navigation collapses below 961px. Form actions have equal widths, converter controls wrap, workflow-card descriptions align, and footer headings share a row.
 
 Browser QA checked all 10 localized route templates in both languages at 320px, 820px and 1440px: 60 page/viewport combinations without document overflow or clipped buttons. Dynamic reset-link and job routes were checked in their loading/unauthenticated states; authenticated job results and account-specific plan buttons were reviewed in code, not exercised with a live account. Twelve English destination pages also passed the 320px checks. Monthly and annual pricing, homepage card rows, and YouTube input controls received additional visual checks. The production preview build and 40 existing pricing/localization/SEO tests pass. Desktop and mobile pricing screenshots are saved alongside this document.

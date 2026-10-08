@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import english from "../../lib/i18n/en.json";
 import portuguese from "../../lib/i18n/pt-BR.json";
-import { localeFromPath, localeHref, localeSwitchHref, normalizeLocale } from "../../lib/i18n/locale";
+import { localeFromPath, localeHref, localeSwitchHref, normalizeLocale, navigationLocaleForPath, preferredLocaleFromCookie } from "../../lib/i18n/locale";
 import { translate, translatedError } from "../../lib/i18n/translate";
 import { portuguesePilotIndexable, withPortuguesePilot } from "../../lib/i18n/pilot";
 import { localizeCheckoutReturnPaths } from "../../lib/i18n/checkout";
@@ -18,6 +18,20 @@ vi.mock("../../lib/prisma", () => ({prisma: {}}));
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 describe("Portuguese acquisition pilot", () => {
+  it("retains the chosen navigation language through English-only destinations", () => {
+    for (const path of ["/editor", "/gte", "/gte/private-editor", "/about", "/blog/song"]) {
+      const navigationLocale = navigationLocaleForPath(path, "pt-BR");
+      expect(localeFromPath(path)).toBe("en");
+      expect(localeHref("/transcribe", navigationLocale)).toBe("/pt-br/transcribe");
+      expect(localeHref("/pricing", navigationLocale)).toBe("/pt-br/pricing");
+    }
+    expect(navigationLocaleForPath("/transcribe", "pt-BR")).toBe("en");
+    expect(navigationLocaleForPath("/pt-br/transcribe", "en")).toBe("pt-BR");
+    expect(navigationLocaleForPath("/gte/private-editor", "en")).toBe("en");
+    expect(preferredLocaleFromCookie("unrelated=value; n2t_locale=pt-BR; another=value")).toBe("pt-BR");
+    expect(preferredLocaleFromCookie("n2t_locale=en")).toBe("en");
+    expect(preferredLocaleFromCookie("n2t_locale=pt-PT")).toBe("en");
+  });
   it("has matching catalogs and interpolation parameters", () => {
     expect(Object.keys(portuguese).sort()).toEqual(Object.keys(english).sort());
     for (const [source, message] of Object.entries(portuguese)) {
