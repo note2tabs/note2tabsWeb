@@ -14877,7 +14877,7 @@ export default function GteWorkspace({
 
     if (inlineMobile) {
       const mobileButtonClass =
-        "flex min-h-11 w-full items-center rounded-xl px-3 text-left text-sm font-medium text-slate-700 active:bg-slate-100 disabled:text-slate-400";
+        "flex min-h-11 w-full items-center rounded-xl px-3 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 active:bg-slate-100 disabled:text-slate-400 disabled:hover:bg-transparent";
       const allTrackEventsEmpty = snapshot.notes.length === 0 && snapshot.chords.length === 0;
       return (
         <div
