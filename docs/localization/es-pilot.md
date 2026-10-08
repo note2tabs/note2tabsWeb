@@ -8,7 +8,7 @@ Spanish mirrors the Portuguese website: homepage, transcriber, pricing, editor l
 
 The interactive `/gte` editor and library remain English. Their navigation returns to the selected website language. Names, email addresses, affiliate codes, user tab names, uploaded audio and opaque tokens are not translated. Verification, password-reset and completion emails support Spanish; existing marketing/subscription-lifecycle emails retain their earlier scope.
 
-The chooser closes on selection, outside click, Escape and navigation. Layouts are shared across the three languages and use natural content sizes rather than translation-specific heights. Currency selection, price IDs, charges, credits, rollover and limits use the existing catalog. Choosing Spanish does not force EUR or create a new Latin American price.
+The chooser closes on selection, outside click, Escape and navigation. Layouts are shared across the three languages. Short action labels preserve the original control dimensions; content rows use natural sizes for alignment. Currency selection, price IDs, charges, credits, rollover and limits use the existing catalog. Choosing Spanish does not force EUR or create a new Latin American price.
 
 Article translations record source title and revision. Updated/new sources fall back to English with a translated notice and noindex until a matching edition exists. Independent revision manifests prevent advertising stale Spanish or Portuguese alternatives. Public canonicals and reciprocal language alternates point to each matching page/article. Private routes remain excluded from indexing and session replay.
 
@@ -50,3 +50,7 @@ Development and preview expose drafts with noindex. Production release is indepe
 Browser QA: 31 templates across three languages at 320px, 820px and 1440px passed 279 checks with no document overflow or clipped action buttons. All 26 articles across the same three languages and widths passed another 234 checks: translated body language matched the page language, headings rendered, and no document overflow occurred (513 page/viewport checks in total). The Spanish editor → English `/gte` → Spanish home → Spanish transcriber journey passed. Switching through English, Portuguese and Spanish preserved the transcriber route and closed the chooser. Screenshots: `es-editor-desktop.jpg`, `es-pricing-desktop.jpg`, and `es-transcriber-mobile.jpg`.
 
 Build this symlinked worktree with `VERCEL_ENV=preview npm run build -- --webpack`. Current local preview: `http://localhost:3109/es`.
+
+## Compact-control correction
+
+Removed localization overrides that stretched the input switch, changed shared action-row layout, forced arbitrary word breaks, and added pricing-toggle padding. The input switch retains the original padding and 48px overall height at 320px, 820px and 1440px in all three languages, in both audio and YouTube modes. Shortened Portuguese/Spanish action labels instead of enlarging controls. Reviewed 31 public templates across those languages and widths (279 checks), then rechecked changed homepage/editor labels and all nine YouTube-mode combinations. No page overflow or clipped action buttons. The three focused localization suites pass (31 tests). Authenticated account actions retain their existing CSS dimensions and were inspected in source; no live account mutations were performed.

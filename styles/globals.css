@@ -14276,23 +14276,17 @@ input[type="number"] {
 .pricing-plan__cta, .premium-welcome-primary, .premium-welcome-secondary {
   max-width: 100%;
   min-width: 0;
-  white-space: normal;
-  overflow-wrap: anywhere;
   text-align: center;
 }
 .button-primary > img, .button-secondary > img,
 .button-primary > svg, .button-secondary > svg { flex-shrink: 0; }
-.button-row { align-items: stretch; }
 
 .auth-card { min-width: 0; overflow-wrap: anywhere; }
-.auth-links-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
-.auth-links-row > :only-child { grid-column: 1 / -1; }
-.auth-links-row > .button-link { align-self: center; text-align: center; }
 .auth-card-header h1 { text-wrap: balance; }
 
 .funnel-toolbar { flex-wrap: wrap; align-items: flex-start; }
-.mode-switch { max-width: 100%; align-items: stretch; }
-.mode-switch button { flex: 1 1 0; min-width: 0; text-align: center; }
+.mode-switch { max-width: 100%; }
+.mode-switch button { white-space: nowrap; }
 .transcription-auth-cta--toolbar p { position: static; white-space: normal; text-align: right; }
 .transcription-auth-cta--toolbar:has(p) { margin-bottom: 0; }
 .funnel-file-label, .hero-credits-inline { white-space: normal; overflow-wrap: anywhere; }
@@ -14307,7 +14301,7 @@ input[type="number"] {
 .pricing-plan__price { flex-wrap: wrap; min-width: 0; }
 .pricing-plan__price strong { max-width: 100%; white-space: nowrap; }
 .pricing-billing-toggle { max-width: 100%; }
-.pricing-billing-toggle button { min-width: 0; padding: 8px 16px; }
+.pricing-billing-toggle button { min-width: 0; }
 .pricing-page--focused .pricing-billing-toggle__saving { white-space: normal; }
 .pricing-plan__badge { max-width: calc(100% - 40px); text-align: center; }
 .pricing-page--focused .pricing-plan__top > .pricing-plan__saving:empty { margin: 0; }
@@ -14372,7 +14366,6 @@ input[type="number"] {
   .menu-toggle { display: inline-flex; align-items: center; gap: 8px; }
 }
 @media (max-width: 860px) {
-  .mode-switch--hero { width: 100%; align-self: stretch; }
   .transcription-auth-cta--toolbar p { text-align: center; }
 }
 @media (max-width: 1000px) {
@@ -14394,7 +14387,6 @@ input[type="number"] {
   .pricing-page--focused .pricing-plan__reassurance, .home-pricing__plans .pricing-plan__reassurance { min-height: 0; }
 }
 @media (max-width: 520px) {
-  .auth-links-row { grid-template-columns: minmax(0, 1fr); }
   .pricing-billing-toggle button:last-child { display: flex; flex-direction: column; justify-content: center; gap: 2px; }
   .pricing-billing-toggle button span { margin-left: 0; }
   .pricing-plan__price strong, .pricing-page--focused .pricing-plan__price strong { font-size: clamp(2rem, 10vw, 3rem); }
@@ -14407,7 +14399,6 @@ input[type="number"] {
 }
 
 /* Translated copy participates in shared rows, so longer labels stay aligned. */
-.editor-v2-actions, .editor-v2-paths, .feature-story-hero-actions { align-items: stretch; }
 .editor-v2-feature-grid article > div { min-width: 0; }
 .settingsRowMain, .settingsRowValue, .settingsNav button, .shared-page__person { min-width: 0; overflow-wrap: anywhere; }
 .settingsRowValue { flex-wrap: wrap; }
