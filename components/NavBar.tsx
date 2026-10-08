@@ -1,3 +1,4 @@
+import LanguageSelector from "./LanguageSelector";
 import { stripLocale } from "../lib/i18n/locale";
 import { localizedSignIn as signIn } from "../lib/i18n/auth";
 import { useLocale } from "../lib/i18n/react";
@@ -351,6 +352,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
           </div>
         </nav>
         <div className="nav-actions">
+          <LanguageSelector />
           <button
             ref={menuButtonRef}
             className="menu-toggle"
