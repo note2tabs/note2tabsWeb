@@ -263,7 +263,7 @@ export default function PricingPage() {
   return <>
     <SeoHead title={t("Pricing | Note2Tabs")} description={description} canonicalPath="/pricing" jsonLd={pricingJsonLd} />
     <main className="page page-pricing"><section className="pricing-page pricing-page--focused"><div className="container pricing-page__container">
-      <header className="pricing-page__hero"><h1>{t("More music. More room to transcribe.")}</h1>{locale !== "en" && <p className="locale-scope-note">{t("The tab editor (/gte) is in English.")}</p>}</header>
+      <header className="pricing-page__hero"><h1>{t("More music. More room to transcribe.")}</h1></header>
       <div className="pricing-billing-toggle" role="group" aria-label={t("Billing interval")}>
         {(["monthly", "yearly"] as const).map((interval) => <button key={interval} type="button" aria-pressed={billingInterval === interval} className={billingInterval === interval ? "is-active" : ""} onClick={() => {
           if (interval === billingInterval) return;
