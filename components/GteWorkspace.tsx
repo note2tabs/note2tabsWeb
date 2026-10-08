@@ -14884,6 +14884,8 @@ export default function GteWorkspace({
           data-gte-floating-ui="true"
           data-gte-editor-control="true"
           className="grid gap-1"
+          onMouseEnter={onEditMenuPointerEnter}
+          onMouseLeave={onEditMenuPointerLeave}
           onMouseDown={(event) => event.stopPropagation()}
           onTouchStart={(event) => event.stopPropagation()}
         >
