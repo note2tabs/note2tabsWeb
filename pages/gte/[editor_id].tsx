@@ -6024,7 +6024,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       : editorMode === "canvas" ? 0 : editorMode === "tab" ? 1 : 2;
     return (
     <div
-      className={`gte-view-mode-switch rounded-lg border border-slate-200 bg-slate-100 p-0.5 ${
+      className={`gte-view-mode-switch max-w-full rounded-lg border border-slate-200 bg-slate-100 p-0.5 ${
         compact ? "w-56" : "w-72"
       }`}
     >
@@ -6727,7 +6727,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 type="button"
                 onClick={() => setCountInEnabled((enabled) => !enabled)}
                 aria-pressed={countInEnabled}
-                className={`flex h-9 w-full items-center justify-between rounded-lg border px-3 text-xs font-semibold transition ${
+                className={`flex h-9 w-full items-center justify-between gap-2 rounded-lg border px-3 text-xs font-semibold transition ${
                   countInEnabled
                     ? "border-amber-300 bg-amber-50 text-amber-900"
                     : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
@@ -6751,10 +6751,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     type="button"
                     onClick={() => setCountInEveryLoop((enabled) => !enabled)}
                     aria-pressed={countInEveryLoop}
+                    title={`${t("Every loop")} · ${countInEveryLoop ? t("On") : t("Off")}`}
                     className={`mt-4 h-8 rounded-lg border px-2 text-[10px] font-semibold ${
                       countInEveryLoop ? "border-amber-300 bg-amber-50 text-amber-900" : "border-slate-200 text-slate-600"
                     }`}
-                  >{t("Every loop ")}{countInEveryLoop ? t("on") : t("off")}
+                  >{t("Every loop")}
                   </button>
                 </div>
               )}
@@ -6774,7 +6775,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 <button
                   type="button"
                   onClick={() => void toggleElementFullscreen(practiceRootRef.current, document)}
-                  className="flex h-9 w-full items-center justify-between rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   <span>{t("Fullscreen")}</span>
                   <span>{practiceFullscreen ? t("Exit") : t("Open")}</span>
@@ -6785,7 +6786,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   type="button"
                   onClick={toggleSpeedTrainer}
                   aria-pressed={speedTrainerEnabled}
-                  className={`flex h-9 w-full items-center justify-between rounded-lg border px-3 text-xs font-semibold transition ${
+                  className={`flex h-9 w-full items-center justify-between gap-2 rounded-lg border px-3 text-xs font-semibold transition ${
                     speedTrainerEnabled
                       ? "border-violet-300 bg-violet-50 text-violet-900"
                       : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
@@ -8104,7 +8105,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       <button
                         type="button"
                         onClick={() => openShareDialog("editor_toolbar")}
-                        className="inline-flex h-8 w-32 items-center justify-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-700 focus-visible:ring-offset-2"
+                        className="inline-flex h-8 min-w-[8rem] w-max max-w-full whitespace-nowrap items-center justify-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-700 focus-visible:ring-offset-2"
                         title={t("Share this tab")}
                       >
                         <svg viewBox="0 0 20 20" className="h-4 w-4 fill-none stroke-current" aria-hidden="true">
@@ -8123,7 +8124,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         <button
                           type="button"
                           onClick={() => router.push("/gte")}
-                          className="inline-flex h-8 w-32 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
+                          className="inline-flex h-8 min-w-[8rem] w-max max-w-full whitespace-nowrap items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
                         >{t("Back to editors")}</button>
                       </div>
                     )}

@@ -1,0 +1,1888 @@
+{
+  "checked": 216,
+  "widths": [
+    320,
+    390,
+    768,
+    1280,
+    1536
+  ],
+  "before": [
+    {
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "issues": [
+        {
+          "height": 28,
+          "lineHeight": "16px",
+          "scrollHeight": 32,
+          "scrollWidth": 94,
+          "text": "Área de trabalho",
+          "whiteSpace": "normal",
+          "width": 94
+        }
+      ],
+      "locale": "pt-BR",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "tools",
+      "issues": [
+        {
+          "height": 28,
+          "lineHeight": "16px",
+          "scrollHeight": 32,
+          "scrollWidth": 94,
+          "text": "Área de trabalho",
+          "whiteSpace": "normal",
+          "width": 94
+        }
+      ],
+      "locale": "pt-BR",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "issues": [
+        {
+          "height": 28,
+          "lineHeight": "16px",
+          "scrollHeight": 32,
+          "scrollWidth": 94,
+          "text": "Área de trabajo",
+          "whiteSpace": "normal",
+          "width": 94
+        },
+        {
+          "height": 28,
+          "lineHeight": "16px",
+          "scrollHeight": 32,
+          "scrollWidth": 94,
+          "text": "Vista de tablatura",
+          "whiteSpace": "normal",
+          "width": 94
+        }
+      ],
+      "locale": "es",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "tools",
+      "issues": [
+        {
+          "height": 28,
+          "lineHeight": "16px",
+          "scrollHeight": 32,
+          "scrollWidth": 94,
+          "text": "Área de trabajo",
+          "whiteSpace": "normal",
+          "width": 94
+        },
+        {
+          "height": 28,
+          "lineHeight": "16px",
+          "scrollHeight": 32,
+          "scrollWidth": 94,
+          "text": "Vista de tablatura",
+          "whiteSpace": "normal",
+          "width": 94
+        }
+      ],
+      "locale": "es",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "issues": [
+        {
+          "height": 28,
+          "lineHeight": "16px",
+          "scrollHeight": 32,
+          "scrollWidth": 94,
+          "text": "Obszar roboczy",
+          "whiteSpace": "normal",
+          "width": 94
+        },
+        {
+          "height": 28,
+          "lineHeight": "16px",
+          "scrollHeight": 32,
+          "scrollWidth": 94,
+          "text": "Widok tabulatury",
+          "whiteSpace": "normal",
+          "width": 94
+        }
+      ],
+      "locale": "pl",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "tools",
+      "issues": [
+        {
+          "height": 28,
+          "lineHeight": "16px",
+          "scrollHeight": 32,
+          "scrollWidth": 94,
+          "text": "Obszar roboczy",
+          "whiteSpace": "normal",
+          "width": 94
+        },
+        {
+          "height": 28,
+          "lineHeight": "16px",
+          "scrollHeight": 32,
+          "scrollWidth": 94,
+          "text": "Widok tabulatury",
+          "whiteSpace": "normal",
+          "width": 94
+        }
+      ],
+      "locale": "pl",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    }
+  ],
+  "after": [
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "canvas",
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "tools",
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "speed-trainer-enabled",
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "speed-trainer-enabled",
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "speed-trainer-enabled",
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "speed-trainer-enabled",
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "speed-trainer-enabled",
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "speed-trainer-enabled",
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "speed-trainer-enabled",
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 320,
+      "path": "/gte/local",
+      "width": 320
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 768,
+      "path": "/gte/local",
+      "width": 768
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "count-in-expanded",
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "panel": "speed-trainer-enabled",
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 1536,
+      "path": "/gte/local",
+      "width": 1536
+    },
+    {
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 320,
+      "path": "/editor",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 768,
+      "path": "/editor",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 1280,
+      "path": "/editor",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 320,
+      "path": "/",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 768,
+      "path": "/",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 1280,
+      "path": "/",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 320,
+      "path": "/pricing",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 768,
+      "path": "/pricing",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 1280,
+      "path": "/pricing",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 320,
+      "path": "/pt-br/editor",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 768,
+      "path": "/pt-br/editor",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 1280,
+      "path": "/pt-br/editor",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 320,
+      "path": "/pt-br",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 768,
+      "path": "/pt-br",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 1280,
+      "path": "/pt-br",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 320,
+      "path": "/pt-br/pricing",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 768,
+      "path": "/pt-br/pricing",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 1280,
+      "path": "/pt-br/pricing",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 320,
+      "path": "/es/editor",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 768,
+      "path": "/es/editor",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 1280,
+      "path": "/es/editor",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 320,
+      "path": "/es",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 768,
+      "path": "/es",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 1280,
+      "path": "/es",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 320,
+      "path": "/es/pricing",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 768,
+      "path": "/es/pricing",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 1280,
+      "path": "/es/pricing",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 320,
+      "path": "/ja/editor",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 768,
+      "path": "/ja/editor",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 1280,
+      "path": "/ja/editor",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 320,
+      "path": "/ja",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 768,
+      "path": "/ja",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 1280,
+      "path": "/ja",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 320,
+      "path": "/ja/pricing",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 768,
+      "path": "/ja/pricing",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 1280,
+      "path": "/ja/pricing",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 320,
+      "path": "/ko/editor",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 768,
+      "path": "/ko/editor",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 1280,
+      "path": "/ko/editor",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 320,
+      "path": "/ko",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 768,
+      "path": "/ko",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 1280,
+      "path": "/ko",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 320,
+      "path": "/ko/pricing",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 768,
+      "path": "/ko/pricing",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 1280,
+      "path": "/ko/pricing",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 320,
+      "path": "/pl/editor",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 768,
+      "path": "/pl/editor",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 1280,
+      "path": "/pl/editor",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 320,
+      "path": "/pl",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 768,
+      "path": "/pl",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 1280,
+      "path": "/pl",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 320,
+      "path": "/pl/pricing",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 768,
+      "path": "/pl/pricing",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 1280,
+      "path": "/pl/pricing",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 320,
+      "path": "/ar/editor",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 768,
+      "path": "/ar/editor",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 1280,
+      "path": "/ar/editor",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 320,
+      "path": "/ar",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 768,
+      "path": "/ar",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 1280,
+      "path": "/ar",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 320,
+      "path": "/ar/pricing",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 768,
+      "path": "/ar/pricing",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 1280,
+      "path": "/ar/pricing",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 320,
+      "path": "/zh-hans/editor",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 768,
+      "path": "/zh-hans/editor",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 1280,
+      "path": "/zh-hans/editor",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 320,
+      "path": "/zh-hans",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 768,
+      "path": "/zh-hans",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 1280,
+      "path": "/zh-hans",
+      "width": 1280
+    },
+    {
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 320,
+      "path": "/zh-hans/pricing",
+      "width": 320
+    },
+    {
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 768,
+      "path": "/zh-hans/pricing",
+      "width": 768
+    },
+    {
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 1280,
+      "path": "/zh-hans/pricing",
+      "width": 1280
+    },
+    {
+      "panel": "playing-position-context",
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "playing-position-context",
+      "issues": [],
+      "locale": "en",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "playing-position-context",
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "playing-position-context",
+      "issues": [],
+      "locale": "pt-BR",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "playing-position-context",
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "playing-position-context",
+      "issues": [],
+      "locale": "es",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "playing-position-context",
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "playing-position-context",
+      "issues": [],
+      "locale": "ja",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "playing-position-context",
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "playing-position-context",
+      "issues": [],
+      "locale": "ko",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "playing-position-context",
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "playing-position-context",
+      "issues": [],
+      "locale": "pl",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "playing-position-context",
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "playing-position-context",
+      "issues": [],
+      "locale": "ar",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    },
+    {
+      "panel": "playing-position-context",
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 390,
+      "path": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "playing-position-context",
+      "issues": [],
+      "locale": "zh-Hans",
+      "pageWidth": 1280,
+      "path": "/gte/local",
+      "width": 1280
+    }
+  ],
+  "checks_include": "scrollHeight/clientHeight and scrollWidth/clientWidth",
+  "fonts_and_mode_switch_dimensions": "unchanged"
+}
