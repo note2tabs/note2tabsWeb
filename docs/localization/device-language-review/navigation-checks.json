@@ -1,0 +1,31 @@
+[
+  {
+    "lang": "en",
+    "path": "/pricing",
+    "quickSwitch": false,
+    "settingsLink": "/settings#language"
+  },
+  {
+    "lang": "en",
+    "path": "/transcribe",
+    "quickSwitch": false,
+    "settingsLink": "/settings#language"
+  },
+  {
+    "lang": "en",
+    "path": "/editor",
+    "quickSwitch": false,
+    "settingsLink": "/settings#language"
+  },
+  {
+    "lang": "en",
+    "path": "/settings",
+    "quickSwitch": false,
+    "settingsLink": "/settings#language"
+  },
+  {
+    "lang": "en",
+    "path": "/gte/local",
+    "quickSwitch": false
+  }
+]

@@ -1,3 +1,4 @@
+import {LANGUAGE_CHOICE_COOKIE} from "./lib/i18n/preference";
 import { getToken } from "next-auth/jwt";
 import { NextResponse, type NextRequest } from "next/server";
 import { DISPLAY_CURRENCY_COOKIE, displayCurrencyForCountry } from "./lib/localizedPricing";
@@ -24,9 +25,9 @@ export default async function proxy(request: NextRequest) {
   const localizedPath = ["GET", "HEAD"].includes(request.method) ? detectedLocaleDestination(
     `${request.nextUrl.pathname}${request.nextUrl.search}`,
     request.headers.get("accept-language") || "",
-    request.cookies.get("n2t_locale")?.value,
+    request.cookies.get(LANGUAGE_CHOICE_COOKIE)?.value === "1" ? request.cookies.get("n2t_locale")?.value : undefined,
     request.headers.get("user-agent") || "",
-    localizedPilotAvailable,
+    localizedPilotAvailable, request.cookies.get(LANGUAGE_CHOICE_COOKIE)?.value === "1",
   ) : null;
   if (localizedPath) {
     const destination = new URL(localizedPath, request.url);
@@ -60,8 +61,9 @@ export default async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     "/", "/pricing", "/transcribe", "/editor", "/online-guitar-tab-editor", "/about", "/contact", "/terms", "/privacy",
+    "/settings", "/home", "/shared", "/tabs/:path*", "/account", "/history", "/affiliate", "/auth/:path*", "/reset-password/:path*", "/job/:path*", "/premium/welcome", "/email/:path*",
     "/affiliate-program", "/internship-application", "/features/:path*", "/blog/:path*",
     "/audio-to-guitar-tab-converter", "/mp3-to-guitar-tabs", "/youtube-to-guitar-tabs", "/ai-guitar-tab-generator", "/free-guitar-tab-maker",
-    "/pt-br", "/pt-br/pricing", "/es", "/es/pricing", "/ja", "/ja/pricing", "/ko/:path*", "/pl/:path*", "/ar/:path*", "/zh-hans/:path*",
+    "/pt-br/:path*", "/es/:path*", "/ja/:path*", "/ko/:path*", "/pl/:path*", "/ar/:path*", "/zh-hans/:path*",
   ],
 };

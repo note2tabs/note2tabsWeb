@@ -1,3 +1,4 @@
+import {validLocale} from "../i18n/preference";
 import {editorRequestLocale} from "../i18n/editor/detection";
 import {localeCohort, localeFromPath, normalizeLocale, isEditorPath} from "../i18n/locale";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -198,8 +199,8 @@ export async function ingestAnalyticsEvents(
     const safeReferringDomain = referringDomain(safeReferrer);
 
     const contentLocale = event.path && isEditorPath(event.path)
-      ? editorRequestLocale({
-          cookies: {n2t_locale: cookies.n2t_locale || (typeof event.props.content_locale === "string" ? event.props.content_locale : undefined)},
+      ? validLocale(event.props.content_locale) ?? editorRequestLocale({
+          cookies: {n2t_locale_choice: cookies.n2t_locale_choice, n2t_locale: cookies.n2t_locale},
           headers: {"accept-language": header(context.req, "accept-language")},
         })
       : event.path ? localeFromPath(event.path) : normalizeLocale(event.props.content_locale);

@@ -26,9 +26,12 @@ describe("device language detection", () => {
     expect(detectedLocaleDestination("/pricing", "es", "invalid", "Browser", available)).toBe("/es/pricing");
   });
   it("preserves direct translated URLs, search crawlers, private pages and the editor workspace", () => {
-    for (const path of ["/es/pricing", "/pt-br/editor", "/gte/local", "/api/transcribe", "/settings", "/reset-password/secret", "/admin"])
+    for (const path of ["/es/pricing", "/pt-br/editor", "/gte/local", "/api/transcribe", "/reset-password/secret", "/admin"])
       expect(detectedLocaleDestination(path, "es", undefined, "Browser", available)).toBeNull();
     expect(detectedLocaleDestination("/pricing", "es", undefined, "Googlebot", available)).toBeNull();
+  });
+  it("makes guest Settings follow device language",()=>{
+    expect(detectedLocaleDestination("/settings", "es", undefined, "Browser", available)).toBe("/es/settings");
   });
   it("preserves acquisition and transcription-resume query parameters", () => {
     expect(detectedLocaleDestination("/transcribe?resumeTranscription=1&utm_source=music", "es-MX", undefined, "Browser", available))

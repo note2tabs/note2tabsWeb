@@ -1,3 +1,4 @@
+import {languagePreferenceMessages} from "./languagePreferenceMessages";
 import { editorTemplate } from "./editor/messages";
 import english from "./en.json";
 import portuguese from "./pt-BR.json";
@@ -9,6 +10,7 @@ import arabic from "./ar.json";
 import chinese from "./zh-Hans.json";
 import type { AppLocale } from "./locale";
 export const catalogs: Record<AppLocale, Record<string, string>> = {en: english, "pt-BR": portuguese, es: spanish, ja: japanese, ko: korean, pl: polish, ar: arabic, "zh-Hans": chinese};
+for(const locale of Object.keys(catalogs) as AppLocale[])catalogs[locale]={...catalogs[locale],...languagePreferenceMessages[locale]};
 const editorDictionaries: Partial<Record<AppLocale, Record<string,string>>> = {};
 export function registerEditorCatalog(locale:AppLocale, messages:Record<string,string>) {
  if(editorDictionaries[locale] === messages)return;

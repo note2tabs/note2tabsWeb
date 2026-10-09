@@ -25,6 +25,12 @@ describe("PostHog analytics ingestion", () => {
     await ingestAnalyticsEvents({body:{name:"page_viewed",path:"/es/editor",props:{visitor_country:"ES"}}});
     expect(capture.mock.calls.at(-1)![0].properties).toMatchObject({visitor_country:"unknown",localization_cohort:"es:unknown"});
   });
+  it("tracks the displayed editor language, including storage-only preferences",async()=>{
+    for(const [reported,cookie,expected] of [["en","n2t_locale=es","en"],["ja","n2t_locale=es; n2t_locale_choice=1","ja"],["invalid","n2t_locale=en; n2t_locale_choice=1","en"]]){
+      await ingestAnalyticsEvents({req:{headers:{cookie,"accept-language":"es"}} as any,body:{name:"page_viewed",path:"/gte/local",props:{content_locale:reported}}});
+      expect(capture.mock.calls.at(-1)![0].properties).toMatchObject({content_locale:expected,localization_cohort:`${expected}:unknown`});
+    }
+  });
   it("preserves job and editor correlation from properties in both event formats", async () => {
     await ingestAnalyticsEvents({ accountId: "owner", body: { events: [
       { event_id: "import-1", name: "transcription_imported_to_editor", props: { job_id: "job-1", editor_id: "editor-1" } },
