@@ -48,7 +48,7 @@
       "path": "/ja",
       "status": 200,
       "lang": "ja",
-      "title": "AIでギターTAB譜を自動作成 — 音源・YouTube | Note2Tabs",
+      "title": "AIギターTAB譜作成 — 音声・YouTubeから採譜 | Note2Tabs",
       "canonical": "https://www.note2tabs.com/ja",
       "alternates": {
         "en": "https://www.note2tabs.com/",
@@ -160,7 +160,7 @@
       "path": "/ja/transcribe",
       "status": 200,
       "lang": "ja",
-      "title": "音源からギターTAB譜を自動採譜 | Note2Tabs",
+      "title": "音声からギターTAB譜を作成 | Note2Tabs",
       "canonical": "https://www.note2tabs.com/ja/transcribe",
       "alternates": {
         "en": "https://www.note2tabs.com/transcribe",
@@ -594,7 +594,7 @@
       "path": "/es/audio-to-guitar-tab-converter",
       "status": 200,
       "lang": "es",
-      "title": "Convertir audio a tablaturas de guitarra online | Note2Tabs",
+      "title": "Conversor de audio a tablaturas – MP3, WAV y más",
       "canonical": "https://www.note2tabs.com/es/audio-to-guitar-tab-converter",
       "alternates": {
         "en": "https://www.note2tabs.com/audio-to-guitar-tab-converter",
@@ -1252,7 +1252,7 @@
       "path": "/pt-br/blog/wav-to-guitar-tabs",
       "status": 200,
       "lang": "pt-BR",
-      "title": "WAV para tablatura: dicas de áudio e edição | Note2Tabs",
+      "title": "WAV para tablatura: quando um áudio limpo melhora o resultado | Note2Tabs",
       "canonical": "https://www.note2tabs.com/pt-br/blog/wav-to-guitar-tabs",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/wav-to-guitar-tabs",
@@ -1266,7 +1266,7 @@
       "path": "/es/blog/wav-to-guitar-tabs",
       "status": 200,
       "lang": "es",
-      "title": "WAV a tablaturas: consejos de audio y edición | Note2Tabs",
+      "title": "WAV a tablaturas: cuándo mejora el resultado un audio limpio | Note2Tabs",
       "canonical": "https://www.note2tabs.com/es/blog/wav-to-guitar-tabs",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/wav-to-guitar-tabs",
@@ -1308,7 +1308,7 @@
       "path": "/pt-br/blog/how-to-edit-guitar-tabs-for-practice",
       "status": 200,
       "lang": "pt-BR",
-      "title": "Como editar tablaturas de guitarra para praticar | Note2Tabs",
+      "title": "Como editar tablaturas para praticar: uma lista de verificação simples | Note2Tabs",
       "canonical": "https://www.note2tabs.com/pt-br/blog/how-to-edit-guitar-tabs-for-practice",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/how-to-edit-guitar-tabs-for-practice",
@@ -1364,7 +1364,7 @@
       "path": "/pt-br/blog/guitar-solo-tab-maker",
       "status": 200,
       "lang": "pt-BR",
-      "title": "Tablaturas de solos de guitarra: criação e edição | Note2Tabs",
+      "title": "Criador de tablaturas de solos: transforme guitarra solo em material tocável | Note2Tabs",
       "canonical": "https://www.note2tabs.com/pt-br/blog/guitar-solo-tab-maker",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/guitar-solo-tab-maker",
@@ -1378,7 +1378,7 @@
       "path": "/es/blog/guitar-solo-tab-maker",
       "status": 200,
       "lang": "es",
-      "title": "Tablaturas de solos de guitarra: creación y edición | Note2Tabs",
+      "title": "Creador de tablaturas de solos: convierte guitarra solista en material tocable | Note2Tabs",
       "canonical": "https://www.note2tabs.com/es/blog/guitar-solo-tab-maker",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/guitar-solo-tab-maker",
@@ -1420,7 +1420,7 @@
       "path": "/pt-br/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
       "status": 200,
       "lang": "pt-BR",
-      "title": "Como usar IA para transcrever músicas em tablaturas | Note2Tabs",
+      "title": "Como usar um gerador com IA para transcrever músicas em minutos | Note2Tabs",
       "canonical": "https://www.note2tabs.com/pt-br/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
@@ -1434,7 +1434,7 @@
       "path": "/es/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
       "status": 200,
       "lang": "es",
-      "title": "Cómo transcribir canciones a tablaturas con IA | Note2Tabs",
+      "title": "Cómo usar un generador con IA para transcribir canciones en minutos | Note2Tabs",
       "canonical": "https://www.note2tabs.com/es/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
@@ -1476,7 +1476,7 @@
       "path": "/pt-br/blog/guitar-tab-creator-with-playback",
       "status": 200,
       "lang": "pt-BR",
-      "title": "Criador de tablaturas com reprodução | Note2Tabs",
+      "title": "Criador de tablaturas com reprodução: por que ouvir muda tudo | Note2Tabs",
       "canonical": "https://www.note2tabs.com/pt-br/blog/guitar-tab-creator-with-playback",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/guitar-tab-creator-with-playback",
@@ -1490,7 +1490,7 @@
       "path": "/es/blog/guitar-tab-creator-with-playback",
       "status": 200,
       "lang": "es",
-      "title": "Creador de tablaturas con reproducción | Note2Tabs",
+      "title": "Creador de tablaturas con reproducción: por qué escuchar lo cambia todo | Note2Tabs",
       "canonical": "https://www.note2tabs.com/es/blog/guitar-tab-creator-with-playback",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/guitar-tab-creator-with-playback",
@@ -1546,7 +1546,7 @@
       "path": "/es/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
       "status": 200,
       "lang": "es",
-      "title": "Generate Cuts, Cut Regions y Optimize: guía de uso | Note2Tabs",
+      "title": "Cómo usar Generate Cuts, Cut Regions y Optimize en el editor | Note2Tabs",
       "canonical": "https://www.note2tabs.com/es/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
@@ -1588,7 +1588,7 @@
       "path": "/pt-br/blog/ascii-guitar-tab-editor",
       "status": 200,
       "lang": "pt-BR",
-      "title": "Tablaturas ASCII: como criar e editar | Note2Tabs",
+      "title": "Editor de tablaturas ASCII: quando o texto simples ainda é útil | Note2Tabs",
       "canonical": "https://www.note2tabs.com/pt-br/blog/ascii-guitar-tab-editor",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/ascii-guitar-tab-editor",
@@ -1602,7 +1602,7 @@
       "path": "/es/blog/ascii-guitar-tab-editor",
       "status": 200,
       "lang": "es",
-      "title": "Tablaturas ASCII: cómo crear y editar | Note2Tabs",
+      "title": "Editor de tablaturas ASCII: cuándo sigue siendo útil el texto simple | Note2Tabs",
       "canonical": "https://www.note2tabs.com/es/blog/ascii-guitar-tab-editor",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/ascii-guitar-tab-editor",
@@ -1756,7 +1756,7 @@
       "path": "/pt-br/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
       "status": 200,
       "lang": "pt-BR",
-      "title": "Gerador de tablaturas com IA: áudio e YouTube | Note2Tabs",
+      "title": "Gerador de tablaturas com IA: converta músicas, inclusive do YouTube | Note2Tabs",
       "canonical": "https://www.note2tabs.com/pt-br/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
@@ -1770,7 +1770,7 @@
       "path": "/es/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
       "status": 200,
       "lang": "es",
-      "title": "Generador de tablaturas con IA: audio y YouTube | Note2Tabs",
+      "title": "Generador de tablaturas con IA: convierte canciones, incluso desde YouTube | Note2Tabs",
       "canonical": "https://www.note2tabs.com/es/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
@@ -1826,7 +1826,7 @@
       "path": "/es/blog/guitar-tab-editor",
       "status": 200,
       "lang": "es",
-      "title": "Editor de tablaturas online: escribe y practica | Note2Tabs",
+      "title": "Editor de tablaturas en línea: escribe, organiza y practica | Note2Tabs",
       "canonical": "https://www.note2tabs.com/es/blog/guitar-tab-editor",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/guitar-tab-editor",
@@ -1882,7 +1882,7 @@
       "path": "/es/blog/mp3-to-guitar-tabs",
       "status": 200,
       "lang": "es",
-      "title": "MP3 a tablaturas de guitarra: convierte y edita | Note2Tabs",
+      "title": "MP3 a tablaturas: convierte un MP3 en una tablatura editable | Note2Tabs",
       "canonical": "https://www.note2tabs.com/es/blog/mp3-to-guitar-tabs",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/mp3-to-guitar-tabs",
@@ -1924,7 +1924,7 @@
       "path": "/pt-br/blog/ai-guitar-tab-editor",
       "status": 200,
       "lang": "pt-BR",
-      "title": "Editor de tablaturas com IA online | Note2Tabs",
+      "title": "Editor de tablaturas com IA: crie, arranje e pratique online | Note2Tabs",
       "canonical": "https://www.note2tabs.com/pt-br/blog/ai-guitar-tab-editor",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/ai-guitar-tab-editor",
@@ -1938,7 +1938,7 @@
       "path": "/es/blog/ai-guitar-tab-editor",
       "status": 200,
       "lang": "es",
-      "title": "Editor de tablaturas con IA en línea | Note2Tabs",
+      "title": "Editor de tablaturas con IA: crea, organiza y practica en línea | Note2Tabs",
       "canonical": "https://www.note2tabs.com/es/blog/ai-guitar-tab-editor",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/ai-guitar-tab-editor",
@@ -1980,7 +1980,7 @@
       "path": "/pt-br/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
       "status": 200,
       "lang": "pt-BR",
-      "title": "Como escolher um gerador de tablaturas com IA | Note2Tabs",
+      "title": "O melhor gerador de tablaturas com IA online: o que realmente importa | Note2Tabs",
       "canonical": "https://www.note2tabs.com/pt-br/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
@@ -1994,7 +1994,7 @@
       "path": "/es/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
       "status": 200,
       "lang": "es",
-      "title": "Cómo elegir un generador de tablaturas con IA | Note2Tabs",
+      "title": "El mejor generador de tablaturas con IA: qué importa realmente | Note2Tabs",
       "canonical": "https://www.note2tabs.com/es/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
@@ -2036,7 +2036,7 @@
       "path": "/pt-br/blog/free-online-guitar-tab-maker",
       "status": 200,
       "lang": "pt-BR",
-      "title": "Criador de tablaturas online grátis: como escolher | Note2Tabs",
+      "title": "Criador gratuito de tablaturas online: o que procurar antes de começar | Note2Tabs",
       "canonical": "https://www.note2tabs.com/pt-br/blog/free-online-guitar-tab-maker",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/free-online-guitar-tab-maker",
@@ -2050,7 +2050,7 @@
       "path": "/es/blog/free-online-guitar-tab-maker",
       "status": 200,
       "lang": "es",
-      "title": "Creador de tablaturas online gratis: cómo elegir | Note2Tabs",
+      "title": "Creador gratuito de tablaturas en línea: qué buscar antes de empezar | Note2Tabs",
       "canonical": "https://www.note2tabs.com/es/blog/free-online-guitar-tab-maker",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/free-online-guitar-tab-maker",
@@ -2092,7 +2092,7 @@
       "path": "/pt-br/blog/why-guitar-tabs-can-be-wrong",
       "status": 200,
       "lang": "pt-BR",
-      "title": "Por que tablaturas podem estar erradas | Note2Tabs",
+      "title": "Por que tablaturas podem estar erradas — e por que você talvez não perceba | Note2Tabs",
       "canonical": "https://www.note2tabs.com/pt-br/blog/why-guitar-tabs-can-be-wrong",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/why-guitar-tabs-can-be-wrong",
@@ -2106,7 +2106,7 @@
       "path": "/es/blog/why-guitar-tabs-can-be-wrong",
       "status": 200,
       "lang": "es",
-      "title": "Por qué las tablaturas pueden estar equivocadas | Note2Tabs",
+      "title": "Por qué las tablaturas pueden estar mal y quizá no lo notes | Note2Tabs",
       "canonical": "https://www.note2tabs.com/es/blog/why-guitar-tabs-can-be-wrong",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/why-guitar-tabs-can-be-wrong",
@@ -2204,7 +2204,7 @@
       "path": "/pt-br/blog/youtube-to-guitar-tabs-workflow",
       "status": 200,
       "lang": "pt-BR",
-      "title": "YouTube para tablatura: guia de transcrição de guitarra | Note2Tabs",
+      "title": "YouTube para tablatura: um processo prático para aprender músicas | Note2Tabs",
       "canonical": "https://www.note2tabs.com/pt-br/blog/youtube-to-guitar-tabs-workflow",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/youtube-to-guitar-tabs-workflow",
@@ -2218,7 +2218,7 @@
       "path": "/es/blog/youtube-to-guitar-tabs-workflow",
       "status": 200,
       "lang": "es",
-      "title": "YouTube a tablaturas: guía de transcripción de guitarra | Note2Tabs",
+      "title": "YouTube a tablaturas: un proceso práctico para aprender canciones | Note2Tabs",
       "canonical": "https://www.note2tabs.com/es/blog/youtube-to-guitar-tabs-workflow",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/youtube-to-guitar-tabs-workflow",
@@ -2260,7 +2260,7 @@
       "path": "/pt-br/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
       "status": 200,
       "lang": "pt-BR",
-      "title": "Como converter notas em tablaturas de guitarra | Note2Tabs",
+      "title": "Conversor de notas em tablatura: transforme notas de guitarra online | Note2Tabs",
       "canonical": "https://www.note2tabs.com/pt-br/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
@@ -2274,7 +2274,7 @@
       "path": "/es/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
       "status": 200,
       "lang": "es",
-      "title": "Cómo convertir notas en tablaturas de guitarra | Note2Tabs",
+      "title": "Conversor de notas a tablaturas: convierte notas de guitarra en línea | Note2Tabs",
       "canonical": "https://www.note2tabs.com/es/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
@@ -2316,7 +2316,7 @@
       "path": "/pt-br/blog/guitar-fingering-optimizer",
       "status": 200,
       "lang": "pt-BR",
-      "title": "Digitação na guitarra: como otimizar tablaturas | Note2Tabs",
+      "title": "Otimizador de digitação: como tornar tablaturas mais fáceis de tocar | Note2Tabs",
       "canonical": "https://www.note2tabs.com/pt-br/blog/guitar-fingering-optimizer",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/guitar-fingering-optimizer",
@@ -2330,7 +2330,7 @@
       "path": "/es/blog/guitar-fingering-optimizer",
       "status": 200,
       "lang": "es",
-      "title": "Digitación de guitarra: mejora tus tablaturas | Note2Tabs",
+      "title": "Optimizador de digitación: cómo hacer tablaturas más fáciles de tocar | Note2Tabs",
       "canonical": "https://www.note2tabs.com/es/blog/guitar-fingering-optimizer",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/guitar-fingering-optimizer",
@@ -2372,7 +2372,7 @@
       "path": "/pt-br/blog/song-to-guitar-tabs",
       "status": 200,
       "lang": "pt-BR",
-      "title": "Música para tablatura: como converter e editar | Note2Tabs",
+      "title": "Música para tablatura: transforme uma gravação em uma versão tocável | Note2Tabs",
       "canonical": "https://www.note2tabs.com/pt-br/blog/song-to-guitar-tabs",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/song-to-guitar-tabs",
@@ -2386,7 +2386,7 @@
       "path": "/es/blog/song-to-guitar-tabs",
       "status": 200,
       "lang": "es",
-      "title": "Canciones a tablaturas: cómo convertir y editar | Note2Tabs",
+      "title": "Canciones a tablaturas: convierte una grabación en una versión tocable | Note2Tabs",
       "canonical": "https://www.note2tabs.com/es/blog/song-to-guitar-tabs",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/song-to-guitar-tabs",
@@ -2484,7 +2484,7 @@
       "path": "/pt-br/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
       "status": 200,
       "lang": "pt-BR",
-      "title": "Transcrição de guitarra: manual ou com IA? | Note2Tabs",
+      "title": "Transcrição manual ou com IA: qual é melhor para guitarristas? | Note2Tabs",
       "canonical": "https://www.note2tabs.com/pt-br/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
@@ -2498,7 +2498,7 @@
       "path": "/es/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
       "status": 200,
       "lang": "es",
-      "title": "Transcripción de guitarra: manual o con IA | Note2Tabs",
+      "title": "Transcripción manual o con IA: ¿qué conviene a los guitarristas? | Note2Tabs",
       "canonical": "https://www.note2tabs.com/es/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
@@ -2540,7 +2540,7 @@
       "path": "/pt-br/blog/guitar-pro-alternative-online",
       "status": 200,
       "lang": "pt-BR",
-      "title": "Alternativa ao Guitar Pro: editor online de tablaturas | Note2Tabs",
+      "title": "Alternativa online ao Guitar Pro: quando um editor no navegador basta | Note2Tabs",
       "canonical": "https://www.note2tabs.com/pt-br/blog/guitar-pro-alternative-online",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/guitar-pro-alternative-online",
@@ -2554,7 +2554,7 @@
       "path": "/es/blog/guitar-pro-alternative-online",
       "status": 200,
       "lang": "es",
-      "title": "Alternativa a Guitar Pro: editor online de tablaturas | Note2Tabs",
+      "title": "Alternativa a Guitar Pro en línea: cuándo basta un editor en el navegador | Note2Tabs",
       "canonical": "https://www.note2tabs.com/es/blog/guitar-pro-alternative-online",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/guitar-pro-alternative-online",
@@ -2652,7 +2652,7 @@
       "path": "/pt-br/blog/how-to-convert-audio-to-guitar-tabs",
       "status": 200,
       "lang": "pt-BR",
-      "title": "Como converter áudio em tablaturas de guitarra | Note2Tabs",
+      "title": "Como converter áudio em tablatura: um processo tocável e editável | Note2Tabs",
       "canonical": "https://www.note2tabs.com/pt-br/blog/how-to-convert-audio-to-guitar-tabs",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/how-to-convert-audio-to-guitar-tabs",
@@ -2666,7 +2666,7 @@
       "path": "/es/blog/how-to-convert-audio-to-guitar-tabs",
       "status": 200,
       "lang": "es",
-      "title": "Cómo convertir audio en tablaturas de guitarra | Note2Tabs",
+      "title": "Cómo convertir audio en tablaturas: un proceso tocable y editable | Note2Tabs",
       "canonical": "https://www.note2tabs.com/es/blog/how-to-convert-audio-to-guitar-tabs",
       "alternates": {
         "en": "https://www.note2tabs.com/blog/how-to-convert-audio-to-guitar-tabs",
