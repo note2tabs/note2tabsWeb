@@ -1,31 +1,34 @@
-# Additional locale drafts
+# Korean, Polish, Arabic and Simplified Chinese localization
 
 Branch: `codex/additional-locales`, from `main` at `57f24ff8`.
 
-User requested Korean, Polish, Arabic and Simplified Chinese (confirmed). This is unfinished work and is not ready to merge or deploy.
+Implementation and automated/browser review are complete. These four languages have not been merged, deployed, submitted to Search Console or verified as indexed. Existing production languages remain English, Brazilian Portuguese, Spanish and Japanese until this branch is released.
 
-Implemented so far:
+## Coverage
 
-- Locale identities `ko`, `pl`, `ar`, `zh-Hans`; route prefixes `/ko`, `/pl`, `/ar`, `/zh-hans`.
-- 42 shared route wrappers per language, preserving existing page loaders and authorization.
-- Native language chooser names and accessible labels, existing close-on-selection behavior, URL/cookie preference, return-link preservation, device language negotiation.
-- Traditional Chinese preferences do not automatically redirect to Simplified Chinese. Existing English-only `/gte` retains the selected navigation language and left-to-right layout.
-- Shared canonical, hreflang, sitemap and Open Graph support. Untranslated article revisions are not advertised as translated articles. New blog registries still need translated content and revision manifests.
-- Language/country cohorts and separate Korean, Polish, Chinese and Arabic-market tracking. Existing country-based prices remain authoritative: KRW 7,900, PLN 19.99, CNY 30 and BRL 21.90 monthly Premium amounts are unchanged.
-- Stripe language mapping: Simplified Chinese maps to Stripe `zh`; Arabic uses Stripe automatic locale because the installed Stripe SDK does not support `ar`.
-- Four verification, password-reset and transcription-completion email drafts, with escaped names/labels and Arabic email direction.
-- Arabic HTML direction on server render and client navigation, scoped layout adjustments and left-to-right isolation for musical previews, numeric/URL/email inputs, code and audio.
-- First 290 of 1,753 catalogue strings translated in each new language, covering the main transcription funnel, editor landing introduction, primary pricing and account sign-in/verification copy.
+- All 1,753 catalogue strings in each language, including pricing, features, authentication, account flows and legal pages. Interpolation placeholders are checked against the English catalogue.
+- All 26 existing blog guides in each language: 104 new translations, with source-title/revision guards, internal links and scientific citations retained. Updated English articles fall back to English with noindex rather than silently displaying an outdated translation.
+- 42 route wrappers per new language, using shared page loaders and authorization: `/ko`, `/pl`, `/ar`, `/zh-hans`.
+- Native language chooser names, close-on-selection behavior, preferred-language persistence, device-language negotiation and localized return links. Traditional Chinese device preferences do not automatically select Simplified Chinese. Interactive `/gte` remains English and left to right, while navigation retains the chosen language.
+- Verification, password-reset and transcription-completion email copy; escaped user values, native account links and Arabic direction. Security wording and guitar terminology received a second translation pass.
+- Arabic right-to-left layout, mirrored pricing markers and article indentation, and left-to-right isolation for musical previews, code, audio and numeric/email/URL fields. Long FAQ questions keep their expand icon beside the text.
+- Existing UI dimensions retained. Upload/YouTube switch stays 48px high. Existing country-based price amounts are authoritative and unchanged; tested monthly Premium amounts include KRW 7,900, PLN 19.99, CNY 30, BRL 21.90 and JPY 999. Language controls number/currency formatting, not the price market. Arabic checkout uses Stripe's supported automatic locale; Simplified Chinese maps to Stripe `zh`.
+- Separate language/country analytics cohorts, including Korean, Polish, Chinese and Arabic-speaking markets; exact visitor country remains available for comparisons. No live experiment results are claimed.
 
-Validation so far: 898 tests in 170 files pass; production Webpack compilation succeeds. TypeScript and diff whitespace checks pass. This validates the shared implementation, not translation completeness or visual fit.
+## Search support
 
-Remaining work:
+Translated pages have native titles/descriptions, self-canonicals and reciprocal `hreflang` links for `en`, `pt-BR`, `es`, `ja`, `ko`, `pl`, `ar`, `zh-Hans`, plus English `x-default`. Language-specific sitemap entries, article metadata and RSS feeds include completed, matching translations. Crawlers can access language routes without device-language redirects. Authentication/private flows and previews remain noindex.
 
-1. Translate the remaining 1,463 strings per language; preserve interpolation placeholders, plan limits, legal/product meaning, proper names and editor command names. Avoid word-by-word fragment translations where complete translated phrases are needed.
-2. Translate all 26 blog articles per language, retaining original source titles/revisions and links, and add registries/revision manifests without stale English-content SEO alternatives.
-3. Review wording and terminology consistently, including short action labels and Arabic mixed-direction values.
-4. Test catalogue completeness and placeholders, article compilation/revision guards, structured metadata and all supported locale routes.
-5. Browser review at mobile, tablet and desktop widths, including existing English/PT-BR/Spanish/Japanese regression checks; preserve upload/YouTube switch and button sizing, language-menu closure and editor-to-transcriber navigation.
-6. Update documentation with final evidence before marking the branch ready. No live translation release, Search Console submission or merge has happened for these four languages.
+This makes the translated content discoverable for language-specific searches; it does not guarantee indexing or rankings. Google Search Console checks/submission are a separate post-deployment step. The earlier production indexing audit is not completed by these local checks.
 
-An asynchronous question asks for explicit permission to use parallel translation agents; it has not been answered at the time of this note. Do not start sub-agents without that authorization. If granted, allocate independent language catalogue/blog files to each agent and keep shared infrastructure changes with the primary agent.
+## Validation
+
+- 907 tests pass in 170 files, including all 104 guide compilations, source revision guards, catalogue completeness/placeholders, route/privacy behavior, device preferences, email escaping, supported Stripe locales and price-market regressions.
+- TypeScript passes. Next.js production Webpack build passes. Diff whitespace check passes.
+- Local production HTTP checks pass for 384 public pages: status, HTML language, title/description, self-canonical, all reciprocal alternatives and indexability. Sitemap has 384 entries and all eight RSS feeds parse. Production language negotiation, saved choices, crawler access, private-flow noindex and country-specific prices pass.
+- 356 browser layout measurements: eight core pages in each new language at 390/768/1440px; four core pages in each existing language at those widths; all remaining 47 public/guest-flow pages and guides per new language at 390px; final production editor/pricing/transcriber checks in all eight languages. No page overflow or clipped visible buttons found; mode switches remain 48px high. Authenticated account screens were not manually exercised with a live user account.
+- Language chooser closes after Arabic-to-Chinese selection; `/gte/local` renders in English and returns to `/zh-hans/transcribe`.
+
+Evidence: [SEO checks](additional-locales-seo-checks.json), [layout checks](additional-locales-layout-checks.json). Arabic pricing screenshot: `/tmp/n2t-localization-review/arabic-pricing-mobile.png`.
+
+The user explicitly authorized parallel translation work. Three agents translated distinct Korean/Polish/Arabic files; the primary agent handled Chinese, integration and validation. No external paid translation service was used. Translation and terminology were reviewed during implementation; independent native-speaker/legal review has not been performed.

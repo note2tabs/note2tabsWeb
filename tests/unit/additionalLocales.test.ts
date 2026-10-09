@@ -71,3 +71,47 @@ describe("additional-language email drafts",()=>{
     expect(done.html).toContain("&lt;img&gt;");expect(done.editorUrl).toContain(localeHref("/job/job",locale));
   });
 });
+
+import {catalogs} from "../../lib/i18n/translate";
+import {additionalPosts} from "../../lib/i18n/blog/additionalPosts";
+import {articleTranslation, japanesePosts, localizeBlogProps, localizedReadingTime} from "../../lib/i18n/blog/localize";
+import {articleLocales} from "../../lib/i18n/blog/availability";
+
+describe("complete additional-language content",()=>{
+  it.each(["ko","pl","ar","zh-Hans"] as const)("keeps every %s message and interpolation",locale=>{
+    expect(Object.keys(catalogs[locale]).sort()).toEqual(Object.keys(catalogs.en).sort());
+    for(const [source,message] of Object.entries(catalogs[locale])) {
+      expect(message.trim(),source).not.toBe("");
+      expect((message.match(/\{[a-zA-Z][a-zA-Z0-9_]*\}/g)||[]).sort(),source).toEqual((source.match(/\{[a-zA-Z][a-zA-Z0-9_]*\}/g)||[]).sort());
+    }
+  });
+  it.each(["ko","pl","ar","zh-Hans"] as const)("compiles all %s guides and guards source changes",async locale=>{
+    const posts=additionalPosts[locale];
+    expect(Object.keys(posts).sort()).toEqual(Object.keys(japanesePosts).sort());
+    for(const [slug,row] of Object.entries(posts)) {
+      const original=(japanesePosts as Record<string,typeof row>)[slug];
+      expect(row.sourceTitle,slug).toBe(original.sourceTitle);
+      expect(row.sourceUpdatedAt,slug).toBe(original.sourceUpdatedAt);
+      const links=(content:string)=>(content.match(/\]\(([^\s)]+)\)/g)||[]).map(s=>s.split("#")[0].replace(/\)$/,"" )).sort();
+      const translatedLinks=links(row.content);
+      for(const link of new Set(links(original.content))) expect(translatedLinks.filter(item=>item===link).length,`${slug}: ${link}`).toBeGreaterThanOrEqual(links(original.content).filter(item=>item===link).length);
+      expect(row.content,slug).not.toBe(original.content);
+      const result=await localizeBlogProps({post:{slug,title:row.sourceTitle,updatedAt:row.sourceUpdatedAt,contentHtml:"Original"},toc:[]},locale);
+      const post=result.post as any;
+      expect(post.contentLanguage,slug).toBe(locale);
+      expect(post.contentHtml).not.toMatch(/href="\/(editor|transcribe|blog|auth)\b/);
+      expect(post.contentHtml).not.toContain("<script");
+      for(const heading of result.toc as any[]) expect(post.contentHtml).toContain(`id="${heading.id}"`);
+      expect(articleLocales(slug,row.sourceUpdatedAt)).toContain(locale);
+      expect(articleTranslation(slug,"changed",row.sourceTitle,locale)).toBeNull();
+      expect(articleTranslation(slug,row.sourceUpdatedAt,"Changed title",locale)).toBeNull();
+    }
+    const row=posts["mp3-to-guitar-tabs"];
+    const fallback=await localizeBlogProps({post:{slug:"mp3-to-guitar-tabs",title:row.sourceTitle,updatedAt:"changed",contentHtml:"Updated"}},locale);
+    expect(fallback.post).toMatchObject({contentLanguage:"en",contentHtml:"Updated"});
+  },30000);
+  it("counts Chinese reading time without spaces",()=>{
+    expect(localizedReadingTime("音".repeat(1500),"zh-Hans").minutes).toBe(3);
+    expect(localizedReadingTime("音".repeat(500)+"```\ncode\n```","zh-Hans").minutes).toBe(1);
+  });
+});
