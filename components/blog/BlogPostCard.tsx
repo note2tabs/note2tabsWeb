@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { useLocale } from "../../lib/i18n/react";
+import Link from "../LocaleLink";
 import { formatBlogDate } from "../../lib/dateFormat";
 
 type Chip = {
@@ -28,16 +29,17 @@ export default function BlogPostCard({
   chips = [],
   variant = "default",
 }: BlogPostCardProps) {
-  const publishedLabel = formatBlogDate(publishedAt);
+  const { t, locale } = useLocale();
+  const publishedLabel = formatBlogDate(publishedAt, locale);
   const hasCover = Boolean(coverImageUrl);
 
   return (
     <article className={`blog-card blog-card--${variant}${hasCover ? "" : " blog-card--no-cover"}`}>
       {coverImageUrl && (
-        <Link href={`/blog/${slug}`} className="blog-card-media-link" aria-label={title}>
+        <Link href={`/blog/${slug}`} className="blog-card-media-link" aria-label={t(title)}>
           <img
             src={coverImageUrl}
-            alt={title}
+            alt={t(title)}
             className="blog-card-cover"
             width={1200}
             height={675}
@@ -50,15 +52,15 @@ export default function BlogPostCard({
       <div className="blog-card-body">
         <h2 className="blog-card-heading">
           <Link href={`/blog/${slug}`} className="blog-card-title">
-            {title}
+            {t(title)}
           </Link>
         </h2>
-        {excerpt && <p className="blog-card-excerpt">{excerpt}</p>}
+        {excerpt && <p className="blog-card-excerpt">{t(excerpt)}</p>}
 
         {(readingMinutes || publishedLabel) && (
           <div className="blog-card-meta">
-            {typeof readingMinutes === "number" && <span>{readingMinutes} min read</span>}
-            {publishedLabel && <span>{publishedLabel}</span>}
+            {typeof readingMinutes === "number" && <span>{readingMinutes} {t(" min read")}</span>}
+            {publishedLabel && <span>{t(publishedLabel)}</span>}
           </div>
         )}
 
@@ -66,7 +68,7 @@ export default function BlogPostCard({
           <div className="blog-card-tags">
             {chips.map((chip) => (
               <Link key={chip.id} href={chip.href}>
-                {chip.name}
+                {t(chip.name)}
               </Link>
             ))}
           </div>

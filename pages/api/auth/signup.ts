@@ -1,3 +1,4 @@
+import { requestLocale } from "../../../lib/i18n/request";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { hash } from "bcryptjs";
 import { prisma } from "../../../lib/prisma";
@@ -7,6 +8,7 @@ import { linkIdentityToUser } from "../../../lib/analyticsV2/identity";
 import { normalizeSafeReturnPath } from "../../../lib/safeReturnPath";
 import { affiliateClickIdFromRequest, affiliateCodeFromRequest } from "../../../lib/affiliate";
 import { trackAffiliateEvent } from "../../../lib/affiliateTracking";
+import { trackTabShareEmailSignup } from "../../../lib/tabShareAnalyticsServer";
 
 const MIN_PASSWORD = 10;
 
@@ -96,13 +98,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.warn("signup identity link warning", linkError);
     }
 
+    try {
+      await trackTabShareEmailSignup({ userId: user.id, method: "email", returnTo, req });
+    } catch (shareAttributionError) {
+      console.warn("tab share signup attribution warning", shareAttributionError);
+    }
+
     let sent = false;
     try {
       const result = await issueAndSendVerificationEmail({
         id: user.id,
         email: user.email,
         name: user.name,
-      }, { returnTo });
+      }, { returnTo, locale: requestLocale(req) });
       sent = result.sent;
     } catch (mailError) {
       console.error("Signup verification email error", mailError);

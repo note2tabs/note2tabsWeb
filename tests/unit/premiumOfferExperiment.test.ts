@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   normalizePremiumOfferVariant,
   premiumOfferExperimentProperties,
@@ -9,6 +9,15 @@ import {
 } from "../../lib/usePremiumOfferEligibility";
 
 describe("Premium offer presentation experiment", () => {
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_PREMIUM_TRIAL_ENABLED = "true";
+  });
+
+  it("uses immediate-charge copy while the no-trial test is active", () => {
+    delete process.env.NEXT_PUBLIC_PREMIUM_TRIAL_ENABLED;
+    expect(premiumOfferCtaLabel("eligible")).toBe("Get Premium");
+    expect(premiumOfferReassurance("eligible")).toBe("$5.99 billed today · Cancel anytime");
+  });
   it("fails closed to the established control presentation", () => {
     expect(normalizePremiumOfferVariant(undefined)).toBe("control");
     expect(normalizePremiumOfferVariant("unexpected")).toBe("control");

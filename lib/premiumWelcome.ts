@@ -1,3 +1,4 @@
+import { stripLocale } from "./i18n/locale";
 const ALLOWED_DESTINATIONS = new Set(["/", "/home", "/transcribe", "/gte"]);
 
 export const premiumWelcomeDestination = (value: unknown) => {
@@ -9,7 +10,7 @@ export const premiumWelcomeDestination = (value: unknown) => {
   try {
     const url = new URL(candidate, "https://www.note2tabs.com");
     if (url.origin !== "https://www.note2tabs.com") return "/transcribe";
-    if (!ALLOWED_DESTINATIONS.has(url.pathname) && !url.pathname.startsWith("/gte/")) {
+    if (!ALLOWED_DESTINATIONS.has(stripLocale(url.pathname)) && !url.pathname.startsWith("/gte/")) {
       return "/transcribe";
     }
     return `${url.pathname}${url.search}${url.hash}`;

@@ -136,8 +136,17 @@ describe("account signup, verification, and password-reset lifecycle", () => {
         email: "player@example.com",
         name: "Player",
       },
-      { returnTo: "/transcribe?resumeTranscription=1" }
+      { returnTo: "/transcribe?resumeTranscription=1", locale: "en" }
     );
+  });
+
+  it("passes the Portuguese signup locale and return path to verification", async () => {
+    mocks.prisma.user.findUnique.mockResolvedValue(null);
+    const handler = (await import("../../pages/api/auth/signup")).default;
+    const {req,res} = createMocks({method:"POST",body:{email:"player@example.com",password:"a-secure-password",locale:"pt-BR",returnTo:"/pt-br/transcribe"}});
+    await handler(req as any,res as any);
+    expect(res._getStatusCode()).toBe(200);
+    expect(mocks.issueVerification).toHaveBeenCalledWith(expect.anything(), {locale:"pt-BR",returnTo:"/pt-br/transcribe"});
   });
 
   it("verifies the account and consumes the one-time token", async () => {
@@ -174,6 +183,7 @@ describe("account signup, verification, and password-reset lifecycle", () => {
     await requestHandler(requested.req as any, requested.res as any);
     expect(requested.res._getStatusCode()).toBe(200);
     expect(mocks.issueReset).toHaveBeenCalledWith({
+      locale: "en",
       id: "user_1",
       email: "player@example.com",
       name: "Player",

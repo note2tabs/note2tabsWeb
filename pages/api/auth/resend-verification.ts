@@ -1,3 +1,4 @@
+import { requestLocale } from "../../../lib/i18n/request";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "./[...nextauth]";
@@ -46,6 +47,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const result = await issueAndSendVerificationEmail(user, {
       returnTo: normalizeSafeReturnPath(req.body?.returnTo),
+      locale: requestLocale(req),
     });
     return res.status(200).json({ ok: true, sent: result.sent });
   } catch (error) {

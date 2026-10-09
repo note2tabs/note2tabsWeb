@@ -1,9 +1,11 @@
+import { useLocale } from "../lib/i18n/react";
 import SeoLandingPage from "../components/SeoLandingPage";
 
 export default function YoutubeToGuitarTabsPage() {
+  const { t } = useLocale();
   return (
     <SeoLandingPage
-      title="YouTube to Guitar Tabs Converter"
+      title={t("YouTube to Guitar Tabs Converter")}
       metaTitle="YouTube to Guitar Tabs Converter | Note2Tabs"
       description="Paste a YouTube link, choose a riff or solo, and convert the clip into a structured, editable guitar tab—without downloading the video first."
       canonicalPath="/youtube-to-guitar-tabs"

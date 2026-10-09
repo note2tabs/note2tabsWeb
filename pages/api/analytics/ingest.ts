@@ -2,8 +2,10 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { ingestAnalyticsEvents } from "../../../lib/analyticsV2/ingest";
+import { attachFunctionTiming } from "../../../lib/functionTiming";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  attachFunctionTiming(res, "/api/analytics/ingest");
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).json({ error: "Method not allowed" });
@@ -33,10 +35,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
     return res.status(200).json(result);
   } catch (error: any) {
-    console.error("analytics ingest error", error);
-    return res.status(400).json({
+    const invalidPayload = error?.name === "ZodError" || /^(Too many events|Event props too large)/.test(error?.message || "");
+    console.warn("analytics ingest failed", { reason: invalidPayload ? "invalid_payload" : "delivery_unavailable" });
+    return res.status(invalidPayload ? 400 : 503).json({
       ok: false,
-      error: error?.message || "Could not ingest analytics event.",
+      error: invalidPayload ? "Invalid analytics payload." : "Analytics delivery temporarily unavailable.",
     });
   }
 }

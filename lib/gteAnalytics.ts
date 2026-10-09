@@ -18,13 +18,20 @@ type LogGteAnalyticsInput = {
   event: GteAnalyticsEvent;
   path?: string;
   sessionId?: string;
+  timestamp?: string;
   payload?: Record<string, unknown>;
   req?: NextApiRequest;
   res?: NextApiResponse;
 };
 
 export async function logGteAnalyticsEvent(input: LogGteAnalyticsInput) {
-  const { userId, event, path, sessionId, payload, req, res } = input;
+  return logGteAnalyticsEvents([input]);
+}
+
+export async function logGteAnalyticsEvents(inputs: LogGteAnalyticsInput[]) {
+  if (!inputs.length) return;
+  const first = inputs[0];
+  const { userId, req, res } = first;
   try {
     const result = await ingestAnalyticsEvents({
       req,
@@ -32,17 +39,20 @@ export async function logGteAnalyticsEvent(input: LogGteAnalyticsInput) {
       accountId: userId,
       source: "gte_server_log",
       body: {
-        event,
-        path,
-        sessionId,
-        payload: payload || {},
+        events: inputs.map(({ event, path, sessionId, timestamp, payload }) => ({
+          event,
+          path,
+          sessionId,
+          ts: timestamp,
+          payload: payload || {},
+        })),
       },
     });
     if (result.written === 0) {
       console.warn(JSON.stringify({
         level: "warn",
         message: "gte_analytics_event_not_written",
-        event,
+        event: inputs.length === 1 ? inputs[0].event : "gte_batch",
         reason: result.reason || "unknown",
         received: result.received,
         blocked: result.blocked,
@@ -52,7 +62,7 @@ export async function logGteAnalyticsEvent(input: LogGteAnalyticsInput) {
     console.error(JSON.stringify({
       level: "error",
       message: "gte_analytics_event_failed",
-      event,
+      event: inputs.length === 1 ? inputs[0].event : "gte_batch",
       error_type: error instanceof Error ? error.name : "UnknownError",
     }));
   }

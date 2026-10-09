@@ -1,6 +1,8 @@
+import { localeHref, type AppLocale } from "./i18n/locale";
 import crypto from "crypto";
 import { prisma } from "./prisma";
 import { sendTransactionalEmail } from "./email";
+import { escapeEmailHtml, renderProductEmail } from "./emailTemplate";
 
 const RESET_TOKEN_PREFIX = "reset:";
 const RESET_TOKEN_TTL_MS = 1000 * 60 * 60; // 1h
@@ -39,8 +41,8 @@ export function normalizeResetCode(value: string) {
   return value.replace(/\s+/g, "").trim();
 }
 
-export function buildPasswordResetUrl(token: string) {
-  return `${baseUrl()}/reset-password/${encodeURIComponent(token)}`;
+export function buildPasswordResetUrl(token: string, locale: AppLocale = "en") {
+  return `${baseUrl()}${localeHref(`/reset-password/${encodeURIComponent(token)}`, locale)}`;
 }
 
 export async function createPasswordResetToken(userId: string) {
@@ -68,9 +70,24 @@ export async function sendPasswordResetEmail(
   email: string,
   token: string,
   code: string,
-  options?: { name?: string | null }
+  options?: { name?: string | null; locale?: AppLocale }
 ) {
-  const url = buildPasswordResetUrl(token);
+  const locale = options?.locale || "en";
+  const url = buildPasswordResetUrl(token, locale);
+  if (locale === "es") {
+    const name = options?.name?.trim() || "";
+    const greeting = name ? `¡Hola, ${name}!` : "¡Hola!";
+    return sendTransactionalEmail({to: email, subject: "Restablece tu contraseña de Note2Tabs",
+      text: `${greeting}\n\nRecibimos una solicitud para restablecer tu contraseña. Abre el enlace:\n${url}\n\nTu código: ${code}\n\nEl enlace y el código caducan en una hora. Si no hiciste esta solicitud, ignora este correo.`,
+      html: renderProductEmail({locale, title: "Restablece tu contraseña", preview: "Usa el enlace y el código de seis dígitos para restablecer tu contraseña.", greeting: escapeEmailHtml(greeting), bodyHtml: `<p>Recibimos una solicitud para restablecer tu contraseña.</p><p>Tu código: <strong>${escapeEmailHtml(code)}</strong></p>`, action: {label: "Restablecer contraseña", url}, secondaryHtml: "El enlace y el código caducan en una hora. Si no hiciste esta solicitud, ignora este correo."})});
+  }
+  if (locale === "pt-BR") {
+    const name = options?.name?.trim() || "";
+    const greeting = name ? `Olá, ${name}!` : "Olá!";
+    return sendTransactionalEmail({to: email, subject: "Redefina sua senha do Note2Tabs",
+      text: `${greeting}\n\nRecebemos um pedido para redefinir sua senha. Abra o link:\n${url}\n\nSeu código: ${code}\n\nO link e o código expiram em uma hora. Se você não fez este pedido, ignore este e-mail.`,
+      html: renderProductEmail({locale, title: "Redefina sua senha", preview: "Use o link e o código de seis dígitos para redefinir sua senha.", greeting: escapeEmailHtml(greeting), bodyHtml: `<p>Recebemos um pedido para redefinir sua senha.</p><p>Seu código: <strong>${escapeEmailHtml(code)}</strong></p>`, action: {label: "Redefinir senha", url}, secondaryHtml: "O link e o código expiram em uma hora. Se você não fez este pedido, ignore este e-mail."})});
+  }
   const firstName = options?.name?.trim() || "there";
   const subject = "Reset your Note2Tabs password";
   const text = `Hi ${firstName},
@@ -83,21 +100,14 @@ ${url}
 Your reset code: ${code}
 
 This link and code expire in 1 hour. If you didn't request this, you can ignore this email.`;
-  const html = `
-    <div style="font-family: Arial, sans-serif; line-height:1.45; color:#0f172a;">
-      <p>Hi ${firstName},</p>
-      <p>We received a request to reset your Note2Tabs password.</p>
-      <p>
-        <a href="${url}" style="display:inline-block;padding:10px 14px;background:#0f172a;color:#fff;text-decoration:none;border-radius:8px;">
-          Reset password
-        </a>
-      </p>
-      <p>Enter this reset code on the website:</p>
-      <p style="font-size:24px;letter-spacing:4px;font-weight:700;">${code}</p>
-      <p style="font-size:13px;color:#475569;">This link and code expire in 1 hour.</p>
-      <p style="font-size:13px;color:#475569;">If you did not request this, you can ignore this email.</p>
-    </div>
-  `;
+  const html = renderProductEmail({
+    title: "Reset your password",
+    preview: "Use this link or six-digit code to reset your Note2Tabs password.",
+    greeting: `Hi ${escapeEmailHtml(firstName)},`,
+    bodyHtml: `<p style="margin:0 0 20px;">We received a request to reset your password.</p><p style="margin:0 0 7px;color:#747d79;font-size:13px;">Your reset code</p><p style="margin:0;color:#17201d;font-family:Menlo,Consolas,monospace;font-size:26px;font-weight:700;letter-spacing:5px;">${escapeEmailHtml(code)}</p>`,
+    action: { label: "Reset password", url },
+    secondaryHtml: "The link and code expire in one hour. If you did not request this, you can ignore this email.",
+  });
   return sendTransactionalEmail({ to: email, subject, html, text });
 }
 
@@ -105,8 +115,9 @@ export async function issueAndSendPasswordResetEmail(user: {
   id: string;
   email: string;
   name?: string | null;
+  locale?: AppLocale;
 }) {
   const { token, code, expires } = await createPasswordResetToken(user.id);
-  const sent = await sendPasswordResetEmail(user.email, token, code, { name: user.name });
+  const sent = await sendPasswordResetEmail(user.email, token, code, { name: user.name, locale: user.locale });
   return { token, code, expires, sent };
 }

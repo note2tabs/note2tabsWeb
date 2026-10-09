@@ -1,3 +1,5 @@
+import { renderProductEmail } from "./emailTemplate";
+
 export const INTERNSHIP_APPLICATION_LIMITS = {
   email: 254,
   program: 120,
@@ -124,7 +126,11 @@ export function buildInternshipApplicationEmail(application: InternshipApplicati
 
   return {
     subject: `Internship application — ${application.program.replace(/[\r\n]+/g, " ")}`,
-    html: `<div style="font-family:Arial,sans-serif;color:#101312"><h1>New internship application</h1><table style="border-collapse:collapse;width:100%;max-width:720px">${htmlRows}</table></div>`,
+    html: renderProductEmail({
+      title: "New internship application",
+      preview: `Application from ${application.email}`,
+      bodyHtml: `<table role="presentation" style="border-collapse:collapse;width:100%;">${htmlRows}</table>`,
+    }),
     text: ["New internship application", "", ...rows.map(([label, value]) => `${label}:\n${value}`)].join("\n\n"),
   };
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   EDITOR_APPLICATION_ID,
+  DEFAULT_OG_IMAGE,
   INDEX_ROBOTS_DIRECTIVE,
   ORGANIZATION_ID,
   SITE_IDENTITY_JSON_LD,
@@ -10,10 +11,9 @@ import {
 } from "../../components/SeoHead";
 
 describe("SEO URL helpers", () => {
-  it("preserves query parameters used by dynamic social images", () => {
-    expect(absoluteUrl("/api/og?title=How%20to%20Play#preview")).toBe(
-      "https://www.note2tabs.com/api/og?title=How%20to%20Play#preview"
-    );
+  it("uses a static social image without invoking a server function", () => {
+    expect(DEFAULT_OG_IMAGE).toBe("https://www.note2tabs.com/note2tabs-social-preview.png");
+    expect(absoluteUrl("/note2tabs-social-preview.png")).toBe(DEFAULT_OG_IMAGE);
   });
 
   it("publishes one consistent brand identity for Google site names", () => {

@@ -1,9 +1,13 @@
+import { translatedError } from "../lib/i18n/translate";
+import { relativeUpdatedAt } from "../lib/i18n/dates";
+import { useLocale } from "../lib/i18n/react";
 import type { GetServerSideProps } from "next";
-import Link from "next/link";
+import Link from "../components/LocaleLink";
 import { getServerSession } from "next-auth/next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/router";
+import { useLocaleRouter as useRouter } from "../lib/i18n/react";
 import NoIndexHead from "../components/NoIndexHead";
+import WorkspaceSidebar from "../components/WorkspaceSidebar";
 import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../lib/analytics";
 import { gteApi } from "../lib/gteApi";
 import {
@@ -53,11 +57,11 @@ const trialDaysRemaining = (endsAt: string | null) => {
   return Math.max(0, Math.ceil(remaining / 86_400_000));
 };
 
-const shortDate = (value: string | null) => {
+const shortDate = (value: string | null, locale: string) => {
   if (!value) return null;
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return null;
-  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(date);
+  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : locale, { month: "short", day: "numeric" }).format(date);
 };
 
 const editorName = (editor: EditorListItem) => editor.name?.trim() || "Untitled tab";
@@ -70,32 +74,15 @@ const editorLoadMessage = (error: unknown) => {
   return message;
 };
 
-const editorActivity = (editor: EditorListItem) => {
+const editorActivity = (editor: EditorListItem, t: (s: string, v?: Record<string, string | number>) => string) => {
   const notes = Math.max(0, editor.noteCount || 0);
   const chords = Math.max(0, editor.chordCount || 0);
-  if (notes && chords) return `${notes} notes · ${chords} chords`;
-  if (notes) return `${notes} ${notes === 1 ? "note" : "notes"}`;
-  if (chords) return `${chords} ${chords === 1 ? "chord" : "chords"}`;
+  if (notes && chords) return t("{notes} notes · {chords} chords", {notes, chords});
+  if (notes) return `${notes} ${t(notes === 1 ? "note" : "notes")}`;
+  if (chords) return `${chords} ${t(chords === 1 ? "chord" : "chords")}`;
   return "Ready to edit";
 };
 
-const relativeUpdatedAt = (value?: string) => {
-  if (!value) return "Recently edited";
-  const timestamp = new Date(value).getTime();
-  if (!Number.isFinite(timestamp)) return "Recently edited";
-  const elapsed = Math.max(0, Date.now() - timestamp);
-  const minutes = Math.floor(elapsed / 60_000);
-  if (minutes < 1) return "Updated just now";
-  if (minutes < 60) return `Updated ${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `Updated ${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `Updated ${days}d ago`;
-  return `Updated ${new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-  }).format(new Date(timestamp))}`;
-};
 
 function ProductMark({ product }: { product: "transcriber" | "editor" }) {
   if (product === "transcriber") {
@@ -123,17 +110,8 @@ function ProductMark({ product }: { product: "transcriber" | "editor" }) {
   );
 }
 
-function SidebarIcon({ name }: { name: "home" | "transcriber" | "tabs" }) {
-  if (name === "home") {
-    return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m3.5 9 6.5-5.5L16.5 9v7.5h-5v-4h-3v4h-5Z" /></svg>;
-  }
-  if (name === "transcriber") {
-    return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h2m2-4v8m3-11v14m3-10v6m3-3h-1" /></svg>;
-  }
-  return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 5.5h13m-13 4.5h13m-13 4.5h8" /></svg>;
-}
-
 function CurrentTabArtwork({ editor }: { editor: EditorListItem }) {
+  const { t, locale } = useLocale();
   const { previewNotes, label } = getEditorThumbnail(editor);
   const firstFrame = previewNotes[0]?.startTime ?? 0;
   const lastFrame = previewNotes[previewNotes.length - 1]?.startTime ?? firstFrame;
@@ -141,7 +119,7 @@ function CurrentTabArtwork({ editor }: { editor: EditorListItem }) {
 
   return (
     <span className="product-home__tab-art product-home__tab-art--thumbnail" aria-hidden="true">
-      <span className="product-home__tab-art-title">Tab view</span>
+      <span className="product-home__tab-art-title">{t("Tab view")}</span>
       <span className="product-home__tab-art-staff">
         <i /><i /><i /><i /><i /><i />
         <b className="product-home__tab-preview-bar product-home__tab-preview-bar--one" />
@@ -160,7 +138,7 @@ function CurrentTabArtwork({ editor }: { editor: EditorListItem }) {
         ))}
       </span>
       <span className="product-home__tab-art-footer">
-        {label}
+        {t(label)}
       </span>
     </span>
   );
@@ -176,6 +154,7 @@ export default function ProductHome({
   initialEditors = [],
   subscriptionPlan,
 }: ProductHomeProps) {
+  const { t, locale } = useLocale();
   const router = useRouter();
   const [editors, setEditors] = useState<EditorListItem[]>(initialEditors);
   const [loading, setLoading] = useState(!localPreview);
@@ -211,12 +190,12 @@ export default function ProductHome({
   const accountLabel = hasCreditBalance
     ? "Monthly credits"
     : isPremium
-      ? `${subscriptionPlan === "PRO" ? "Pro" : "Premium"} plan`
+      ? t("{plan} plan", {plan: subscriptionPlan === "PRO" ? "Pro" : "Premium"})
       : "Free plan";
   const accountValue = creditsUnlimited
     ? "Unlimited"
     : hasCreditBalance
-      ? `${creditsRemaining} left`
+      ? t("{count} left", {count: creditsRemaining ?? 0})
       : isPremium
         ? "Active"
         : "10 credits monthly";
@@ -273,7 +252,14 @@ export default function ProductHome({
     sendEvent(ANALYTICS_EVENTS.premiumTrialActivationLanded, {
       surface: "product_home",
     });
-    void router.replace("/home", undefined, { shallow: true });
+    // This marker is only analytics state. Removing it through Next's router can
+    // fall back to a hard navigation while the route is already `/home`, which
+    // Next rejects as an invariant violation. Update the visible URL without a
+    // route transition instead.
+    const cleanUrl = `${window.location.pathname}${window.location.hash}`;
+    if (`${window.location.pathname}${window.location.search}${window.location.hash}` !== cleanUrl) {
+      window.history.replaceState(window.history.state, "", cleanUrl);
+    }
   }, [router.isReady, router.query.upgrade]);
 
   useEffect(() => {
@@ -345,7 +331,7 @@ export default function ProductHome({
       const response = await fetch("/api/stripe/create-portal-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ returnTo: "/home" }),
+        body: JSON.stringify({ returnTo: "/home", locale }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.url) {
@@ -375,7 +361,7 @@ export default function ProductHome({
       const response = await fetch("/api/stripe/create-portal-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ returnTo: "/home" }),
+        body: JSON.stringify({ returnTo: "/home", locale }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.url) {
@@ -448,81 +434,72 @@ export default function ProductHome({
 
   return (
     <>
-      <NoIndexHead title="Home | Note2Tabs" canonicalPath="/home" />
+      <NoIndexHead title={t("Home | Note2Tabs")} canonicalPath="/home" />
       <main className="product-home product-home--studio">
         <div className="container product-studio-layout">
-          <aside className="product-studio-sidebar" aria-label="Workspace navigation">
-            <nav>
-              <Link href="/home" className="is-active"><SidebarIcon name="home" />Home</Link>
-              <Link href="/transcribe" onClick={() => trackHomeCta("product_home_sidebar_transcribe")}><SidebarIcon name="transcriber" />Transcriber</Link>
-              <Link href="/gte" onClick={() => trackHomeCta("product_home_sidebar_editors")}><SidebarIcon name="tabs" />My tabs</Link>
-            </nav>
-            <div className="product-studio-sidebar__recent">
-              <header><span>Recent tabs</span><Link href="/gte">View all</Link></header>
-              {recentEditors.slice(0, 4).map((editor) => (
-                <Link key={editor.id} href={`/gte/${editor.id}`} onPointerDown={() => void gteApi.prefetchEditor(editor.id).catch(() => {})}>{editorName(editor)}</Link>
-              ))}
-              {!loading && recentEditors.length === 0 && <small>No tabs yet</small>}
-            </div>
-            {!isPremium && <Link className="product-studio-sidebar__premium" href="/pricing?source=product_home" onClick={() => trackHomeCta("product_home_sidebar_premium")}><strong>Premium</strong><span>More credits and full-song uploads</span><i>Explore →</i></Link>}
-          </aside>
+          <WorkspaceSidebar
+            active="home"
+            recentEditors={recentEditors}
+            loading={loading}
+            isPremium={isPremium}
+            analyticsSurface="product_home"
+          />
           <div className="product-studio">
           <header className="product-studio__welcome">
-            <div className="product-studio__credits" role="status" aria-label="Account usage">
-              <span>{accountLabel}</span>
-              <strong>{accountValue}</strong>
+            <div className="product-studio__credits" role="status" aria-label={t("Account usage")}>
+              <span>{t(accountLabel)}</span>
+              <strong>{t(accountValue)}</strong>
               {creditPercent !== null && <i><b style={{ width: `${creditPercent}%` }} /></i>}
             </div>
           </header>
 
           {subscription?.status === "past_due" && (
-            <aside className="product-studio__trial" aria-label="Premium payment needs attention">
+            <aside className="product-studio__trial" aria-label={t("Premium payment needs attention")}>
               <div>
-                <span>Payment needs attention</span>
-                <strong>Keep your Premium access active</strong>
+                <span>{t("Payment needs attention")}</span>
+                <strong>{t("Keep your Premium access active")}</strong>
                 <small>
-                  Update your payment details so your credits, Heavy model access, and full-song uploads continue uninterrupted.
-                </small>
-                {billingRecoveryError && <small role="alert">{billingRecoveryError}</small>}
+                  {t("Update your payment details so your credits, Heavy model access, and full-song uploads continue uninterrupted.")}</small>
+                {billingRecoveryError && <small role="alert">{translatedError(billingRecoveryError, locale)}</small>}
               </div>
               <div className="product-studio__trial-actions">
                 <button type="button" onClick={handleBillingRecovery} disabled={billingPortalBusy}>
-                  {billingPortalBusy ? "Opening billing…" : "Update payment"}
+                  {t(billingPortalBusy ? "Opening billing…" : "Update payment")}
                 </button>
               </div>
             </aside>
           )}
 
           {subscription?.isTrial && subscription.status !== "past_due" && (
-            <aside className="product-studio__trial" aria-label="Premium trial">
+            <aside className="product-studio__trial" aria-label={t("Premium trial")}>
               <div>
                 <span>
                   {subscription.cancelAtPeriodEnd
-                    ? `Premium access until ${shortDate(subscription.accessEndsAt) || "trial end"}`
-                    : `Premium trial · ${trialDaysRemaining(subscription.trialEndsAt) ?? "A few"} days left`}
+                    ? t("Premium access until {date}", {date: shortDate(subscription.accessEndsAt, locale) || t("trial end")})
+                    : t("Premium trial · {days} days left", {days: trialDaysRemaining(subscription.trialEndsAt) ?? t("A few")})}
                 </span>
                 <strong>
                   {latestEditor
-                    ? `Keep going with ${editorName(latestEditor)}`
-                    : "Make something you will want to play again"}
+                    ? t("Keep going with {name}", {name: latestEditor.name?.trim() || t("Untitled tab")})
+                    : t("Make something you will want to play again")}
                 </strong>
                 <small>
-                  {latestEditor
+                  {t(latestEditor
                     ? "Open your latest tab in Practice and hear how it feels under your fingers."
-                    : "Transcribe one recording, then open it in the editor and try Practice."}
+                    : "Transcribe one recording, then open it in the editor and try Practice.")}
                 </small>
-                {billingRecoveryError && <small role="alert">{billingRecoveryError}</small>}
+                {billingRecoveryError && <small role="alert">{translatedError(billingRecoveryError, locale)}</small>}
               </div>
               <div className="product-studio__trial-actions">
                 <Link
                   href={latestEditor ? `/gte/${latestEditor.id}?mode=practice&source=trial_home` : "/transcribe?source=trial_home"}
                   onClick={() => trackHomeCta(latestEditor ? "trial_continue_practice" : "trial_start_transcription")}
                 >
-                  {latestEditor ? "Practice this tab" : "Transcribe a recording"}
+                  {t(latestEditor ? "Practice this tab" : "Transcribe a recording")}
                 </Link>
                 {subscription.cancelAtPeriodEnd && (
                   <button type="button" onClick={handleCancellationRecovery} disabled={billingPortalBusy}>
-                    {billingPortalBusy ? "Opening…" : "Review subscription"}
+                    {t(billingPortalBusy ? "Opening…" : "Review subscription")}
                   </button>
                 )}
               </div>
@@ -533,81 +510,81 @@ export default function ProductHome({
             <span className="product-hub__doodle product-hub__doodle--guitar" aria-hidden="true" />
             <span className="product-hub__doodle product-hub__doodle--notes" aria-hidden="true" />
             <div className="product-studio__start-copy">
-              <h1 id="studio-start-title">What would you like to play next?</h1>
-              <span>Transcribe a recording or begin with a blank tab.</span>
-              <div className="product-studio__actions" aria-label="Start creating">
+              <h1 id="studio-start-title">{t("What would you like to play next?")}</h1>
+              <span>{t("Transcribe a recording or begin with a blank tab.")}</span>
+              <div className="product-studio__actions" aria-label={t("Start creating")}>
                 <Link href="/transcribe" onClick={() => trackHomeCta("product_home_transcribe")}>
                   <ProductMark product="transcriber" />
-                  <span><strong>Transcribe a recording</strong><small>Turn audio or YouTube into an editable tab</small></span>
-                  <i aria-hidden="true">→</i>
+                  <span><strong>{t("Transcribe a recording")}</strong><small>{t("Turn audio or YouTube into an editable tab")}</small></span>
+                  <i aria-hidden="true">{t("→")}</i>
                 </Link>
                 <button type="button" onClick={handleCreate} disabled={creating}>
                   <ProductMark product="editor" />
-                  <span><strong>{creating ? "Creating your tab…" : "Start a blank tab"}</strong><small>Write, arrange, play, and practice</small></span>
-                  <i aria-hidden="true">→</i>
+                  <span><strong>{t(creating ? "Creating your tab…" : "Start a blank tab")}</strong><small>{t("Write, arrange, play, and practice")}</small></span>
+                  <i aria-hidden="true">{t("→")}</i>
                 </button>
               </div>
               {latestEditor && (
                 <Link href={`/gte/${latestEditor.id}`} className="product-studio__continue" onPointerDown={() => void gteApi.prefetchEditor(latestEditor.id).catch(() => {})} onClick={() => trackHomeCta("product_home_continue_editor")}>
-                  <span>Continue where you left off</span><strong>{editorName(latestEditor)}</strong><small>{relativeUpdatedAt(latestEditor.updatedAt)} · Open →</small>
+                  <span>{t("Continue where you left off")}</span><strong>{(latestEditor.name?.trim() || t("Untitled tab"))}</strong><small>{relativeUpdatedAt(latestEditor.updatedAt, locale)} {t(" · Open →")}</small>
                 </Link>
               )}
             </div>
           </section>
 
-          {loadError && recentEditors.length === 0 && <div className="product-home__error" role="alert"><span>{loadError}</span><button type="button" onClick={() => void loadEditors(true)}>Try again</button></div>}
+          {loadError && recentEditors.length === 0 && <div className="product-home__error" role="alert"><span>{translatedError(loadError, locale)}</span><button type="button" onClick={() => void loadEditors(true)}>{t("Try again")}</button></div>}
 
           {RETENTION_INTENT_RESEARCH_ENABLED && showIntentPrompt && recentEditors.length === 0 && (
             <aside className="product-studio__intent" aria-labelledby="retention-intent-title">
               {intentAnswered ? (
                 <div className="product-studio__intent-thanks" role="status">
-                  <strong>Thank you.</strong>
-                  <span>We’ll use that to make getting started more useful.</span>
+                  <strong>{t("Thank you.")}</strong>
+                  <span>{t("We’ll use that to make getting started more useful.")}</span>
                 </div>
               ) : (
                 <>
                   <div className="product-studio__intent-copy">
-                    <strong id="retention-intent-title">What brought you to Note2Tabs today?</strong>
-                    <span>One quick question to help us improve the first visit.</span>
+                    <strong id="retention-intent-title">{t("What brought you to Note2Tabs today?")}</strong>
+                    <span>{t("One quick question to help us improve the first visit.")}</span>
                   </div>
-                  <div className="product-studio__intent-options" aria-label="Choose your main goal">
+                  <div className="product-studio__intent-options" aria-label={t("Choose your main goal")}>
                     {RETENTION_INTENT_OPTIONS.map((option) => (
                       <button
                         key={option.value}
                         type="button"
                         onClick={() => handleIntentSelected(option.value)}
                       >
-                        {option.label}
+                        {t(option.label)}
                       </button>
                     ))}
                   </div>
                   <button className="product-studio__intent-dismiss" type="button" onClick={handleIntentDismissed}>
-                    Not now
-                  </button>
+                    {t("Not now")}</button>
                 </>
               )}
             </aside>
           )}
 
           <section className="product-studio__library" aria-labelledby="recent-heading">
-            <header><div><h2 id="recent-heading">Recent tabs</h2></div><Link href="/gte" onClick={() => trackHomeCta("product_home_view_all_editors")}>View all tabs →</Link></header>
+            <header><div><h2 id="recent-heading">{t("Recent tabs")}</h2></div><Link href="/gte" onClick={() => trackHomeCta("product_home_view_all_editors")}>{t("View all tabs →")}</Link></header>
             {loading && !latestEditor ? (
-              <div className="product-studio__grid" aria-live="polite" aria-busy="true">{[0, 1, 2].map((item) => <div className="product-hub__skeleton" key={item} aria-hidden="true" />)}<span className="sr-only">Loading your recent tabs</span></div>
+              <div className="product-studio__grid" aria-live="polite" aria-busy="true">{[0, 1, 2].map((item) => <div className="product-hub__skeleton" key={item} aria-hidden="true" />)}<span className="sr-only">{t("Loading your recent tabs")}</span></div>
             ) : recentEditors.length > 0 ? (
               <div className="product-studio__grid">
                 {recentEditors.map((editor) => (
                   <Link key={editor.id} href={`/gte/${editor.id}`} className="product-studio__tab" onPointerDown={() => void gteApi.prefetchEditor(editor.id).catch(() => {})} onClick={() => trackHomeCta("product_home_recent_editor")}>
                     <CurrentTabArtwork editor={editor} />
-                    <span><strong>{editorName(editor)}</strong><small>{editorActivity(editor)}</small><em>{relativeUpdatedAt(editor.updatedAt)}</em></span>
+                    <span><strong>{(editor.name?.trim() || t("Untitled tab"))}</strong><small>{t(editorActivity(editor, t))}</small><em>{relativeUpdatedAt(editor.updatedAt, locale)}</em></span>
                   </Link>
                 ))}
-                <button className="product-studio__new" type="button" onClick={handleCreate} disabled={creating}><i aria-hidden="true">+</i><span><strong>New tab</strong><small>Start with a clean canvas</small></span></button>
+                <button className="product-studio__new" type="button" onClick={handleCreate} disabled={creating}><i aria-hidden="true">{t("+")}</i><span><strong>{t("New tab")}</strong><small>{t("Start with a clean canvas")}</small></span></button>
               </div>
             ) : (
-              <div className="product-home__empty-recents"><span className="product-home__empty-paper" aria-hidden="true"><i /><i /><i /><i /><i /><i /></span><div><h3>Your tabs will live here.</h3><p>Anything you transcribe or create is saved to your library.</p></div></div>
+              <div className="product-home__empty-recents"><span className="product-home__empty-paper" aria-hidden="true"><i /><i /><i /><i /><i /><i /></span><div><h3>{t("Your tabs will live here.")}</h3><p>{t("Anything you transcribe or create is saved to your library.")}</p></div></div>
             )}
           </section>
-          {!isPremium && <Link href="/pricing?source=product_home" className="product-studio__premium" onClick={() => trackHomeCta("product_home_premium_footer")}><span><strong>Need more transcription room?</strong><small>Premium includes 100 monthly credits, rollover, and full-length uploads.</small></span><i>Explore Premium →</i></Link>}
+
+          {!isPremium && <Link href="/pricing?source=product_home" className="product-studio__premium" onClick={() => trackHomeCta("product_home_premium_footer")}><span><strong>{t("Need more transcription room?")}</strong><small>{t("Premium includes 100 monthly credits, rollover, and full-length uploads.")}</small></span><i>{t("Explore Premium →")}</i></Link>}
           </div>
         </div>
       </main>

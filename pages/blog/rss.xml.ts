@@ -1,3 +1,5 @@
+import { articleTranslation } from "../../lib/i18n/blog/localize";
+import { localeFromPath, localeHref } from "../../lib/i18n/locale";
 import type { GetServerSideProps } from "next";
 import { prisma } from "../../lib/prisma";
 import { withPrismaReadRetry } from "../../lib/prismaRetry";
@@ -11,8 +13,9 @@ const escapeXml = (value: string) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;");
 
-export const getServerSideProps: GetServerSideProps = async ({ res }) => {
+export const getServerSideProps: GetServerSideProps = async ({ res, resolvedUrl }) => {
   const baseUrl = getBaseUrl();
+  const locale = localeFromPath(resolvedUrl);
   const posts = await withPrismaReadRetry(() => prisma.post.findMany({
     where: getPublishedWhere(),
     orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
@@ -27,15 +30,16 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
 
   const items = posts
     .map((post) => {
-      const link = `${baseUrl}/blog/${post.slug}`;
+      const translated = locale !== "en" ? articleTranslation(post.slug, post.updatedAt.toISOString(), post.title, locale) : null;
+      const link = `${baseUrl}${localeHref(`/blog/${post.slug}`, translated ? locale : "en")}`;
       const pubDate = (post.publishedAt || post.publishAt || post.updatedAt).toUTCString();
       return `
       <item>
-        <title>${escapeXml(post.title)}</title>
+        <title>${escapeXml(translated?.title || post.title)}</title>
         <link>${link}</link>
         <guid>${link}</guid>
         <pubDate>${pubDate}</pubDate>
-        <description>${escapeXml(post.excerpt)}</description>
+        <description>${escapeXml(translated?.excerpt || post.excerpt)}</description>
       </item>`;
     })
     .join("");
@@ -44,8 +48,9 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
 <rss version="2.0">
   <channel>
     <title>Note2Tabs Blog</title>
-    <link>${baseUrl}/blog</link>
-    <description>Guides and updates for Note2Tabs guitar tab creation.</description>
+    <link>${baseUrl}${localeHref("/blog", locale)}</link>
+    <language>${locale}</language>
+    <description>${locale === "pt-BR" ? "Guias e novidades para criar tablaturas com Note2Tabs." : locale === "es" ? "Guías y novedades para crear tablaturas con Note2Tabs." : "Guides and updates for Note2Tabs guitar tab creation."}</description>
     ${items}
   </channel>
 </rss>`;

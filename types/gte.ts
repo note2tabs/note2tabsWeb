@@ -11,7 +11,7 @@ export type Note = {
   pitchBend?: number[];
 };
 
-export type GteTrackType = "tab" | "chords" | "drums";
+export type GteTrackType = "tab" | "bass" | "chords" | "drums";
 
 export type TimingAnchor = {
   tick: number;
@@ -109,6 +109,7 @@ export type EditorSnapshot = {
   playbackIsolated?: boolean;
   timelineOffsetFrames?: number;
   importGroupId?: string;
+  importDroppedNoteCount?: number;
   tuning?: {
     presetId?: string;
     label?: string;
@@ -129,6 +130,7 @@ export type EditorSnapshot = {
   chords: Chord[];
   noteEffects?: NoteEffect[];
   drumLoops?: DrumLoopRegion[];
+  drumBarSubdivisions?: Record<string, number>;
   cutPositionsWithCoords: CutWithCoord[];
   optimalsByTime: Record<string, Record<string, TabCoord[]>>;
 };
@@ -148,6 +150,44 @@ export type EditorListItem = {
     fret: number;
   }>;
   storageStatus?: "LIVE" | "ARCHIVING" | "ARCHIVED" | "RESTORING" | "ERROR";
+};
+
+export type SharedEditorRole = "viewer" | "editor";
+
+export type SharedEditorListItem = {
+  id: string;
+  name?: string;
+  updatedAt?: string;
+  version?: number;
+  role: SharedEditorRole;
+  ownerUserId?: string;
+};
+
+export type CanvasShareStatus = "pending" | "accepted" | "revoked";
+
+export type CanvasShare = {
+  shareId: number;
+  email: string;
+  role: SharedEditorRole;
+  status: CanvasShareStatus;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type PendingCanvasShare = {
+  shareId: number;
+  canvasId: string;
+  name?: string;
+  role: SharedEditorRole;
+  invitedBy?: string;
+  createdAt?: string;
+};
+
+export type OutgoingCanvasShare = {
+  canvasId: string;
+  name?: string;
+  updatedAt?: string;
+  collaborators: CanvasShare[];
 };
 
 export type CanvasSnapshot = {

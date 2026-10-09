@@ -2,10 +2,12 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { prisma } from "../../../lib/prisma";
 import { authOptions } from "../auth/[...nextauth]";
+import { attachFunctionTiming } from "../../../lib/functionTiming";
 
 const WRITE_INTERVAL_MS = 15 * 60 * 1000;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  attachFunctionTiming(res, "/api/account/activity");
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).json({ error: "Method not allowed" });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildEditorTabView,
   EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH,
+  getWrappedTabPlayheadPosition,
 } from "../../lib/gteEditorTabView";
 import type { EditorSnapshot } from "../../types/gte";
 
@@ -30,6 +31,40 @@ const baseSnapshot = (): EditorSnapshot => ({
 });
 
 describe("gte editor tab view", () => {
+  it("wraps the playback cursor into the correct desktop score row", () => {
+    const barStartXs = [32, 152, 272, 392, 512, 632, 752];
+    expect(getWrappedTabPlayheadPosition({
+      cursorX: 332,
+      playheadFrame: 1200,
+      framesPerBar: 480,
+      barCount: 6,
+      barsPerRow: 2,
+      barStartXs,
+      rowStride: 190,
+    })).toEqual({
+      rowIndex: 1,
+      x: EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + 60,
+      y: 190,
+    });
+  });
+
+  it("keeps the final frame inside the final wrapped row", () => {
+    const barStartXs = [32, 152, 272, 392, 512, 632, 752];
+    expect(getWrappedTabPlayheadPosition({
+      cursorX: 752,
+      playheadFrame: 2880,
+      framesPerBar: 480,
+      barCount: 6,
+      barsPerRow: 2,
+      barStartXs,
+      rowStride: 190,
+    })).toEqual({
+      rowIndex: 2,
+      x: EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + 240,
+      y: 380,
+    });
+  });
+
   it("uses the same per-bar width as the frame timeline scale", () => {
     const framesPerBar = 480;
     const scale = 3.37;
@@ -65,6 +100,19 @@ describe("gte editor tab view", () => {
 
     expect(view.height).toBe(152);
     expect(view.strings.map((line) => line.y)).toEqual([16, 40, 64, 88, 112, 136]);
+  });
+
+  it("renders bass snapshots with exactly four string rows", () => {
+    const snapshot = baseSnapshot();
+    snapshot.trackType = "bass";
+    snapshot.editorType = "bass";
+    snapshot.tuning = { presetId: "bass-standard", label: "Standard", openStringMidi: [43, 38, 33, 28], capo: 0 };
+    snapshot.notes = [{ id: 1, startTime: 0, length: 120, midiNum: 28, tab: [3, 0], optimals: [] }];
+    snapshot.chords = [];
+    const view = buildEditorTabView(snapshot, { framesPerBar: 480, beatsPerBar: 4, scale: 1, playheadFrame: 0 });
+    expect(view.strings.map((line) => line.label)).toEqual(["G", "D", "A", "E"]);
+    expect(view.height).toBe(104);
+    expect(view.placements).toHaveLength(1);
   });
 
   it("places notes on equal 1/32-note subdivisions in practice layout", () => {

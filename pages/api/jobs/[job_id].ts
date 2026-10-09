@@ -1,3 +1,4 @@
+import { requestLocale } from "../../../lib/i18n/request";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
@@ -5,6 +6,8 @@ import { prisma } from "../../../lib/prisma";
 import { buildUniqueTabJobLabel, deriveTabJobBaseLabel } from "../../../lib/tabJobNames";
 import { normalizePositiveDurationSec } from "../../../lib/transcriptionDuration";
 import { sendTranscriptionCompleteEmailOnce } from "../../../lib/transcriptionCompleteEmail";
+import { getServerTranscriptionAnalytics } from "../../../lib/transcriptionAnalytics";
+import { attachFunctionTiming } from "../../../lib/functionTiming";
 import {
   parseStoredTabPayload,
   normalizeTranscriberTracks,
@@ -17,6 +20,7 @@ const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
   process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
 const FINAL_JOB_STATUSES = new Set(["done", "completed", "succeeded", "success"]);
+const FAILED_JOB_STATUSES = new Set(["failed", "error", "cancelled", "canceled"]);
 const MAX_JOB_RESPONSE_BYTES = 3_500_000;
 const MAX_UPSTREAM_TEXT_BYTES = 2000;
 const LARGE_JOB_FIELDS = [
@@ -31,6 +35,7 @@ const LARGE_JOB_FIELDS = [
   "note_events",
   "noteEvents",
 ];
+const acknowledgedDurableResults = new Set<string>();
 
 function getJobSources(job: unknown) {
   if (!job || typeof job !== "object" || Array.isArray(job)) return [] as Record<string, unknown>[];
@@ -447,6 +452,8 @@ async function findPersistedTabJob(jobId: string, sessionUserId: string) {
 }
 
 async function markBackendJobPersisted(jobId: string, sessionUserId: string, tabJobId: string) {
+  const acknowledgementKey = `${jobId}:${sessionUserId}:${tabJobId}`;
+  if (acknowledgedDurableResults.has(acknowledgementKey)) return;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 2500);
   try {
@@ -465,10 +472,15 @@ async function markBackendJobPersisted(jobId: string, sessionUserId: string, tab
       }
     );
     if (!response.ok) {
+      const detail = (await response.text()).slice(0, 300);
       console.warn("Backend job durability acknowledgement failed", {
         jobId,
         status: response.status,
+        detail,
       });
+    } else {
+      acknowledgedDurableResults.add(acknowledgementKey);
+      if (acknowledgedDurableResults.size > 500) acknowledgedDurableResults.delete(acknowledgedDurableResults.values().next().value!);
     }
   } catch (error) {
     // The persisted TabJob remains the source of truth. A later final-status
@@ -595,6 +607,8 @@ async function persistCompletedJob(jobId: string, sessionUserId: string, payload
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  let upstreamBytes = 0;
+  attachFunctionTiming(res, "/api/jobs/[job_id]", () => ({ upstreamBytes }));
   if (req.method !== "GET") {
     res.setHeader("Allow", ["GET"]);
     return res.status(405).json({ error: "Method not allowed" });
@@ -632,7 +646,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const pollingHeadersSource = fetched.upstream;
   const text = fetched.text;
   const contentType = fetched.contentType;
-  let upstreamBytes = fetched.bytes;
+  upstreamBytes = fetched.bytes;
   let fetchedFullOutput = clientRequestedFullOutput;
   let persistedTab = false;
   if (!text) {
@@ -652,6 +666,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         typeof getFirstJobValue(payload, ["status"]) === "string"
           ? String(getFirstJobValue(payload, ["status"])).toLowerCase()
           : null;
+      if (["done", "succeeded", "failed", "error"].includes(normalizedStatus || "")) {
+        try {
+          const analytics = await getServerTranscriptionAnalytics(jobId, session.user.id);
+          payload.analyticsServerTracked = analytics?.tracked === true;
+          if (analytics?.workerPool) payload.workerPool = analytics.workerPool;
+          if (analytics?.accessType) payload.accessType = analytics.accessType;
+          if (analytics?.subscriptionPlan) payload.subscriptionPlan = analytics.subscriptionPlan;
+          if (typeof analytics?.heavyPreview === "boolean") payload.heavyPreview = analytics.heavyPreview;
+        } catch {
+          // Unknown tracking state must not produce a duplicate server outcome.
+          payload.analyticsServerTracked = true;
+        }
+      }
+      if (
+        session?.user?.id &&
+        normalizedStatus &&
+        FAILED_JOB_STATUSES.has(normalizedStatus)
+      ) {
+        try {
+          await prisma.user.updateMany({
+            where: {
+              id: session.user.id,
+              heavyPreviewJobId: jobId,
+            },
+            data: {
+              heavyPreviewUsedAt: null,
+              heavyPreviewJobId: null,
+            },
+          });
+        } catch (error) {
+          // A failed cleanup must not hide the backend's real job status.
+          console.warn("Heavy preview restoration failed", { jobId, error });
+        }
+      }
       if (upstream.ok && session?.user?.id && normalizedStatus && FINAL_JOB_STATUSES.has(normalizedStatus)) {
         let tabJobId = await persistCompletedJob(jobId, session.user.id, payload);
         if (!tabJobId && !hasPersistableJobResult(payload) && !fetchedFullOutput) {
@@ -675,12 +723,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
         if (tabJobId) {
           persistedTab = true;
-          await markBackendJobPersisted(jobId, session.user.id, tabJobId);
+          const backendDurableResultId = getStringValue(payload, ["durableResultId"]);
+          if (backendDurableResultId !== tabJobId) {
+            await markBackendJobPersisted(jobId, session.user.id, tabJobId);
+          }
           try {
             await sendTranscriptionCompleteEmailOnce({
               userId: session.user.id,
               jobId,
               tabJobId,
+              locale: requestLocale(req),
             });
           } catch (error) {
             // Email is helpful but must never turn a completed transcription
@@ -702,6 +754,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         job_id: getStringValue(payload, ["job_id", "jobId", "id"]) || jobId,
         status: getStringValue(payload, ["status"]) || (upstream.ok ? "processing" : "error"),
       };
+      if (typeof payload.analyticsServerTracked === "boolean") {
+        responsePayload.analyticsServerTracked = payload.analyticsServerTracked;
+      }
+      if (typeof payload.heavyPreview === "boolean") responsePayload.heavyPreview = payload.heavyPreview;
       const stringFieldMap: Array<{ field: string; keys: string[] }> = [
         { field: "type", keys: ["type"] },
         { field: "rawStatus", keys: ["rawStatus", "raw_status"] },
@@ -710,6 +766,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         { field: "startedAt", keys: ["startedAt", "started_at"] },
         { field: "finishedAt", keys: ["finishedAt", "finished_at"] },
         { field: "workflowState", keys: ["workflowState", "workflow_state"] },
+        { field: "transcriptionMethod", keys: ["transcriptionMethod", "transcription_method"] },
+        { field: "workerPool", keys: ["workerPool"] },
+        { field: "accessType", keys: ["accessType"] },
+        { field: "subscriptionPlan", keys: ["subscriptionPlan"] },
         { field: "currentStepKey", keys: ["currentStepKey", "current_step_key"] },
         { field: "currentStepLabel", keys: ["currentStepLabel", "current_step_label"] },
         { field: "currentStepDetail", keys: ["currentStepDetail", "current_step_detail"] },

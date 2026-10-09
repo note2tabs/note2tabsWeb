@@ -1,3 +1,6 @@
+import {localeCohort} from "../../../lib/i18n/locale";
+import { localizeCheckoutReturnPaths } from "../../../lib/i18n/checkout";
+import { requestLocale } from "../../../lib/i18n/request";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createHash } from "crypto";
 import { getServerSession } from "next-auth/next";
@@ -10,8 +13,9 @@ import {
   type BillingInterval,
 } from "../../../lib/stripePremium";
 import { getFreshUserAccess } from "../../../lib/serverAuth";
-import { PLAN_CATALOG, proPlanCheckoutEnabled, type PaidSubscriptionPlan } from "../../../lib/subscriptionPlans";
-import { createPostHogServerClient } from "../../../lib/posthogServer";
+import { PLAN_CATALOG, premiumTrialCheckoutEnabled, proPlanCheckoutEnabled, type PaidSubscriptionPlan } from "../../../lib/subscriptionPlans";
+import { DISPLAY_CURRENCIES, type DisplayCurrency } from "../../../lib/localizedPricing";
+import { createPostHogServerClient, stablePostHogEventUuid } from "../../../lib/posthogServer";
 import { inspectPremiumCustomerState } from "../../../lib/stripePremiumOffer";
 import {
   normalizePremiumFunnelId,
@@ -32,7 +36,13 @@ async function trackCheckoutEvent(
 ) {
   const client = createPostHogServerClient();
   if (!client) return;
-  client.capture({ distinctId, event, properties });
+  const insertId = typeof properties.$insert_id === "string" ? properties.$insert_id : null;
+  client.capture({
+    distinctId,
+    event,
+    properties: {...properties, environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "development"},
+    ...(insertId ? { uuid: stablePostHogEventUuid(insertId) } : {}),
+  });
   try {
     // Checkout is a low-volume, business-critical funnel. Awaiting this flush
     // prevents Vercel from ending the invocation before PostHog receives it.
@@ -52,6 +62,14 @@ const appendCheckoutSessionId = (path: string) => {
 
 const premiumWelcomePath = (next: string) =>
   `/premium/welcome?next=${encodeURIComponent(next)}`;
+
+const appendQueryParam = (path: string, key: string, value: string) => {
+  const hashIndex = path.indexOf("#");
+  const pathAndQuery = hashIndex >= 0 ? path.slice(0, hashIndex) : path;
+  const hash = hashIndex >= 0 ? path.slice(hashIndex) : "";
+  const separator = pathAndQuery.includes("?") ? "&" : "?";
+  return `${pathAndQuery}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}${hash}`;
+};
 
 const resolveCheckoutReturnPaths = (requestedPath: unknown) => {
   if (requestedPath === "/transcribe?resumeTranscription=1") {
@@ -77,6 +95,9 @@ const resolveCheckoutReturnPaths = (requestedPath: unknown) => {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const startedAt = Date.now();
+  const contentLocale = requestLocale(req);
+  const rawCountry = req.headers["x-vercel-ip-country"];
+  const visitorCountry = typeof rawCountry === "string" && /^[A-Z]{2}$/.test(rawCountry) ? rawCountry : "unknown";
   const requestId = String(req.headers["x-vercel-id"] || "local");
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
@@ -102,6 +123,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "Choose monthly or yearly billing." });
   }
   const billingInterval: BillingInterval = rawBillingInterval;
+  const rawDisplayCurrency = typeof req.body?.displayCurrency === "string"
+    ? req.body.displayCurrency.toUpperCase()
+    : "USD";
+  const siteDisplayCurrency = DISPLAY_CURRENCIES.includes(rawDisplayCurrency as DisplayCurrency)
+    ? rawDisplayCurrency.toLowerCase()
+    : "usd";
   if (requestedPlan === "PRO" && !proPlanCheckoutEnabled()) {
     return res.status(503).json({ error: "Pro checkout is not available yet." });
   }
@@ -151,6 +178,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   await trackCheckoutEvent(session.user.id, "checkout_session_requested", {
     plan: selectedPlan.analyticsId,
     billing_interval: billingInterval,
+    ...localeCohort(contentLocale, visitorCountry),
     source,
     reason,
     funnel_id: funnelId,
@@ -158,11 +186,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     model,
     device_type: deviceType,
     request_id: requestId,
+    checkout_attempt_id: requestId,
   });
 
   try {
     const baseUrl = getAppBaseUrl(req);
-    const returnPaths = resolveCheckoutReturnPaths(req.body?.returnTo);
+    const returnPaths = localizeCheckoutReturnPaths(resolveCheckoutReturnPaths(req.body?.returnTo), contentLocale);
     const referralCode = affiliateCodeFromRequest(req);
     const referredAffiliate = referralCode
       ? await prisma.affiliate.findFirst({
@@ -175,6 +204,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       config: selectedConfig,
       configs: paidConfigs,
     });
+    const trialIncluded = requestedPlan === "PREMIUM" && premiumTrialCheckoutEnabled() && customerState.trialEligible;
     if (customerState.manageableCustomer) {
       const portal = await stripeClient.billingPortal.sessions.create({
         customer: customerState.manageableCustomer.id,
@@ -213,13 +243,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .update(
       `${session.user.id}|${requestedPlan}|${billingInterval}|${returnPaths.success}|${funnelId}|${
           customerState.subscriptionState.sort().join("|") || "new"
-        }`
+        }|${trialIncluded ? "seven_day_trial" : "immediate_charge"}`
       )
       .digest("hex")
       .slice(0, 24);
     const checkoutMetadata = {
       userId: session.user.id,
       note2tabsPlan: requestedPlan.toLowerCase(),
+      note2tabsLocale: contentLocale,
+      note2tabsVisitorCountry: visitorCountry,
+      note2tabsDeviceType: deviceType,
       note2tabsBillingInterval: billingInterval,
       note2tabsPriceId: selectedConfig.priceId,
       premiumFunnelId: funnelId,
@@ -227,7 +260,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       premiumFunnelReason: reason,
       premiumOfferVariant: offerVariant,
       premiumFunnelModel: model,
-      premiumTrialIncluded: requestedPlan === "PREMIUM" && customerState.trialEligible ? "true" : "false",
+      premiumTrialIncluded: trialIncluded ? "true" : "false",
+      premiumOfferMode: trialIncluded ? "seven_day_trial" : "immediate_charge",
+      note2tabsCheckoutAttemptId: requestId,
+      note2tabsDisplayCurrency: siteDisplayCurrency,
       ...(activeAttribution
         ? {
             note2tabsAffiliateId: activeAttribution.affiliateId,
@@ -241,11 +277,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ? { customer: existingCustomer.id }
           : { customer_email: session.user.email }),
         mode: "subscription",
+        ...(contentLocale !== "en" ? {locale: contentLocale} : {}),
         payment_method_collection: "always",
         line_items: [{ price: selectedConfig.priceId, quantity: 1 }],
         client_reference_id: funnelId,
         subscription_data: {
-          ...(requestedPlan === "PREMIUM" && customerState.trialEligible
+          ...(trialIncluded
             ? { trial_period_days: selectedPlan.trialDays }
             : {}),
           metadata: checkoutMetadata,
@@ -254,7 +291,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ? { discounts: [{ promotion_code: activeAttribution.affiliate.stripePromotionCodeId }] }
           : { allow_promotion_codes: true }),
         success_url: `${baseUrl}${appendCheckoutSessionId(returnPaths.success)}`,
-        cancel_url: `${baseUrl}${returnPaths.cancel}`,
+        cancel_url: `${baseUrl}${appendQueryParam(returnPaths.cancel, "funnel_id", funnelId)}`,
         metadata: checkoutMetadata,
       },
       { idempotencyKey: `${requestedPlan.toLowerCase()}-${billingInterval}-checkout-${session.user.id}-${checkoutStateHash}` }
@@ -268,14 +305,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await trackCheckoutEvent(session.user.id, "checkout_started", {
       plan: selectedPlan.analyticsId,
       billing_interval: billingInterval,
+    ...localeCohort(contentLocale, visitorCountry),
       source,
       reason,
       funnel_id: funnelId,
-      trial_included: requestedPlan === "PREMIUM" && customerState.trialEligible,
+      trial_included: trialIncluded,
+      offer_mode: trialIncluded ? "seven_day_trial" : "immediate_charge",
       offer_variant: offerVariant,
       model,
       device_type: deviceType,
       request_id: requestId,
+      checkout_attempt_id: requestId,
+      checkout_session_id: checkout.id,
+      checkout_currency: checkout.currency || undefined,
+      local_currency_eligible: true,
+      site_display_currency: siteDisplayCurrency,
       $insert_id: `checkout-started:${checkout.id}`,
     });
     if (activeAttribution) {
@@ -290,7 +334,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           checkout_session_id: checkout.id,
           plan: selectedPlan.analyticsId,
           billing_interval: billingInterval,
-          trial_included: requestedPlan === "PREMIUM" && customerState.trialEligible,
+    ...localeCohort(contentLocale, visitorCountry),
+          trial_included: trialIncluded,
+          offer_mode: trialIncluded ? "seven_day_trial" : "immediate_charge",
         },
       });
     }
@@ -307,16 +353,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({
       url: checkout.url,
       checkoutAttemptId: requestId,
+      checkoutSessionId: checkout.id,
+      checkoutCurrency: checkout.currency || undefined,
+      localCurrencyEligible: true,
       funnelId,
       plan: requestedPlan.toLowerCase(),
       billingInterval,
-      trialIncluded: requestedPlan === "PREMIUM" && customerState.trialEligible,
+      trialIncluded,
+      offerMode: trialIncluded ? "seven_day_trial" : "immediate_charge",
       offerVariant,
     });
   } catch (error) {
     await trackCheckoutEvent(session.user.id, "checkout_failed", {
       plan: selectedPlan.analyticsId,
       billing_interval: billingInterval,
+    ...localeCohort(contentLocale, visitorCountry),
       source,
       reason,
       funnel_id: funnelId,

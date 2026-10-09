@@ -14,6 +14,7 @@ describe("JWT-backed auth sessions", () => {
         tokensRemaining: 42,
         emailVerifiedBool: true,
         unverifiedTranscriptionUsed: true,
+        heavyPreviewUsedAt: new Date("2026-01-03T03:04:05.000Z"),
         createdAt: new Date("2026-01-02T03:04:05.000Z"),
       }
     );
@@ -25,6 +26,7 @@ describe("JWT-backed auth sessions", () => {
       tokensRemaining: 42,
       isEmailVerified: true,
       unverifiedTranscriptionUsed: true,
+      heavyPreviewUsed: true,
       createdAt: "2026-01-02T03:04:05.000Z",
     });
     expect(token.accountSyncedAt).toBeTypeOf("number");
@@ -42,6 +44,7 @@ describe("JWT-backed auth sessions", () => {
       tokensRemaining: 42,
       isEmailVerified: true,
       unverifiedTranscriptionUsed: false,
+      heavyPreviewUsed: false,
       createdAt: "2026-01-02T03:04:05.000Z",
       accountSyncedAt: 1_750_000_000_000,
     } as JWT;
@@ -56,6 +59,7 @@ describe("JWT-backed auth sessions", () => {
         tokensRemaining: 42,
         isEmailVerified: true,
         unverifiedTranscriptionUsed: false,
+        heavyPreviewUsed: false,
         createdAt: "2026-01-02T03:04:05.000Z",
         accountSyncedAt: 1_750_000_000_000,
       },

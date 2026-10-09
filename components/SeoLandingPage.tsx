@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { useLocale } from "../lib/i18n/react";
+import Link from "./LocaleLink";
 import SeoHead, { ORGANIZATION_ID, SITE_NAME, WEBSITE_ID, absoluteUrl } from "./SeoHead";
 
 type SeoLandingPageProps = {
@@ -49,6 +50,7 @@ export default function SeoLandingPage({
   faqs = [],
   relatedLinks = [],
 }: SeoLandingPageProps) {
+  const { t } = useLocale();
   const jsonLd = [
     {
       "@context": "https://schema.org",
@@ -111,22 +113,22 @@ export default function SeoLandingPage({
 
   return (
     <>
-      <SeoHead title={metaTitle} description={description} canonicalPath={canonicalPath} jsonLd={jsonLd} />
+      <SeoHead title={t(metaTitle)} description={description} canonicalPath={canonicalPath} jsonLd={jsonLd} />
       <main className="page page-home">
         <section className="hero editor-landing-hero">
           <div className="container hero-stack hero-stack--centered editor-landing-shell">
             <div className="hero-heading">
               <div className="hero-title-row">
-                <h1 className="hero-title">{title}</h1>
+                <h1 className="hero-title">{t(title)}</h1>
               </div>
-              <p className="hero-subtitle editor-landing-subtitle">{description}</p>
+              <p className="hero-subtitle editor-landing-subtitle">{t(description)}</p>
               <div className="button-row hero-cta-row editor-landing-hero-actions">
                 <Link href={primaryCta.href} className="button-primary">
-                  {primaryCta.label}
+                  {t(primaryCta.label)}
                 </Link>
                 {secondaryCta && (
                   <Link href={secondaryCta.href} className="button-secondary">
-                    {secondaryCta.label}
+                    {t(secondaryCta.label)}
                   </Link>
                 )}
               </div>
@@ -136,13 +138,13 @@ export default function SeoLandingPage({
 
         <section className="steps">
           <div className="container">
-            <h2 className="section-title">How it works</h2>
+            <h2 className="section-title">{t("How it works")}</h2>
             <div className="how-flow">
               {steps.map((step, index) => (
                 <article className="how-step" key={step.title}>
                   <span className="how-step-index">{index + 1}</span>
-                  <h3>{step.title}</h3>
-                  <p>{step.body}</p>
+                  <h3>{t(step.title)}</h3>
+                  <p>{t(step.body)}</p>
                 </article>
               ))}
             </div>
@@ -153,16 +155,16 @@ export default function SeoLandingPage({
           <section className="seo-landing-detail">
             <div className="container seo-landing-detail-layout">
               <div className="seo-landing-copy">
-                <h2>{detail.title}</h2>
+                <h2>{t(detail.title)}</h2>
                 {detail.paragraphs.map((paragraph) => (
-                  <p key={paragraph}>{paragraph}</p>
+                  <p key={paragraph}>{t(paragraph)}</p>
                 ))}
               </div>
               <div className="seo-landing-benefits">
                 {detail.benefits.map((benefit) => (
                   <article key={benefit.title}>
-                    <h3>{benefit.title}</h3>
-                    <p>{benefit.body}</p>
+                    <h3>{t(benefit.title)}</h3>
+                    <p>{t(benefit.body)}</p>
                   </article>
                 ))}
               </div>
@@ -175,15 +177,15 @@ export default function SeoLandingPage({
             <div className="container seo-landing-content-list">
               {contentSections.map((section) => (
                 <article className="seo-landing-content-section" key={section.title}>
-                  <h2>{section.title}</h2>
+                  <h2>{t(section.title)}</h2>
                   <div>
                     {section.paragraphs.map((paragraph) => (
-                      <p key={paragraph}>{paragraph}</p>
+                      <p key={paragraph}>{t(paragraph)}</p>
                     ))}
                     {section.bullets && section.bullets.length > 0 && (
                       <ul>
                         {section.bullets.map((bullet) => (
-                          <li key={bullet}>{bullet}</li>
+                          <li key={bullet}>{t(bullet)}</li>
                         ))}
                       </ul>
                     )}
@@ -198,14 +200,14 @@ export default function SeoLandingPage({
           <section className="seo-landing-faq">
             <div className="container seo-landing-faq-layout">
               <div>
-                <span className="pill">Questions</span>
-                <h2>Frequently asked questions</h2>
+                <span className="pill">{t("Questions")}</span>
+                <h2>{t("Frequently asked questions")}</h2>
               </div>
               <div className="seo-landing-faq-list">
                 {faqs.map((faq) => (
                   <details key={faq.question}>
-                    <summary>{faq.question}</summary>
-                    <p>{faq.answer}</p>
+                    <summary>{t(faq.question)}</summary>
+                    <p>{t(faq.answer)}</p>
                   </details>
                 ))}
               </div>
@@ -215,22 +217,22 @@ export default function SeoLandingPage({
 
         <section className="seo-landing-related">
           <div className="container">
-            <h2>{relatedLinks.length > 0 ? "Related guides and tools" : "Keep creating"}</h2>
+            <h2>{t(relatedLinks.length > 0 ? "Related guides and tools" : "Keep creating")}</h2>
             {relatedLinks.length > 0 ? (
               <div className="seo-landing-resource-grid">
                 {relatedLinks.map((link) => (
                   <Link href={link.href} className="seo-landing-resource-card" key={link.href}>
-                    <strong>{link.label}</strong>
-                    <span>{link.description}</span>
+                    <strong>{t(link.label)}</strong>
+                    <span>{t(link.description)}</span>
                   </Link>
                 ))}
               </div>
             ) : (
               <div className="seo-landing-related-links">
-                <Link href="/transcribe">Audio transcriber</Link>
-                <Link href="/editor">Guitar tab editor</Link>
-                <Link href="/pricing">Plans and limits</Link>
-                <Link href="/blog">Guitar tab guides</Link>
+                <Link href="/transcribe">{t("Audio transcriber")}</Link>
+                <Link href="/editor">{t("Guitar tab editor")}</Link>
+                <Link href="/pricing">{t("Plans and limits")}</Link>
+                <Link href="/blog">{t("Guitar tab guides")}</Link>
               </div>
             )}
           </div>

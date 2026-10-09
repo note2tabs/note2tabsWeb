@@ -1,12 +1,14 @@
+import { useLocale } from "../lib/i18n/react";
 import SeoLandingPage from "../components/SeoLandingPage";
 
 export const AI_GENERATOR_META_TITLE =
   "Free AI Guitar Tab Generator | Audio & YouTube";
 
 export default function AiGuitarTabGeneratorPage() {
+  const { t } = useLocale();
   return (
     <SeoLandingPage
-      title="AI Guitar Tab Generator from Audio or YouTube"
+      title={t("AI Guitar Tab Generator from Audio or YouTube")}
       metaTitle={AI_GENERATOR_META_TITLE}
       description="Try an AI guitar tab generator free with audio or YouTube. Create structured, editable tabs you can play, arrange, practise, and export online."
       canonicalPath="/ai-guitar-tab-generator"
@@ -55,7 +57,7 @@ export default function AiGuitarTabGeneratorPage() {
           bullets: [
             "Begin with a focused riff, solo, or song section.",
             "Use the clearest version of the recording available.",
-            "Choose whether the source includes other instruments or multiple guitars.",
+            "Choose the Light or Heavy model for your recording.",
             "Play the tab alongside the original recording when learning the part.",
           ],
         },

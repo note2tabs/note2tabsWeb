@@ -1,5 +1,6 @@
+import { useLocale } from "../../lib/i18n/react";
 import type { GetServerSideProps } from "next";
-import Link from "next/link";
+import Link from "../../components/LocaleLink";
 import { prisma } from "../../lib/prisma";
 import { withPrismaReadRetry } from "../../lib/prismaRetry";
 import { BLOG_PAGE_SIZE, estimateReadingTime, getPublishedWhere } from "../../lib/blog";
@@ -8,6 +9,7 @@ import BlogProductLink from "../../components/blog/BlogProductLink";
 import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../../components/SeoHead";
 
 type BlogPostCard = {
+  updatedAt?: string;
   id: string;
   title: string;
   slug: string;
@@ -45,6 +47,7 @@ export default function BlogIndexPage({
   activeTag,
   dataUnavailable = false,
 }: Props) {
+  const { t, href: localePath } = useLocale();
   const pageParams = new URLSearchParams();
   if (activeCategory) pageParams.set("category", activeCategory);
   if (activeTag) pageParams.set("tag", activeTag);
@@ -89,40 +92,30 @@ export default function BlogIndexPage({
   return (
     <main className="page blog-page">
       <SeoHead
-        title="Blog | Note2Tabs"
+        title={t("Blog | Note2Tabs")}
         description={description}
         canonicalPath="/blog"
-        rssUrl="/blog/rss.xml"
+        rssUrl={localePath("/blog/rss.xml")}
         noindex={Boolean(activeCategory || activeTag || page > 1)}
         jsonLd={blogJsonLd}
       />
       <div className="container stack">
         <header className="blog-hero">
           <div className="blog-hero-copy">
-            <span className="blog-kicker">Knowledge Hub</span>
-            <h1 className="page-title">Note2Tabs Blog</h1>
+            <span className="blog-kicker">{t("Note2Tabs journal")}</span>
+            <h1 className="page-title">{t("Ideas and practical guides for guitarists")}</h1>
             <p className="page-subtitle">
-              Practical guides for writing better tabs, arranging music for guitar, and turning recordings into
-              playable notation.
-            </p>
-            <div className="blog-product-links" aria-label="Try Note2Tabs">
-              <BlogProductLink href="/editor" cta="blog_editor" placement="blog_index_hero" className="button-primary">Try the tab editor</BlogProductLink>
-              <BlogProductLink href="/transcribe" cta="blog_transcribe" placement="blog_index_hero" className="button-secondary">Transcribe audio</BlogProductLink>
+              {t("Thoughtful guides on hearing, writing, transcribing, and practising music on guitar.")}</p>
+            <div className="blog-product-links" aria-label={t("Try Note2Tabs")}>
+              <BlogProductLink href="/editor" cta="blog_editor" placement="blog_index_hero" className="button-primary">{t("Try the tab editor")}</BlogProductLink>
+              <BlogProductLink href="/transcribe" cta="blog_transcribe" placement="blog_index_hero" className="button-secondary">{t("Transcribe audio")}</BlogProductLink>
             </div>
-          </div>
-          <div className="blog-hero-actions">
-            <div className="blog-hero-metrics">
-              <span>{total} published posts</span>
-              <span>{categories.length} categories</span>
-              <span>{tags.length} tags</span>
-            </div>
-            <p className="blog-tools-note">Use either tool independently, or move between them in one workflow.</p>
           </div>
         </header>
 
         {pillars.length > 0 && (
           <section className="blog-section blog-feature">
-            <h2 className="section-title">Pillar guides</h2>
+            <h2 className="section-title">{t("Pillar guides")}</h2>
             <div className="blog-grid">
               {pillars.map((post) => (
                 <BlogPostCard
@@ -147,35 +140,33 @@ export default function BlogIndexPage({
 
         <section className="blog-section blog-filters">
           <div className="filter-group">
-            <span className="filter-label">Categories</span>
+            <span className="filter-label">{t("Categories")}</span>
             <div className="filter-links">
               <Link href="/blog" className={!activeCategory ? "active" : ""}>
-                All
-              </Link>
+                {t("All")}</Link>
               {categories.map((category) => (
                 <Link
                   key={category.id}
                   href={`/blog?category=${category.slug}`}
                   className={activeCategory === category.slug ? "active" : ""}
                 >
-                  {category.name}
+                  {t(category.name)}
                 </Link>
               ))}
             </div>
           </div>
           <div className="filter-group">
-            <span className="filter-label">Tags</span>
+            <span className="filter-label">{t("Tags")}</span>
             <div className="filter-links">
               <Link href="/blog" className={!activeTag ? "active" : ""}>
-                All
-              </Link>
+                {t("All")}</Link>
               {tags.map((tag) => (
                 <Link
                   key={tag.id}
                   href={`/blog?tag=${tag.slug}`}
                   className={activeTag === tag.slug ? "active" : ""}
                 >
-                  {tag.name}
+                  {t(tag.name)}
                 </Link>
               ))}
             </div>
@@ -183,17 +174,17 @@ export default function BlogIndexPage({
         </section>
 
         <section className="blog-section">
-          <h2 className="section-title">Latest posts</h2>
+          <h2 className="section-title">{t("Latest posts")}</h2>
           {posts.length === 0 && (
             <div className="blog-empty stack-tight" role={dataUnavailable ? "status" : undefined}>
-              <strong>{dataUnavailable ? "The guides are temporarily unavailable." : "No posts found for this filter."}</strong>
+              <strong>{t(dataUnavailable ? "The guides are temporarily unavailable." : "No posts found for this filter.")}</strong>
               {dataUnavailable && (
-                <span>Try again shortly, or continue with the editor and transcriber while the library reconnects.</span>
+                <span>{t("Try again shortly, or continue with the editor and transcriber while the library reconnects.")}</span>
               )}
               {dataUnavailable && (
                 <div className="button-row">
-                  <Link href="/blog" className="button-secondary button-small">Try again</Link>
-                  <Link href="/editor" className="button-primary button-small">Open the editor</Link>
+                  <Link href="/blog" className="button-secondary button-small">{t("Try again")}</Link>
+                  <Link href="/editor" className="button-primary button-small">{t("Open the editor")}</Link>
                 </div>
               )}
             </div>
@@ -221,14 +212,13 @@ export default function BlogIndexPage({
         {pageCount > 1 && (
           <nav className="pagination">
             <span>
-              Page {page} of {pageCount} · {total} posts
-            </span>
+              {t("Page ")}{page} {t(" of ")}{pageCount} {t(" · ")}{total} {t(" posts")}</span>
             <div className="pagination-links">
               {page > 1 && (
-                <Link href={buildPageLink(page - 1)}>Previous</Link>
+                <Link href={buildPageLink(page - 1)}>{t("Previous")}</Link>
               )}
               {page < pageCount && (
-                <Link href={buildPageLink(page + 1)}>Next</Link>
+                <Link href={buildPageLink(page + 1)}>{t("Next")}</Link>
               )}
             </div>
           </nav>
@@ -239,7 +229,7 @@ export default function BlogIndexPage({
 }
 
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
-  ctx.res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=3600");
+  ctx.res.setHeader("Cache-Control", "public, s-maxage=86400, stale-while-revalidate=604800");
   const page = Math.max(1, Number(ctx.query.page || 1));
   const activeCategory = typeof ctx.query.category === "string" ? ctx.query.category : null;
   const activeTag = typeof ctx.query.tag === "string" ? ctx.query.tag : null;
@@ -270,6 +260,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
       select: {
         id: true,
         title: true,
+        updatedAt: true,
         slug: true,
         excerpt: true,
         content: true,
@@ -311,6 +302,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
       select: {
         id: true,
         title: true,
+        updatedAt: true,
         slug: true,
         excerpt: true,
         content: true,
@@ -351,6 +343,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const mapPost = (post: any): BlogPostCard => ({
     id: post.id,
     title: post.title,
+    updatedAt: post.updatedAt.toISOString(),
     slug: post.slug,
     excerpt: post.excerpt,
     coverImageUrl: post.coverImageUrl,

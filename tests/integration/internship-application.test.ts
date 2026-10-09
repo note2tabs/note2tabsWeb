@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createMocks } from "node-mocks-http";
+import { createMocks, type RequestMethod } from "node-mocks-http";
 
 const mocks = vi.hoisted(() => ({ sendEmail: vi.fn() }));
 vi.mock("../../lib/email", () => ({ sendTransactionalEmail: (...args: unknown[]) => mocks.sendEmail(...args) }));
@@ -15,7 +15,7 @@ const validBody = () => ({
   startedAt: Date.now() - 5000,
 });
 
-async function request(options: { method?: string; body?: Record<string, unknown>; origin?: string; ip?: string } = {}) {
+async function request(options: { method?: RequestMethod; body?: Record<string, unknown>; origin?: string; ip?: string } = {}) {
   const handler = (await import("../../pages/api/internship-application")).default;
   const { req, res } = createMocks({
     method: options.method || "POST",

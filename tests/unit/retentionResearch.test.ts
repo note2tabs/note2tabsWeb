@@ -14,12 +14,14 @@ describe("retention research transcription properties", () => {
       durationSec: 91.4,
       fileSizeBytes: 12_345.4,
       appendingToExistingEditor: true,
-    })).toEqual({
+    })).toMatchObject({
       research_version: RETENTION_RESEARCH_VERSION,
       mode: "FILE",
       input_source: "local_file",
       transcriptionModel: "heavy",
-      separate_guitar: true,
+      transcription_model_id: "heavy",
+      transcription_model_name: "medium",
+      separate_guitar: false,
       multiple_guitars: false,
       duration_sec: 91.4,
       durationSec: 91.4,
@@ -38,7 +40,13 @@ describe("retention research transcription properties", () => {
       fileSizeBytes: null,
     });
 
+    expect(properties.instrument_questions_shown).toBe(false);
+    expect(properties.audio_separation_used).toBe(false);
+    expect(properties.track_separator_used).toBe(false);
+    expect(properties.multiple_guitars).toBe(false);
     expect(properties.input_source).toBe("youtube");
+    expect(properties.transcription_model_id).toBe("msmodel_small");
+    expect(properties.transcription_model_name).toBe("light");
     expect(properties.duration_sec).toBeUndefined();
     expect(properties.durationSec).toBeUndefined();
     expect(properties.file_size_bytes).toBeUndefined();

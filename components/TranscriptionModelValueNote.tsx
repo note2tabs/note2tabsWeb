@@ -1,54 +1,49 @@
-import Link from "next/link";
-import { trackCtaClick } from "../lib/analytics";
+import { useLocale } from "../lib/i18n/react";
 import type { TranscriptionModelChoice } from "../lib/transcriptionModels";
-import { premiumPricingHref } from "../lib/premiumFunnel";
 
 type TranscriptionModelValueNoteProps = {
   model: TranscriptionModelChoice;
   isPremium: boolean;
   onSelectHeavy: () => void;
   surface: string;
+  heavyPreviewAvailable?: boolean;
 };
 
 export default function TranscriptionModelValueNote({
   model,
   isPremium,
   onSelectHeavy,
-  surface,
+  heavyPreviewAvailable = false,
 }: TranscriptionModelValueNoteProps) {
+  const { t } = useLocale();
   if (model === "light") {
     return (
-      <p className="model-value-note">
+      <p className={`model-value-note${isPremium ? "" : " model-value-note--premium"}`}>
         <span>
-          Working with a complex recording? Heavy offers our highest accuracy.
+          {isPremium
+            ? t("Working with a complex recording? Heavy offers our highest accuracy.")
+            : t("Need more accuracy? The Heavy model is available with Premium or Pro.")}
         </span>
         <button type="button" onClick={onSelectHeavy} className="model-value-note__action">
-          Try Heavy
+          {isPremium ? t("Use Heavy") : t("See plans")}
         </button>
       </p>
     );
   }
 
-  if (isPremium) {
+  if (model === "super_heavy") {
     return (
       <p className="model-value-note">
-        <span>Heavy selected for our highest-accuracy transcription.</span>
+        {heavyPreviewAvailable
+          ? t("Your verified account includes one 30-second Heavy preview. It is available once; subscribe for continued Heavy access.")
+          : t("Heavy uses our most detailed model for complex multi-instrument transcription.")}
       </p>
     );
   }
 
   return (
-    <p className="model-value-note model-value-note--premium">
-      <span>
-        Prefer Heavy? Premium includes 10× more monthly credits for
-        higher-accuracy transcriptions.
-      </span>
-      <Link
-        href={premiumPricingHref({ source: "heavy_model", reason: "heavy_selected" })}
-        onClick={() => trackCtaClick("heavy_model_see_premium", { surface })}
-      >
-        See Premium
-      </Link>
+    <p className="model-value-note">
+      <span>{t("Light selected for multi-instrument transcription.")}</span>
     </p>
   );
 }

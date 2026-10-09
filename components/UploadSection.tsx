@@ -25,7 +25,7 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [startTime, setStartTime] = useState<number | null>(null);
   const [duration, setDuration] = useState<number | null>(null);
-  const [separateGuitar, setSeparateGuitar] = useState(true);
+  const separateGuitar = false;
   const [transcriptionModel, setTranscriptionModel] =
     useState<TranscriptionModelChoice>(DEFAULT_TRANSCRIPTION_MODEL);
   const [dragActive, setDragActive] = useState(false);
@@ -300,16 +300,7 @@ export default function UploadSection({ onResult }: UploadSectionProps) {
               />
             </div>
           </div>
-          <label className="mt-3 flex items-center gap-2 text-sm text-slate-800">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-slate-200 bg-white text-blue-500 focus:ring-blue-500"
-              checked={separateGuitar}
-              onChange={(e) => setSeparateGuitar(e.target.checked)}
-              disabled={processing}
-            />
-              Separate guitar (Demucs)
-          </label>
+
           <div className="mt-3">
             <TranscriptionModelDropdown
               id="upload-section-transcription-model"

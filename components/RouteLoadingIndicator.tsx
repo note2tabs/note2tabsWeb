@@ -1,3 +1,4 @@
+import { useLocale } from "../lib/i18n/react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 
@@ -8,6 +9,7 @@ const COMPLETE_DURATION_MS = 220;
 
 export default function RouteLoadingIndicator() {
   const router = useRouter();
+  const {t} = useLocale();
   const [phase, setPhase] = useState<LoadingPhase>("idle");
   const phaseRef = useRef<LoadingPhase>("idle");
   const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -72,7 +74,7 @@ export default function RouteLoadingIndicator() {
       className={`route-loading-indicator route-loading-indicator--${phase}`}
       role="status"
       aria-live="polite"
-      aria-label="Loading page"
+      aria-label={t("Loading page")}
     >
       <span className="route-loading-indicator__bar" aria-hidden="true" />
     </div>

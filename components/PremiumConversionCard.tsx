@@ -1,10 +1,31 @@
-import Link from "next/link";
+import { useLocale } from "../lib/i18n/react";
+import Link from "./LocaleLink";
+import { useEffect, useRef, useState } from "react";
+import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../lib/analytics";
+import {
+  getOrCreatePremiumFunnelContext,
+  premiumFunnelProperties,
+  premiumPricingHref,
+  type PremiumFunnelContext,
+  type PremiumFunnelSource,
+} from "../lib/premiumFunnel";
+
+type PremiumConversionTracking = {
+  source: PremiumFunnelSource;
+  reason: string;
+  surface: string;
+  trigger: string;
+  placement?: string;
+};
 
 type PremiumConversionCardBaseProps = {
   title: string;
   description: string;
   actionLabel: string;
   resetMessage?: string;
+  planLabel?: string;
+  reassurance?: string;
+  tracking?: PremiumConversionTracking;
 };
 
 type PremiumConversionCardProps = PremiumConversionCardBaseProps &
@@ -21,32 +42,94 @@ export default function PremiumConversionCard({
   onAction,
   href,
   resetMessage,
+  planLabel = "Note2Tabs Premium",
+  reassurance = "",
+  tracking,
 }: PremiumConversionCardProps) {
+  const { t, locale } = useLocale();
+  const cardRef = useRef<HTMLElement | null>(null);
+  const viewedRef = useRef(false);
+  const [funnel, setFunnel] = useState<PremiumFunnelContext | null>(null);
+  const trackingSource = tracking?.source;
+  const trackingReason = tracking?.reason;
+  const trackingSurface = tracking?.surface;
+  const trackingTrigger = tracking?.trigger;
+  const trackingPlacement = tracking?.placement || "transcriber_limit";
+
+  useEffect(() => {
+    if (!trackingSource || !trackingReason || !trackingSurface || !trackingTrigger) return;
+    viewedRef.current = false;
+    const context = getOrCreatePremiumFunnelContext({ source: trackingSource, reason: trackingReason });
+    setFunnel(context);
+    const properties = {
+      surface: trackingSurface,
+      trigger: trackingTrigger,
+      placement: trackingPlacement,
+      ...premiumFunnelProperties(context),
+    };
+    sendEvent(ANALYTICS_EVENTS.premiumPromptEligible, properties);
+    sendEvent(ANALYTICS_EVENTS.premiumPromptRendered, properties);
+    sendEvent(ANALYTICS_EVENTS.premiumPromptShown, properties);
+  }, [trackingPlacement, trackingReason, trackingSource, trackingSurface, trackingTrigger]);
+
+  useEffect(() => {
+    const element = cardRef.current;
+    if (!trackingSurface || !trackingTrigger || !funnel || !element || viewedRef.current) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry?.isIntersecting || entry.intersectionRatio < 0.5 || viewedRef.current) return;
+      viewedRef.current = true;
+      sendEvent(ANALYTICS_EVENTS.premiumPromptViewed, {
+        surface: trackingSurface,
+        trigger: trackingTrigger,
+        placement: trackingPlacement,
+        ...premiumFunnelProperties(funnel),
+      });
+      observer.disconnect();
+    }, { threshold: 0.5 });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [funnel, trackingPlacement, trackingSurface, trackingTrigger]);
+
+  const trackClick = () => {
+    if (!trackingSurface || !trackingTrigger || !funnel) return;
+    const properties = {
+      surface: trackingSurface,
+      trigger: trackingTrigger,
+      ...premiumFunnelProperties(funnel),
+    };
+    sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, properties);
+    trackCtaClick(`${trackingSurface}_cta`, properties);
+  };
+  const resolvedHref = href && funnel ? premiumPricingHref(funnel) : href;
+
   return (
-    <aside className="premium-conversion-card" aria-label="Premium subscription">
+    <aside ref={cardRef} className="premium-conversion-card" aria-label={t("Premium subscription")}>
       <div className="premium-conversion-card__copy">
-        <span>Note2Tabs Premium</span>
-        <h3>{title}</h3>
-        <p>{description}</p>
+        <span>{t(planLabel)}</span>
+        <h3>{t(title)}</h3>
+        <p>{t(description)}</p>
       </div>
       <div className="premium-conversion-card__action">
-        {href ? (
-          <Link href={href} className="button-primary button-small">
-            {actionLabel}
+        {resolvedHref ? (
+          <Link href={resolvedHref} className="button-primary button-small" onClick={trackClick}>
+            {t(actionLabel)}
           </Link>
         ) : (
           <button
             type="button"
             className="button-primary button-small"
-            onClick={onAction}
+            onClick={() => {
+              trackClick();
+              onAction?.();
+            }}
             disabled={busy}
           >
-            {busy ? "Opening checkout…" : actionLabel}
+            {busy ? t("Opening checkout…") : t(actionLabel)}
           </button>
         )}
         <small>
-          Eligible new subscribers get a 7-day trial · $5.99/month · Cancel anytime
-          {resetMessage ? ` · ${resetMessage}` : ""}
+          {locale !== "en" ? t("Final price and billing details are shown at checkout.") : reassurance || "$5.99 billed today · Cancel anytime"}
+          {t(resetMessage ? ` · ${resetMessage}` : "")}
         </small>
       </div>
     </aside>

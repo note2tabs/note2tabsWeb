@@ -1,6 +1,8 @@
+import { translatedError } from "../lib/i18n/translate";
+import { useLocale } from "../lib/i18n/react";
 import { GetServerSideProps } from "next";
-import Link from "next/link";
-import { useRouter } from "next/router";
+import Link from "../components/LocaleLink";
+import { useLocaleRouter as useRouter } from "../lib/i18n/react";
 import { getServerSession } from "next-auth/next";
 import { signOut, useSession } from "next-auth/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -30,6 +32,7 @@ import {
 } from "../lib/premiumEntitlement";
 import NoIndexHead from "../components/NoIndexHead";
 import PremiumConversionCard from "../components/PremiumConversionCard";
+import Note2TabsSelect from "../components/Note2TabsSelect";
 import { PLAN_CATALOG, effectiveSubscriptionPlan, proPlanPresentationEnabled } from "../lib/subscriptionPlans";
 import SubscriptionRetentionDialog from "../components/SubscriptionRetentionDialog";
 import type { SubscriptionRetentionGoal } from "../lib/subscriptionCancellationRetention";
@@ -37,6 +40,7 @@ import {
   getOrCreatePremiumFunnelContext,
   premiumFunnelProperties,
 } from "../lib/premiumFunnel";
+import { rememberCheckoutAttempt } from "../lib/checkoutTracking";
 
 type Props = {
   user: {
@@ -91,8 +95,8 @@ const accountInitials = (name: string | null, email: string) => {
   return parts.slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "N";
 };
 
-const formatSettingsDate = (value: string) =>
-  new Intl.DateTimeFormat("en-US", {
+const formatSettingsDate = (value: string, locale: string) =>
+  new Intl.DateTimeFormat(locale === "en" ? "en-US" : locale, {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -107,15 +111,16 @@ type SettingRowProps = {
 };
 
 function SettingRow({ label, description, value, children }: SettingRowProps) {
+  const { t, locale } = useLocale();
   return (
     <div className="settingsRow">
       <div className="settingsRowMain">
-        <p className="settingsRowLabel">{label}</p>
-        {description && <p className="settingsRowDescription">{description}</p>}
+        <p className="settingsRowLabel">{t(label)}</p>
+        {description && <p className="settingsRowDescription">{t(description)}</p>}
       </div>
       {(value || children) && (
         <div className="settingsRowValue">
-          {value}
+          {typeof value === "string" ? t(value) : value}
           {children}
         </div>
       )}
@@ -124,6 +129,7 @@ function SettingRow({ label, description, value, children }: SettingRowProps) {
 }
 
 export default function SettingsPage({ user, stripeReady, credits }: Props) {
+  const { t, locale, href: localePath } = useLocale();
   const router = useRouter();
   const { update: updateSession } = useSession();
   const [selectedSection, setSelectedSection] = useState<SettingsSection>("account");
@@ -178,7 +184,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   const analyticsHref = isAdmin
     ? "/admin/analytics?view=overview&range=30d"
     : "/admin/analytics?view=moderation&range=30d";
-  const resetLabel = formatSettingsDate(credits.resetAt);
+  const resetLabel = formatSettingsDate(credits.resetAt, locale);
   const creditsUsedLabel = `${credits.used} / ${credits.limit}`;
   const creditUsagePercent = credits.limit > 0
     ? Math.min(100, Math.max(0, (credits.used / credits.limit) * 100))
@@ -228,7 +234,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       if (isPremium) {
         clearRecoverableCheckoutSessionId();
         if (outcome === "success") {
-          window.location.replace("/home?upgrade=confirmed");
+          window.location.replace(localePath("/home?upgrade=confirmed"));
         } else {
           setCheckoutStatus("Premium is active. Your upgraded limits are ready to use.");
           setUpgradeBusy(false);
@@ -255,7 +261,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
 
       clearRecoverableCheckoutSessionId();
       window.location.replace(
-        outcome === "success" ? "/home?upgrade=confirmed" : "/settings?upgrade=confirmed"
+        localePath(outcome === "success" ? "/home?upgrade=confirmed" : "/settings?upgrade=confirmed")
       );
     };
 
@@ -307,7 +313,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
     try {
       await resetPostHogIdentity();
       await signOut({ redirect: false });
-      window.location.href = "/";
+      window.location.href = localePath("/");
     } catch {
       setError("Could not sign out. Check your connection and try again.");
       setSignOutBusy(false);
@@ -330,6 +336,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          locale,
           source: funnel.source,
           reason: funnel.reason,
           funnelId: funnel.funnelId,
@@ -347,7 +354,20 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
         plan: "premium_monthly",
         checkout_attempt_id: data.checkoutAttemptId,
+        checkout_session_id: data.checkoutSessionId,
+        checkout_currency: data.checkoutCurrency,
+        local_currency_eligible: data.localCurrencyEligible,
         ...premiumFunnelProperties(funnel),
+      });
+      rememberCheckoutAttempt({
+        checkoutSessionId: data.checkoutSessionId,
+        checkoutAttemptId: data.checkoutAttemptId,
+        funnelId: funnel.funnelId,
+        plan: "premium_monthly",
+        billingInterval: "monthly",
+        checkoutCurrency: data.checkoutCurrency,
+        source: funnel.source,
+        reason: funnel.reason,
       });
       window.location.href = data.url;
     } catch {
@@ -378,7 +398,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
       goal ? { goal } : undefined
     );
     try {
-      const res = await fetch("/api/stripe/create-portal-session", { method: "POST" });
+      const res = await fetch("/api/stripe/create-portal-session", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({locale, returnTo: "/settings"}) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.url) {
         setError(data?.error || "Could not open subscription management.");
@@ -487,9 +507,8 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   const renderAccountSection = () => (
     <section className="settingsSection" aria-labelledby="settings-account-title">
       <h2 id="settings-account-title" className="settingsSectionTitle">
-        Account
-      </h2>
-      <p className="settingsSectionIntro">Your profile and Note2Tabs workspace.</p>
+        {t("Account")}</h2>
+      <p className="settingsSectionIntro">{t("Your profile and Note2Tabs workspace.")}</p>
       <div className="settingsProfileSummary">
         <div className="settingsProfileAvatar" aria-hidden="true">
           {accountInitials(user.name, user.email)}
@@ -499,20 +518,18 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
           <p className="settingsProfileEmail">{user.email}</p>
         </div>
         <span className={`settingsPlanBadge${isPremium ? " settingsPlanBadgePremium" : ""}`}>
-          {user.role === "PREMIUM" ? planDefinition.name : accountRoleLabel(user.role)}
+          {t(user.role === "PREMIUM" ? planDefinition.name : accountRoleLabel(user.role))}
         </span>
       </div>
       <div className="settingsRows">
-        <SettingRow label="Created" value={<time dateTime={user.createdAt}>{formatSettingsDate(user.createdAt)}</time>} />
+        <SettingRow label="Created" value={<time dateTime={user.createdAt}>{t(formatSettingsDate(user.createdAt, locale))}</time>} />
         <SettingRow label="Email verified" value={user.isEmailVerified ? "Yes" : "No"} />
         <SettingRow label="Your work" description="Open your saved tabs or continue in the editor.">
           <div className="settingsActions">
             <Link href="/tabs" className="settingsButton settingsButtonSecondary">
-              Transcription history
-            </Link>
+              {t("Transcription history")}</Link>
             <Link href="/gte" className="settingsButton settingsButtonSecondary">
-              Open editor
-            </Link>
+              {t("Open editor")}</Link>
           </div>
         </SettingRow>
         {!user.isEmailVerified && (
@@ -527,46 +544,44 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
                 className="settingsButton settingsButtonSecondary"
                 disabled={verifyBusy}
               >
-                {verifyBusy ? "Sending..." : "Resend verification email"}
+                {t(verifyBusy ? "Sending..." : "Resend verification email")}
               </button>
               <Link href={verifyHref} className="settingsButton settingsButtonSecondary">
-                Open verification page
-              </Link>
+                {t("Open verification page")}</Link>
             </div>
           </SettingRow>
         )}
       </div>
-      {verifyMessage && <div className="notice">{verifyMessage}</div>}
+      {verifyMessage && <div className="notice">{t(verifyMessage)}</div>}
     </section>
   );
 
   const renderPlanSection = () => (
     <section className="settingsSection" aria-labelledby="settings-plan-title">
       <h2 id="settings-plan-title" className="settingsSectionTitle">
-        Plan and credits
-      </h2>
-      <p className="settingsSectionIntro">Your subscription, monthly allowance, and billing controls.</p>
+        {t("Plan and credits")}</h2>
+      <p className="settingsSectionIntro">{t("Your subscription, monthly allowance, and billing controls.")}</p>
       <div className={`settingsPlanSummary${isPremium ? " settingsPlanSummaryPremium" : ""}`}>
         <div className="settingsPlanSummaryTop">
           <div>
-            <span className="settingsPlanEyebrow">Current plan</span>
+            <span className="settingsPlanEyebrow">{t("Current plan")}</span>
             <h3>{`Note2Tabs ${planDefinition.name}`}</h3>
           </div>
           <span className={`settingsPlanBadge${isPremium ? " settingsPlanBadgePremium" : ""}`}>
-            {isPremium ? "Active" : "Free"}
+            {t(isPremium ? "Active" : "Free")}
           </span>
         </div>
         <div className="settingsCreditSummary">
           <div className="settingsCreditCopy">
-            <span>{credits.remaining} credits remaining</span>
-            <span>{creditsUsedLabel} used</span>
+            <span>{credits.remaining} {t(" credits remaining")}</span>
+            <span>{t(creditsUsedLabel)} {t(" used")}</span>
           </div>
-          <div className="settingsCreditTrack" aria-label={`${creditsUsedLabel} credits used`}>
+          <div className="settingsCreditTrack" aria-label={t("{count} credits used", {count: creditsUsedLabel})}>
             <span style={{ width: `${creditUsagePercent}%` }} />
           </div>
-          <p>{isPremium ? `${planDefinition.monthlyCredits} monthly credits with rollover up to ${planDefinition.rolloverCap}.` : "10 credits each month."}</p>
+          <p>{isPremium ? t("{credits} monthly credits with rollover up to {cap}.", {credits: planDefinition.monthlyCredits, cap: planDefinition.rolloverCap}) : t("10 credits each month.")}</p>
           {currentPlan === "PRO" && (
-            <p><a href={`mailto:support@note2tabs.com?subject=${encodeURIComponent(`Pro support — ${user.email}`)}`}>Contact priority email support</a></p>
+            <p><a href={`mailto:support@note2tabs.com?subject=${encodeURIComponent(`Pro support — ${user.email}`)}`}>{t("Contact priority email support")}</a></p>
           )}
         </div>
       </div>
@@ -581,7 +596,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
                 className="settingsButton settingsButtonPrimary"
                 disabled={upgradeBusy}
               >
-                {stripeReady ? "Upgrade to Premium" : "Premium temporarily unavailable"}
+                {t(stripeReady ? "Upgrade to Premium" : "Premium temporarily unavailable")}
               </button>
             )}
             {isPaidPremium && (
@@ -593,33 +608,30 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
                 className="settingsButton settingsButtonSecondary"
                 disabled={portalBusy}
               >
-                {portalBusy ? "Opening..." : "Manage subscription"}
+                {t(portalBusy ? "Opening..." : "Manage subscription")}
               </button>
             )}
             {currentPlan === "PREMIUM" && proPlanPresentationEnabled() && (
               <Link href="/pricing?source=settings&reason=pro_capacity" className="settingsButton settingsButtonSecondary">
-                Compare Pro
-              </Link>
+                {t("Compare Pro")}</Link>
             )}
             {isAdminOrMod && (
               <Link href={analyticsHref} className="settingsButton settingsButtonSecondary">
-                Open analytics hub
-              </Link>
+                {t("Open analytics hub")}</Link>
             )}
             {isAdmin && (
               <Link href="/admin/blog" className="settingsButton settingsButtonSecondary">
-                Open blog CMS
-              </Link>
+                {t("Open blog CMS")}</Link>
             )}
           </div>
         </SettingRow>
       </div>
       {credits.remaining === 0 && (
         isPremium ? (
-          <div className="notice">Your credits will be refreshed on {resetLabel}.</div>
+          <div className="notice">{t("Your credits will be refreshed on ")}{t(resetLabel)}{t(".")}</div>
         ) : (
           <PremiumConversionCard
-            title="Keep transcribing today"
+            title={t("Keep transcribing today")}
             description="Premium includes 100 monthly credits, rollover, and full-song audio uploads."
             actionLabel="Get Premium"
             onAction={() => void handleUpgrade()}
@@ -629,7 +641,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
         )
       )}
       {isPaidPremium && (
-        <p className="footnote">You can cancel your {planDefinition.name} subscription anytime from Manage subscription.</p>
+        <p className="footnote">{t("You can cancel your ")}{t(planDefinition.name)} {t(" subscription anytime from Manage subscription.")}</p>
       )}
     </section>
   );
@@ -637,15 +649,13 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   const renderSecuritySection = () => (
     <section className="settingsSection" aria-labelledby="settings-security-title">
       <h2 id="settings-security-title" className="settingsSectionTitle">
-        Security
-      </h2>
-      <p className="settingsSectionIntro">Control access to your account and current session.</p>
+        {t("Security")}</h2>
+      <p className="settingsSectionIntro">{t("Control access to your account and current session.")}</p>
       <div className="settingsRows">
         <SettingRow label="Change password" value="Update your login password.">
           <div className="settingsActions">
             <Link href="/reset-password" className="settingsButton settingsButtonSecondary">
-              Change password
-            </Link>
+              {t("Change password")}</Link>
           </div>
         </SettingRow>
         <SettingRow label="Log out" value="Sign out of your current session.">
@@ -656,7 +666,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
               className="settingsButton settingsButtonSecondary"
               disabled={signOutBusy}
             >
-              {signOutBusy ? "Signing out…" : "Log out"}
+              {t(signOutBusy ? "Signing out…" : "Log out")}
             </button>
           </div>
         </SettingRow>
@@ -667,9 +677,8 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   const renderPrivacySection = () => (
     <section className="settingsSection" id="privacy-controls" aria-labelledby="settings-privacy-title">
       <h2 id="settings-privacy-title" className="settingsSectionTitle">
-        Privacy
-      </h2>
-      <p className="settingsSectionIntro">Choose how optional product analytics are used.</p>
+        {t("Privacy")}</h2>
+      <p className="settingsSectionIntro">{t("Choose how optional product analytics are used.")}</p>
       <div className="settingsRows">
         <SettingRow
           label="Analytics"
@@ -683,7 +692,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
               className="settingsButton settingsButtonSecondary"
               disabled={consentBusy}
             >
-              {consentBusy && consentState !== "granted" ? "Saving..." : "Enable analytics"}
+              {t(consentBusy && consentState !== "granted" ? "Saving..." : "Enable analytics")}
             </button>
             <button
               type="button"
@@ -691,23 +700,21 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
               className="settingsButton settingsButtonSecondary"
               disabled={consentBusy}
             >
-              {consentBusy && consentState !== "denied" ? "Saving..." : "Deny analytics"}
+              {t(consentBusy && consentState !== "denied" ? "Saving..." : "Deny analytics")}
             </button>
           </div>
         </SettingRow>
       </div>
-      {consentMessage && <div className="notice">{consentMessage}</div>}
+      {consentMessage && <div className="notice">{t(consentMessage)}</div>}
     </section>
   );
 
   const renderDangerSection = () => (
     <section className="settingsSection settingsSectionDanger" aria-labelledby="settings-danger-title">
       <h2 id="settings-danger-title" className="settingsSectionTitle">
-        Danger zone
-      </h2>
+        {t("Danger zone")}</h2>
       <p className="settingsSectionIntro">
-        Delete your account permanently. This removes tabs, sessions, and account data.
-      </p>
+        {t("Delete your account permanently. This removes tabs, sessions, and account data.")}</p>
       {!deleteFlowOpen && (
         <div className="settingsActions">
           <button
@@ -724,8 +731,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
               });
             }}
           >
-            Delete account
-          </button>
+            {t("Delete account")}</button>
         </div>
       )}
       {deleteFlowOpen && (
@@ -733,27 +739,22 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
           {deleteStep === "retention" ? (
             <>
               <div>
-                <h3 className="delete-flow-title">Before you go</h3>
+                <h3 className="delete-flow-title">{t("Before you go")}</h3>
                 <p className="muted text-small">
-                  What did you originally want Note2Tabs to help you do? Let’s make sure there is nothing valuable left unfinished.
-                </p>
+                  {t("What did you originally want Note2Tabs to help you do? Let’s make sure there is nothing valuable left unfinished.")}</p>
               </div>
               <label className="form-group">
-                <span className="label">I signed up to…</span>
-                <select
-                  className="form-input"
+                <span className="label">{t("I signed up to…")}</span>
+                <Note2TabsSelect
                   value={deleteGoal}
-                  onChange={(event) => setDeleteGoal(event.target.value as DeleteGoal)}
-                >
-                  <option value="">Choose what brought you here</option>
-                  {deleteGoals.map((goal) => (
-                    <option key={goal.value} value={goal.value}>{goal.label}</option>
-                  ))}
-                </select>
+                  onChange={setDeleteGoal}
+                  label="Reason for signing up"
+                  options={[{ value: "", label: "Choose what brought you here" }, ...deleteGoals]}
+                />
               </label>
               {deletionAlternative && (
                 <div className="delete-alternatives">
-                  <p className="text-small">{deletionAlternative.detail}</p>
+                  <p className="text-small">{t(deletionAlternative.detail)}</p>
                   <Link
                     href={deletionAlternative.href}
                     className="settingsButton settingsButtonSecondary"
@@ -769,14 +770,13 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
                       }
                     }}
                   >
-                    {deletionAlternative.label}
+                    {t(deletionAlternative.label)}
                   </Link>
                 </div>
               )}
               <div className="button-row">
                 <button type="button" className="button-secondary button-small" onClick={resetDeleteFlow}>
-                  Keep my account
-                </button>
+                  {t("Keep my account")}</button>
                 <button
                   type="button"
                   className="button-ghost button-small"
@@ -790,37 +790,34 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
                     setDeleteStep("confirm");
                   }}
                 >
-                  Continue to deletion
-                </button>
+                  {t("Continue to deletion")}</button>
               </div>
             </>
           ) : (
             <>
               <p className="muted text-small">
-                This permanently removes your account, saved tabs, transcription history, and active subscription. Type <strong>delete</strong> to confirm.
-              </p>
+                {t("This permanently removes your account, saved tabs, transcription history, and active subscription. Type ")}<strong>{t("delete")}</strong> {t(" to confirm.")}</p>
               <label className="form-group">
-                <span className="label">Type delete to confirm</span>
+                <span className="label">{t("Type delete to confirm")}</span>
                 <input
                   type="text"
                   className="form-input"
                   value={deleteConfirmationText}
                   onChange={(event) => setDeleteConfirmationText(event.target.value)}
-                  placeholder="delete"
+                  placeholder={t("delete")}
                   autoComplete="off"
                 />
               </label>
               <div className="button-row">
                 <button type="button" className="button-secondary button-small" onClick={() => setDeleteStep("retention")}>
-                  Go back
-                </button>
+                  {t("Go back")}</button>
                 <button
                   type="button"
                   onClick={() => void handleDelete()}
                   className="button-secondary button-small button-delete-final"
                   disabled={busy || !canFinalizeDelete}
                 >
-                  {busy ? "Deleting..." : "Delete account permanently"}
+                  {t(busy ? "Deleting..." : "Delete account permanently")}
                 </button>
               </div>
             </>
@@ -832,7 +829,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
 
   return (
     <>
-      <NoIndexHead title="Settings | Note2Tabs" canonicalPath="/settings" />
+      <NoIndexHead title={t("Settings | Note2Tabs")} canonicalPath="/settings" />
       <SubscriptionRetentionDialog
         open={subscriptionDialogOpen}
         busy={portalBusy}
@@ -862,18 +859,18 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
         <div className="settingsWindow">
           <header className="settingsHeader">
             <div>
-              <h1 className="settingsTitle">Settings</h1>
-              <p className="settingsSubtitle">Manage your Note2Tabs account.</p>
+              <h1 className="settingsTitle">{t("Settings")}</h1>
+              <p className="settingsSubtitle">{t("Manage your Note2Tabs account.")}</p>
             </div>
-            <Link href="/home" className="settingsCloseButton" aria-label="Close settings and return home">
-              <span aria-hidden="true">×</span>
+            <Link href="/home" className="settingsCloseButton" aria-label={t("Close settings and return home")}>
+              <span aria-hidden="true">{t("×")}</span>
             </Link>
           </header>
 
-          <section className="settingsPanel" aria-label="Settings panel">
-          <aside className="settingsSidebar" aria-label="Settings sections">
-            <p className="settingsSidebarLabel">Settings</p>
-            <nav className="settingsNav" role="tablist" aria-label="Settings tabs">
+          <section className="settingsPanel" aria-label={t("Settings panel")}>
+          <aside className="settingsSidebar" aria-label={t("Settings sections")}>
+            <p className="settingsSidebarLabel">{t("Settings")}</p>
+            <nav className="settingsNav" role="tablist" aria-label={t("Settings tabs")}>
               {settingsSections.map((section) => {
                 const isActive = selectedSection === section.id;
                 return (
@@ -886,7 +883,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
                     className={`settingsNavItem${isActive ? " settingsNavItemActive" : ""}`}
                     onClick={() => handleSelectSection(section.id)}
                   >
-                    {section.label}
+                    {t(section.label)}
                   </button>
                 );
               })}
@@ -894,13 +891,13 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
           </aside>
 
           <div className="settingsContent" role="tabpanel" id={`settings-panel-${selectedSection}`}>
-            {checkoutStatus && <div className="status" role="status">{checkoutStatus}</div>}
+            {checkoutStatus && <div className="status" role="status">{t(checkoutStatus)}</div>}
             {selectedSection === "account" && renderAccountSection()}
             {selectedSection === "plan" && renderPlanSection()}
             {selectedSection === "security" && renderSecuritySection()}
             {selectedSection === "privacy" && renderPrivacySection()}
             {selectedSection === "danger" && renderDangerSection()}
-            {error && <div className="error" role="alert">{error}</div>}
+            {error && <div className="error" role="alert">{translatedError(error, locale)}</div>}
           </div>
           </section>
         </div>

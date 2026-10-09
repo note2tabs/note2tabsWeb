@@ -1,9 +1,12 @@
-import { useRouter } from "next/router";
-import Link from "next/link";
+import { translatedError } from "../../lib/i18n/translate";
+import { useLocale } from "../../lib/i18n/react";
+import { useLocaleRouter as useRouter } from "../../lib/i18n/react";
+import Link from "../../components/LocaleLink";
 import { FormEvent, useEffect, useState } from "react";
 import NoIndexHead from "../../components/NoIndexHead";
 
 export default function ResetPasswordTokenPage() {
+  const { t, locale } = useLocale();
   const router = useRouter();
   const { token } = router.query;
   const [code, setCode] = useState("");
@@ -25,11 +28,11 @@ export default function ResetPasswordTokenPage() {
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          throw new Error(data?.error || "This reset link is invalid or expired.");
+          throw new Error(data?.error || t("This reset link is invalid or expired."));
         }
       })
       .catch((err: any) => {
-        setTokenError(err?.message || "This reset link is invalid or expired.");
+        setTokenError(err?.message || t("This reset link is invalid or expired."));
       })
       .finally(() => {
         setValidating(false);
@@ -39,15 +42,15 @@ export default function ResetPasswordTokenPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!token || typeof token !== "string") {
-      setError("Reset token missing.");
+      setError(t("Reset token missing."));
       return;
     }
     if (!code.trim()) {
-      setError("Reset code is required.");
+      setError(t("Reset code is required."));
       return;
     }
     if (password !== confirm) {
-      setError("Passwords do not match.");
+      setError(t("Passwords do not match."));
       return;
     }
     setError(null);
@@ -60,12 +63,12 @@ export default function ResetPasswordTokenPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data?.error || "We could not update your password. Please check the code and try again.");
+        setError(data?.error || t("We could not update your password. Please check the code and try again."));
         return;
       }
-      setMessage("Password updated. You can now log in.");
+      setMessage(t("Password updated. You can now log in."));
     } catch {
-      setError("We could not reach the password reset service. Check your connection and try again.");
+      setError(t("We could not reach the password reset service. Check your connection and try again."));
     } finally {
       setSubmitting(false);
     }
@@ -73,28 +76,26 @@ export default function ResetPasswordTokenPage() {
 
   return (
     <>
-      <NoIndexHead title="Set a new password | Note2Tabs" canonicalPath="/reset-password" />
+      <NoIndexHead title={t("Set a new password | Note2Tabs")} canonicalPath="/reset-password" />
     <main className="page page-tight">
       <div className="container">
         <div className="card auth-card auth-card--expanded stack">
           <div className="auth-card-header">
-            <h1 className="page-title">Set a new password</h1>
+            <h1 className="page-title">{t("Set a new password")}</h1>
           </div>
           {!ready || validating ? (
             <div className="auth-card-header">
-              <p className="page-subtitle">{ready ? "Checking reset link..." : "Loading token..."}</p>
+              <p className="page-subtitle">{ready ? t("Checking reset link...") : t("Loading token...")}</p>
             </div>
           ) : tokenError ? (
             <div className="auth-card-header stack">
               <div className="error" role="alert">{tokenError}</div>
-              <Link href="/reset-password" className="button-secondary">
-                Request a new reset email
-              </Link>
+              <Link href="/reset-password" className="button-secondary">{t(" Request a new reset email ")}</Link>
             </div>
           ) : (
             <form className="stack" onSubmit={handleSubmit}>
               <div className="form-group">
-                <label className="label" htmlFor="reset-code">Reset code</label>
+                <label className="label" htmlFor="reset-code">{t("Reset code")}</label>
                 <input
                   id="reset-code"
                   type="text"
@@ -107,7 +108,7 @@ export default function ResetPasswordTokenPage() {
                 />
               </div>
               <div className="form-group">
-                <label className="label" htmlFor="reset-new-password">New password</label>
+                <label className="label" htmlFor="reset-new-password">{t("New password")}</label>
                 <input
                   id="reset-new-password"
                   type="password"
@@ -120,7 +121,7 @@ export default function ResetPasswordTokenPage() {
                 />
               </div>
               <div className="form-group">
-                <label className="label" htmlFor="reset-confirm-password">Confirm password</label>
+                <label className="label" htmlFor="reset-confirm-password">{t("Confirm password")}</label>
                 <input
                   id="reset-confirm-password"
                   type="password"
@@ -132,16 +133,14 @@ export default function ResetPasswordTokenPage() {
                   className="form-input"
                 />
               </div>
-              {error && <div className="error" role="alert">{error}</div>}
+              {error && <div className="error" role="alert">{translatedError(error, locale)}</div>}
               {message && <div className="status" role="status">{message}</div>}
               <button type="submit" disabled={submitting} className="button-primary">
-                {submitting ? "Saving..." : "Update password"}
+                {submitting ? t("Saving...") : t("Update password")}
               </button>
               {message && (
                 <div className="auth-links-row auth-links-row--center">
-                  <Link href="/auth/login" className="button-link">
-                    Go to login
-                  </Link>
+                  <Link href="/auth/login" className="button-link">{t(" Go to login ")}</Link>
                 </div>
               )}
             </form>

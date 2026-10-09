@@ -1,7 +1,18 @@
 import { PostHog } from "posthog-node";
+import { createHash } from "crypto";
 
 let sharedClient: PostHog | null = null;
 let sharedClientKey: string | null = null;
+
+/**
+ * PostHog deduplicates retried captures by their top-level event UUID. Derive
+ * one from a stable business identifier so a retried webhook or API request
+ * cannot inflate low-volume conversion events.
+ */
+export function stablePostHogEventUuid(identifier: string) {
+  const hex = createHash("sha256").update(identifier).digest("hex").slice(0, 32);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20)}`;
+}
 
 function getPostHogConfig() {
   const token =
@@ -17,6 +28,46 @@ function getPostHogConfig() {
 
 export function isPostHogConfigured() {
   return Boolean(getPostHogConfig().token);
+}
+
+type IngestCapture = {
+  distinctId: string;
+  event: string;
+  uuid: string;
+  timestamp: Date;
+  properties: Record<string, unknown>;
+  disableGeoip?: boolean;
+};
+
+// The batch API without sent_at preserves the exact event timestamp. SDK clock
+// skew correction changes retry timestamps and defeats PostHog deduplication.
+export function createPostHogIngestClient() {
+  const { token, host } = getPostHogConfig();
+  if (!token) return null;
+  const batch: Array<Record<string, unknown>> = [];
+  return {
+    capture(event: IngestCapture) {
+      batch.push({
+        event: event.event, distinct_id: event.distinctId, uuid: event.uuid,
+        timestamp: event.timestamp.toISOString(),
+        properties: {
+          ...event.properties,
+          $lib: "note2tabs_server_proxy",
+          ...(event.disableGeoip ? { $geoip_disable: true } : {}),
+        },
+      });
+    },
+    async flush() {
+      if (!batch.length) return;
+      const response = await fetch(`${host.replace(/\/$/, "")}/batch/`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ api_key: token, batch }),
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!response.ok) throw new Error("PostHog batch delivery failed");
+      batch.length = 0;
+    },
+  };
 }
 
 export function createPostHogServerClient() {

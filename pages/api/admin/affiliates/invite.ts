@@ -1,8 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
-import { DEFAULT_AFFILIATE_TERMS, normalizeAffiliateCode } from "../../../../lib/affiliate";
+import { DEFAULT_AFFILIATE_TERMS, normalizeAffiliateCode, parseAffiliateTerms } from "../../../../lib/affiliate";
 import { prisma } from "../../../../lib/prisma";
 import { stripeClient } from "../../../../lib/stripe";
+import { getPaidPlanProductIds } from "../../../../lib/stripeCouponProducts";
 import { getStripePremiumConfig } from "../../../../lib/stripePremium";
 import { hasFreshUserRole } from "../../../../lib/serverAuth";
 import { authOptions } from "../../auth/[...nextauth]";
@@ -19,42 +20,52 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(403).json({ error: "Forbidden" });
   }
   if (!stripeClient) return res.status(503).json({ error: "Stripe not configured" });
+  const stripe = stripeClient;
   const premiumConfig = getStripePremiumConfig();
   if (!premiumConfig) return res.status(503).json({ error: "Premium billing is not configured" });
   const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
   const code = normalizeAffiliateCode(req.body?.code);
+  const terms = parseAffiliateTerms(req.body);
   if (!email || !code) return res.status(400).json({ error: "Email and valid code required" });
+  if (!terms) return res.status(400).json({ error: "Affiliate terms must be whole numbers within the allowed ranges" });
 
   const user = await prisma.user.findUnique({ where: { email }, select: { id: true, email: true } });
   if (!user) return res.status(404).json({ error: "Affiliate must have a Note2Tabs account" });
   const affiliate = await prisma.affiliate.create({
-    data: { userId: user.id, code, ...DEFAULT_AFFILIATE_TERMS, status: "PENDING" },
+    data: { userId: user.id, code, ...DEFAULT_AFFILIATE_TERMS, ...terms, status: "PENDING" },
   });
   try {
-    const account = await stripeClient.accounts.create({
+    const account = await stripe.accounts.create({
       type: "express",
       email: user.email,
       capabilities: { transfers: { requested: true } },
-      metadata: { note2tabsAffiliateId: affiliate.id, note2tabsAffiliateCode: code },
+      metadata: {
+        note2tabsAffiliateId: affiliate.id,
+        note2tabsAffiliateCode: code,
+        commissionPercent: String(affiliate.commissionPercent),
+        commissionMonths: String(affiliate.commissionMonths),
+      },
     });
-    const premiumPrice = await stripeClient.prices.retrieve(premiumConfig.priceId);
-    const premiumProductId =
-      premiumConfig.productId ||
-      (typeof premiumPrice.product === "string" ? premiumPrice.product : premiumPrice.product?.id);
-    if (!premiumProductId) throw new Error("Premium Stripe product could not be resolved");
-    const coupon = await stripeClient.coupons.create({
+    const productIds = await getPaidPlanProductIds(stripe);
+    if (!productIds.length) throw new Error("Paid Stripe products could not be resolved");
+    const coupon = await stripe.coupons.create({
       percent_off: affiliate.discountPercent,
       duration: "repeating",
       duration_in_months: affiliate.discountMonths,
-      applies_to: { products: [premiumProductId] },
-      name: `Note2Tabs affiliate ${code}`,
-      metadata: { note2tabsAffiliateId: affiliate.id },
+      applies_to: { products: productIds },
+      // Stripe limits coupon names to 40 characters while our codes may be 32.
+      name: `N2T ${code}`,
+      metadata: {
+        note2tabsAffiliateId: affiliate.id,
+        discountPercent: String(affiliate.discountPercent),
+        discountMonths: String(affiliate.discountMonths),
+      },
     });
-    const promotionCode = await stripeClient.promotionCodes.create({
+    const promotionCode = await stripe.promotionCodes.create({
       coupon: coupon.id,
       code,
       active: true,
-      metadata: { note2tabsAffiliateId: affiliate.id },
+      metadata: { note2tabsAffiliateId: affiliate.id, note2tabsAffiliateCode: code },
     });
     const active = await prisma.affiliate.update({
       where: { id: affiliate.id },
@@ -64,7 +75,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         stripeCouponId: coupon.id,
         stripePromotionCodeId: promotionCode.id,
       },
-      select: { id: true, code: true, status: true },
+      select: {
+        id: true, code: true, status: true,
+        commissionPercent: true, commissionMonths: true,
+        discountPercent: true, discountMonths: true,
+      },
     });
     return res.status(201).json({ affiliate: active });
   } catch (error) {

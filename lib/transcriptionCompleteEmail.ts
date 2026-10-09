@@ -1,12 +1,15 @@
+import { localeHref, type AppLocale } from "./i18n/locale";
 import crypto from "crypto";
 import { sendTransactionalEmail } from "./email";
 import { prisma } from "./prisma";
+import { escapeEmailHtml, renderProductEmail } from "./emailTemplate";
 
 type TranscriptionCompleteEmailInput = {
   name?: string | null;
   jobId: string;
   sourceLabel?: string | null;
   editorId?: string | null;
+  locale?: AppLocale;
 };
 
 const MARKER_RETENTION_DAYS = 3650;
@@ -18,21 +21,26 @@ function appBaseUrl() {
   );
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 export function buildTranscriptionCompleteEmail(input: TranscriptionCompleteEmailInput) {
   const firstName = input.name?.trim().split(/\s+/)[0] || "there";
   const sourceLabel = input.sourceLabel?.trim() || "Your transcription";
   const editorUrl = input.editorId
     ? `${appBaseUrl()}/gte/${encodeURIComponent(input.editorId)}?source=transcription_complete_email`
-    : `${appBaseUrl()}/job/${encodeURIComponent(input.jobId)}?source=transcription_complete_email`;
+    : `${appBaseUrl()}${localeHref(`/job/${encodeURIComponent(input.jobId)}?source=transcription_complete_email`, input.locale || "en")}`;
+  if (input.locale === "es") {
+    const label = input.sourceLabel?.trim() || "Tu transcripción";
+    const greeting = input.name?.trim() ? `¡Hola, ${input.name.trim().split(/\s+/)[0]}!` : "¡Hola!";
+    return {subject: "Tu transcripción de Note2Tabs está lista", editorUrl,
+      text: `${greeting}\n\n${label} está lista. Ábrela en el editor para escuchar, editar, practicar y exportar tu tablatura. El editor está en inglés.\n\n${editorUrl}`,
+      html: renderProductEmail({locale: "es", title: "Tu transcripción está lista", preview: "Abre tu tablatura en el editor.", greeting: escapeEmailHtml(greeting), bodyHtml: `<p><strong>${escapeEmailHtml(label)}</strong> está lista. Ábrela en el editor para escuchar, editar, practicar y exportar tu tablatura.</p><p>El editor está en inglés.</p>`, action: {label: "Abrir en el editor", url: editorUrl}})};
+  }
+  if (input.locale === "pt-BR") {
+    const label = input.sourceLabel?.trim() || "Sua transcrição";
+    const greeting = input.name?.trim() ? `Olá, ${input.name.trim().split(/\s+/)[0]}!` : "Olá!";
+    return {subject: "Sua transcrição do Note2Tabs está pronta", editorUrl,
+      text: `${greeting}\n\n${label} está pronta. Abra no editor para ouvir, editar, praticar e exportar sua tablatura. O editor está em inglês.\n\n${editorUrl}`,
+      html: renderProductEmail({locale: "pt-BR", title: "Sua transcrição está pronta", preview: "Abra sua tablatura no editor.", greeting: escapeEmailHtml(greeting), bodyHtml: `<p><strong>${escapeEmailHtml(label)}</strong> está pronta. Abra no editor para ouvir, editar, praticar e exportar sua tablatura.</p><p>O editor está em inglês.</p>`, action: {label: "Abrir no editor", url: editorUrl}})};
+  }
   const subject = "Your Note2Tabs transcription is ready";
   const text = `Hi ${firstName},
 
@@ -41,22 +49,13 @@ ${sourceLabel} is ready. Open it in the Note2Tabs editor to play, edit, practice
 Open in editor: ${editorUrl}
 
 Note2Tabs`;
-  const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.55;color:#07110e;background:#f6f3ea;padding:24px;">
-      <div style="max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #dedbd2;border-radius:16px;padding:26px;">
-        <p style="margin:0 0 12px;">Hi ${escapeHtml(firstName)},</p>
-        <h1 style="margin:0 0 12px;font-size:22px;line-height:1.25;">Your transcription is ready</h1>
-        <p style="margin:0 0 18px;color:#4f5a56;">
-          ${escapeHtml(sourceLabel)} is ready. Open it in the Note2Tabs editor to play, edit, practice, and export your tabs.
-        </p>
-        <p style="margin:0;">
-          <a href="${editorUrl}" style="display:inline-block;padding:11px 16px;background:#07110e;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:650;">
-            Open in editor
-          </a>
-        </p>
-      </div>
-    </div>
-  `;
+  const html = renderProductEmail({
+    title: "Your transcription is ready",
+    preview: `${sourceLabel} is ready to open in the editor.`,
+    greeting: `Hi ${escapeEmailHtml(firstName)},`,
+    bodyHtml: `<p style="margin:0;"><strong style="color:#17201d;">${escapeEmailHtml(sourceLabel)}</strong> is ready. Open it to play, edit, practice, or export your tab.</p>`,
+    action: { label: "Open in editor", url: editorUrl },
+  });
 
   return { subject, text, html, editorUrl };
 }
@@ -78,6 +77,7 @@ export async function sendTranscriptionCompleteEmailOnce(input: {
   userId: string;
   jobId: string;
   tabJobId: string;
+  locale?: AppLocale;
 }) {
   const result = await prisma.tabJob.findFirst({
     where: { id: input.tabJobId, userId: input.userId },
@@ -110,6 +110,7 @@ export async function sendTranscriptionCompleteEmailOnce(input: {
     jobId: input.jobId,
     sourceLabel: result.sourceLabel,
     editorId: result.gteEditorId,
+    locale: input.locale,
   });
   try {
     const delivered = await sendTransactionalEmail({

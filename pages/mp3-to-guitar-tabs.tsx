@@ -1,9 +1,11 @@
+import { useLocale } from "../lib/i18n/react";
 import SeoLandingPage from "../components/SeoLandingPage";
 
 export default function Mp3ToGuitarTabsPage() {
+  const { t } = useLocale();
   return (
     <SeoLandingPage
-      title="MP3 to Guitar Tabs Converter"
+      title={t("MP3 to Guitar Tabs Converter")}
       metaTitle="MP3 to Guitar Tabs Converter – Online & Editable"
       description="Convert MP3 audio to playable, editable guitar tabs online. Select a song section, generate tablature, then practise, edit, and export it with Note2Tabs."
       canonicalPath="/mp3-to-guitar-tabs"
@@ -31,7 +33,7 @@ export default function Mp3ToGuitarTabsPage() {
         ],
         benefits: [
           { title: "Fast clip selection", body: "Set a start and end time before transcription instead of trimming the MP3 yourself." },
-          { title: "Multiple guitar options", body: "Tell the transcriber when a recording includes other instruments or more than one guitar." },
+          { title: "Two model choices", body: "Choose Light or Heavy for your recording." },
           { title: "Continue in the editor", body: "Shape the generated notes into the fingering and structure you prefer." },
         ],
       }}
@@ -45,7 +47,7 @@ export default function Mp3ToGuitarTabsPage() {
           bullets: [
             "Choose the clearest available version of the recording.",
             "Remove long silence or unrelated sections from the selected range.",
-            "Tell the transcriber when other instruments or multiple guitars are present.",
+            "Choose the Light or Heavy model for your recording.",
             "Compare playback with the source before choosing final fingerings.",
           ],
         },

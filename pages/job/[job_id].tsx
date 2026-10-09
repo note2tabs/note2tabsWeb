@@ -1,7 +1,10 @@
+import { localizedSignIn as signIn } from "../../lib/i18n/auth";
+import { translatedError } from "../../lib/i18n/translate";
+import { useLocale } from "../../lib/i18n/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Script from "next/script";
-import { useRouter } from "next/router";
-import { signIn, useSession } from "next-auth/react";
+import { useLocaleRouter as useRouter } from "../../lib/i18n/react";
+import { useSession } from "next-auth/react";
 import JobStatusLayout, {
   type JobResponse,
   type PendingJobPresentation,
@@ -17,6 +20,7 @@ import NoIndexHead from "../../components/NoIndexHead";
 import { publicJobError } from "../../lib/backendError";
 import { EditorLoadingState } from "../../components/EditorLoadingState";
 import { categorizeAnalyticsError } from "../../lib/analyticsErrors";
+import { getRecordedTranscriptionModelAnalyticsProperties } from "../../lib/transcriptionModels";
 import {
   DEFAULT_JOB_POLL_DELAY_MS,
   requestJobStatus,
@@ -30,7 +34,7 @@ const PENDING_JOB_STATUSES = new Set(["queued", "pending", "processing", "runnin
 const TAB_JOB_ID_KEYS = ["tab_job_id", "tabJobId", "tab_id", "tabId"];
 
 type JobModeHint = "FILE" | "YOUTUBE";
-type JobModelHint = "light" | "heavy";
+type JobModelHint = "light" | "heavy" | "super_heavy";
 type PendingStageKey = "queue" | "download" | "prepare" | "separate" | "predict" | "note_events" | "format";
 type ImportResult = {
   editorId: string;
@@ -116,14 +120,14 @@ function estimatePendingJobDurationSeconds(
   modelHint: JobModelHint | null
 ) {
   const clipSeconds = clamp(clipDurationSeconds ?? 30, 1, 600);
-  const isHeavyModel = modelHint === "heavy";
-  const baseSeconds = isHeavyModel ? 32 : 18;
+  const isDetailedModel = modelHint === "heavy" || modelHint === "super_heavy";
+  const baseSeconds = isDetailedModel ? 32 : 18;
   const modeSeconds = modeHint === "YOUTUBE" ? 16 : 8;
   const separationSeconds = separateGuitar ? 28 : 0;
-  const clipSecondsCost = clipSeconds * (isHeavyModel ? 0.72 : 0.46);
+  const clipSecondsCost = clipSeconds * (isDetailedModel ? 0.72 : 0.46);
   const rawEstimate = baseSeconds + modeSeconds + separationSeconds + clipSecondsCost;
 
-  return clamp(Math.round(rawEstimate), 25, isHeavyModel || separateGuitar ? 210 : 150);
+  return clamp(Math.round(rawEstimate), 25, isDetailedModel || separateGuitar ? 210 : 150);
 }
 
 function estimateMovingProgress(elapsedSeconds: number, estimatedDurationSeconds: number, isQueued: boolean) {
@@ -609,6 +613,7 @@ function getFinalizedJobFromResponse(payload: Record<string, unknown> | null): J
 }
 
 export default function JobPage() {
+  const { t, locale } = useLocale();
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
   const { job_id } = router.query;
@@ -647,8 +652,26 @@ export default function JobPage() {
   const modelHint = useMemo<JobModelHint | null>(() => {
     if (!router.isReady) return null;
     const rawModel = getQueryStringValue(router.query.model)?.toLowerCase();
-    return rawModel === "heavy" || rawModel === "light" ? rawModel : null;
+    return rawModel === "heavy" || rawModel === "light" || rawModel === "super_heavy"
+      ? rawModel
+      : null;
   }, [router.isReady, router.query.model]);
+  const modelAnalyticsProperties = useMemo(() => {
+    const recordedMethod = getFirstJobValue(displayJob, ["transcriptionMethod", "transcription_method"]);
+    return {
+      ...getRecordedTranscriptionModelAnalyticsProperties(
+        recordedMethod ?? getQueryStringValue(router.query.transcriptionMethod), modelHint
+      ),
+      transcription_worker_pool: getFirstJobValue(displayJob, ["workerPool"]),
+      access_type: getFirstJobValue(displayJob, ["accessType"]),
+      subscription_plan: getFirstJobValue(displayJob, ["subscriptionPlan"]),
+      heavy_preview: getFirstJobValue(displayJob, ["heavyPreview"]),
+    };
+  }, [displayJob, router.query.transcriptionMethod, modelHint]);
+  const isHeavyPreview = useMemo(() => {
+    if (!router.isReady) return false;
+    return parseBooleanValue(getFirstJobValue(displayJob, ["heavyPreview"])) ?? parseBooleanFlag(getQueryStringValue(router.query.heavyPreview)) ?? false;
+  }, [displayJob, router.isReady, router.query.heavyPreview]);
   const durationHintSeconds = useMemo(() => {
     const queryDuration =
       parsePositiveNumber(getQueryStringValue(router.query.duration)) ??
@@ -674,6 +697,18 @@ export default function JobPage() {
   }, [router.isReady, router.query.ytTitle]);
   const isSignedIn = Boolean(session);
   const canOpenGuestEditor = !isSignedIn && isLocalNoDbClientMode;
+  const getEditorHref = (editorId: string, source = "job") => {
+    const params = new URLSearchParams({ source });
+    if (modelHint) {
+      params.set("transcriptionModel", modelHint);
+      if (typeof job_id === "string") params.set("transcriptionJobId", job_id);
+    }
+    if (isHeavyPreview) {
+      params.set("heavyPreviewComplete", "1");
+      if (typeof job_id === "string") params.set("heavyPreviewJobId", job_id);
+    }
+    return `/gte/${encodeURIComponent(editorId)}?${params.toString()}`;
+  };
   const hasWorkflowState = Boolean(workflowState && workflowState.trim());
   const isWorkflowProcessing = workflowState === "processing";
   const isDoneJob = displayJob?.status === "done";
@@ -707,20 +742,28 @@ export default function JobPage() {
       mode: modeHint || undefined,
       duration_sec: durationHintSeconds || undefined,
       durationSec: durationHintSeconds || undefined,
-      transcriptionModel: modelHint || undefined,
-      model: modelHint || undefined,
+      ...modelAnalyticsProperties,
       separate_guitar: separateGuitarHint,
       multiple_guitars: loadedMultipleGuitars,
     };
-    sendEvent(ANALYTICS_EVENTS.jobCompleted, {
-      ...properties,
-      $insert_id: `job-completed:${job_id}`,
-    });
-    sendEvent(ANALYTICS_EVENTS.tabGenerationSucceeded, {
-      ...properties,
-      $insert_id: `transcription-succeeded:${job_id}`,
-    });
-  }, [durationHintSeconds, job_id, loadedMultipleGuitars, modeHint, modelHint, separateGuitarHint, showReviewUi]);
+    sendEvent("transcription_result_viewed", properties);
+    if (getFirstJobValue(displayJob, ["analyticsServerTracked"]) !== true) {
+      sendEvent(ANALYTICS_EVENTS.jobCompleted, {
+        ...properties,
+        $insert_id: `job-completed:${job_id}`,
+      });
+      sendEvent(ANALYTICS_EVENTS.tabGenerationSucceeded, {
+        ...properties,
+        $insert_id: `transcription-succeeded:${job_id}`,
+      });
+      if (isHeavyPreview) {
+        sendEvent(ANALYTICS_EVENTS.heavyPreviewCompleted, {
+          ...properties,
+          $insert_id: `heavy-preview-completed:${job_id}`,
+        });
+      }
+    }
+  }, [displayJob, durationHintSeconds, isHeavyPreview, job_id, loadedMultipleGuitars, modeHint, modelHint, modelAnalyticsProperties, separateGuitarHint, showReviewUi]);
 
 
   const fetchJob = async (
@@ -751,7 +794,7 @@ export default function JobPage() {
       const fallback: JobResponse = {
         job_id: id,
         status: "error",
-        error_message: publicJobError("Could not fetch job status."),
+        error_message: publicJobError(t("Could not fetch job status.")),
       };
       setJob(fallback);
       if (pollTimeoutRef.current) {
@@ -992,7 +1035,7 @@ export default function JobPage() {
           editorId: imported.editorId,
           importFormat: "segment_groups",
           target: "guest",
-          href: `/gte/${imported.editorId}?source=job`,
+          href: getEditorHref(imported.editorId),
         };
       }
 
@@ -1006,7 +1049,7 @@ export default function JobPage() {
         editorId: GTE_GUEST_EDITOR_ID,
         importFormat: "tab_stamps",
         target: "guest",
-        href: `/gte/${GTE_GUEST_EDITOR_ID}?source=job`,
+        href: getEditorHref(GTE_GUEST_EDITOR_ID),
       };
     }
 
@@ -1035,7 +1078,7 @@ export default function JobPage() {
         editorId: imported.editorId,
         importFormat: "segment_groups",
         target: targetEditorId ? "existing" : "new",
-        href: `/gte/${imported.editorId}?source=job`,
+        href: getEditorHref(imported.editorId),
       };
     }
 
@@ -1049,7 +1092,7 @@ export default function JobPage() {
         editorId: targetEditorId,
         importFormat: "tab_stamps",
         target: "existing",
-        href: `/gte/${targetEditorId}?source=job`,
+        href: getEditorHref(targetEditorId),
       };
     }
 
@@ -1059,7 +1102,7 @@ export default function JobPage() {
       editorId: created.editorId,
       importFormat: "tab_stamps",
       target: "new",
-      href: `/gte/${created.editorId}?source=job`,
+      href: getEditorHref(created.editorId),
     };
   };
 
@@ -1079,18 +1122,27 @@ export default function JobPage() {
       selection: "all",
       mode: modeHint || undefined,
       source: "job",
+      ...modelAnalyticsProperties,
       job_id: typeof job_id === "string" ? job_id : undefined,
       quantize,
     };
     sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportStarted, eventProperties);
+    const importStartedAt = Date.now();
     try {
       const result = await performJobImportToEditor(jobToImport, targetEditorChoice, quantize);
-      if (!result) return false;
+      if (!result) {
+        sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportFailed, {
+          ...eventProperties, error_code: "editor_import_not_ready",
+          import_elapsed_sec: (Date.now() - importStartedAt) / 1000,
+        });
+        return false;
+      }
       sendEvent(ANALYTICS_EVENTS.transcriptionImportedToEditor, {
         ...eventProperties,
         target: result.target,
         import_format: result.importFormat,
         editor_id: result.editorId,
+        import_elapsed_sec: (Date.now() - importStartedAt) / 1000,
       });
       await router.push(result.href);
       return true;
@@ -1098,6 +1150,7 @@ export default function JobPage() {
       sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportFailed, {
         ...eventProperties,
         error_code: categorizeAnalyticsError(error, "editor_import_failed"),
+        import_elapsed_sec: (Date.now() - importStartedAt) / 1000,
       });
       throw error;
     }
@@ -1112,15 +1165,13 @@ export default function JobPage() {
     try {
       if (displayJob?.gte_editor_id) {
         importedSuccessfully = true;
-        await router.replace(
-          `/gte/${encodeURIComponent(displayJob.gte_editor_id)}?source=transcription_complete_email`
-        );
+        await router.replace(getEditorHref(displayJob.gte_editor_id, "transcription_complete_email"));
         return;
       }
       if (isFinalizedStatus) {
         const importableJob = await waitForImportableJob(displayJob);
         if (!importableJob) {
-          throw new Error("Tabs are still getting ready for the editor. Please try again in a moment.");
+          throw new Error(t("Tabs are still getting ready for the editor. Please try again in a moment."));
         }
         importedSuccessfully = await importJobToEditor(importableJob, targetEditorChoice, true);
         return;
@@ -1177,8 +1228,8 @@ export default function JobPage() {
     } catch (err: any) {
       const message =
         err?.message === "No importable tab groups are available for this transcription."
-          ? "Tabs are still getting ready for the editor. Please try again in a moment."
-          : err?.message || "We could not finish preparing these tracks for the editor. Please try again in a moment.";
+          ? t("Tabs are still getting ready for the editor. Please try again in a moment.")
+          : err?.message || t("We could not finish preparing these tracks for the editor. Please try again in a moment.");
       setReviewError(message);
     } finally {
       setReviewBusy(false);
@@ -1210,14 +1261,14 @@ export default function JobPage() {
   };
 
   const showAdGate = isFinalizedJob && !hasWatchedAd;
-  const title = showReviewUi ? "Opening editor - Note2Tabs" : "Preparing Tabs - Note2Tabs";
+  const title = showReviewUi ? t("Opening editor - Note2Tabs") : t("Preparing Tabs - Note2Tabs");
 
   return (
     <>
       <NoIndexHead
         title={title}
         canonicalPath={`/job/${encodeURIComponent(typeof job_id === "string" ? job_id : "")}`}
-        description="Job status on Note2Tabs."
+        description={t("Job status on Note2Tabs.")}
       />
       {loadAdScript && (
         <Script
@@ -1229,7 +1280,7 @@ export default function JobPage() {
         <div className="container stack">
           <div className="page-header job-route-header">
             <div>
-              <h1 className="page-title">{showReviewUi ? "Opening your editor" : "Preparing your guitar tab"}</h1>
+              <h1 className="page-title">{showReviewUi ? t("Opening your editor") : t("Preparing your guitar tab")}</h1>
             </div>
             {!showReviewUi && (
               <button type="button" onClick={() => void router.push("/")} className="button-ghost button-small">
@@ -1241,10 +1292,10 @@ export default function JobPage() {
           <div className="job-route-content">
           {showReviewUi ? (
             <div className="stack">
-              <EditorLoadingState label="Quantizing transcription and opening your editor" />
+              <EditorLoadingState label={t("Quantizing transcription and opening your editor")} />
               {reviewError ? (
                 <div className="stack-tight">
-                  <div className="error" role="alert">{reviewError}</div>
+                  <div className="error" role="alert">{translatedError(reviewError, locale)}</div>
                   <button
                     type="button"
                     className="button-primary button-small"
@@ -1254,9 +1305,7 @@ export default function JobPage() {
                       setReviewError(null);
                       void automaticallyOpenEditor();
                     }}
-                  >
-                    Retry opening editor
-                  </button>
+                  >{t(" Retry opening editor ")}</button>
                 </div>
               ) : null}
             </div>

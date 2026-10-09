@@ -25,12 +25,40 @@ import {
 import type { GteAnalyticsEvent } from "../../../lib/gteAnalytics";
 import { parseTextTabImport } from "../../../lib/gteTabImport";
 import { prisma } from "../../../lib/prisma";
+import { sendTabShareEmail } from "../../../lib/tabShareEmail";
+import {
+  claimTabShareEmailDelivery,
+  isTabShareEmailBlocked,
+  normalizeShareEmail,
+  releaseTabShareEmailDelivery,
+} from "../../../lib/tabShareEmailPreferences";
+import { attachFunctionTiming } from "../../../lib/functionTiming";
 
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
   process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
 const SNAPSHOT_SAVE_CACHE_TTL_MS = 4000;
 const SNAPSHOT_SAVE_CACHE_MAX = 200;
+const SHARE_EMAIL_RATE_WINDOW_MS = 60 * 60 * 1000;
+const SHARE_EMAIL_RATE_MAX = 20;
+const shareEmailRateByUser = new Map<string, number[]>();
+
+function withinShareEmailRateLimit(userId: string) {
+  const cutoff = Date.now() - SHARE_EMAIL_RATE_WINDOW_MS;
+  const recent = (shareEmailRateByUser.get(userId) || []).filter((time) => time > cutoff);
+  if (recent.length >= SHARE_EMAIL_RATE_MAX) {
+    shareEmailRateByUser.set(userId, recent);
+    return false;
+  }
+  recent.push(Date.now());
+  shareEmailRateByUser.set(userId, recent);
+  if (shareEmailRateByUser.size > 500) {
+    for (const [key, values] of shareEmailRateByUser) {
+      if (!values.some((time) => time > cutoff)) shareEmailRateByUser.delete(key);
+    }
+  }
+  return true;
+}
 
 type SnapshotSaveCacheEntry = {
   body: string;
@@ -96,6 +124,13 @@ type GteEditorListItem = {
 
 type GteEditorListResponse = {
   editors?: GteEditorListItem[];
+};
+
+type GteShareResponse = {
+  canvasId?: string;
+  email?: string;
+  role?: "viewer" | "editor";
+  [key: string]: unknown;
 };
 
 const AUTO_NAME_SUFFIX_RE = /^(.*?)(\d{2,})$/;
@@ -273,6 +308,8 @@ async function maybeLogGteAnalyticsEvent(input: {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const requestStartedAt = Date.now();
+  let timingPath = "";
+  attachFunctionTiming(res, "/api/gte/[[...path]]", () => ({ method: req.method, path: timingPath }));
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user?.id) {
     return res.status(401).json({ error: "Your session has expired. Please sign in again." });
@@ -288,6 +325,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const method = req.method || "GET";
   const path = getPath(req);
+  timingPath = path;
   const editorRef = getGteEditorRefFromPath(path);
   const editorInputSettingsRef = getEditorInputSettingsRef(method, path);
   if (editorInputSettingsRef) {
@@ -413,9 +451,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (upstream.ok && isSnapshotSave) {
     const snapshot = (req.body as { snapshot?: unknown } | undefined)?.snapshot;
     await Promise.all([
-      persistTrackInstrumentsFromSnapshot(session.user.id, editorRef, snapshot),
+      persistTrackInstrumentsFromSnapshot(editorRef, snapshot),
       persistTrackPlaybackFromSnapshot(session.user.id, editorRef, snapshot),
-      persistDrumLoopsFromSnapshot(session.user.id, editorRef, snapshot),
+      persistDrumLoopsFromSnapshot(editorRef, snapshot),
     ]);
   }
 
@@ -425,9 +463,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const parsed = JSON.parse(responseText) as unknown;
       const preferenceHydrationStartedAt = Date.now();
       await Promise.all([
-        hydrateTrackInstrumentsFromStore(session.user.id, editorRef, parsed),
+        hydrateTrackInstrumentsFromStore(editorRef, parsed),
         hydrateTrackPlaybackFromStore(session.user.id, editorRef, parsed),
-        hydrateDrumLoopsFromStore(session.user.id, editorRef, parsed),
+        hydrateDrumLoopsFromStore(editorRef, parsed),
         ...(method === "GET"
           ? [
               hydrateGteEditorInputSettingsFromStore(session.user.id, editorRef, parsed),
@@ -469,6 +507,62 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     } catch {
       // ignore analytics parse/logging failures
+    }
+  }
+  const shareMatch = method === "POST" ? path.match(/^editors\/([^/]+)\/shares$/) : null;
+  if (upstream.ok && shareMatch && responseText) {
+    try {
+      const parsed = JSON.parse(responseText) as GteShareResponse;
+      const editorId = decodeURIComponent(shareMatch[1]);
+      const recipient = typeof parsed.email === "string" ? normalizeShareEmail(parsed.email) : "";
+      const role = parsed.role === "viewer" ? "viewer" : "editor";
+      let tabName: string | undefined;
+      try {
+        const editors = await getExistingEditors(headers);
+        tabName = editors.find((editor) => editor.id === editorId)?.name;
+      } catch {
+        // A generic tab name is sufficient if the editor list is temporarily unavailable.
+      }
+
+      let emailDelivered = false;
+      let emailSuppressed = false;
+      if (recipient) {
+        try {
+          const [recipientUser, blocked] = await Promise.all([
+            prisma.user.findUnique({ where: { email: recipient }, select: { id: true } }),
+            isTabShareEmailBlocked(recipient),
+          ]);
+          const rateAllowed = withinShareEmailRateLimit(session.user.id);
+          const deliveryClaimed = !blocked && rateAllowed
+            ? await claimTabShareEmailDelivery(session.user.id, editorId, recipient)
+            : false;
+          emailSuppressed = blocked || !rateAllowed || !deliveryClaimed;
+          if (deliveryClaimed) {
+            try {
+              emailDelivered = await sendTabShareEmail({
+                to: recipient,
+                inviterName: session.user.name || session.user.email,
+                tabName,
+                editorId,
+                role,
+                recipientHasAccount: Boolean(recipientUser),
+              });
+            } catch (error) {
+              await releaseTabShareEmailDelivery(session.user.id, editorId, recipient).catch(() => {});
+              throw error;
+            }
+          }
+        } catch (error) {
+          console.error("note2tabs.email.tab_share_failed", {
+            editorId,
+            error: error instanceof Error ? error.message : "email_delivery_failed",
+          });
+        }
+      }
+      responseText = JSON.stringify({ ...parsed, emailDelivered, emailSuppressed });
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+    } catch {
+      // Preserve the successful share response if the upstream payload is unexpectedly not JSON.
     }
   }
   const commitMatch = method === "POST" ? path.match(/^editors\/([^/]+)\/commit$/) : null;

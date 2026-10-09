@@ -12,6 +12,25 @@ import { categorizeAnalyticsDestination } from "../lib/analyticsPrivacy";
 import { getAcquisitionProperties } from "../lib/acquisitionAttribution";
 import { getAnalyticsTrackingIds } from "../lib/analyticsV2";
 import { premiumFunnelProperties, readPremiumFunnelContext } from "../lib/premiumFunnel";
+import { isTabShareEmailDestination, TAB_SHARE_EMAIL_SOURCE } from "../lib/tabShareAnalytics";
+
+const IDENTITY_LINK_STORAGE_PREFIX = "note2tabs:analytics-identity-linked:";
+
+function hasPersistedIdentityLink(identityLinkKey: string) {
+  try {
+    return window.localStorage.getItem(`${IDENTITY_LINK_STORAGE_PREFIX}${identityLinkKey}`) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function persistIdentityLink(identityLinkKey: string) {
+  try {
+    window.localStorage.setItem(`${IDENTITY_LINK_STORAGE_PREFIX}${identityLinkKey}`, "1");
+  } catch {
+    // Storage is only a request-deduplication optimization.
+  }
+}
 
 export default function AnalyticsIdentityLinker() {
   const { data: session, status } = useSession();
@@ -59,10 +78,13 @@ export default function AnalyticsIdentityLinker() {
       const trackingIds = getAnalyticsTrackingIds();
       const funnel = readPremiumFunnelContext();
       const identityLinkKey = `${session.user.id}:${trackingIds?.anonId || "no-anon"}`;
-      if (linkedIdentityRef.current !== identityLinkKey) {
+      if (
+        linkedIdentityRef.current !== identityLinkKey &&
+        !hasPersistedIdentityLink(identityLinkKey)
+      ) {
         linkedIdentityRef.current = identityLinkKey;
         try {
-          await fetch("/api/analytics/link-identity", {
+          const response = await fetch("/api/analytics/link-identity", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -75,6 +97,7 @@ export default function AnalyticsIdentityLinker() {
             }),
             keepalive: true,
           });
+          if (response.ok) persistIdentityLink(identityLinkKey);
         } catch {
           // Identity measurement must never interrupt authentication.
         }
@@ -84,12 +107,22 @@ export default function AnalyticsIdentityLinker() {
       const isRecentlyCreated =
         Number.isFinite(createdAtMs) && Date.now() - createdAtMs >= 0 && Date.now() - createdAtMs < 10 * 60 * 1000;
       if (oauthIntent && isRecentlyCreated) {
+        const fromTabShareEmail = isTabShareEmailDestination(oauthIntent.next);
         sendEvent(ANALYTICS_EVENTS.signupCompleted, {
           method: "google",
           destination: categorizeAnalyticsDestination(oauthIntent.next),
           initiatedAs: oauthIntent.intent,
+          ...(fromTabShareEmail ? { signup_source: TAB_SHARE_EMAIL_SOURCE } : {}),
           ...(funnel ? premiumFunnelProperties(funnel) : {}),
         });
+        if (fromTabShareEmail) {
+          sendEvent(ANALYTICS_EVENTS.tabShareEmailSignupCompleted, {
+            method: "google",
+            landing: "signup",
+            recipient_status: "new",
+            source: TAB_SHARE_EMAIL_SOURCE,
+          });
+        }
       } else if (oauthIntent) {
         sendEvent(ANALYTICS_EVENTS.loginSucceeded, {
           method: "google",

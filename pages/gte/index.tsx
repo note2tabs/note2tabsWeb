@@ -1,9 +1,9 @@
 import { GetServerSideProps } from "next";
-import Link from "next/link";
+import Link from "../../components/LocaleLink";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
-import { useRouter } from "next/router";
+import { useLocaleRouter as useRouter } from "../../lib/i18n/react";
 import { gteApi } from "../../lib/gteApi";
 import type { EditorListItem, EditorSnapshot } from "../../types/gte";
 import { clearGuestDraft, GTE_GUEST_EDITOR_ID, readGuestDraft } from "../../lib/gteGuestDraft";
@@ -356,22 +356,23 @@ export default function GteIndexPage({ userId }: Props) {
           <div className="gte-library-grid">
             {editors.map((editor) => (
               <div key={editor.id} className="card-outline gte-library-row">
+                <Link
+                  href={`/gte/${editor.id}`}
+                  className="gte-library-row-link"
+                  aria-label={`Open ${editor.name || "Untitled tab"}`}
+                  onPointerDown={() => {
+                    void gteApi.prefetchEditor(editor.id).catch(() => undefined);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      void gteApi.prefetchEditor(editor.id).catch(() => undefined);
+                    }
+                  }}
+                >
+                  <span className="sr-only">Open {editor.name || "Untitled tab"}</span>
+                </Link>
                 <div className="gte-library-card-head">
-                  <h2 className="gte-library-card-title">
-                    <Link
-                      href={`/gte/${editor.id}`}
-                      onPointerDown={() => {
-                        void gteApi.prefetchEditor(editor.id).catch(() => undefined);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          void gteApi.prefetchEditor(editor.id).catch(() => undefined);
-                        }
-                      }}
-                    >
-                      {editor.name || "Untitled"}
-                    </Link>
-                  </h2>
+                  <h2 className="gte-library-card-title">{editor.name || "Untitled"}</h2>
                 </div>
                 <div className="muted text-small gte-library-meta">
                   <p>{editor.noteCount ?? 0} notes · {editor.chordCount ?? 0} chords</p>

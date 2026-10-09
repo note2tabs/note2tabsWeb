@@ -8,10 +8,10 @@ import {
 describe("job polling", () => {
   it("uses integer and HTTP-date Retry-After values with safe bounds", () => {
     const now = Date.parse("2026-08-12T12:00:00.000Z");
-    expect(parseRetryAfterMs("5", DEFAULT_JOB_POLL_DELAY_MS, now)).toBe(5000);
+    expect(parseRetryAfterMs("5", DEFAULT_JOB_POLL_DELAY_MS, now)).toBe(7500);
     expect(parseRetryAfterMs("Wed, 12 Aug 2026 12:00:08 GMT", DEFAULT_JOB_POLL_DELAY_MS, now)).toBe(8000);
-    expect(parseRetryAfterMs("0", DEFAULT_JOB_POLL_DELAY_MS, now)).toBe(1000);
-    expect(parseRetryAfterMs("120", DEFAULT_JOB_POLL_DELAY_MS, now)).toBe(15_000);
+    expect(parseRetryAfterMs("0", DEFAULT_JOB_POLL_DELAY_MS, now)).toBe(7500);
+    expect(parseRetryAfterMs("120", DEFAULT_JOB_POLL_DELAY_MS, now)).toBe(30_000);
     expect(parseRetryAfterMs(null, DEFAULT_JOB_POLL_DELAY_MS, now)).toBe(DEFAULT_JOB_POLL_DELAY_MS);
   });
 
@@ -36,7 +36,7 @@ describe("job polling", () => {
       job: null,
       notModified: true,
       etag: '"job-version-3"',
-      retryAfterMs: 5000,
+      retryAfterMs: 7500,
     });
   });
 
@@ -59,5 +59,22 @@ describe("job polling", () => {
       expect.objectContaining({ headers: {} })
     );
     expect(result.job).toEqual({ job_id: "job_123", status: "done" });
+  });
+
+  it("coalesces identical concurrent browser polls without changing their result", async () => {
+    let resolveResponse!: (response: Response) => void;
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => { resolveResponse = resolve; }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const first = requestJobStatus<{ status: string }>("job_123", { etag: '"v1"' });
+    const second = requestJobStatus<{ status: string }>("job_123", { etag: '"v1"' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    resolveResponse(new Response(JSON.stringify({ status: "processing" }), { status: 200 }));
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      expect.objectContaining({ job: { status: "processing" } }),
+      expect.objectContaining({ job: { status: "processing" } }),
+    ]);
+    vi.unstubAllGlobals();
   });
 });

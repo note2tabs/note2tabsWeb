@@ -1,3 +1,6 @@
+import {articleLocales} from "../lib/i18n/blog/availability";
+import { isLocalizedPublicPath, LOCALIZED_PUBLIC_PATHS, localeHref, stripLocale, TRANSLATED_LOCALES } from "../lib/i18n/locale";
+import { localizedPilotIndexable } from "../lib/i18n/pilot";
 import type { GetServerSideProps } from "next";
 import { prisma } from "../lib/prisma";
 import { withPrismaReadRetry } from "../lib/prismaRetry";
@@ -17,6 +20,7 @@ const staticPaths = [
   "/blog",
   "/about",
   "/contact",
+  "/affiliate-program",
   "/privacy",
   "/terms",
   "/audio-to-guitar-tab-converter",
@@ -29,6 +33,7 @@ const staticPaths = [
 ];
 
 const recentlyUpdatedSeoPaths = new Set([
+  "/",
   "/editor",
   "/audio-to-guitar-tab-converter",
   "/mp3-to-guitar-tabs",
@@ -40,6 +45,8 @@ const recentlyUpdatedSeoPaths = new Set([
 ]);
 
 const refreshedSeoPathDates = new Map([
+  ["/", "2026-09-25"],
+  ["/editor", "2026-09-25"],
   ["/audio-to-guitar-tab-converter", "2026-08-05"],
   ["/mp3-to-guitar-tabs", "2026-08-05"],
   ["/ai-guitar-tab-generator", "2026-08-30"],
@@ -76,7 +83,9 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
     return [];
   });
 
-  const entries: SitemapEntry[] = staticPaths.map((path) => ({
+  const releasedLocales = TRANSLATED_LOCALES.filter(localizedPilotIndexable);
+  const paths = [...staticPaths, ...releasedLocales.flatMap(locale => staticPaths.map(path => localeHref(path, locale)))];
+  const entries: SitemapEntry[] = paths.map((path) => ({
     loc: buildUrl(baseUrl, path),
     ...(recentlyUpdatedSeoPaths.has(path)
       ? {
@@ -87,24 +96,34 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
       : {}),
   }));
 
+  const translatedArticles = new Map<string, typeof releasedLocales>();
   posts.forEach((post) => {
     entries.push({
       loc: buildUrl(baseUrl, `/blog/${post.slug}`),
       lastmod: post.updatedAt.toISOString(),
     });
+    const locales = releasedLocales.filter(locale => articleLocales(post.slug, post.updatedAt.toISOString()).includes(locale));
+    if (locales.length) {
+      translatedArticles.set(`/blog/${post.slug}`, locales);
+      for (const locale of locales) entries.push({loc: buildUrl(baseUrl, localeHref(`/blog/${post.slug}`, locale)), lastmod: post.updatedAt.toISOString()});
+    }
   });
 
-  const body = entries
-    .map(
-      (entry) => `
+  const alternateLinks = (entry: SitemapEntry) => {
+    const path = stripLocale(new URL(entry.loc).pathname);
+    if (!releasedLocales.length || !(staticPaths.includes(path) || translatedArticles.has(path))) return "";
+    return ["en", ...(translatedArticles.get(path) || releasedLocales), "x-default"].map(language => {
+      const href = buildUrl(baseUrl, localeHref(path, language === "pt-BR" ? "pt-BR" : language === "es" ? "es" : "en"));
+      return `\n    <xhtml:link rel="alternate" hreflang="${language}" href="${escapeXml(href)}"/>`;
+    }).join("");
+  };
+  const body = entries.map(entry => `
   <url>
-    <loc>${escapeXml(entry.loc)}</loc>${entry.lastmod ? `\n    <lastmod>${entry.lastmod}</lastmod>` : ""}
-  </url>`
-    )
-    .join("");
+    <loc>${escapeXml(entry.loc)}</loc>${entry.lastmod ? `\n    <lastmod>${entry.lastmod}</lastmod>` : ""}${alternateLinks(entry)}
+  </url>`).join("");
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${body}
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">${body}
 </urlset>`;
 
   res.setHeader("Content-Type", "text/xml");

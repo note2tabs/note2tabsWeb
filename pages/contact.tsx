@@ -1,6 +1,8 @@
+import { useLocale } from "../lib/i18n/react";
 import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../components/SeoHead";
 
 export default function ContactPage() {
+  const { t } = useLocale();
   const description =
     "Contact Note2Tabs for product questions, bug reports, account issues, and support.";
   const jsonLd = [
@@ -26,7 +28,7 @@ export default function ContactPage() {
   return (
     <>
       <SeoHead
-        title="Contact Note2Tabs"
+        title={t("Contact Note2Tabs")}
         description={description}
         canonicalPath="/contact"
         jsonLd={jsonLd}
@@ -34,28 +36,25 @@ export default function ContactPage() {
       <main className="page legal-page">
         <div className="legal-shell">
           <header className="legal-header">
-            <p className="legal-kicker">Contact</p>
-            <h1 className="page-title">Get in touch with Note2Tabs</h1>
+            <p className="legal-kicker">{t("Contact")}</p>
+            <h1 className="page-title">{t("Get in touch with Note2Tabs")}</h1>
             <p className="page-subtitle">
-              Product questions, bug reports, or account issues. We read every message.
-            </p>
+              {t("Product questions, bug reports, or account issues. We read every message.")}</p>
           </header>
 
           <section className="legal-prose">
-            <h2>Email</h2>
+            <h2>{t("Email")}</h2>
             <p>
-              Reach us at <a href="mailto:support@note2tabs.com"><strong>support@note2tabs.com</strong></a>.
-            </p>
+              {t("Reach us at ")}<a href="mailto:support@note2tabs.com"><strong>{t("support@note2tabs.com")}</strong></a>{t(".")}</p>
             <p>
-              Including your account email and a short description of the issue helps us respond faster.
-            </p>
+              {t("Including your account email and a short description of the issue helps us respond faster.")}</p>
 
-            <h2>Support scope</h2>
+            <h2>{t("Support scope")}</h2>
             <ul>
-              <li>Billing and subscription questions</li>
-              <li>Transcription workflow issues</li>
-              <li>Editor and saved-tab problems</li>
-              <li>General product and feature questions</li>
+              <li>{t("Billing and subscription questions")}</li>
+              <li>{t("Transcription workflow issues")}</li>
+              <li>{t("Editor and saved-tab problems")}</li>
+              <li>{t("General product and feature questions")}</li>
             </ul>
           </section>
         </div>

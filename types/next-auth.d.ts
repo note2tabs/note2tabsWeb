@@ -9,6 +9,7 @@ declare module "next-auth" {
       tokensRemaining?: number;
       isEmailVerified?: boolean;
       unverifiedTranscriptionUsed?: boolean;
+      heavyPreviewUsed?: boolean;
       monthlyCreditsUsed?: number;
       monthlyCreditsLimit?: number;
       monthlyCreditsRemaining?: number;
@@ -25,6 +26,7 @@ declare module "next-auth" {
     tokensRemaining?: number;
     isEmailVerified?: boolean;
     unverifiedTranscriptionUsed?: boolean;
+    heavyPreviewUsed?: boolean;
     createdAt?: Date | string;
   }
 }
@@ -37,6 +39,7 @@ declare module "next-auth/jwt" {
     tokensRemaining?: number;
     isEmailVerified?: boolean;
     unverifiedTranscriptionUsed?: boolean;
+    heavyPreviewUsed?: boolean;
     createdAt?: string;
     accountSyncedAt?: number;
   }

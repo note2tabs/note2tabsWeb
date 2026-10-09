@@ -10,6 +10,7 @@ vi.mock("next-auth/next", () => ({
 
 vi.mock("../../lib/gteAnalytics", () => ({
   logGteAnalyticsEvent: (...args: unknown[]) => logMock(...args),
+  logGteAnalyticsEvents: (...args: unknown[]) => logMock(...args),
 }));
 
 describe("gte telemetry endpoint", () => {
@@ -48,7 +49,7 @@ describe("gte telemetry endpoint", () => {
 
     expect(res._getStatusCode()).toBe(200);
     expect(logMock).toHaveBeenCalledTimes(1);
-    expect(logMock.mock.calls[0][0]).toMatchObject({
+    expect(logMock.mock.calls[0][0][0]).toMatchObject({
       userId: "user_1",
       event: eventName,
       payload: expect.objectContaining({
@@ -110,9 +111,31 @@ describe("gte telemetry endpoint", () => {
     await handler(req as any, res as any);
 
     expect(res._getStatusCode()).toBe(200);
-    expect(logMock).toHaveBeenCalledWith(expect.objectContaining({
+    expect(logMock).toHaveBeenCalledWith([expect.objectContaining({
       userId: null,
       event: "gte_editor_visit",
-    }));
+    })]);
+  });
+
+  it("accepts a batch without changing event order, timestamps, or identity", async () => {
+    sessionMock.mockResolvedValue({ user: { id: "user_1" } });
+    logMock.mockResolvedValue(undefined);
+    const handler = (await import("../../pages/api/gte/telemetry")).default;
+    const { req, res } = createMocks({
+      method: "POST",
+      body: { events: [
+        { event: "gte_editor_visit", editorId: "ed_123", sessionId: "sess_123", ts: "2026-09-09T10:00:00.000Z" },
+        { event: "gte_editor_session_start", editorId: "ed_123", sessionId: "sess_123", ts: "2026-09-09T10:00:01.000Z" },
+      ] },
+    });
+
+    await handler(req as any, res as any);
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(JSON.parse(res._getData())).toEqual({ ok: true });
+    expect(logMock.mock.calls[0][0].map((event: any) => ({ event: event.event, timestamp: event.timestamp, userId: event.userId }))).toEqual([
+      { event: "gte_editor_visit", timestamp: "2026-09-09T10:00:00.000Z", userId: "user_1" },
+      { event: "gte_editor_session_start", timestamp: "2026-09-09T10:00:01.000Z", userId: "user_1" },
+    ]);
   });
 });

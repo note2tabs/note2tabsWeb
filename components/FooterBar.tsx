@@ -1,10 +1,12 @@
-import Link from "next/link";
+import { useLocale } from "../lib/i18n/react";
+import Link from "./LocaleLink";
 
 export default function FooterBar() {
+  const { t } = useLocale();
   return (
     <footer className="footer-shell" data-nosnippet>
       <div className="container footer-layout">
-        <div className="footer-socials" aria-label="Social links">
+        <div className="footer-socials" aria-label={t("Social links")}>
           <a
             href="https://instagram.com/note2tabs"
             target="_blank"
@@ -57,34 +59,43 @@ export default function FooterBar() {
 
         <div className="footer-sections">
           <section className="footer-section">
-            <h2>Terms & Policies</h2>
-            <Link href="/terms">Terms</Link>
-            <Link href="/privacy">Privacy</Link>
-            <Link href="/settings#privacy-controls">Analytics settings</Link>
+            <h2>{t("Terms & Policies")}</h2>
+            <div className="footer-section-links">
+              <Link href="/terms">{t("Terms")}</Link>
+              <Link href="/privacy">{t("Privacy")}</Link>
+              <Link href="/settings#privacy-controls">{t("Analytics settings")}</Link>
+            </div>
           </section>
 
           <section className="footer-section">
-            <h2>Contact</h2>
-            <a href="mailto:support@note2tabs.com">support@note2tabs.com</a>
+            <h2>{t("Contact")}</h2>
+            <div className="footer-section-links">
+              <a href="mailto:support@note2tabs.com">support@note2tabs.com</a>
+              <Link href="/affiliate-program">{t("Affiliate program")}</Link>
+            </div>
           </section>
 
           <section className="footer-section">
-            <h2>Products</h2>
-            <Link href="/transcribe">Audio-to-tab transcriber</Link>
-            <Link href="/editor">Guitar tab editor</Link>
-            <Link href="/pricing">Plans and pricing</Link>
+            <h2>{t("Products")}</h2>
+            <div className="footer-section-links">
+              <Link href="/transcribe">{t("Audio-to-tab transcriber")}</Link>
+              <Link href="/editor">{t("Guitar tab editor")}</Link>
+              <Link href="/pricing">{t("Plans and pricing")}</Link>
+            </div>
           </section>
 
           <section className="footer-section">
-            <h2>Resources</h2>
-            <Link href="/about">About Note2Tabs</Link>
-            <Link href="/features">Guitar tab editor features</Link>
-            <Link href="/blog">Guitar tab guides</Link>
-            <Link href="/audio-to-guitar-tab-converter">Audio to guitar tab converter</Link>
-            <Link href="/mp3-to-guitar-tabs">MP3 to guitar tabs</Link>
-            <Link href="/ai-guitar-tab-generator">AI guitar tab generator</Link>
-            <Link href="/youtube-to-guitar-tabs">YouTube to guitar tabs</Link>
-            <Link href="/free-guitar-tab-maker">Free tab maker</Link>
+            <h2>{t("Resources")}</h2>
+            <div className="footer-section-links">
+              <Link href="/about">{t("About Note2Tabs")}</Link>
+              <Link href="/features">{t("Guitar tab editor features")}</Link>
+              <Link href="/blog">{t("Guitar tab guides")}</Link>
+              <Link href="/audio-to-guitar-tab-converter">{t("Audio to guitar tab converter")}</Link>
+              <Link href="/mp3-to-guitar-tabs">{t("MP3 to guitar tabs")}</Link>
+              <Link href="/ai-guitar-tab-generator">{t("AI guitar tab generator")}</Link>
+              <Link href="/youtube-to-guitar-tabs">{t("YouTube to guitar tabs")}</Link>
+              <Link href="/free-guitar-tab-maker">{t("Free tab maker")}</Link>
+            </div>
           </section>
         </div>
       </div>

@@ -1,10 +1,12 @@
-import type { GetServerSideProps } from "next";
-import Link from "next/link";
+import { useLocale } from "../../../lib/i18n/react";
+import type { GetStaticPaths, GetStaticProps } from "next";
+import Link from "../../../components/LocaleLink";
 import { prisma } from "../../../lib/prisma";
 import { withPrismaReadRetry } from "../../../lib/prismaRetry";
 import { estimateReadingTime, getPublishedWhere } from "../../../lib/blog";
 import BlogPostCard from "../../../components/blog/BlogPostCard";
 import SeoHead, { absoluteUrl } from "../../../components/SeoHead";
+import { shouldIndexBlogArchive } from "../../../lib/blogIndexPolicy";
 
 type ClusterPageProps = {
   cluster: { name: string; slug: string; description: string | null };
@@ -28,7 +30,8 @@ type ClusterPageProps = {
 };
 
 export default function BlogClusterPage({ cluster, pillarPost, supportingPosts }: ClusterPageProps) {
-  const description = cluster.description || `Explore the ${cluster.name} topic cluster.`;
+  const { t } = useLocale();
+  const description = cluster.description || t("Explore the {name} topic cluster.", {name: t(cluster.name)});
   const canonicalPath = `/blog/cluster/${cluster.slug}`;
   const jsonLd = {
     "@context": "https://schema.org",
@@ -58,40 +61,38 @@ export default function BlogClusterPage({ cluster, pillarPost, supportingPosts }
   return (
     <main className="page blog-page">
       <SeoHead
-        title={`${cluster.name} Topic Hub | Note2Tabs Blog`}
+        title={t("{name} Topic Hub | Note2Tabs Blog", {name: t(cluster.name)})}
         description={description}
         canonicalPath={canonicalPath}
-        noindex={!pillarPost && supportingPosts.length === 0}
+        noindex={!shouldIndexBlogArchive("cluster", cluster.slug)}
         jsonLd={jsonLd}
       />
       <div className="container stack">
         <header className="blog-hero blog-hero--compact">
           <div className="blog-hero-copy">
             <p className="blog-breadcrumb">
-              <Link href="/blog">Blog</Link> <span>/</span> Cluster
-            </p>
-            <h1 className="page-title">{cluster.name}</h1>
+              <Link href="/blog">{t("Blog")}</Link> <span>{t("/")}</span> {t(" Cluster")}</p>
+            <h1 className="page-title">{t(cluster.name)}</h1>
             <p className="page-subtitle">
-              {cluster.description || "Topic cluster map with pillar and supporting guides."}
+              {t(cluster.description || "Topic cluster map with pillar and supporting guides.")}
             </p>
           </div>
           <div className="blog-hero-actions">
             <div className="blog-hero-metrics">
-              {pillarPost && <span>1 pillar guide</span>}
-              <span>{supportingPosts.length} supporting guides</span>
+              {pillarPost && <span>{t("1 pillar guide")}</span>}
+              <span>{supportingPosts.length} {t(" supporting guides")}</span>
             </div>
             <Link href="/blog" className="button-secondary button-small">
-              Back to blog
-            </Link>
+              {t("Back to blog")}</Link>
           </div>
         </header>
 
         {pillarPost && (
           <section className="blog-section blog-feature">
-            <h2 className="section-title">Pillar post</h2>
+            <h2 className="section-title">{t("Pillar post")}</h2>
             <BlogPostCard
               slug={pillarPost.slug}
-              title={pillarPost.title}
+              title={t(pillarPost.title)}
               excerpt={pillarPost.excerpt}
               coverImageUrl={pillarPost.coverImageUrl}
               publishedAt={pillarPost.publishedAt}
@@ -101,9 +102,9 @@ export default function BlogClusterPage({ cluster, pillarPost, supportingPosts }
         )}
 
         <section className="blog-section">
-          <h2 className="section-title">Supporting posts</h2>
+          <h2 className="section-title">{t("Supporting posts")}</h2>
           {supportingPosts.length === 0 && (
-            <div className="blog-empty">No supporting posts in this cluster yet.</div>
+            <div className="blog-empty">{t("No supporting posts in this cluster yet.")}</div>
           )}
           <div className="blog-grid">
             {supportingPosts.map((post) => (
@@ -124,7 +125,9 @@ export default function BlogClusterPage({ cluster, pillarPost, supportingPosts }
   );
 }
 
-export const getServerSideProps: GetServerSideProps<ClusterPageProps> = async (ctx) => {
+export const getStaticPaths: GetStaticPaths = async () => ({ paths: [], fallback: "blocking" });
+
+export const getStaticProps: GetStaticProps<ClusterPageProps> = async (ctx) => {
   const slug = ctx.params?.slug as string;
   const cluster = await withPrismaReadRetry(() => prisma.topicCluster.findUnique({
     where: { slug },
@@ -133,7 +136,6 @@ export const getServerSideProps: GetServerSideProps<ClusterPageProps> = async (c
   if (!cluster) {
     return { notFound: true };
   }
-  ctx.res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=3600");
 
   const postsRaw = await withPrismaReadRetry(() => prisma.post.findMany({
     where: {
@@ -144,6 +146,7 @@ export const getServerSideProps: GetServerSideProps<ClusterPageProps> = async (c
     select: {
       id: true,
       title: true,
+        updatedAt: true,
       slug: true,
       excerpt: true,
       content: true,
@@ -170,6 +173,7 @@ export const getServerSideProps: GetServerSideProps<ClusterPageProps> = async (c
         ? {
             id: pillar.id,
             title: pillar.title,
+            updatedAt: pillar.updatedAt.toISOString(),
             slug: pillar.slug,
             excerpt: pillar.excerpt,
             coverImageUrl: pillar.coverImageUrl,
@@ -181,6 +185,7 @@ export const getServerSideProps: GetServerSideProps<ClusterPageProps> = async (c
         .map((post) => ({
           id: post.id,
           title: post.title,
+    updatedAt: post.updatedAt.toISOString(),
           slug: post.slug,
           excerpt: post.excerpt,
           readingMinutes: estimateReadingTime(post.content || "").minutes,
@@ -188,5 +193,6 @@ export const getServerSideProps: GetServerSideProps<ClusterPageProps> = async (c
           publishedAt: post.publishedAt ? post.publishedAt.toISOString() : null,
         })),
     },
+    revalidate: 3600,
   };
 };

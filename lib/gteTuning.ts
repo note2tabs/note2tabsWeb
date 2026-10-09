@@ -16,6 +16,10 @@ export const TUNING_PRESETS: TuningPreset[] = [
   { id: "dadgad", label: "DADGAD", openStringMidi: [62, 57, 55, 50, 45, 38] },
   { id: "open-g", label: "Open G", openStringMidi: [62, 59, 55, 50, 43, 38] },
 ];
+export const BASS_TUNING_PRESETS: TuningPreset[] = [
+  { id: "bass-standard", label: "Standard", openStringMidi: [43, 38, 33, 28] },
+  { id: "bass-drop-d", label: "Drop D", openStringMidi: [43, 38, 33, 26] },
+];
 const NOTE_NAMES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"] as const;
 const DEFAULT_TUNING_ID = "standard";
 export const TUNING_STRING_LABELS: Record<string, string[]> = {
@@ -24,10 +28,18 @@ export const TUNING_STRING_LABELS: Record<string, string[]> = {
   "half-step-down": ["Eb", "Bb", "Gb", "Db", "Ab", "Eb"],
   dadgad: ["D", "A", "G", "D", "A", "D"],
   "open-g": ["D", "B", "G", "D", "G", "D"],
+  "bass-standard": ["G", "D", "A", "E"],
+  "bass-drop-d": ["G", "D", "A", "D"],
 };
 
 export const getTuningPreset = (presetId: string | undefined) =>
-  TUNING_PRESETS.find((preset) => preset.id === presetId) || TUNING_PRESETS[0];
+  [...TUNING_PRESETS, ...BASS_TUNING_PRESETS].find((preset) => preset.id === presetId) || TUNING_PRESETS[0];
+
+export const isBassSnapshot = (snapshot: Pick<EditorSnapshot, "trackType" | "editorType" | "type">) =>
+  String(snapshot.trackType || snapshot.editorType || snapshot.type || "").toLowerCase() === "bass";
+
+export const getTuningPresetsForSnapshot = (snapshot: Pick<EditorSnapshot, "trackType" | "editorType" | "type">) =>
+  isBassSnapshot(snapshot) ? BASS_TUNING_PRESETS : TUNING_PRESETS;
 
 export const normalizeCapo = (value: unknown) => {
   const parsed = Math.round(Number(value));
@@ -69,12 +81,15 @@ export const getAllTabsForMidi = (
 };
 
 const resolvePlayableMidi = (
-  snapshot: Pick<EditorSnapshot, "tuning" | "maxFret">,
+  snapshot: Pick<EditorSnapshot, "tuning" | "maxFret" | "trackType" | "editorType" | "type">,
   midi: number
 ) => {
   const safeMidi = Math.round(Number(midi));
   if (!Number.isFinite(safeMidi)) return null;
-  for (const candidate of [safeMidi, safeMidi + 12, safeMidi - 12]) {
+  // Bass imports and tuning changes must preserve concert pitch. Guitar's
+  // historical octave fallback remains unchanged for backwards compatibility.
+  const candidates = isBassSnapshot(snapshot) ? [safeMidi] : [safeMidi, safeMidi + 12, safeMidi - 12];
+  for (const candidate of candidates) {
     const tabs = getAllTabsForMidi(snapshot, candidate);
     if (tabs.length) return { midi: candidate, tabs };
   }
@@ -89,7 +104,7 @@ const getCutCoordAtTime = (snapshot: Pick<EditorSnapshot, "cutPositionsWithCoord
   const hit = cuts.find((entry) => roundedTime >= entry[0]?.[0] && roundedTime < entry[0]?.[1]);
   const tab = hit?.[1] ?? fallback;
   return [
-    Math.max(0, Math.min(5, Math.round(Number(tab[0]) || 0))),
+    Math.max(0, Math.round(Number(tab[0]) || 0)),
     Math.max(0, Math.min(getMaxFretFromSnapshot(snapshot), Math.round(Number(tab[1]) || 0))),
   ] as [number, number];
 };
@@ -250,16 +265,16 @@ export const getOpenStringMidiFromSnapshot = (
   const capo = normalizeCapo(snapshot.tuning?.capo);
   if (
     Array.isArray(snapshot.tuning?.openStringMidi) &&
-    snapshot.tuning.openStringMidi.length >= 6 &&
+    snapshot.tuning.openStringMidi.length >= 4 &&
     snapshot.tuning.openStringMidi.every((value) => Number.isFinite(Number(value)))
   ) {
     const fallbackCapo = normalizeCapo(snapshot.tuning?.capo);
     return snapshot.tuning.openStringMidi
-      .slice(0, 6)
+      .slice(0, snapshot.tuning.openStringMidi.length)
       .map((value) => Math.round(Number(value)) + fallbackCapo);
   }
-  if (preset?.openStringMidi?.length >= 6) {
-    return preset.openStringMidi.slice(0, 6).map((value) => Math.round(Number(value)) + capo);
+  if (preset?.openStringMidi?.length >= 4) {
+    return preset.openStringMidi.map((value) => Math.round(Number(value)) + capo);
   }
   return [...TUNING_PRESETS[0].openStringMidi];
 };
@@ -274,7 +289,7 @@ export const getStringLabelFromMidi = (midi: number) => {
 export const getStringLabelsForSnapshot = (snapshot: Pick<EditorSnapshot, "tuning">) => {
   const presetId = snapshot.tuning?.presetId || DEFAULT_TUNING_ID;
   const baseLabels = TUNING_STRING_LABELS[presetId];
-  if (Array.isArray(baseLabels) && baseLabels.length === 6) {
+  if (Array.isArray(baseLabels) && baseLabels.length >= 4) {
     // Labels are anchored to the selected tuning preset and are intentionally
     // not transposed from previous state/capo display to avoid cumulative drift.
     return [...baseLabels];

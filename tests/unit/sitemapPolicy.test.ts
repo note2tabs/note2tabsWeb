@@ -13,6 +13,11 @@ describe("sitemap indexing policy", () => {
     expect(sitemapSource).not.toContain('"/online-guitar-tab-editor"');
   });
 
+  it("advertises the current material homepage and editor updates", () => {
+    expect(sitemapSource).toContain('["/", "2026-09-25"]');
+    expect(sitemapSource).toContain('["/editor", "2026-09-25"]');
+  });
+
   it("submits published articles without taxonomy archive crawl noise", () => {
     expect(sitemapSource).toContain("prisma.post.findMany");
     expect(sitemapSource).not.toContain("prisma.category.findMany");

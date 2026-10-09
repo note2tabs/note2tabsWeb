@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { PremiumOfferVariant } from "./premiumOfferExperiment";
+import { premiumTrialPresentationEnabled } from "./subscriptionPlans";
 
 export type PremiumOfferEligibility = "unknown" | "eligible" | "ineligible";
 
@@ -7,7 +8,7 @@ export function usePremiumOfferEligibility(enabled: boolean): PremiumOfferEligib
   const [eligibility, setEligibility] = useState<PremiumOfferEligibility>("unknown");
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || !premiumTrialPresentationEnabled()) {
       setEligibility("unknown");
       return;
     }
@@ -42,6 +43,7 @@ export function premiumOfferCtaLabel(
   fallback = "Get Premium",
   variant: PremiumOfferVariant = "control"
 ) {
+  if (!premiumTrialPresentationEnabled()) return fallback;
   if (eligibility !== "eligible") return fallback;
   return variant === "value_framing"
     ? "Try Premium free for 7 days"
@@ -50,13 +52,15 @@ export function premiumOfferCtaLabel(
 
 export function premiumOfferReassurance(
   eligibility: PremiumOfferEligibility,
-  variant: PremiumOfferVariant = "control"
+  variant: PremiumOfferVariant = "control",
+  monthlyPrice = "$5.99"
 ) {
+  if (!premiumTrialPresentationEnabled()) return `${monthlyPrice} billed today · Cancel anytime`;
   if (eligibility === "eligible") {
     return variant === "value_framing"
-      ? "7 days free, then $5.99/month · Cancel anytime"
-      : "$5.99/month after trial · Cancel anytime";
+      ? `7 days free, then ${monthlyPrice}/month · Cancel anytime`
+      : `${monthlyPrice}/month after trial · Cancel anytime`;
   }
-  if (eligibility === "ineligible") return "$5.99/month · Cancel anytime";
+  if (eligibility === "ineligible") return `${monthlyPrice}/month · Cancel anytime`;
   return "7-day trial for eligible new subscribers · Cancel anytime";
 }

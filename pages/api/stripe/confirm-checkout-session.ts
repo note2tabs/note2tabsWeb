@@ -9,7 +9,7 @@ import {
   stripeCheckoutPlan,
   stripeSubscriptionPlan,
 } from "../../../lib/stripePremium";
-import { PLAN_CATALOG } from "../../../lib/subscriptionPlans";
+import { PLAN_CATALOG, isPaidPlan } from "../../../lib/subscriptionPlans";
 
 const CONFIRMABLE_SUBSCRIPTION_STATUSES = new Set<Stripe.Subscription.Status>([
   "active",
@@ -114,13 +114,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const definition = PLAN_CATALOG[subscriptionPlan];
+    const hasConsistentPaidEntitlement =
+      user.role === "PREMIUM" && isPaidPlan(user.subscriptionPlan);
     const isUpgrade = subscriptionPlan === "PRO" && user.subscriptionPlan !== "PRO";
-    const tokensRemaining = user.role !== "PREMIUM"
-      ? definition.monthlyCredits
-      : capCreditBalance(
+    const tokensRemaining = hasConsistentPaidEntitlement
+      ? capCreditBalance(
           isUpgrade ? Math.max(user.tokensRemaining, definition.monthlyCredits) : user.tokensRemaining,
           definition.rolloverCap
-        );
+        )
+      : definition.monthlyCredits;
     await prisma.user.update({
       where: { id: user.id },
       data: { role: "PREMIUM", subscriptionPlan, tokensRemaining },

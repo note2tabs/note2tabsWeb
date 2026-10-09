@@ -1,3 +1,5 @@
+import {localeCohort} from "../../../lib/i18n/locale";
+import { normalizeLocale } from "../../../lib/i18n/locale";
 import type { NextApiRequest, NextApiResponse } from "next";
 import type Stripe from "stripe";
 import { stripeClient } from "../../../lib/stripe";
@@ -16,10 +18,15 @@ import {
   stripeSubscriptionMatchesPremium,
   type StripePremiumConfig,
 } from "../../../lib/stripePremium";
-import { PLAN_CATALOG, type PaidSubscriptionPlan } from "../../../lib/subscriptionPlans";
+import {
+  PLAN_CATALOG,
+  isPaidPlan,
+  type PaidSubscriptionPlan,
+} from "../../../lib/subscriptionPlans";
 import {
   createPostHogServerClient,
   flushPostHogServerClientInBackground,
+  stablePostHogEventUuid,
 } from "../../../lib/posthogServer";
 import {
   normalizePremiumFunnelId,
@@ -174,7 +181,12 @@ async function setPremiumForIdentifier(identifier: UserIdentifier, plan: PaidSub
   if (user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD") {
     return null;
   }
-  const isAlreadyPaid = user.role === "PREMIUM";
+  // A paid role on its own is not a complete activation. In particular, an
+  // interrupted/racing entitlement update can leave the user with PREMIUM as
+  // their role while their persisted plan and balance are still FREE. Treating
+  // that state as an existing subscription would preserve the 10-credit free
+  // balance instead of granting the plan allocation.
+  const isAlreadyPaid = user.role === "PREMIUM" && isPaidPlan(user.subscriptionPlan);
   const definition = PLAN_CATALOG[plan];
   const tokensRemaining =
     !isAlreadyPaid
@@ -196,7 +208,12 @@ async function setPremiumForIdentifier(identifier: UserIdentifier, plan: PaidSub
   return user.id;
 }
 
-function trackSubscriptionStarted(userId: string, session: Stripe.Checkout.Session, plan: PaidSubscriptionPlan) {
+function trackSubscriptionStarted(
+  userId: string,
+  session: Stripe.Checkout.Session,
+  plan: PaidSubscriptionPlan,
+  stripeEventId: string
+) {
   const client = createPostHogServerClient();
   if (!client) return;
   const funnelId =
@@ -210,14 +227,22 @@ function trackSubscriptionStarted(userId: string, session: Stripe.Checkout.Sessi
   client.capture({
     distinctId: userId,
     event: "subscription_started",
+    uuid: stablePostHogEventUuid(`subscription-started:${session.id}`),
     properties: {
+      environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "development",
       plan: PLAN_CATALOG[plan].analyticsId,
       source: normalizePremiumFunnelSource(session.metadata?.premiumFunnelSource),
+      ...localeCohort(normalizeLocale(session.metadata?.note2tabsLocale), session.metadata?.note2tabsVisitorCountry),
+      device_type: session.metadata?.note2tabsDeviceType,
       reason: normalizePremiumFunnelReason(session.metadata?.premiumFunnelReason),
       funnel_id: funnelId || undefined,
       trial_included: session.metadata?.premiumTrialIncluded === "true",
       offer_variant: normalizePremiumOfferVariant(session.metadata?.premiumOfferVariant),
       model,
+      checkout_session_id: session.id,
+      checkout_attempt_id: session.metadata?.note2tabsCheckoutAttemptId || undefined,
+      stripe_event_id: stripeEventId,
+      ...checkoutCurrencyProperties(session),
       event_source: "stripe_webhook",
       $insert_id: `subscription-started:${session.id}`,
     },
@@ -230,6 +255,7 @@ type SubscriptionLifecycleEvent =
   | "subscription_cancellation_reversed"
   | "subscription_ended"
   | "subscription_payment_failed"
+  | "subscription_payment_succeeded"
   | "subscription_renewed"
   | "subscription_trial_reminder_sent"
   | "subscription_trial_started_notice_sent"
@@ -276,10 +302,105 @@ function trackSubscriptionLifecycle(
     distinctId: userId,
     event: lifecycleEvent,
     properties: {
+      environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "development",
       plan: "premium_monthly",
       event_source: "stripe_webhook",
       ...properties,
       $insert_id: `${lifecycleEvent}:${stripeEventId}`,
+    },
+  });
+  flushPostHogServerClientInBackground(client);
+}
+
+type SafePaymentFailure = {
+  failure_code?: string;
+  decline_code?: string;
+  failure_type?: string;
+};
+
+function safePaymentFailure(error: Stripe.PaymentIntent.LastPaymentError | null | undefined): SafePaymentFailure {
+  if (!error) return {};
+  return {
+    failure_code: typeof error.code === "string" ? error.code : undefined,
+    decline_code: "decline_code" in error && typeof error.decline_code === "string"
+      ? error.decline_code
+      : undefined,
+    failure_type: typeof error.type === "string" ? error.type : undefined,
+  };
+}
+
+async function paymentFailureForReference(
+  paymentIntent: string | Stripe.PaymentIntent | null | undefined
+): Promise<SafePaymentFailure> {
+  if (!paymentIntent) return {};
+  try {
+    const intent = typeof paymentIntent === "string"
+      ? await stripeClient!.paymentIntents.retrieve(paymentIntent)
+      : paymentIntent;
+    return safePaymentFailure(intent.last_payment_error);
+  } catch (error) {
+    console.error("Stripe payment failure lookup failed", error);
+    return {};
+  }
+}
+
+function checkoutAnalyticsPlan(session: Stripe.Checkout.Session) {
+  const rawPlan = session.metadata?.note2tabsPlan?.toLowerCase();
+  const interval = session.metadata?.note2tabsBillingInterval === "yearly" ? "yearly" : "monthly";
+  return rawPlan === "pro" || rawPlan === "premium" ? `${rawPlan}_${interval}` : undefined;
+}
+
+function checkoutCurrencyProperties(session: Stripe.Checkout.Session) {
+  const localizedSession = session as Stripe.Checkout.Session & {
+    adaptive_pricing?: { enabled?: boolean } | null;
+    presentment_details?: { presentment_currency?: string } | null;
+  };
+  return {
+    checkout_currency: session.currency || undefined,
+    presentment_currency: localizedSession.presentment_details?.presentment_currency || undefined,
+    adaptive_pricing_enabled: localizedSession.adaptive_pricing?.enabled === true,
+  };
+}
+
+async function trackCheckoutLifecycle(
+  session: Stripe.Checkout.Session,
+  event: "checkout_abandoned" | "checkout_payment_failed",
+  stripeEventId: string,
+  additionalProperties: SafePaymentFailure = {}
+) {
+  const identifier = await resolveUserIdentifierFromCheckoutSession(session);
+  const distinctId = identifier && "id" in identifier
+    ? identifier.id
+    : identifier && "email" in identifier
+      ? await resolveUserIdFromEmail(identifier.email)
+      : null;
+  if (!distinctId) return;
+  const client = createPostHogServerClient();
+  if (!client) return;
+  client.capture({
+    distinctId,
+    event,
+    properties: {
+      environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "development",
+      checkout_session_id: session.id,
+      checkout_attempt_id: session.metadata?.note2tabsCheckoutAttemptId || undefined,
+      plan: checkoutAnalyticsPlan(session),
+      billing_interval: session.metadata?.note2tabsBillingInterval || undefined,
+      site_display_currency: session.metadata?.note2tabsDisplayCurrency || undefined,
+      source: normalizePremiumFunnelSource(session.metadata?.premiumFunnelSource),
+      ...localeCohort(normalizeLocale(session.metadata?.note2tabsLocale), session.metadata?.note2tabsVisitorCountry),
+      device_type: session.metadata?.note2tabsDeviceType,
+      reason: normalizePremiumFunnelReason(session.metadata?.premiumFunnelReason),
+      funnel_id: normalizePremiumFunnelId(session.metadata?.premiumFunnelId) || undefined,
+      checkout_status: session.status || undefined,
+      payment_status: session.payment_status || undefined,
+      ...checkoutCurrencyProperties(session),
+      event_source: "stripe_webhook",
+      ...additionalProperties,
+      $insert_id: event === "checkout_payment_failed"
+        ? `checkout-payment-failed:${session.id}`
+        : `checkout-abandoned:${session.id}`,
+      stripe_event_id: stripeEventId,
     },
   });
   flushPostHogServerClientInBackground(client);
@@ -439,6 +560,30 @@ function checkoutPromotionCodeId(session: Stripe.Checkout.Session) {
     if (typeof promotionCode?.id === "string") return promotionCode.id;
   }
   return null;
+}
+
+async function cardFreeSchoolAccessMonths(session: Stripe.Checkout.Session) {
+  if (!stripeClient || session.metadata?.note2tabsSchoolCheckout !== "true") return null;
+  const expanded = await stripeClient.checkout.sessions.retrieve(session.id, {
+    expand: ["total_details.breakdown.discounts.discount.promotion_code"],
+  });
+  const promotionId = checkoutPromotionCodeId(expanded);
+  if (!promotionId) return null;
+  const promotion = await stripeClient.promotionCodes.retrieve(promotionId, { expand: ["coupon"] });
+  const coupon = typeof promotion.coupon === "string" ? null : promotion.coupon;
+  const approved =
+    promotion.active &&
+    (promotion.metadata?.note2tabsCardFreeSchoolAccess === "true" ||
+      coupon?.metadata?.note2tabsCardFreeSchoolAccess === "true") &&
+    coupon?.valid &&
+    coupon.percent_off === 100 &&
+    coupon.duration === "repeating";
+  const months = Number(
+    promotion.metadata?.note2tabsSchoolAccessMonths ||
+    coupon?.metadata?.note2tabsSchoolAccessMonths ||
+    coupon?.duration_in_months
+  );
+  return approved && Number.isInteger(months) && months >= 1 && months <= 24 ? months : null;
 }
 
 async function persistAffiliateAttribution(
@@ -829,17 +974,65 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    if (event.type === "checkout.session.expired") {
+      const checkoutSession = event.data.object as Stripe.Checkout.Session;
+      if (checkoutSession.metadata?.userId && checkoutSession.metadata?.note2tabsPlan) {
+        await trackCheckoutLifecycle(checkoutSession, "checkout_abandoned", event.id);
+      }
+    }
+
+    if (event.type === "checkout.session.async_payment_failed") {
+      const checkoutSession = event.data.object as Stripe.Checkout.Session;
+      if (checkoutSession.metadata?.userId && checkoutSession.metadata?.note2tabsPlan) {
+        const failure = await paymentFailureForReference(checkoutSession.payment_intent);
+        await trackCheckoutLifecycle(checkoutSession, "checkout_payment_failed", event.id, failure);
+      }
+    }
+
+    if (event.type === "payment_intent.payment_failed") {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+      const sessions = await stripeClient.checkout.sessions.list({
+        payment_intent: paymentIntent.id,
+        limit: 1,
+      });
+      const checkoutSession = sessions.data[0];
+      if (checkoutSession?.metadata?.userId && checkoutSession.metadata?.note2tabsPlan) {
+        await trackCheckoutLifecycle(
+          checkoutSession,
+          "checkout_payment_failed",
+          event.id,
+          safePaymentFailure(paymentIntent.last_payment_error)
+        );
+      }
+    }
+
     if (event.type === "checkout.session.completed") {
       const checkoutSession = event.data.object as Stripe.Checkout.Session;
       const plan = await paidPlanForCheckoutSession(checkoutSession);
       if (!plan) {
         return res.status(200).json({ received: true, ignored: "unrelated_checkout" });
       }
+      if (checkoutSession.metadata?.note2tabsSchoolCheckout === "true") {
+        const months = await cardFreeSchoolAccessMonths(checkoutSession);
+        if (months && typeof checkoutSession.subscription === "string") {
+          const subscription = await stripeClient.subscriptions.retrieve(checkoutSession.subscription);
+          const end = new Date(subscription.current_period_start * 1000);
+          end.setUTCMonth(end.getUTCMonth() + months);
+          await stripeClient.subscriptions.update(subscription.id, {
+            cancel_at: Math.floor(end.getTime() / 1000),
+            metadata: {
+              ...subscription.metadata,
+              note2tabsCardFreeSchoolAccess: "true",
+              note2tabsSchoolAccessMonths: String(months),
+            },
+          });
+        }
+      }
       const identifier = await resolveUserIdentifierFromCheckoutSession(checkoutSession);
       if (identifier) {
         const userId = await setPremiumForIdentifier(identifier, plan);
         if (userId) {
-          trackSubscriptionStarted(userId, checkoutSession, plan);
+          trackSubscriptionStarted(userId, checkoutSession, plan, event.id);
           await persistAffiliateAttribution(checkoutSession, userId);
           if (plan === "PREMIUM" && checkoutSession.metadata?.premiumTrialIncluded === "true") {
             await trackAffiliateTrialStarted(userId, checkoutSession);
@@ -973,6 +1166,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           : null;
       if (!identifier) return res.status(200).json({ received: true, ignored: "user_not_found" });
       const isRenewal = invoice.billing_reason === "subscription_cycle";
+      if (userId && invoice.amount_paid > 0) {
+        trackSubscriptionLifecycle(userId, "subscription_payment_succeeded", event.id, {
+          ...localeCohort(normalizeLocale(premiumSubscription.metadata?.note2tabsLocale), premiumSubscription.metadata?.note2tabsVisitorCountry),
+          device_type: premiumSubscription.metadata?.note2tabsDeviceType,
+          billing_interval: premiumSubscription.metadata?.note2tabsBillingInterval,
+          plan: PLAN_CATALOG[plan].analyticsId,
+          amount_paid_minor: invoice.amount_paid,
+          currency: invoice.currency,
+          billing_reason: invoice.billing_reason,
+          stripe_invoice_id: invoice.id,
+          is_renewal: isRenewal,
+        });
+      }
       await createAffiliateCommission(invoice, premiumSubscription);
       if (userId) await trackAffiliatePayment(invoice, premiumSubscription, userId, isRenewal);
       if (isRenewal) {
@@ -1028,11 +1234,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         normalizeEmail(invoice.customer_email) || (await resolveEmailFromCustomerRef(invoice.customer));
       const userId = await resolveUserIdFromSubscription(premiumSubscription, email);
       if (userId) {
+        const failure = await paymentFailureForReference(invoice.payment_intent);
         trackSubscriptionLifecycle(userId, "subscription_payment_failed", event.id, {
           status: premiumSubscription.status,
           attempt_count: invoice.attempt_count || 0,
           billing_reason: invoice.billing_reason || undefined,
           plan: PLAN_CATALOG[plan].analyticsId,
+          ...failure,
         });
         if (email && invoice.id) {
           await sendPaymentFailedNotice(

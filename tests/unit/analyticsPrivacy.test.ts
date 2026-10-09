@@ -96,6 +96,9 @@ describe("analytics privacy sanitization", () => {
       "Insufficient credits",
       "AbortError: user cancelled",
       "Failed to fetch while offline",
+      "Load failed",
+      "TypeError: Load failed",
+      "ResizeObserver loop limit exceeded",
     ]) {
       expect(classifyPostHogException([{ type: "Error", value: message }])).toEqual({
         alertEligible: false,
@@ -105,6 +108,80 @@ describe("analytics privacy sanitization", () => {
     expect(classifyPostHogException([{ type: "TypeError", value: "Cannot read properties of undefined" }])).toEqual({
       alertEligible: true,
       classification: "unexpected_application_error",
+    });
+  });
+
+  it("retains opaque cross-origin script errors without paging operators", () => {
+    for (const exception of [
+      { type: "Error", value: "Script error." },
+      {
+        type: "Error",
+        value: "Script error.",
+        mechanism: {
+          exception_id: 0,
+          handled: false,
+          synthetic: true,
+          type: "generic",
+        },
+      },
+    ]) {
+      expect(classifyPostHogException([exception])).toEqual({
+        alertEligible: false,
+        classification: "non_actionable_browser_error",
+      });
+    }
+  });
+
+  it("retains opaque short embedded-browser errors without paging operators", () => {
+    for (const value of ["L", "La", "  La  "]) {
+      expect(classifyPostHogException([{ type: "Error", value }])).toEqual({
+        alertEligible: false,
+        classification: "non_actionable_browser_error",
+      });
+    }
+
+    expect(classifyPostHogException([{ type: "TypeError", value: "La" }])).toEqual({
+      alertEligible: true,
+      classification: "unexpected_application_error",
+    });
+    expect(classifyPostHogException([{ type: "Error", value: "Lag" }])).toEqual({
+      alertEligible: true,
+      classification: "unexpected_application_error",
+    });
+  });
+
+  it("keeps real script failures alertable", () => {
+    expect(
+      classifyPostHogException([{ type: "TypeError", value: "Script error while saving tab" }])
+    ).toEqual({
+      alertEligible: true,
+      classification: "unexpected_application_error",
+    });
+  });
+
+  it("does not page for injected Safari autofill extension failures", () => {
+    expect(
+      classifyPostHogException([
+        {
+          type: "TypeError",
+          value:
+            'undefined is not an object (evaluating \'(yield this.sendExtensionMessage("getUrlAutofillTargetingRules")).result\')',
+        },
+      ])
+    ).toEqual({
+      alertEligible: false,
+      classification: "non_actionable_browser_error",
+    });
+  });
+
+  it("classifies stale deployment chunks as automatically recoverable", () => {
+    expect(
+      classifyPostHogException([
+        { type: "ChunkLoadError", value: "Loading chunk 123 failed" },
+      ])
+    ).toEqual({
+      alertEligible: false,
+      classification: "recoverable_stale_chunk",
     });
   });
 
@@ -152,5 +229,20 @@ describe("analytics privacy sanitization", () => {
     expect(categorizeAnalyticsError("opaque upstream customer text", "backend_failed")).toBe(
       "backend_failed"
     );
+  });
+
+  it("does not alert on Chromium extension message-bridge rejections", () => {
+    const classification = classifyPostHogException([
+      {
+        type: "UnhandledRejection",
+        value:
+          "Non-Error promise rejection captured with value: Object Not Found Matching Id:1, MethodName:update, ParamCount:4",
+      },
+    ]);
+
+    expect(classification).toEqual({
+      alertEligible: false,
+      classification: "non_actionable_browser_error",
+    });
   });
 });

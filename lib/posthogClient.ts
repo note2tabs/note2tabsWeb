@@ -1,3 +1,4 @@
+import { localeAnalytics, stripLocale } from "./i18n/locale";
 type PostHogClient = import("posthog-js").PostHog;
 type PostHogProperties = Record<string, unknown>;
 type PendingOperation = (client: PostHogClient) => void;
@@ -193,7 +194,7 @@ function sessionReplayIsEnabled() {
 }
 
 export function sessionReplayIsBlocked(url: string) {
-  const pathname = sanitizeAnalyticsPathname(url);
+  const pathname = stripLocale(sanitizeAnalyticsPathname(url));
   return SESSION_REPLAY_BLOCKED_ROUTES.some((pattern) => pattern.test(pathname));
 }
 
@@ -227,7 +228,7 @@ function enqueue(operation: PendingOperation) {
 
 export function capturePostHogEvent(event: string, properties?: PostHogProperties) {
   const sanitizedProperties = properties
-    ? sanitizeAnalyticsProperties(properties)
+    ? sanitizeAnalyticsProperties({...(typeof window !== "undefined" && window.location?.pathname ? localeAnalytics(window.location.pathname) : {}), ...properties})
     : undefined;
   enqueue((posthog) => posthog.capture(event, sanitizedProperties));
   schedulePostHogInit();

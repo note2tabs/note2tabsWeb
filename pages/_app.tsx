@@ -1,3 +1,7 @@
+import { stripLocale, localeFromPath } from "../lib/i18n/locale";
+import { translate } from "../lib/i18n/translate";
+import { DisplayCurrencyContext } from "../lib/useDisplayCurrency";
+import { LocaleProvider } from "../lib/i18n/react";
 import type { AppProps } from "next/app";
 import dynamic from "next/dynamic";
 import Head from "next/head";
@@ -11,8 +15,10 @@ import RouteLoadingIndicator from "../components/RouteLoadingIndicator";
 import PremiumUpgradePrompt from "../components/PremiumUpgradePrompt";
 import UserActivityTracker from "../components/UserActivityTracker";
 import AffiliateAttributionCapture from "../components/AffiliateAttributionCapture";
+import CheckoutCancellationTracker from "../components/CheckoutCancellationTracker";
 import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
 import { sanitizeAnalyticsPathname } from "../lib/analyticsPrivacy";
+import { installStaleChunkRecovery } from "../lib/staleChunkRecovery";
 import {
   sessionReplayIsBlocked,
   stopPostHogSessionRecording,
@@ -24,8 +30,17 @@ const AnalyticsIdentityLinker = dynamic(() => import("../components/AnalyticsIde
 
 export default function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps) {
   const router = useRouter();
-  const isGteEditorPage = router.pathname === "/gte/[editor_id]";
-  const isProductHomePage = router.pathname === "/home";
+  const isGteEditorPage =
+    router.pathname === "/gte/[editor_id]" || router.pathname === "/dev/heavy-preview-editor";
+  const isProductHomePage = stripLocale(router.pathname) === "/home" || stripLocale(router.pathname) === "/shared";
+
+  useEffect(() => {
+    return installStaleChunkRecovery(router.events, {
+      reportFailure: () => sendEvent(ANALYTICS_EVENTS.staleChunkRecoveryFailed, {
+        path: window.location.pathname,
+      }),
+    });
+  }, [router.events]);
 
   useEffect(() => {
     const trackPageView = (url?: string) => {
@@ -69,13 +84,13 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
   }, [router.events]);
 
   return (
-    <SessionProvider session={session} refetchInterval={0} refetchOnWindowFocus={false}>
+    <DisplayCurrencyContext.Provider value={pageProps.initialDisplayCurrency || "USD"}><LocaleProvider path={router.asPath}><SessionProvider session={session} refetchInterval={0} refetchOnWindowFocus={false}>
       <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
       <div className="app-shell">
         <RouteLoadingIndicator />
-        <a className="skip-link" href="#main-content">Skip to main content</a>
+        <a className="skip-link" href="#main-content">{translate("Skip to main content", localeFromPath(router.asPath))}</a>
         <NavBar editorRevealMode={isGteEditorPage} />
         <div
           id="main-content"
@@ -91,7 +106,8 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         <AnalyticsIdentityLinker />
         <PremiumUpgradePrompt />
         <AffiliateAttributionCapture />
+        <CheckoutCancellationTracker />
       </div>
-    </SessionProvider>
+    </SessionProvider></LocaleProvider></DisplayCurrencyContext.Provider>
   );
 }

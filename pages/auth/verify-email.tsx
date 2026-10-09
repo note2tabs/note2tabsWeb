@@ -1,12 +1,16 @@
-import Link from "next/link";
-import { useRouter } from "next/router";
+import { normalizeSafeReturnPath } from "../../lib/safeReturnPath";
+import { useLocale } from "../../lib/i18n/react";
+import Link from "../../components/LocaleLink";
+import { useLocaleRouter as useRouter } from "../../lib/i18n/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import NoIndexHead from "../../components/NoIndexHead";
+import { ANALYTICS_EVENTS, sendEvent } from "../../lib/analytics";
 
 type VerifyState = "idle" | "verifying" | "verified" | "error";
 
 export default function VerifyEmailPage() {
+  const { t, locale, href: localePath } = useLocale();
   const router = useRouter();
   const { update: updateSession } = useSession();
   const verifyRunRef = useRef(false);
@@ -30,13 +34,9 @@ export default function VerifyEmailPage() {
     return raw === "0" ? false : true;
   }, [router.query.sent]);
   const nextHref = useMemo(() => {
-    const raw = router.query.next;
-    const value = Array.isArray(raw) ? raw[0] : raw;
-    if (typeof value !== "string") return "/home";
-    const trimmed = value.trim();
-    if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return "/home";
-    return trimmed;
-  }, [router.query.next]);
+    const raw = Array.isArray(router.query.next) ? router.query.next[0] : router.query.next;
+    return localePath(normalizeSafeReturnPath(raw, locale !== "en" ? "/transcribe" : "/home"));
+  }, [router.query.next, locale, localePath]);
   const loginHref =
     nextHref === "/" ? "/auth/login" : `/auth/login?next=${encodeURIComponent(nextHref)}`;
 
@@ -53,16 +53,17 @@ export default function VerifyEmailPage() {
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          throw new Error(data?.error || "This verification link could not be confirmed. It may have expired; request a new email below.");
+          throw new Error(data?.error || t("This verification link could not be confirmed. It may have expired; request a new email below."));
         }
         const refreshedSession = await updateSession().catch(() => null);
+        sendEvent(ANALYTICS_EVENTS.emailVerified, { method: "email_link" });
         setVerifyState("verified");
         await router.replace(refreshedSession ? nextHref : loginHref);
       })
       .catch((err: any) => {
         setVerifyError(
           err?.message ||
-            "This verification link could not be confirmed. It may have expired; request a new email below."
+            t("This verification link could not be confirmed. It may have expired; request a new email below.")
         );
         setVerifyState("error");
       });
@@ -79,24 +80,25 @@ export default function VerifyEmailPage() {
         body: JSON.stringify({
           email: email || undefined,
           returnTo: nextHref,
+          locale,
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data?.error || "We could not send another verification email. Please try again shortly.");
+        throw new Error(data?.error || t("We could not send another verification email. Please try again shortly."));
       }
       if (data?.alreadyVerified) {
-        setResendMessage("Your email is already verified.");
+        setResendMessage(t("Your email is already verified."));
       } else if (data?.sent === false) {
         setResendMessage(
-          "We could not send the verification email right now. Please try again shortly or contact support."
+          t("We could not send the verification email right now. Please try again shortly or contact support.")
         );
       } else {
-        setResendMessage("Verification email sent. Please check your inbox.");
+        setResendMessage(t("Verification email sent. Please check your inbox."));
       }
     } catch (err: any) {
       setResendError(
-        err?.message || "We could not send another verification email. Check your connection and try again."
+        err?.message || t("We could not send another verification email. Check your connection and try again.")
       );
     } finally {
       setResendBusy(false);
@@ -105,39 +107,35 @@ export default function VerifyEmailPage() {
 
   return (
     <>
-      <NoIndexHead title="Verify your email | Note2Tabs" canonicalPath="/auth/verify-email" />
+      <NoIndexHead title={t("Verify your email | Note2Tabs")} canonicalPath="/auth/verify-email" />
     <main className="page page-tight">
       <div className="container">
         <div className="card auth-card auth-card--expanded stack">
           <div className="auth-card-header">
-            <h1 className="page-title">Verify your email</h1>
-            <p className="page-subtitle">
-              Email verification is required before you can use the transcriber.
-            </p>
-            {email && <p className="muted text-small">Verification address: {email}</p>}
+            <h1 className="page-title">{t("Verify your email")}</h1>
+            <p className="page-subtitle">{t(" Verify your email to start transcribing. Eligible accounts also unlock a one-time 30-second Heavy preview. ")}</p>
+            {email && <p className="muted text-small">{t("Verification address: ")}{email}</p>}
           </div>
 
-          {verifyState === "verifying" && <div className="notice">Verifying your email...</div>}
+          {verifyState === "verifying" && <div className="notice">{t("Verifying your email...")}</div>}
           {verifyState === "verified" && (
-            <div className="notice">Email verified. Taking you back to Note2Tabs…</div>
+            <div className="notice">{t("Email verified. Taking you back to Note2Tabs…")}</div>
           )}
           {verifyState === "error" && verifyError && <div className="error" role="alert">{verifyError}</div>}
 
           {!token && (
             <div className="notice">
               {sent
-                ? "We sent you a verification email. Click the link in that email to verify your account."
-                : "Your account was created, but we could not send the verification email. Try resending it below or contact support."}
+                ? t("We sent you a verification email. Click the link in that email to verify your account.")
+                : t("Your account was created, but we could not send the verification email. Try resending it below or contact support.")}
             </div>
           )}
 
           <div className="auth-links-row auth-links-row--center">
             <button type="button" className="button-secondary" onClick={() => void handleResend()} disabled={resendBusy}>
-              {resendBusy ? "Sending..." : "Resend verification email"}
+              {resendBusy ? t("Sending...") : t("Resend verification email")}
             </button>
-            <Link href={loginHref} className="button-primary">
-              Go to login
-            </Link>
+            <Link href={loginHref} className="button-primary">{t(" Go to login ")}</Link>
           </div>
           {resendMessage && <div className="notice" role="status">{resendMessage}</div>}
           {resendError && <div className="error" role="alert">{resendError}</div>}
