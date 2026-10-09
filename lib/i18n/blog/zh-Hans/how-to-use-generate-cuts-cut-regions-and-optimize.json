@@ -1,0 +1,9 @@
+{
+  "sourceUpdatedAt": "2026-07-28T17:23:26.641Z",
+  "sourceTitle": "How to Use Generate Cuts, Cut Regions, and Optimize in the Guitar Editor",
+  "title": "如何使用 Generate Cuts、Cut Regions 和 Optimize",
+  "excerpt": "通过分段、截取片段和优化指法，把生成的吉他六线谱整理成更容易编辑和练习的版本。",
+  "seoTitle": "如何使用 Generate Cuts、Cut Regions 和 Optimize · Note2Tabs",
+  "seoDescription": "通过分段、截取片段和优化指法，把生成的吉他六线谱整理成更容易编辑和练习的版本。",
+  "content": "`Generate Cuts` 用来划分歌曲，`Cut Regions` 用来截取编辑片段，`Optimize` 用来改善指板位置。[编辑器](/editor)中的操作名称仍为英文。\n\n## 为什么需要分段\n\n看着整首歌时，所有问题会同时出现。分成前奏、主歌、副歌和独奏后，就能专注于需要修改的部分。AI 结果在不同段落中也可能需要不同程度的修正。\n\n## Generate Cuts\n\n此功能建议段落边界和自然的分隔点。如果分隔点落在乐句中间，请移动它，并按需要拆分乐句。最终应通过聆听判断歌曲结构。自动生成分隔点需要先把项目保存到账号中。\n\n## Cut Regions\n\n截取难以理解的独奏或音符密集的小节，集中编辑。修正后的片段也可以用于循环练习。\n\n## Optimize\n\n如果乐句在指板上有很大的位置跳跃，此功能可以建议更容易演奏的布局。试听并实际弹奏，保留有所改善的结果。如果引入其他问题，再手动调整。\n\n## 建议流程\n\n1. 从音频或 YouTube 生成六线谱。\n2. 用 `Generate Cuts` 整理结构。\n3. 聆听并调整边界。\n4. 用 `Cut Regions` 截取需要的部分。\n5. 对难以演奏的部分使用 `Optimize`。\n6. 逐段播放并检查。\n\n这些操作适合重复段落、较长独奏，以及音符基本正确但指法别扭的结果。如果整体明显不对，先寻找更清晰的音源。\n\n## 常见问题\n\n### Generate Cuts 做什么？\n\n建议分隔点，方便你以较小的片段进行编辑。\n\n### Cut Regions 有什么用途？\n\n截取需要编辑、检查或练习的部分。\n\n### Optimize 有什么用途？\n\n帮助改善指板位置和指法。\n\n在 [Note2Tabs](/auth/signup) 中生成六线谱后，先用[编辑器](/editor)整理和修正，再开始练习。\n"
+}

@@ -1,6 +1,6 @@
 import type { AppLocale } from "../lib/i18n/locale";
 import { useLocale } from "../lib/i18n/react";
-import { isLocalizedPublicPath, localePrefix, localeHref, stripLocale, TRANSLATED_LOCALES } from "../lib/i18n/locale";
+import { isLocalizedPublicPath, localePrefix, localeHref, stripLocale, TRANSLATED_LOCALES, LOCALE_OPEN_GRAPH } from "../lib/i18n/locale";
 import { localizedPilotIndexable } from "../lib/i18n/pilot";
 import Head from "next/head";
 import { getConfiguredSiteUrl } from "../lib/siteUrl";
@@ -140,7 +140,7 @@ export default function SeoHead({
         {releasedLocales.map(target => <link key={`alternate-${target}`} rel="alternate" hrefLang={target} href={absoluteUrl(localeHref(sourcePath, target))} />)}
         <link key="alternate-default" rel="alternate" hrefLang="x-default" href={absoluteUrl(sourcePath)} />
       </>}
-      <meta property="og:locale" content={locale === "pt-BR" ? "pt_BR" : locale === "es" ? "es_ES" : locale === "ja" ? "ja_JP" : "en_US"} />
+      <meta property="og:locale" content={LOCALE_OPEN_GRAPH[locale]} />
       <meta key="robots" name="robots" content={noindex ? `noindex,${nofollow ? "nofollow" : "follow"}` : INDEX_ROBOTS_DIRECTIVE} />
       <meta key="googlebot" name="googlebot" content={noindex ? `noindex,${nofollow ? "nofollow" : "follow"}` : INDEX_ROBOTS_DIRECTIVE} />
       <meta key="og:title" property="og:title" content={title} />

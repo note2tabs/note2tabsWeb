@@ -1,4 +1,4 @@
-import { isLocalizedPublicPath, localeSwitchHref, stripLocale, type AppLocale } from "./locale";
+import { isLocalizedPublicPath, localeSwitchHref, stripLocale, localeReleaseSwitch, type AppLocale } from "./locale";
 import { displayCurrencyForCountry, readDisplayCurrencyCookie } from "../localizedPricing";
 import type { GetServerSideProps, GetServerSidePropsContext, GetStaticProps } from "next";
 
@@ -6,12 +6,12 @@ import type { GetServerSideProps, GetServerSidePropsContext, GetStaticProps } fr
 export function localizedPilotAvailable(locale: AppLocale) {
   if (locale === "en") return true;
   return process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" ||
-    (locale === "pt-BR" ? process.env.NEXT_PUBLIC_PT_BR_REVIEWED : locale === "es" ? process.env.NEXT_PUBLIC_ES_REVIEWED : process.env.NEXT_PUBLIC_JA_REVIEWED) !== "false";
+    localeReleaseSwitch(locale) !== "false";
 }
 export function localizedPilotIndexable(locale: AppLocale) {
   if (locale === "en") return true;
   const preview = typeof window === "undefined" ? process.env.VERCEL_ENV === "preview" : process.env.NEXT_PUBLIC_PT_BR_PREVIEW === "true";
-  return process.env.NODE_ENV === "production" && !preview && (locale === "pt-BR" ? process.env.NEXT_PUBLIC_PT_BR_REVIEWED : locale === "es" ? process.env.NEXT_PUBLIC_ES_REVIEWED : process.env.NEXT_PUBLIC_JA_REVIEWED) !== "false";
+  return process.env.NODE_ENV === "production" && !preview && localeReleaseSwitch(locale) !== "false";
 }
 export function withLocalizedPilot<P extends Record<string, unknown>>(
   locale: AppLocale, loader?: GetServerSideProps<P>

@@ -2,14 +2,14 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useRef } from "react";
 import { sendEvent } from "../lib/analytics";
-import { LOCALE_VERSION, localeSwitchHref, supportsLocalizedPath, localeEnabled, type AppLocale } from "../lib/i18n/locale";
+import { LOCALE_VERSION, localeSwitchHref, supportsLocalizedPath, localeEnabled, ALL_LOCALES, LOCALE_NAMES, LOCALE_LANGUAGE_LABELS, type AppLocale } from "../lib/i18n/locale";
 import { useLocale } from "../lib/i18n/react";
 
 export default function LanguageSelector() {
   const router = useRouter();
   const { locale } = useLocale();
   const menuRef = useRef<HTMLDetailsElement>(null);
-  const label = locale === "pt-BR" ? "Português (Brasil)" : locale === "es" ? "Español" : locale === "ja" ? "日本語" : "English";
+  const label = LOCALE_NAMES[locale];
 
   useEffect(() => {
     if (menuRef.current) menuRef.current.open = false;
@@ -23,7 +23,7 @@ export default function LanguageSelector() {
     return () => document.removeEventListener("pointerdown", closeOutside);
   }, []);
 
-  if ((!localeEnabled("pt-BR") && !localeEnabled("es") && !localeEnabled("ja")) || !supportsLocalizedPath(router.asPath)) return null;
+  if (!ALL_LOCALES.some(target => target !== "en" && localeEnabled(target)) || !supportsLocalizedPath(router.asPath)) return null;
   const select = (target: AppLocale) => {
     if (menuRef.current) menuRef.current.open = false;
     document.cookie = `n2t_locale=${target}; Path=/; Max-Age=2592000; SameSite=Lax`;
@@ -41,15 +41,15 @@ export default function LanguageSelector() {
       event.currentTarget.open = false;
       event.currentTarget.querySelector("summary")?.focus();
     }}>
-    <summary title={label} aria-label={`${locale === "ja" ? "言語" : locale !== "en" ? "Idioma" : "Language"}: ${label}`}>
+    <summary title={label} aria-label={`${LOCALE_LANGUAGE_LABELS[locale]}: ${label}`}>
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c5 5 5 13 0 18-5-5-5-13 0-18Z" /></svg>
-      <span>{locale === "pt-BR" ? "PT-BR" : locale === "es" ? "ES" : locale === "ja" ? "JA" : "EN"}</span>
+      <span>{locale === "zh-Hans" ? "ZH" : locale.toUpperCase()}</span>
       <svg className="language-selector__chevron" viewBox="0 0 12 12" aria-hidden="true"><path d="m3 4.5 3 3 3-3" /></svg>
     </summary>
-    <nav className="language-selector__options" aria-label={locale === "ja" ? "言語" : locale !== "en" ? "Idioma" : "Language"}>
-      {([['en', 'English'], ['pt-BR', 'Português (Brasil)'], ['es', 'Español'], ['ja', '日本語']] as const).filter(([target]) => localeEnabled(target)).map(([target, name]) =>
+    <nav className="language-selector__options" aria-label={LOCALE_LANGUAGE_LABELS[locale]}>
+      {ALL_LOCALES.filter(localeEnabled).map(target =>
         <Link key={target} href={localeSwitchHref(router.asPath, target)} hrefLang={target} lang={target}
-          aria-current={locale === target ? "true" : undefined} onClick={() => select(target)}>{name}</Link>)}
+          aria-current={locale === target ? "true" : undefined} onClick={() => select(target)} dir={target === "ar" ? "rtl" : "ltr"}>{LOCALE_NAMES[target]}</Link>)}
     </nav>
   </details>;
 }

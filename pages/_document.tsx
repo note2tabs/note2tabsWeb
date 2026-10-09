@@ -1,9 +1,9 @@
 import NextDocument, { Html, Head, Main, NextScript, type DocumentContext, type DocumentInitialProps } from "next/document";
-import { localeFromPath, type AppLocale } from "../lib/i18n/locale";
+import { localeFromPath, localeDirection, type AppLocale } from "../lib/i18n/locale";
 
 export default function Document({ contentLocale = "en" }: DocumentInitialProps & { contentLocale?: AppLocale }) {
   return (
-    <Html lang={contentLocale}>
+    <Html lang={contentLocale} dir={localeDirection(contentLocale)}>
       <Head>
         <meta name="google-adsense-account" content="ca-pub-3904018627841872" />
         <style

@@ -1,3 +1,4 @@
+import { additionalPosts } from "./additionalPosts";
 import { compilePostContent } from "../../blogContent";
 import { estimateReadingTime } from "../../blog";
 import { localeHref, type AppLocale } from "../locale";
@@ -166,7 +167,7 @@ export const japanesePosts = {
 };
 type Translation = typeof post0;
 export function articleTranslation(slug: string, updatedAt?: string, title?: string, locale: AppLocale = "pt-BR"): Translation | null {
- const row = ((locale === "ja" ? japanesePosts : locale === "es" ? spanishPosts : locale === "pt-BR" ? portuguesePosts : {}) as Record<string, Translation>)[slug];
+ const row = ((locale === "ja" ? japanesePosts : locale === "es" ? spanishPosts : locale === "pt-BR" ? portuguesePosts : locale in additionalPosts ? additionalPosts[locale as keyof typeof additionalPosts] : {}) as Record<string, Translation>)[slug];
  if (!row || (updatedAt && row.sourceUpdatedAt !== updatedAt) || (title && row.sourceTitle !== title)) return null;
  return row;
 }
@@ -199,7 +200,7 @@ export async function localizeBlogProps<P extends Record<string, unknown>>(props
 }
 
 import type { GetServerSideProps, GetStaticProps } from "next";
-import { withPortuguesePilot, withPortugueseStaticPage, withSpanishPilot, withSpanishStaticPage, withJapanesePilot, withJapaneseStaticPage } from "../pilot";
+import { withPortuguesePilot, withPortugueseStaticPage, withSpanishPilot, withSpanishStaticPage, withJapanesePilot, withJapaneseStaticPage, withLocalizedPilot, withLocalizedStaticPage } from "../pilot";
 export function withPortugueseBlogPage<P extends Record<string, unknown>>(loader: GetServerSideProps<P>): GetServerSideProps<P> {
  return withPortuguesePilot<P>(async ctx => {
   const result = await loader(ctx);
@@ -239,9 +240,22 @@ export function withJapaneseBlogStaticPage<P extends Record<string, unknown>>(lo
  });
 }
 
-/** Japanese is not space-delimited. Use a character-based estimate for its reading time. */
+/** Japanese and Simplified Chinese need a character-based reading estimate. */
 export function localizedReadingTime(content: string, locale: AppLocale) {
- if (locale !== "ja") return estimateReadingTime(content);
+ if (locale !== "ja" && locale !== "zh-Hans") return estimateReadingTime(content);
  const text = content.replace(/```[\s\S]*?```/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/https?:\/\/\S+/g, "").replace(/[\s#*_`>|-]/g, "");
- return {minutes: Math.max(1, Math.ceil(Array.from(text).length / 500)), words: Array.from(new Intl.Segmenter("ja", {granularity: "word"}).segment(text)).filter(part => part.isWordLike).length};
+ return {minutes: Math.max(1, Math.ceil(Array.from(text).length / 500)), words: Array.from(new Intl.Segmenter(locale, {granularity: "word"}).segment(text)).filter(part => part.isWordLike).length};
+}
+
+export function withLocalizedBlogPage<P extends Record<string, unknown>>(locale: AppLocale, loader: GetServerSideProps<P>): GetServerSideProps<P> {
+ return withLocalizedPilot<P>(locale, async ctx => {
+  const result = await loader(ctx);
+  return "props" in result ? {...result, props: await localizeBlogProps(await result.props, locale)} : result;
+ });
+}
+export function withLocalizedBlogStaticPage<P extends Record<string, unknown>>(locale: AppLocale, loader: GetStaticProps<P>): GetServerSideProps<P> {
+ return withLocalizedStaticPage<P>(locale, async ctx => {
+  const result = await loader(ctx);
+  return "props" in result ? {...result, props: await localizeBlogProps(await result.props, locale)} : result;
+ });
 }

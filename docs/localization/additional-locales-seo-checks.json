@@ -1,0 +1,2708 @@
+{
+  "checked_pages": 384,
+  "sitemap_entries": 384,
+  "pages": [
+    {
+      "path": "/",
+      "status": 200,
+      "lang": "en",
+      "title": "AI Guitar Tab Generator – Audio & YouTube to Tabs | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/"
+    },
+    {
+      "path": "/pt-br",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Gerador de tablaturas com IA — Áudio e YouTube | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br"
+    },
+    {
+      "path": "/es",
+      "status": 200,
+      "lang": "es",
+      "title": "Generador de tablaturas con IA – Audio y YouTube | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es"
+    },
+    {
+      "path": "/ja",
+      "status": 200,
+      "lang": "ja",
+      "title": "AIでギターTAB譜を自動作成 — 音源・YouTube | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja"
+    },
+    {
+      "path": "/ko",
+      "status": 200,
+      "lang": "ko",
+      "title": "AI 기타 타브 악보 생성기 – 오디오·YouTube 변환 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko"
+    },
+    {
+      "path": "/pl",
+      "status": 200,
+      "lang": "pl",
+      "title": "Generator tabulatur AI – audio i YouTube · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl"
+    },
+    {
+      "path": "/ar",
+      "status": 200,
+      "lang": "ar",
+      "title": "إنشاء تابلاتشر بالذكاء الاصطناعي من الصوت وYouTube · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar"
+    },
+    {
+      "path": "/zh-hans",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "AI 吉他六线谱生成器：音频与 YouTube 转谱 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans"
+    },
+    {
+      "path": "/pricing",
+      "status": 200,
+      "lang": "en",
+      "title": "Pricing | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pricing"
+    },
+    {
+      "path": "/pt-br/pricing",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Planos e preços | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/pricing"
+    },
+    {
+      "path": "/es/pricing",
+      "status": 200,
+      "lang": "es",
+      "title": "Precios | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/pricing"
+    },
+    {
+      "path": "/ja/pricing",
+      "status": 200,
+      "lang": "ja",
+      "title": "料金 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/pricing"
+    },
+    {
+      "path": "/ko/pricing",
+      "status": 200,
+      "lang": "ko",
+      "title": "요금 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/pricing"
+    },
+    {
+      "path": "/pl/pricing",
+      "status": 200,
+      "lang": "pl",
+      "title": "Cennik · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/pricing"
+    },
+    {
+      "path": "/ar/pricing",
+      "status": 200,
+      "lang": "ar",
+      "title": "الأسعار · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/pricing"
+    },
+    {
+      "path": "/zh-hans/pricing",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "价格 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/pricing"
+    },
+    {
+      "path": "/transcribe",
+      "status": 200,
+      "lang": "en",
+      "title": "Audio to Guitar Tab Transcriber | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/transcribe"
+    },
+    {
+      "path": "/pt-br/transcribe",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Transcrição de áudio para tablatura de guitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/transcribe"
+    },
+    {
+      "path": "/es/transcribe",
+      "status": 200,
+      "lang": "es",
+      "title": "Transcriptor de audio a tablaturas de guitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/transcribe"
+    },
+    {
+      "path": "/ja/transcribe",
+      "status": 200,
+      "lang": "ja",
+      "title": "音源からギターTAB譜を自動採譜 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/transcribe"
+    },
+    {
+      "path": "/ko/transcribe",
+      "status": 200,
+      "lang": "ko",
+      "title": "오디오를 기타 타브 악보로 변환 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/transcribe"
+    },
+    {
+      "path": "/pl/transcribe",
+      "status": 200,
+      "lang": "pl",
+      "title": "Transkrypcja audio na tabulatury · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/transcribe"
+    },
+    {
+      "path": "/ar/transcribe",
+      "status": 200,
+      "lang": "ar",
+      "title": "تحويل الصوت إلى تابلاتشر للغيتار · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/transcribe"
+    },
+    {
+      "path": "/zh-hans/transcribe",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "音频转吉他六线谱 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/transcribe"
+    },
+    {
+      "path": "/editor",
+      "status": 200,
+      "lang": "en",
+      "title": "Online Guitar Tab Editor – Write, Play & Practise Tabs | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/editor"
+    },
+    {
+      "path": "/pt-br/editor",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Editor online de tablaturas – Escreva, toque e pratique | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/editor"
+    },
+    {
+      "path": "/es/editor",
+      "status": 200,
+      "lang": "es",
+      "title": "Editor de tablaturas en línea – Escribe, toca y practica | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/editor"
+    },
+    {
+      "path": "/ja/editor",
+      "status": 200,
+      "lang": "ja",
+      "title": "オンラインギターTAB譜エディター — 作成・再生・練習 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/editor"
+    },
+    {
+      "path": "/ko/editor",
+      "status": 200,
+      "lang": "ko",
+      "title": "온라인 기타 타브 에디터 — 제작·재생·연습 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/editor"
+    },
+    {
+      "path": "/pl/editor",
+      "status": 200,
+      "lang": "pl",
+      "title": "Edytor tabulatur online – twórz, graj i ćwicz | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/editor"
+    },
+    {
+      "path": "/ar/editor",
+      "status": 200,
+      "lang": "ar",
+      "title": "محرّر تابلاتشر غيتار عبر الإنترنت – اكتب وشغّل وتدرّب | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/editor"
+    },
+    {
+      "path": "/zh-hans/editor",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "在线吉他六线谱编辑器：编写、播放与练习 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/editor"
+    },
+    {
+      "path": "/about",
+      "status": 200,
+      "lang": "en",
+      "title": "About Note2Tabs",
+      "canonical": "https://www.note2tabs.com/about"
+    },
+    {
+      "path": "/pt-br/about",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Sobre o Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/about"
+    },
+    {
+      "path": "/es/about",
+      "status": 200,
+      "lang": "es",
+      "title": "Acerca de Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/about"
+    },
+    {
+      "path": "/ja/about",
+      "status": 200,
+      "lang": "ja",
+      "title": "Note2Tabsについて",
+      "canonical": "https://www.note2tabs.com/ja/about"
+    },
+    {
+      "path": "/ko/about",
+      "status": 200,
+      "lang": "ko",
+      "title": "Note2Tabs 소개",
+      "canonical": "https://www.note2tabs.com/ko/about"
+    },
+    {
+      "path": "/pl/about",
+      "status": 200,
+      "lang": "pl",
+      "title": "O Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/about"
+    },
+    {
+      "path": "/ar/about",
+      "status": 200,
+      "lang": "ar",
+      "title": "عن Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/about"
+    },
+    {
+      "path": "/zh-hans/about",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "关于 Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/about"
+    },
+    {
+      "path": "/contact",
+      "status": 200,
+      "lang": "en",
+      "title": "Contact Note2Tabs",
+      "canonical": "https://www.note2tabs.com/contact"
+    },
+    {
+      "path": "/pt-br/contact",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Entre em contato com o Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/contact"
+    },
+    {
+      "path": "/es/contact",
+      "status": 200,
+      "lang": "es",
+      "title": "Contactar con Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/contact"
+    },
+    {
+      "path": "/ja/contact",
+      "status": 200,
+      "lang": "ja",
+      "title": "Note2Tabsへのお問い合わせ",
+      "canonical": "https://www.note2tabs.com/ja/contact"
+    },
+    {
+      "path": "/ko/contact",
+      "status": 200,
+      "lang": "ko",
+      "title": "Note2Tabs 문의",
+      "canonical": "https://www.note2tabs.com/ko/contact"
+    },
+    {
+      "path": "/pl/contact",
+      "status": 200,
+      "lang": "pl",
+      "title": "Kontakt z Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/contact"
+    },
+    {
+      "path": "/ar/contact",
+      "status": 200,
+      "lang": "ar",
+      "title": "تواصل مع Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/contact"
+    },
+    {
+      "path": "/zh-hans/contact",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "联系 Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/contact"
+    },
+    {
+      "path": "/terms",
+      "status": 200,
+      "lang": "en",
+      "title": "Terms of Service | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/terms"
+    },
+    {
+      "path": "/pt-br/terms",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Termos de Serviço | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/terms"
+    },
+    {
+      "path": "/es/terms",
+      "status": 200,
+      "lang": "es",
+      "title": "Condiciones del servicio | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/terms"
+    },
+    {
+      "path": "/ja/terms",
+      "status": 200,
+      "lang": "ja",
+      "title": "利用規約 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/terms"
+    },
+    {
+      "path": "/ko/terms",
+      "status": 200,
+      "lang": "ko",
+      "title": "이용약관 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/terms"
+    },
+    {
+      "path": "/pl/terms",
+      "status": 200,
+      "lang": "pl",
+      "title": "Regulamin usługi | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/terms"
+    },
+    {
+      "path": "/ar/terms",
+      "status": 200,
+      "lang": "ar",
+      "title": "شروط الخدمة | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/terms"
+    },
+    {
+      "path": "/zh-hans/terms",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "服务条款 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/terms"
+    },
+    {
+      "path": "/privacy",
+      "status": 200,
+      "lang": "en",
+      "title": "Privacy Policy | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/privacy"
+    },
+    {
+      "path": "/pt-br/privacy",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Política de Privacidade | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/privacy"
+    },
+    {
+      "path": "/es/privacy",
+      "status": 200,
+      "lang": "es",
+      "title": "Política de privacidad | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/privacy"
+    },
+    {
+      "path": "/ja/privacy",
+      "status": 200,
+      "lang": "ja",
+      "title": "プライバシーポリシー | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/privacy"
+    },
+    {
+      "path": "/ko/privacy",
+      "status": 200,
+      "lang": "ko",
+      "title": "개인정보 처리방침 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/privacy"
+    },
+    {
+      "path": "/pl/privacy",
+      "status": 200,
+      "lang": "pl",
+      "title": "Polityka prywatności | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/privacy"
+    },
+    {
+      "path": "/ar/privacy",
+      "status": 200,
+      "lang": "ar",
+      "title": "سياسة الخصوصية | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/privacy"
+    },
+    {
+      "path": "/zh-hans/privacy",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "隐私政策 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/privacy"
+    },
+    {
+      "path": "/affiliate-program",
+      "status": 200,
+      "lang": "en",
+      "title": "Note2Tabs Affiliate Program",
+      "canonical": "https://www.note2tabs.com/affiliate-program"
+    },
+    {
+      "path": "/pt-br/affiliate-program",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Programa de afiliados do Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/affiliate-program"
+    },
+    {
+      "path": "/es/affiliate-program",
+      "status": 200,
+      "lang": "es",
+      "title": "Programa de afiliados de Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/affiliate-program"
+    },
+    {
+      "path": "/ja/affiliate-program",
+      "status": 200,
+      "lang": "ja",
+      "title": "Note2Tabsアフィリエイトプログラム",
+      "canonical": "https://www.note2tabs.com/ja/affiliate-program"
+    },
+    {
+      "path": "/ko/affiliate-program",
+      "status": 200,
+      "lang": "ko",
+      "title": "Note2Tabs 제휴 프로그램",
+      "canonical": "https://www.note2tabs.com/ko/affiliate-program"
+    },
+    {
+      "path": "/pl/affiliate-program",
+      "status": 200,
+      "lang": "pl",
+      "title": "Program partnerski Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/affiliate-program"
+    },
+    {
+      "path": "/ar/affiliate-program",
+      "status": 200,
+      "lang": "ar",
+      "title": "برنامج شركاء Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/affiliate-program"
+    },
+    {
+      "path": "/zh-hans/affiliate-program",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "Note2Tabs 推广合作计划",
+      "canonical": "https://www.note2tabs.com/zh-hans/affiliate-program"
+    },
+    {
+      "path": "/features",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Tab Editor Tools & Features | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/features"
+    },
+    {
+      "path": "/pt-br/features",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Ferramentas e recursos do editor de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/features"
+    },
+    {
+      "path": "/es/features",
+      "status": 200,
+      "lang": "es",
+      "title": "Herramientas y funciones del editor | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/features"
+    },
+    {
+      "path": "/ja/features",
+      "status": 200,
+      "lang": "ja",
+      "title": "ギターTAB譜エディターの機能 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/features"
+    },
+    {
+      "path": "/ko/features",
+      "status": 200,
+      "lang": "ko",
+      "title": "기타 타브 에디터 도구·기능 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/features"
+    },
+    {
+      "path": "/pl/features",
+      "status": 200,
+      "lang": "pl",
+      "title": "Narzędzia i funkcje edytora tabulatur | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/features"
+    },
+    {
+      "path": "/ar/features",
+      "status": 200,
+      "lang": "ar",
+      "title": "أدوات محرّر تابلاتشر الغيتار ومزاياه | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/features"
+    },
+    {
+      "path": "/zh-hans/features",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "吉他六线谱编辑工具与功能 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/features"
+    },
+    {
+      "path": "/audio-to-guitar-tab-converter",
+      "status": 200,
+      "lang": "en",
+      "title": "Audio to Guitar Tab Converter – MP3, WAV & More",
+      "canonical": "https://www.note2tabs.com/audio-to-guitar-tab-converter"
+    },
+    {
+      "path": "/pt-br/audio-to-guitar-tab-converter",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Conversor de áudio em tablatura – MP3, WAV e mais",
+      "canonical": "https://www.note2tabs.com/pt-br/audio-to-guitar-tab-converter"
+    },
+    {
+      "path": "/es/audio-to-guitar-tab-converter",
+      "status": 200,
+      "lang": "es",
+      "title": "Convertir audio a tablaturas de guitarra online | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/audio-to-guitar-tab-converter"
+    },
+    {
+      "path": "/ja/audio-to-guitar-tab-converter",
+      "status": 200,
+      "lang": "ja",
+      "title": "音声からギターTAB譜へ — MP3・WAVなどに対応",
+      "canonical": "https://www.note2tabs.com/ja/audio-to-guitar-tab-converter"
+    },
+    {
+      "path": "/ko/audio-to-guitar-tab-converter",
+      "status": 200,
+      "lang": "ko",
+      "title": "오디오를 기타 타브로 — MP3, WAV 등",
+      "canonical": "https://www.note2tabs.com/ko/audio-to-guitar-tab-converter"
+    },
+    {
+      "path": "/pl/audio-to-guitar-tab-converter",
+      "status": 200,
+      "lang": "pl",
+      "title": "Konwerter audio na tabulatury – MP3, WAV i więcej",
+      "canonical": "https://www.note2tabs.com/pl/audio-to-guitar-tab-converter"
+    },
+    {
+      "path": "/ar/audio-to-guitar-tab-converter",
+      "status": 200,
+      "lang": "ar",
+      "title": "تحويل الصوت إلى تابلاتشر غيتار – MP3 وWAV وغيرها",
+      "canonical": "https://www.note2tabs.com/ar/audio-to-guitar-tab-converter"
+    },
+    {
+      "path": "/zh-hans/audio-to-guitar-tab-converter",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "音频转吉他六线谱：MP3、WAV 等格式",
+      "canonical": "https://www.note2tabs.com/zh-hans/audio-to-guitar-tab-converter"
+    },
+    {
+      "path": "/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "en",
+      "title": "MP3 to Guitar Tabs Converter – Online & Editable",
+      "canonical": "https://www.note2tabs.com/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/pt-br/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Conversor de MP3 em tablatura – Online e editável",
+      "canonical": "https://www.note2tabs.com/pt-br/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/es/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "es",
+      "title": "Conversor de MP3 a tablaturas – En línea y editables",
+      "canonical": "https://www.note2tabs.com/es/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "ja",
+      "title": "MP3からギターTAB譜へ — オンラインで編集可能",
+      "canonical": "https://www.note2tabs.com/ja/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/ko/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "ko",
+      "title": "MP3를 기타 타브로 — 온라인 편집",
+      "canonical": "https://www.note2tabs.com/ko/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/pl/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "pl",
+      "title": "MP3 na tabulatury gitarowe – online, do edycji",
+      "canonical": "https://www.note2tabs.com/pl/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/ar/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "ar",
+      "title": "تحويل MP3 إلى تابلاتشر غيتار قابل للتحرير عبر الإنترنت",
+      "canonical": "https://www.note2tabs.com/ar/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/zh-hans/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "MP3 转吉他六线谱：在线转换与编辑",
+      "canonical": "https://www.note2tabs.com/zh-hans/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/youtube-to-guitar-tabs",
+      "status": 200,
+      "lang": "en",
+      "title": "YouTube to Guitar Tabs Converter | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/youtube-to-guitar-tabs"
+    },
+    {
+      "path": "/pt-br/youtube-to-guitar-tabs",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Conversor de YouTube em tablatura | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/youtube-to-guitar-tabs"
+    },
+    {
+      "path": "/es/youtube-to-guitar-tabs",
+      "status": 200,
+      "lang": "es",
+      "title": "Conversor de YouTube a tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/youtube-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/youtube-to-guitar-tabs",
+      "status": 200,
+      "lang": "ja",
+      "title": "YouTubeからギターTAB譜へ | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/youtube-to-guitar-tabs"
+    },
+    {
+      "path": "/ko/youtube-to-guitar-tabs",
+      "status": 200,
+      "lang": "ko",
+      "title": "YouTube를 기타 타브로 변환 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/youtube-to-guitar-tabs"
+    },
+    {
+      "path": "/pl/youtube-to-guitar-tabs",
+      "status": 200,
+      "lang": "pl",
+      "title": "YouTube na tabulatury gitarowe | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/youtube-to-guitar-tabs"
+    },
+    {
+      "path": "/ar/youtube-to-guitar-tabs",
+      "status": 200,
+      "lang": "ar",
+      "title": "تحويل YouTube إلى تابلاتشر غيتار | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/youtube-to-guitar-tabs"
+    },
+    {
+      "path": "/zh-hans/youtube-to-guitar-tabs",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "YouTube 转吉他六线谱工具 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/youtube-to-guitar-tabs"
+    },
+    {
+      "path": "/ai-guitar-tab-generator",
+      "status": 200,
+      "lang": "en",
+      "title": "Free AI Guitar Tab Generator | Audio & YouTube",
+      "canonical": "https://www.note2tabs.com/ai-guitar-tab-generator"
+    },
+    {
+      "path": "/pt-br/ai-guitar-tab-generator",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Gerador gratuito de tablaturas com IA | Áudio e YouTube",
+      "canonical": "https://www.note2tabs.com/pt-br/ai-guitar-tab-generator"
+    },
+    {
+      "path": "/es/ai-guitar-tab-generator",
+      "status": 200,
+      "lang": "es",
+      "title": "Generador gratuito de tablaturas con IA | Audio y YouTube",
+      "canonical": "https://www.note2tabs.com/es/ai-guitar-tab-generator"
+    },
+    {
+      "path": "/ja/ai-guitar-tab-generator",
+      "status": 200,
+      "lang": "ja",
+      "title": "無料AIギターTAB譜作成 | 音声・YouTube",
+      "canonical": "https://www.note2tabs.com/ja/ai-guitar-tab-generator"
+    },
+    {
+      "path": "/ko/ai-guitar-tab-generator",
+      "status": 200,
+      "lang": "ko",
+      "title": "무료 AI 기타 타브 생성기 | 오디오·YouTube",
+      "canonical": "https://www.note2tabs.com/ko/ai-guitar-tab-generator"
+    },
+    {
+      "path": "/pl/ai-guitar-tab-generator",
+      "status": 200,
+      "lang": "pl",
+      "title": "Darmowy generator tabulatur AI | Audio i YouTube",
+      "canonical": "https://www.note2tabs.com/pl/ai-guitar-tab-generator"
+    },
+    {
+      "path": "/ar/ai-guitar-tab-generator",
+      "status": 200,
+      "lang": "ar",
+      "title": "إنشاء تابلاتشر غيتار بالذكاء الاصطناعي مجانًا | صوت وYouTube",
+      "canonical": "https://www.note2tabs.com/ar/ai-guitar-tab-generator"
+    },
+    {
+      "path": "/zh-hans/ai-guitar-tab-generator",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "免费 AI 吉他六线谱生成器：音频与 YouTube",
+      "canonical": "https://www.note2tabs.com/zh-hans/ai-guitar-tab-generator"
+    },
+    {
+      "path": "/free-guitar-tab-maker",
+      "status": 200,
+      "lang": "en",
+      "title": "Free Guitar Tab Maker | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/free-guitar-tab-maker"
+    },
+    {
+      "path": "/pt-br/free-guitar-tab-maker",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Criador gratuito de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/free-guitar-tab-maker"
+    },
+    {
+      "path": "/es/free-guitar-tab-maker",
+      "status": 200,
+      "lang": "es",
+      "title": "Creador gratuito de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/free-guitar-tab-maker"
+    },
+    {
+      "path": "/ja/free-guitar-tab-maker",
+      "status": 200,
+      "lang": "ja",
+      "title": "無料ギターTAB譜作成ツール | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/free-guitar-tab-maker"
+    },
+    {
+      "path": "/ko/free-guitar-tab-maker",
+      "status": 200,
+      "lang": "ko",
+      "title": "무료 기타 타브 제작기 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/free-guitar-tab-maker"
+    },
+    {
+      "path": "/pl/free-guitar-tab-maker",
+      "status": 200,
+      "lang": "pl",
+      "title": "Darmowy edytor tabulatur | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/free-guitar-tab-maker"
+    },
+    {
+      "path": "/ar/free-guitar-tab-maker",
+      "status": 200,
+      "lang": "ar",
+      "title": "منشئ تابلاتشر غيتار مجاني | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/free-guitar-tab-maker"
+    },
+    {
+      "path": "/zh-hans/free-guitar-tab-maker",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "免费吉他六线谱制作工具 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/free-guitar-tab-maker"
+    },
+    {
+      "path": "/blog",
+      "status": 200,
+      "lang": "en",
+      "title": "Blog | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog"
+    },
+    {
+      "path": "/pt-br/blog",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Blog | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog"
+    },
+    {
+      "path": "/es/blog",
+      "status": 200,
+      "lang": "es",
+      "title": "Blog | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog"
+    },
+    {
+      "path": "/ja/blog",
+      "status": 200,
+      "lang": "ja",
+      "title": "ブログ | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog"
+    },
+    {
+      "path": "/ko/blog",
+      "status": 200,
+      "lang": "ko",
+      "title": "블로그 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog"
+    },
+    {
+      "path": "/pl/blog",
+      "status": 200,
+      "lang": "pl",
+      "title": "Blog | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog"
+    },
+    {
+      "path": "/ar/blog",
+      "status": 200,
+      "lang": "ar",
+      "title": "المدونة | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog"
+    },
+    {
+      "path": "/zh-hans/blog",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "博客 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog"
+    },
+    {
+      "path": "/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Tab Fingering Optimizer | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/features/guitar-tab-fingering-optimizer"
+    },
+    {
+      "path": "/pt-br/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Otimizador de digitação de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/features/guitar-tab-fingering-optimizer"
+    },
+    {
+      "path": "/es/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "lang": "es",
+      "title": "Optimizador de digitación de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/features/guitar-tab-fingering-optimizer"
+    },
+    {
+      "path": "/ja/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "lang": "ja",
+      "title": "ギターTAB譜の運指最適化 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/features/guitar-tab-fingering-optimizer"
+    },
+    {
+      "path": "/ko/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "lang": "ko",
+      "title": "기타 타브 운지 최적화 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/features/guitar-tab-fingering-optimizer"
+    },
+    {
+      "path": "/pl/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "lang": "pl",
+      "title": "Optymalizacja palcowania tabulatur | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/features/guitar-tab-fingering-optimizer"
+    },
+    {
+      "path": "/ar/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "lang": "ar",
+      "title": "تحسين وضع أصابع تابلاتشر الغيتار | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/features/guitar-tab-fingering-optimizer"
+    },
+    {
+      "path": "/zh-hans/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "吉他六线谱指法优化工具 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/features/guitar-tab-fingering-optimizer"
+    },
+    {
+      "path": "/features/guitar-tab-key-detector",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Tab Key Detector & Snap-to-Key Tool | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/features/guitar-tab-key-detector"
+    },
+    {
+      "path": "/pt-br/features/guitar-tab-key-detector",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Detector de tonalidade e ajuste à escala | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/features/guitar-tab-key-detector"
+    },
+    {
+      "path": "/es/features/guitar-tab-key-detector",
+      "status": 200,
+      "lang": "es",
+      "title": "Detector de tonalidad y ajuste a la escala | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/features/guitar-tab-key-detector"
+    },
+    {
+      "path": "/ja/features/guitar-tab-key-detector",
+      "status": 200,
+      "lang": "ja",
+      "title": "ギターTAB譜のキー検出・スケール補正 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/features/guitar-tab-key-detector"
+    },
+    {
+      "path": "/ko/features/guitar-tab-key-detector",
+      "status": 200,
+      "lang": "ko",
+      "title": "기타 타브 조성 감지·음계 정렬 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/features/guitar-tab-key-detector"
+    },
+    {
+      "path": "/pl/features/guitar-tab-key-detector",
+      "status": 200,
+      "lang": "pl",
+      "title": "Wykrywanie tonacji i dopasowanie nut | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/features/guitar-tab-key-detector"
+    },
+    {
+      "path": "/ar/features/guitar-tab-key-detector",
+      "status": 200,
+      "lang": "ar",
+      "title": "تحديد مقام تابلاتشر الغيتار ومطابقة النغمات | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/features/guitar-tab-key-detector"
+    },
+    {
+      "path": "/zh-hans/features/guitar-tab-key-detector",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "吉他调性检测与调内吸附工具 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/features/guitar-tab-key-detector"
+    },
+    {
+      "path": "/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Chord & Strumming Editor | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/features/guitar-chord-strumming-editor"
+    },
+    {
+      "path": "/pt-br/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Editor de acordes e batidas de guitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/features/guitar-chord-strumming-editor"
+    },
+    {
+      "path": "/es/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "lang": "es",
+      "title": "Editor de acordes y rasgueos de guitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/features/guitar-chord-strumming-editor"
+    },
+    {
+      "path": "/ja/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "lang": "ja",
+      "title": "ギターのコード・ストロークエディター | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/features/guitar-chord-strumming-editor"
+    },
+    {
+      "path": "/ko/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "lang": "ko",
+      "title": "기타 코드·스트로크 에디터 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/features/guitar-chord-strumming-editor"
+    },
+    {
+      "path": "/pl/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "lang": "pl",
+      "title": "Edytor akordów i bicia gitarowego | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/features/guitar-chord-strumming-editor"
+    },
+    {
+      "path": "/ar/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "lang": "ar",
+      "title": "محرّر كوردات الغيتار والضربات | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/features/guitar-chord-strumming-editor"
+    },
+    {
+      "path": "/zh-hans/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "吉他和弦与扫弦编辑器 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/features/guitar-chord-strumming-editor"
+    },
+    {
+      "path": "/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Tab Editor with Shortcuts | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/features/guitar-tab-editor-shortcuts"
+    },
+    {
+      "path": "/pt-br/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Editor de tablaturas com atalhos | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/features/guitar-tab-editor-shortcuts"
+    },
+    {
+      "path": "/es/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "lang": "es",
+      "title": "Editor de tablaturas con atajos | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/features/guitar-tab-editor-shortcuts"
+    },
+    {
+      "path": "/ja/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "lang": "ja",
+      "title": "ショートカット対応ギターTAB譜エディター | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/features/guitar-tab-editor-shortcuts"
+    },
+    {
+      "path": "/ko/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "lang": "ko",
+      "title": "단축키 기타 타브 에디터 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/features/guitar-tab-editor-shortcuts"
+    },
+    {
+      "path": "/pl/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "lang": "pl",
+      "title": "Edytor tabulatur ze skrótami | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/features/guitar-tab-editor-shortcuts"
+    },
+    {
+      "path": "/ar/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "lang": "ar",
+      "title": "محرّر تابلاتشر باختصارات | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/features/guitar-tab-editor-shortcuts"
+    },
+    {
+      "path": "/zh-hans/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "支持快捷键的吉他六线谱编辑器 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/features/guitar-tab-editor-shortcuts"
+    },
+    {
+      "path": "/features/guitar-tab-import-export",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Tab Import & Export Tool | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/features/guitar-tab-import-export"
+    },
+    {
+      "path": "/pt-br/features/guitar-tab-import-export",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Importação e exportação de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/features/guitar-tab-import-export"
+    },
+    {
+      "path": "/es/features/guitar-tab-import-export",
+      "status": 200,
+      "lang": "es",
+      "title": "Importación y exportación de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/features/guitar-tab-import-export"
+    },
+    {
+      "path": "/ja/features/guitar-tab-import-export",
+      "status": 200,
+      "lang": "ja",
+      "title": "ギターTAB譜の取り込み・書き出し | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/features/guitar-tab-import-export"
+    },
+    {
+      "path": "/ko/features/guitar-tab-import-export",
+      "status": 200,
+      "lang": "ko",
+      "title": "기타 타브 가져오기·내보내기 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/features/guitar-tab-import-export"
+    },
+    {
+      "path": "/pl/features/guitar-tab-import-export",
+      "status": 200,
+      "lang": "pl",
+      "title": "Import i eksport tabulatur gitarowych | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/features/guitar-tab-import-export"
+    },
+    {
+      "path": "/ar/features/guitar-tab-import-export",
+      "status": 200,
+      "lang": "ar",
+      "title": "استيراد تابلاتشر الغيتار وتصديرها | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/features/guitar-tab-import-export"
+    },
+    {
+      "path": "/zh-hans/features/guitar-tab-import-export",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "吉他六线谱导入与导出工具 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/features/guitar-tab-import-export"
+    },
+    {
+      "path": "/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Tab Practice & Speed Trainer | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/features/guitar-tab-practice-trainer"
+    },
+    {
+      "path": "/pt-br/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Prática de tablaturas e treino de velocidade | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/features/guitar-tab-practice-trainer"
+    },
+    {
+      "path": "/es/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "lang": "es",
+      "title": "Práctica de tablaturas y entrenamiento de velocidad | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/features/guitar-tab-practice-trainer"
+    },
+    {
+      "path": "/ja/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "lang": "ja",
+      "title": "ギターTAB譜の練習・スピードトレーニング | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/features/guitar-tab-practice-trainer"
+    },
+    {
+      "path": "/ko/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "lang": "ko",
+      "title": "기타 타브 연습·속도 훈련 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/features/guitar-tab-practice-trainer"
+    },
+    {
+      "path": "/pl/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "lang": "pl",
+      "title": "Ćwiczenia i trening prędkości tabulatur | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/features/guitar-tab-practice-trainer"
+    },
+    {
+      "path": "/ar/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "lang": "ar",
+      "title": "تدريب تابلاتشر الغيتار وزيادة السرعة | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/features/guitar-tab-practice-trainer"
+    },
+    {
+      "path": "/zh-hans/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "吉他六线谱练习与速度训练器 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/features/guitar-tab-practice-trainer"
+    },
+    {
+      "path": "/blog/wav-to-guitar-tabs",
+      "status": 200,
+      "lang": "en",
+      "title": "WAV to Guitar Tabs | Convert Clean Audio Into Editable Tab | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/wav-to-guitar-tabs"
+    },
+    {
+      "path": "/pt-br/blog/wav-to-guitar-tabs",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "WAV para tablatura: dicas de áudio e edição | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/wav-to-guitar-tabs"
+    },
+    {
+      "path": "/es/blog/wav-to-guitar-tabs",
+      "status": 200,
+      "lang": "es",
+      "title": "WAV a tablaturas: consejos de audio y edición | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/wav-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/blog/wav-to-guitar-tabs",
+      "status": 200,
+      "lang": "ja",
+      "title": "WAVからギターTAB譜へ：明瞭な録音を活かす | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/wav-to-guitar-tabs"
+    },
+    {
+      "path": "/ko/blog/wav-to-guitar-tabs",
+      "status": 200,
+      "lang": "ko",
+      "title": "WAV를 기타 타브로: 선명한 녹음 활용 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/wav-to-guitar-tabs"
+    },
+    {
+      "path": "/pl/blog/wav-to-guitar-tabs",
+      "status": 200,
+      "lang": "pl",
+      "title": "WAV na tabulatury gitarowe | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/wav-to-guitar-tabs"
+    },
+    {
+      "path": "/ar/blog/wav-to-guitar-tabs",
+      "status": 200,
+      "lang": "ar",
+      "title": "تحويل WAV إلى تابلاتشر الغيتار | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/wav-to-guitar-tabs"
+    },
+    {
+      "path": "/zh-hans/blog/wav-to-guitar-tabs",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "如何把 WAV 转成吉他六线谱 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/wav-to-guitar-tabs"
+    },
+    {
+      "path": "/blog/how-to-edit-guitar-tabs-for-practice",
+      "status": 200,
+      "lang": "en",
+      "title": "How to Edit Guitar Tabs for Practice | Playability Checklist | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/how-to-edit-guitar-tabs-for-practice"
+    },
+    {
+      "path": "/pt-br/blog/how-to-edit-guitar-tabs-for-practice",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Como editar tablaturas de guitarra para praticar | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/how-to-edit-guitar-tabs-for-practice"
+    },
+    {
+      "path": "/es/blog/how-to-edit-guitar-tabs-for-practice",
+      "status": 200,
+      "lang": "es",
+      "title": "Cómo editar tablaturas para practicar: una lista sencilla | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/how-to-edit-guitar-tabs-for-practice"
+    },
+    {
+      "path": "/ja/blog/how-to-edit-guitar-tabs-for-practice",
+      "status": 200,
+      "lang": "ja",
+      "title": "練習のためにギターTAB譜を編集する | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/how-to-edit-guitar-tabs-for-practice"
+    },
+    {
+      "path": "/ko/blog/how-to-edit-guitar-tabs-for-practice",
+      "status": 200,
+      "lang": "ko",
+      "title": "연습을 위한 기타 타브 편집 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/how-to-edit-guitar-tabs-for-practice"
+    },
+    {
+      "path": "/pl/blog/how-to-edit-guitar-tabs-for-practice",
+      "status": 200,
+      "lang": "pl",
+      "title": "Jak edytować tabulatury do ćwiczeń | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/how-to-edit-guitar-tabs-for-practice"
+    },
+    {
+      "path": "/ar/blog/how-to-edit-guitar-tabs-for-practice",
+      "status": 200,
+      "lang": "ar",
+      "title": "تحرير تابلاتشر الغيتار للتدريب | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/how-to-edit-guitar-tabs-for-practice"
+    },
+    {
+      "path": "/zh-hans/blog/how-to-edit-guitar-tabs-for-practice",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "为练习编辑吉他六线谱：可演奏性检查表 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/how-to-edit-guitar-tabs-for-practice"
+    },
+    {
+      "path": "/blog/guitar-solo-tab-maker",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Solo Tab Maker | Make Lead Guitar Tabs Online | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/guitar-solo-tab-maker"
+    },
+    {
+      "path": "/pt-br/blog/guitar-solo-tab-maker",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Tablaturas de solos de guitarra: criação e edição | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/guitar-solo-tab-maker"
+    },
+    {
+      "path": "/es/blog/guitar-solo-tab-maker",
+      "status": 200,
+      "lang": "es",
+      "title": "Tablaturas de solos de guitarra: creación y edición | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/guitar-solo-tab-maker"
+    },
+    {
+      "path": "/ja/blog/guitar-solo-tab-maker",
+      "status": 200,
+      "lang": "ja",
+      "title": "ギターソロのTAB譜作成：弾けるリードパートに | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/guitar-solo-tab-maker"
+    },
+    {
+      "path": "/ko/blog/guitar-solo-tab-maker",
+      "status": 200,
+      "lang": "ko",
+      "title": "기타 솔로 타브 만들기: 연주 가능한 리드 파트 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/guitar-solo-tab-maker"
+    },
+    {
+      "path": "/pl/blog/guitar-solo-tab-maker",
+      "status": 200,
+      "lang": "pl",
+      "title": "Tworzenie tabulatur solówek gitarowych | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/guitar-solo-tab-maker"
+    },
+    {
+      "path": "/ar/blog/guitar-solo-tab-maker",
+      "status": 200,
+      "lang": "ar",
+      "title": "إنشاء تابلاتشر سولو الغيتار | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/guitar-solo-tab-maker"
+    },
+    {
+      "path": "/zh-hans/blog/guitar-solo-tab-maker",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "吉他独奏制谱：从主奏到可演奏谱面 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/guitar-solo-tab-maker"
+    },
+    {
+      "path": "/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "status": 200,
+      "lang": "en",
+      "title": "How to Use an AI Guitar Tab Generator | Step-by-Step Guide | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes"
+    },
+    {
+      "path": "/pt-br/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Como usar IA para transcrever músicas em tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes"
+    },
+    {
+      "path": "/es/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "status": 200,
+      "lang": "es",
+      "title": "Cómo transcribir canciones a tablaturas con IA | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes"
+    },
+    {
+      "path": "/ja/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "status": 200,
+      "lang": "ja",
+      "title": "AIギター採譜ツールの使い方：生成から練習まで | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes"
+    },
+    {
+      "path": "/ko/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "status": 200,
+      "lang": "ko",
+      "title": "AI 기타 타브 생성기 사용법: 생성부터 연습까지 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes"
+    },
+    {
+      "path": "/pl/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "status": 200,
+      "lang": "pl",
+      "title": "Jak używać generatora tabulatur AI | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes"
+    },
+    {
+      "path": "/ar/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "status": 200,
+      "lang": "ar",
+      "title": "استخدام منشئ تابلاتشر بالذكاء الاصطناعي | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes"
+    },
+    {
+      "path": "/zh-hans/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "如何用 AI 在几分钟内生成吉他六线谱 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes"
+    },
+    {
+      "path": "/blog/guitar-tab-creator-with-playback",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Tab Creator With Playback | Check Tabs by Ear | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/guitar-tab-creator-with-playback"
+    },
+    {
+      "path": "/pt-br/blog/guitar-tab-creator-with-playback",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Criador de tablaturas com reprodução | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/guitar-tab-creator-with-playback"
+    },
+    {
+      "path": "/es/blog/guitar-tab-creator-with-playback",
+      "status": 200,
+      "lang": "es",
+      "title": "Creador de tablaturas con reproducción | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/guitar-tab-creator-with-playback"
+    },
+    {
+      "path": "/ja/blog/guitar-tab-creator-with-playback",
+      "status": 200,
+      "lang": "ja",
+      "title": "再生できるTAB譜作成ツール：聴いて確かめる | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/guitar-tab-creator-with-playback"
+    },
+    {
+      "path": "/ko/blog/guitar-tab-creator-with-playback",
+      "status": 200,
+      "lang": "ko",
+      "title": "재생 가능한 타브 제작기: 들어 보고 확인하기 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/guitar-tab-creator-with-playback"
+    },
+    {
+      "path": "/pl/blog/guitar-tab-creator-with-playback",
+      "status": 200,
+      "lang": "pl",
+      "title": "Edytor tabulatur z odtwarzaniem | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/guitar-tab-creator-with-playback"
+    },
+    {
+      "path": "/ar/blog/guitar-tab-creator-with-playback",
+      "status": 200,
+      "lang": "ar",
+      "title": "إنشاء تابلاتشر الغيتار مع التشغيل | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/guitar-tab-creator-with-playback"
+    },
+    {
+      "path": "/zh-hans/blog/guitar-tab-creator-with-playback",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "带播放功能的吉他制谱：为什么要试听 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/guitar-tab-creator-with-playback"
+    },
+    {
+      "path": "/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "status": 200,
+      "lang": "en",
+      "title": "How to Use Generate Cuts, Cut Regions, and Optimize | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/how-to-use-generate-cuts-cut-regions-and-optimize"
+    },
+    {
+      "path": "/pt-br/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Como usar Generate Cuts, Cut Regions e Optimize no editor | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/how-to-use-generate-cuts-cut-regions-and-optimize"
+    },
+    {
+      "path": "/es/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "status": 200,
+      "lang": "es",
+      "title": "Generate Cuts, Cut Regions y Optimize: guía de uso | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/how-to-use-generate-cuts-cut-regions-and-optimize"
+    },
+    {
+      "path": "/ja/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "status": 200,
+      "lang": "ja",
+      "title": "Generate Cuts・Cut Regions・Optimizeの使い方 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/how-to-use-generate-cuts-cut-regions-and-optimize"
+    },
+    {
+      "path": "/ko/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "status": 200,
+      "lang": "ko",
+      "title": "Generate Cuts·Cut Regions·Optimize 사용법 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/how-to-use-generate-cuts-cut-regions-and-optimize"
+    },
+    {
+      "path": "/pl/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "status": 200,
+      "lang": "pl",
+      "title": "Generate Cuts, Cut Regions i Optimize | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/how-to-use-generate-cuts-cut-regions-and-optimize"
+    },
+    {
+      "path": "/ar/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "status": 200,
+      "lang": "ar",
+      "title": "Generate Cuts وCut Regions وOptimize | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/how-to-use-generate-cuts-cut-regions-and-optimize"
+    },
+    {
+      "path": "/zh-hans/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "如何使用 Generate Cuts、Cut Regions 和 Optimize · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/how-to-use-generate-cuts-cut-regions-and-optimize"
+    },
+    {
+      "path": "/blog/ascii-guitar-tab-editor",
+      "status": 200,
+      "lang": "en",
+      "title": "ASCII Guitar Tab Editor | Create and Export Plain Text Tabs | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/ascii-guitar-tab-editor"
+    },
+    {
+      "path": "/pt-br/blog/ascii-guitar-tab-editor",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Tablaturas ASCII: como criar e editar | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/ascii-guitar-tab-editor"
+    },
+    {
+      "path": "/es/blog/ascii-guitar-tab-editor",
+      "status": 200,
+      "lang": "es",
+      "title": "Tablaturas ASCII: cómo crear y editar | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/ascii-guitar-tab-editor"
+    },
+    {
+      "path": "/ja/blog/ascii-guitar-tab-editor",
+      "status": 200,
+      "lang": "ja",
+      "title": "ASCIIギターTAB譜：テキスト形式が役立つ場面 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/ascii-guitar-tab-editor"
+    },
+    {
+      "path": "/ko/blog/ascii-guitar-tab-editor",
+      "status": 200,
+      "lang": "ko",
+      "title": "ASCII 기타 타브: 텍스트 악보가 유용한 상황 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/ascii-guitar-tab-editor"
+    },
+    {
+      "path": "/pl/blog/ascii-guitar-tab-editor",
+      "status": 200,
+      "lang": "pl",
+      "title": "Edytor tabulatur ASCII: zalety i ograniczenia | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/ascii-guitar-tab-editor"
+    },
+    {
+      "path": "/ar/blog/ascii-guitar-tab-editor",
+      "status": 200,
+      "lang": "ar",
+      "title": "محرّر تابلاتشر ASCII للغيتار | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/ascii-guitar-tab-editor"
+    },
+    {
+      "path": "/zh-hans/blog/ascii-guitar-tab-editor",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "ASCII 吉他六线谱编辑器：纯文本谱的用途 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/ascii-guitar-tab-editor"
+    },
+    {
+      "path": "/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "status": 200,
+      "lang": "en",
+      "title": "How to Learn Guitar Faster with AI Tools | Note2Tabs Guide",
+      "canonical": "https://www.note2tabs.com/blog/how-to-learn-guitar-faster-using-ai-tools"
+    },
+    {
+      "path": "/pt-br/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Como aprender guitarra mais rápido com ferramentas de IA | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/how-to-learn-guitar-faster-using-ai-tools"
+    },
+    {
+      "path": "/es/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "status": 200,
+      "lang": "es",
+      "title": "Cómo aprender guitarra más rápido con herramientas de IA | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/how-to-learn-guitar-faster-using-ai-tools"
+    },
+    {
+      "path": "/ja/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "status": 200,
+      "lang": "ja",
+      "title": "AIツールをギターの練習に活かす | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/how-to-learn-guitar-faster-using-ai-tools"
+    },
+    {
+      "path": "/ko/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "status": 200,
+      "lang": "ko",
+      "title": "AI 도구를 기타 연습에 활용하기 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/how-to-learn-guitar-faster-using-ai-tools"
+    },
+    {
+      "path": "/pl/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "status": 200,
+      "lang": "pl",
+      "title": "Jak uczyć się gitary z pomocą AI | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/how-to-learn-guitar-faster-using-ai-tools"
+    },
+    {
+      "path": "/ar/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "status": 200,
+      "lang": "ar",
+      "title": "تعلّم الغيتار بأدوات الذكاء الاصطناعي | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/how-to-learn-guitar-faster-using-ai-tools"
+    },
+    {
+      "path": "/zh-hans/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "用 AI 工具更高效地学习吉他 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/how-to-learn-guitar-faster-using-ai-tools"
+    },
+    {
+      "path": "/blog/tab-editor-for-guitar",
+      "status": 200,
+      "lang": "en",
+      "title": "Tab Editor for Guitar: 7 Ways to Make Tabs More Playable | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/tab-editor-for-guitar"
+    },
+    {
+      "path": "/pt-br/blog/tab-editor-for-guitar",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Editor de tablaturas: 7 formas de melhorar a execução | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/tab-editor-for-guitar"
+    },
+    {
+      "path": "/es/blog/tab-editor-for-guitar",
+      "status": 200,
+      "lang": "es",
+      "title": "Editor de tablaturas: 7 formas de mejorar cómo se tocan | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/tab-editor-for-guitar"
+    },
+    {
+      "path": "/ja/blog/tab-editor-for-guitar",
+      "status": 200,
+      "lang": "ja",
+      "title": "ギターTAB譜の編集：弾きやすくする7つの確認 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/tab-editor-for-guitar"
+    },
+    {
+      "path": "/ko/blog/tab-editor-for-guitar",
+      "status": 200,
+      "lang": "ko",
+      "title": "기타 타브 편집: 연주하기 쉽게 만드는 7가지 확인 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/tab-editor-for-guitar"
+    },
+    {
+      "path": "/pl/blog/tab-editor-for-guitar",
+      "status": 200,
+      "lang": "pl",
+      "title": "7 sposobów na wygodniejszą tabulaturę | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/tab-editor-for-guitar"
+    },
+    {
+      "path": "/ar/blog/tab-editor-for-guitar",
+      "status": 200,
+      "lang": "ar",
+      "title": "تحسين تابلاتشر الغيتار في المحرّر | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/tab-editor-for-guitar"
+    },
+    {
+      "path": "/zh-hans/blog/tab-editor-for-guitar",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "用吉他六线谱编辑器改善指法和可演奏性 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/tab-editor-for-guitar"
+    },
+    {
+      "path": "/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "status": 200,
+      "lang": "en",
+      "title": "AI Guitar Tab Generator for Audio and YouTube | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs"
+    },
+    {
+      "path": "/pt-br/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Gerador de tablaturas com IA: áudio e YouTube | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs"
+    },
+    {
+      "path": "/es/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "status": 200,
+      "lang": "es",
+      "title": "Generador de tablaturas con IA: audio y YouTube | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs"
+    },
+    {
+      "path": "/ja/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "status": 200,
+      "lang": "ja",
+      "title": "AIギター採譜：音声・YouTubeからTAB譜を作る | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs"
+    },
+    {
+      "path": "/ko/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "status": 200,
+      "lang": "ko",
+      "title": "AI 기타 채보: 오디오·YouTube를 타브로 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs"
+    },
+    {
+      "path": "/pl/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "status": 200,
+      "lang": "pl",
+      "title": "Generator tabulatur AI z audio i YouTube | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs"
+    },
+    {
+      "path": "/ar/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "status": 200,
+      "lang": "ar",
+      "title": "إنشاء تابلاتشر من الصوت وYouTube | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs"
+    },
+    {
+      "path": "/zh-hans/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "AI 吉他六线谱生成器：从歌曲和 YouTube 开始 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs"
+    },
+    {
+      "path": "/blog/guitar-tab-editor",
+      "status": 200,
+      "lang": "en",
+      "title": "Online Guitar Tab Editor for Writing, Playback and Practice | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/guitar-tab-editor"
+    },
+    {
+      "path": "/pt-br/blog/guitar-tab-editor",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Editor de tablaturas online: escreva, arranje e pratique | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/guitar-tab-editor"
+    },
+    {
+      "path": "/es/blog/guitar-tab-editor",
+      "status": 200,
+      "lang": "es",
+      "title": "Editor de tablaturas online: escribe y practica | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/guitar-tab-editor"
+    },
+    {
+      "path": "/ja/blog/guitar-tab-editor",
+      "status": 200,
+      "lang": "ja",
+      "title": "オンラインギターTAB譜エディター：作成・アレンジ・練習 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/guitar-tab-editor"
+    },
+    {
+      "path": "/ko/blog/guitar-tab-editor",
+      "status": 200,
+      "lang": "ko",
+      "title": "온라인 기타 타브 에디터: 제작·편곡·연습 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/guitar-tab-editor"
+    },
+    {
+      "path": "/pl/blog/guitar-tab-editor",
+      "status": 200,
+      "lang": "pl",
+      "title": "Edytor tabulatur online: pisz i ćwicz | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/guitar-tab-editor"
+    },
+    {
+      "path": "/ar/blog/guitar-tab-editor",
+      "status": 200,
+      "lang": "ar",
+      "title": "محرّر تابلاتشر الغيتار عبر الإنترنت | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/guitar-tab-editor"
+    },
+    {
+      "path": "/zh-hans/blog/guitar-tab-editor",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "在线吉他六线谱编辑器：编写、编排与练习 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/guitar-tab-editor"
+    },
+    {
+      "path": "/blog/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "en",
+      "title": "MP3 to Guitar Tabs | Convert MP3 Audio Into Editable Tab | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/pt-br/blog/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "MP3 para tablatura: converta um MP3 em tablatura editável | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/es/blog/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "es",
+      "title": "MP3 a tablaturas de guitarra: convierte y edita | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/blog/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "ja",
+      "title": "MP3からギターTAB譜へ：音源選びと編集 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/ko/blog/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "ko",
+      "title": "MP3를 기타 타브로: 음원 선택과 편집 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/pl/blog/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "pl",
+      "title": "MP3 na tabulatury gitarowe: konwertuj i edytuj | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/ar/blog/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "ar",
+      "title": "تحويل MP3 إلى تابلاتشر الغيتار | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/zh-hans/blog/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "如何把 MP3 转成吉他六线谱 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/blog/ai-guitar-tab-editor",
+      "status": 200,
+      "lang": "en",
+      "title": "AI Guitar Tab Editor for Creation, Arrangement and Practice | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/ai-guitar-tab-editor"
+    },
+    {
+      "path": "/pt-br/blog/ai-guitar-tab-editor",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Editor de tablaturas com IA online | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/ai-guitar-tab-editor"
+    },
+    {
+      "path": "/es/blog/ai-guitar-tab-editor",
+      "status": 200,
+      "lang": "es",
+      "title": "Editor de tablaturas con IA en línea | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/ai-guitar-tab-editor"
+    },
+    {
+      "path": "/ja/blog/ai-guitar-tab-editor",
+      "status": 200,
+      "lang": "ja",
+      "title": "AIギターTAB譜エディター：オンラインで作成・アレンジ・練習 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/ai-guitar-tab-editor"
+    },
+    {
+      "path": "/ko/blog/ai-guitar-tab-editor",
+      "status": 200,
+      "lang": "ko",
+      "title": "AI 기타 타브 에디터: 온라인 제작·편곡·연습 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/ai-guitar-tab-editor"
+    },
+    {
+      "path": "/pl/blog/ai-guitar-tab-editor",
+      "status": 200,
+      "lang": "pl",
+      "title": "Edytor tabulatur AI: twórz i ćwicz online | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/ai-guitar-tab-editor"
+    },
+    {
+      "path": "/ar/blog/ai-guitar-tab-editor",
+      "status": 200,
+      "lang": "ar",
+      "title": "محرّر تابلاتشر الغيتار بالذكاء الاصطناعي | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/ai-guitar-tab-editor"
+    },
+    {
+      "path": "/zh-hans/blog/ai-guitar-tab-editor",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "AI 吉他六线谱编辑器：创作、编排与练习 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/ai-guitar-tab-editor"
+    },
+    {
+      "path": "/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "status": 200,
+      "lang": "en",
+      "title": "Best AI Guitar Tab Generator | Editable Tabs with Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly"
+    },
+    {
+      "path": "/pt-br/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Como escolher um gerador de tablaturas com IA | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly"
+    },
+    {
+      "path": "/es/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "status": 200,
+      "lang": "es",
+      "title": "Cómo elegir un generador de tablaturas con IA | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly"
+    },
+    {
+      "path": "/ja/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "status": 200,
+      "lang": "ja",
+      "title": "AIギター採譜ツールの選び方 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly"
+    },
+    {
+      "path": "/ko/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "status": 200,
+      "lang": "ko",
+      "title": "AI 기타 타브 생성기 선택 가이드 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly"
+    },
+    {
+      "path": "/pl/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "status": 200,
+      "lang": "pl",
+      "title": "Generator tabulatur AI online: jak wybrać | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly"
+    },
+    {
+      "path": "/ar/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "status": 200,
+      "lang": "ar",
+      "title": "اختيار منشئ تابلاتشر بالذكاء الاصطناعي | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly"
+    },
+    {
+      "path": "/zh-hans/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "如何选择合适的在线 AI 吉他六线谱生成器 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly"
+    },
+    {
+      "path": "/blog/free-online-guitar-tab-maker",
+      "status": 200,
+      "lang": "en",
+      "title": "Free Online Guitar Tab Maker | What Features Matter | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/free-online-guitar-tab-maker"
+    },
+    {
+      "path": "/pt-br/blog/free-online-guitar-tab-maker",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Criador de tablaturas online grátis: como escolher | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/free-online-guitar-tab-maker"
+    },
+    {
+      "path": "/es/blog/free-online-guitar-tab-maker",
+      "status": 200,
+      "lang": "es",
+      "title": "Creador de tablaturas online gratis: cómo elegir | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/free-online-guitar-tab-maker"
+    },
+    {
+      "path": "/ja/blog/free-online-guitar-tab-maker",
+      "status": 200,
+      "lang": "ja",
+      "title": "無料オンラインTAB譜作成ツールの選び方 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/free-online-guitar-tab-maker"
+    },
+    {
+      "path": "/ko/blog/free-online-guitar-tab-maker",
+      "status": 200,
+      "lang": "ko",
+      "title": "무료 온라인 기타 타브 제작기 선택 방법 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/free-online-guitar-tab-maker"
+    },
+    {
+      "path": "/pl/blog/free-online-guitar-tab-maker",
+      "status": 200,
+      "lang": "pl",
+      "title": "Darmowy edytor tabulatur online: jak wybrać | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/free-online-guitar-tab-maker"
+    },
+    {
+      "path": "/ar/blog/free-online-guitar-tab-maker",
+      "status": 200,
+      "lang": "ar",
+      "title": "إنشاء تابلاتشر غيتار مجانًا عبر الإنترنت | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/free-online-guitar-tab-maker"
+    },
+    {
+      "path": "/zh-hans/blog/free-online-guitar-tab-maker",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "免费在线吉他制谱工具：开始前要看什么 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/free-online-guitar-tab-maker"
+    },
+    {
+      "path": "/blog/why-guitar-tabs-can-be-wrong",
+      "status": 200,
+      "lang": "en",
+      "title": "Why Guitar Tabs Can Be Wrong — and Why You Might Not Notice | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/why-guitar-tabs-can-be-wrong"
+    },
+    {
+      "path": "/pt-br/blog/why-guitar-tabs-can-be-wrong",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Por que tablaturas podem estar erradas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/why-guitar-tabs-can-be-wrong"
+    },
+    {
+      "path": "/es/blog/why-guitar-tabs-can-be-wrong",
+      "status": 200,
+      "lang": "es",
+      "title": "Por qué las tablaturas pueden estar equivocadas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/why-guitar-tabs-can-be-wrong"
+    },
+    {
+      "path": "/ja/blog/why-guitar-tabs-can-be-wrong",
+      "status": 200,
+      "lang": "ja",
+      "title": "ギターTAB譜はなぜ間違うのか — 気づきにくい理由 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/why-guitar-tabs-can-be-wrong"
+    },
+    {
+      "path": "/ko/blog/why-guitar-tabs-can-be-wrong",
+      "status": 200,
+      "lang": "ko",
+      "title": "기타 타브가 틀릴 수 있는 이유 — 알아차리기 어려운 이유 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/why-guitar-tabs-can-be-wrong"
+    },
+    {
+      "path": "/pl/blog/why-guitar-tabs-can-be-wrong",
+      "status": 200,
+      "lang": "pl",
+      "title": "Dlaczego tabulatury gitarowe bywają błędne | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/why-guitar-tabs-can-be-wrong"
+    },
+    {
+      "path": "/ar/blog/why-guitar-tabs-can-be-wrong",
+      "status": 200,
+      "lang": "ar",
+      "title": "لماذا قد يخطئ تابلاتشر الغيتار؟ | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/why-guitar-tabs-can-be-wrong"
+    },
+    {
+      "path": "/zh-hans/blog/why-guitar-tabs-can-be-wrong",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "为什么吉他六线谱可能有错：谱面、听觉与预期 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/why-guitar-tabs-can-be-wrong"
+    },
+    {
+      "path": "/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "status": 200,
+      "lang": "en",
+      "title": "How to Write Guitar Tabs Online | No Download Workflow | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/how-to-write-guitar-tabs-online-without-downloading-software"
+    },
+    {
+      "path": "/pt-br/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Como escrever tablaturas online sem baixar programas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/how-to-write-guitar-tabs-online-without-downloading-software"
+    },
+    {
+      "path": "/es/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "status": 200,
+      "lang": "es",
+      "title": "Cómo escribir tablaturas en línea sin descargar programas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/how-to-write-guitar-tabs-online-without-downloading-software"
+    },
+    {
+      "path": "/ja/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "status": 200,
+      "lang": "ja",
+      "title": "インストールせずにギターTAB譜を書く | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/how-to-write-guitar-tabs-online-without-downloading-software"
+    },
+    {
+      "path": "/ko/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "status": 200,
+      "lang": "ko",
+      "title": "설치 없이 온라인에서 기타 타브 쓰기 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/how-to-write-guitar-tabs-online-without-downloading-software"
+    },
+    {
+      "path": "/pl/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "status": 200,
+      "lang": "pl",
+      "title": "Jak pisać tabulatury online bez instalacji | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/how-to-write-guitar-tabs-online-without-downloading-software"
+    },
+    {
+      "path": "/ar/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "status": 200,
+      "lang": "ar",
+      "title": "كتابة تابلاتشر الغيتار دون تنزيل برامج | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/how-to-write-guitar-tabs-online-without-downloading-software"
+    },
+    {
+      "path": "/zh-hans/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "如何在线编写吉他六线谱，无需下载软件 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/how-to-write-guitar-tabs-online-without-downloading-software"
+    },
+    {
+      "path": "/blog/youtube-to-guitar-tabs-workflow",
+      "status": 200,
+      "lang": "en",
+      "title": "YouTube to Guitar Tabs | Practical Editable Workflow | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/youtube-to-guitar-tabs-workflow"
+    },
+    {
+      "path": "/pt-br/blog/youtube-to-guitar-tabs-workflow",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "YouTube para tablatura: guia de transcrição de guitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/youtube-to-guitar-tabs-workflow"
+    },
+    {
+      "path": "/es/blog/youtube-to-guitar-tabs-workflow",
+      "status": 200,
+      "lang": "es",
+      "title": "YouTube a tablaturas: guía de transcripción de guitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/youtube-to-guitar-tabs-workflow"
+    },
+    {
+      "path": "/ja/blog/youtube-to-guitar-tabs-workflow",
+      "status": 200,
+      "lang": "ja",
+      "title": "YouTubeからギターTAB譜へ：曲を学ぶための手順 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/youtube-to-guitar-tabs-workflow"
+    },
+    {
+      "path": "/ko/blog/youtube-to-guitar-tabs-workflow",
+      "status": 200,
+      "lang": "ko",
+      "title": "YouTube를 기타 타브로: 곡 학습을 위한 과정 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/youtube-to-guitar-tabs-workflow"
+    },
+    {
+      "path": "/pl/blog/youtube-to-guitar-tabs-workflow",
+      "status": 200,
+      "lang": "pl",
+      "title": "YouTube na tabulatury: praktyczny poradnik | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/youtube-to-guitar-tabs-workflow"
+    },
+    {
+      "path": "/ar/blog/youtube-to-guitar-tabs-workflow",
+      "status": 200,
+      "lang": "ar",
+      "title": "تحويل YouTube إلى تابلاتشر: دليل عملي | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/youtube-to-guitar-tabs-workflow"
+    },
+    {
+      "path": "/zh-hans/blog/youtube-to-guitar-tabs-workflow",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "把 YouTube 视频转成吉他六线谱的完整流程 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/youtube-to-guitar-tabs-workflow"
+    },
+    {
+      "path": "/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "status": 200,
+      "lang": "en",
+      "title": "Note to Tab Converter Online | Turn Guitar Notes into Tabs | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online"
+    },
+    {
+      "path": "/pt-br/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Como converter notas em tablaturas de guitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online"
+    },
+    {
+      "path": "/es/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "status": 200,
+      "lang": "es",
+      "title": "Cómo convertir notas en tablaturas de guitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online"
+    },
+    {
+      "path": "/ja/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "status": 200,
+      "lang": "ja",
+      "title": "音符をギターTAB譜にする：運指の選び方 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online"
+    },
+    {
+      "path": "/ko/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "status": 200,
+      "lang": "ko",
+      "title": "음을 기타 타브로 변환하기: 운지 선택 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online"
+    },
+    {
+      "path": "/pl/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "status": 200,
+      "lang": "pl",
+      "title": "Nuty na tabulaturę gitarową online | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online"
+    },
+    {
+      "path": "/ar/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "status": 200,
+      "lang": "ar",
+      "title": "تحويل نغمات الغيتار إلى تابلاتشر | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online"
+    },
+    {
+      "path": "/zh-hans/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "如何在线把音符转换为吉他六线谱 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online"
+    },
+    {
+      "path": "/blog/guitar-fingering-optimizer",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Fingering Optimizer | Make Tabs Easier to Play | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/guitar-fingering-optimizer"
+    },
+    {
+      "path": "/pt-br/blog/guitar-fingering-optimizer",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Digitação na guitarra: como otimizar tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/guitar-fingering-optimizer"
+    },
+    {
+      "path": "/es/blog/guitar-fingering-optimizer",
+      "status": 200,
+      "lang": "es",
+      "title": "Digitación de guitarra: mejora tus tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/guitar-fingering-optimizer"
+    },
+    {
+      "path": "/ja/blog/guitar-fingering-optimizer",
+      "status": 200,
+      "lang": "ja",
+      "title": "ギターの運指最適化：TAB譜を弾きやすくする | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/guitar-fingering-optimizer"
+    },
+    {
+      "path": "/ko/blog/guitar-fingering-optimizer",
+      "status": 200,
+      "lang": "ko",
+      "title": "기타 운지 최적화: 타브를 쉽게 연주하기 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/guitar-fingering-optimizer"
+    },
+    {
+      "path": "/pl/blog/guitar-fingering-optimizer",
+      "status": 200,
+      "lang": "pl",
+      "title": "Optymalizacja palcowania tabulatur gitarowych | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/guitar-fingering-optimizer"
+    },
+    {
+      "path": "/ar/blog/guitar-fingering-optimizer",
+      "status": 200,
+      "lang": "ar",
+      "title": "تحسين وضع أصابع تابلاتشر الغيتار | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/guitar-fingering-optimizer"
+    },
+    {
+      "path": "/zh-hans/blog/guitar-fingering-optimizer",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "吉他指法优化：让六线谱更容易演奏 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/guitar-fingering-optimizer"
+    },
+    {
+      "path": "/blog/song-to-guitar-tabs",
+      "status": 200,
+      "lang": "en",
+      "title": "Song to Guitar Tabs | Turn Recordings Into Playable Tabs | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/song-to-guitar-tabs"
+    },
+    {
+      "path": "/pt-br/blog/song-to-guitar-tabs",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Música para tablatura: como converter e editar | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/song-to-guitar-tabs"
+    },
+    {
+      "path": "/es/blog/song-to-guitar-tabs",
+      "status": 200,
+      "lang": "es",
+      "title": "Canciones a tablaturas: cómo convertir y editar | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/song-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/blog/song-to-guitar-tabs",
+      "status": 200,
+      "lang": "ja",
+      "title": "曲をギターTAB譜にする：生成から練習用資料へ | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/song-to-guitar-tabs"
+    },
+    {
+      "path": "/ko/blog/song-to-guitar-tabs",
+      "status": 200,
+      "lang": "ko",
+      "title": "곡을 기타 타브로: 생성에서 연습 자료까지 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/song-to-guitar-tabs"
+    },
+    {
+      "path": "/pl/blog/song-to-guitar-tabs",
+      "status": 200,
+      "lang": "pl",
+      "title": "Utwór na tabulaturę gitarową | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/song-to-guitar-tabs"
+    },
+    {
+      "path": "/ar/blog/song-to-guitar-tabs",
+      "status": 200,
+      "lang": "ar",
+      "title": "تحويل الأغاني إلى تابلاتشر الغيتار | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/song-to-guitar-tabs"
+    },
+    {
+      "path": "/zh-hans/blog/song-to-guitar-tabs",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "如何把歌曲转成吉他六线谱 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/song-to-guitar-tabs"
+    },
+    {
+      "path": "/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Tab Maker vs Guitar Tab Editor | Which Tool to Use | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/guitar-tab-maker-vs-guitar-tab-editor"
+    },
+    {
+      "path": "/pt-br/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Criador ou editor de tablaturas: de qual você precisa? | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/guitar-tab-maker-vs-guitar-tab-editor"
+    },
+    {
+      "path": "/es/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "status": 200,
+      "lang": "es",
+      "title": "Creador o editor de tablaturas: ¿cuál necesitas? | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/guitar-tab-maker-vs-guitar-tab-editor"
+    },
+    {
+      "path": "/ja/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "status": 200,
+      "lang": "ja",
+      "title": "TAB譜の作成と編集：違いと使い分け | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/guitar-tab-maker-vs-guitar-tab-editor"
+    },
+    {
+      "path": "/ko/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "status": 200,
+      "lang": "ko",
+      "title": "타브 제작기와 에디터: 차이와 활용 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/guitar-tab-maker-vs-guitar-tab-editor"
+    },
+    {
+      "path": "/pl/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "status": 200,
+      "lang": "pl",
+      "title": "Tworzenie a edycja tabulatur gitarowych | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/guitar-tab-maker-vs-guitar-tab-editor"
+    },
+    {
+      "path": "/ar/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "status": 200,
+      "lang": "ar",
+      "title": "منشئ تابلاتشر الغيتار أم محرّره؟ | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/guitar-tab-maker-vs-guitar-tab-editor"
+    },
+    {
+      "path": "/zh-hans/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "六线谱制作工具与编辑器：您需要哪一种？ · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/guitar-tab-maker-vs-guitar-tab-editor"
+    },
+    {
+      "path": "/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "status": 200,
+      "lang": "en",
+      "title": "Manual vs AI Guitar Transcription | Which Workflow Is Better? | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players"
+    },
+    {
+      "path": "/pt-br/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Transcrição de guitarra: manual ou com IA? | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players"
+    },
+    {
+      "path": "/es/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "status": 200,
+      "lang": "es",
+      "title": "Transcripción de guitarra: manual o con IA | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players"
+    },
+    {
+      "path": "/ja/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "status": 200,
+      "lang": "ja",
+      "title": "耳コピとAI採譜：ギタリストの使い分け | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players"
+    },
+    {
+      "path": "/ko/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "status": 200,
+      "lang": "ko",
+      "title": "직접 채보와 AI 채보: 기타리스트의 선택 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players"
+    },
+    {
+      "path": "/pl/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "status": 200,
+      "lang": "pl",
+      "title": "Transkrypcja gitarowa ręczna czy AI | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players"
+    },
+    {
+      "path": "/ar/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "status": 200,
+      "lang": "ar",
+      "title": "تفريغ الغيتار اليدوي والذكاء الاصطناعي | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players"
+    },
+    {
+      "path": "/zh-hans/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "手动扒谱与 AI 转录：吉他手该如何选择？ · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players"
+    },
+    {
+      "path": "/blog/guitar-pro-alternative-online",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Pro Alternative Online | Browser Tab Editor | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/guitar-pro-alternative-online"
+    },
+    {
+      "path": "/pt-br/blog/guitar-pro-alternative-online",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Alternativa ao Guitar Pro: editor online de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/guitar-pro-alternative-online"
+    },
+    {
+      "path": "/es/blog/guitar-pro-alternative-online",
+      "status": 200,
+      "lang": "es",
+      "title": "Alternativa a Guitar Pro: editor online de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/guitar-pro-alternative-online"
+    },
+    {
+      "path": "/ja/blog/guitar-pro-alternative-online",
+      "status": 200,
+      "lang": "ja",
+      "title": "Guitar Proのオンライン代替：ブラウザーで十分な場面 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/guitar-pro-alternative-online"
+    },
+    {
+      "path": "/ko/blog/guitar-pro-alternative-online",
+      "status": 200,
+      "lang": "ko",
+      "title": "온라인 Guitar Pro 대안: 브라우저로 충분한 경우 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/guitar-pro-alternative-online"
+    },
+    {
+      "path": "/pl/blog/guitar-pro-alternative-online",
+      "status": 200,
+      "lang": "pl",
+      "title": "Alternatywa dla Guitar Pro online | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/guitar-pro-alternative-online"
+    },
+    {
+      "path": "/ar/blog/guitar-pro-alternative-online",
+      "status": 200,
+      "lang": "ar",
+      "title": "بديل Guitar Pro في المتصفح | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/guitar-pro-alternative-online"
+    },
+    {
+      "path": "/zh-hans/blog/guitar-pro-alternative-online",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "在线 Guitar Pro 替代工具：浏览器何时够用 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/guitar-pro-alternative-online"
+    },
+    {
+      "path": "/blog/how-to-fix-ai-guitar-tabs",
+      "status": 200,
+      "lang": "en",
+      "title": "How to Personalize AI Guitar Tabs for Your Playing Style | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/how-to-fix-ai-guitar-tabs"
+    },
+    {
+      "path": "/pt-br/blog/how-to-fix-ai-guitar-tabs",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Como personalizar tablaturas de IA para seu jeito de tocar | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/how-to-fix-ai-guitar-tabs"
+    },
+    {
+      "path": "/es/blog/how-to-fix-ai-guitar-tabs",
+      "status": 200,
+      "lang": "es",
+      "title": "Cómo personalizar tablaturas de IA para tu forma de tocar | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/how-to-fix-ai-guitar-tabs"
+    },
+    {
+      "path": "/ja/blog/how-to-fix-ai-guitar-tabs",
+      "status": 200,
+      "lang": "ja",
+      "title": "AIのギターTAB譜を、自分の弾き方に合わせる | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/how-to-fix-ai-guitar-tabs"
+    },
+    {
+      "path": "/ko/blog/how-to-fix-ai-guitar-tabs",
+      "status": 200,
+      "lang": "ko",
+      "title": "AI 기타 타브를 내 연주 방식에 맞게 수정하기 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/how-to-fix-ai-guitar-tabs"
+    },
+    {
+      "path": "/pl/blog/how-to-fix-ai-guitar-tabs",
+      "status": 200,
+      "lang": "pl",
+      "title": "Jak dopasować tabulatury AI do swojej gry | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/how-to-fix-ai-guitar-tabs"
+    },
+    {
+      "path": "/ar/blog/how-to-fix-ai-guitar-tabs",
+      "status": 200,
+      "lang": "ar",
+      "title": "تخصيص تابلاتشر الذكاء الاصطناعي | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/how-to-fix-ai-guitar-tabs"
+    },
+    {
+      "path": "/zh-hans/blog/how-to-fix-ai-guitar-tabs",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "让 AI 吉他六线谱适合您的演奏方式 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/how-to-fix-ai-guitar-tabs"
+    },
+    {
+      "path": "/blog/how-to-convert-audio-to-guitar-tabs",
+      "status": 200,
+      "lang": "en",
+      "title": "How to Convert Audio to Guitar Tabs Online | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/how-to-convert-audio-to-guitar-tabs"
+    },
+    {
+      "path": "/pt-br/blog/how-to-convert-audio-to-guitar-tabs",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Como converter áudio em tablaturas de guitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/how-to-convert-audio-to-guitar-tabs"
+    },
+    {
+      "path": "/es/blog/how-to-convert-audio-to-guitar-tabs",
+      "status": 200,
+      "lang": "es",
+      "title": "Cómo convertir audio en tablaturas de guitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/how-to-convert-audio-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/blog/how-to-convert-audio-to-guitar-tabs",
+      "status": 200,
+      "lang": "ja",
+      "title": "音声からギターTAB譜へ：採譜・編集・練習の手順 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/how-to-convert-audio-to-guitar-tabs"
+    },
+    {
+      "path": "/ko/blog/how-to-convert-audio-to-guitar-tabs",
+      "status": 200,
+      "lang": "ko",
+      "title": "오디오를 기타 타브로: 채보·편집·연습 과정 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/blog/how-to-convert-audio-to-guitar-tabs"
+    },
+    {
+      "path": "/pl/blog/how-to-convert-audio-to-guitar-tabs",
+      "status": 200,
+      "lang": "pl",
+      "title": "Jak zamienić audio w tabulatury gitarowe | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/blog/how-to-convert-audio-to-guitar-tabs"
+    },
+    {
+      "path": "/ar/blog/how-to-convert-audio-to-guitar-tabs",
+      "status": 200,
+      "lang": "ar",
+      "title": "كيفية تحويل الصوت إلى تابلاتشر الغيتار | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/blog/how-to-convert-audio-to-guitar-tabs"
+    },
+    {
+      "path": "/zh-hans/blog/how-to-convert-audio-to-guitar-tabs",
+      "status": 200,
+      "lang": "zh-Hans",
+      "title": "音频转吉他六线谱：可播放、可编辑的流程 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/blog/how-to-convert-audio-to-guitar-tabs"
+    }
+  ],
+  "hreflang_languages": [
+    "en",
+    "pt-BR",
+    "es",
+    "ja",
+    "ko",
+    "pl",
+    "ar",
+    "zh-Hans",
+    "x-default"
+  ],
+  "reciprocal_hreflang_checked": true,
+  "rss_feeds_checked": 8,
+  "environment": "local production build, not a live deployment or Google indexing inspection"
+}

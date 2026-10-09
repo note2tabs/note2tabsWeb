@@ -40,7 +40,7 @@ describe("Japanese localization",()=>{
  it("switches all supported paths and return destinations without translating private identifiers",()=>{
   for(const path of [...LOCALIZED_FLOW_PATHS,"/features/guitar-tab-practice-trainer","/blog/mp3-to-guitar-tabs","/blog/tag/guitar","/job/private","/tabs/private/edit"]){
    const ja=localeHref(path,"ja");expect(ja).toBe(`/ja${path==="/"?"":path}`);
-   for(const locale of ["en",...TRANSLATED_LOCALES]) expect(localeHref(ja,locale)).toBe(localeHref(path,locale));
+   for(const locale of (["en",...TRANSLATED_LOCALES] as const)) expect(localeHref(ja,locale)).toBe(localeHref(path,locale));
   }
   expect(localeHref("/gte/local","ja")).toBe("/gte/local");
   expect(localeHref("/transcribe",navigationLocaleForPath("/gte/local","ja"))).toBe("/ja/transcribe");
@@ -114,9 +114,9 @@ describe("Japanese localization",()=>{
  it("emits reciprocal Japanese canonicals and hreflang only after release",async()=>{
   vi.stubEnv("NODE_ENV","production");vi.stubEnv("VERCEL_ENV","production");
   for(const key of ["NEXT_PUBLIC_JA_REVIEWED","NEXT_PUBLIC_ES_REVIEWED","NEXT_PUBLIC_PT_BR_REVIEWED"])vi.stubEnv(key,"true");
-  for(const locale of ["en",...TRANSLATED_LOCALES]){
+  for(const locale of (["en",...TRANSLATED_LOCALES] as const)){
    const html=renderToStaticMarkup(React.createElement(LocaleProvider,{path:localeHref("/pricing",locale),children:React.createElement(SeoHead,{title:"Pricing",canonicalPath:"/pricing"})}));
-   for(const alternate of ["en",...TRANSLATED_LOCALES])expect(html).toContain(`hrefLang="${alternate}" href="https://www.note2tabs.com${localeHref("/pricing",alternate)}"`);
+   for(const alternate of (["en",...TRANSLATED_LOCALES] as const))expect(html).toContain(`hrefLang="${alternate}" href="https://www.note2tabs.com${localeHref("/pricing",alternate)}"`);
   }
   const write=vi.fn();await sitemap({res:{setHeader:vi.fn(),write,end:vi.fn()}}as any);const xml=write.mock.calls[0][0];expect(xml).toContain("/ja/editor");expect(xml).toContain('hreflang="ja"');expect(xml).not.toContain("/ja/settings");
  });

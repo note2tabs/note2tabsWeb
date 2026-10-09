@@ -1,0 +1,9 @@
+{
+  "sourceUpdatedAt": "2026-07-28T17:23:26.641Z",
+  "sourceTitle": "AI Guitar Tab Generator: Convert Any Song (Even YouTube) Into Tabs",
+  "title": "AI 吉他六线谱生成器：从歌曲和 YouTube 开始",
+  "excerpt": "从录音或 YouTube 生成可编辑初稿，检查音符、节奏和指法，整理为实际可演奏的吉他六线谱。",
+  "seoTitle": "AI 吉他六线谱生成器：从歌曲和 YouTube 开始 · Note2Tabs",
+  "seoDescription": "从录音或 YouTube 生成可编辑初稿，检查音符、节奏和指法，整理为实际可演奏的吉他六线谱。",
+  "content": "AI 转录可以从歌曲录音或 YouTube 链接生成编辑起点。用[AI 制谱工具](/ai-guitar-tab-generator)生成初稿，再整理为适合吉他演奏的谱面。\n\n## 何时适合这套流程\n\n工具支持上传音频与 YouTube。比较工具时，可阅读[AI 六线谱工具选择指南](/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly)；准备 MP3 或 WAV 时，可阅读[音频转换指南](/blog/how-to-convert-audio-to-guitar-tabs)。\n\n## 从声音到六线谱\n\n模型从音频估计音符和时值，再安排到弦与品位。同一音高可在多个位置演奏，最佳指法取决于前后乐句。AI 能节省时间，但手位、跨弦、和弦及原速演奏的舒适度仍需检查。\n\n## 从短片段开始\n\n乐句、前奏、副歌或独奏的一部分，比整首歌曲更容易检查。先完善一个片段，再继续，可将歌曲组织为便于练习的单元。\n\n## YouTube 音源要能听清吉他\n\n翻奏、教程或演奏视频，有时比多乐器官方混音更清楚。使用[YouTube 转录](/youtube-to-guitar-tabs)；即使听起来接近，若指法难演奏，也应在保存前调整弦位。\n\n## 生成后先解决主要问题\n\n检查不合理品位、节奏偏差、过细分割及多余移动：\n\n- 尽量让乐句保持在邻近品位。\n- 尝试另一根弦，减少大幅换把。\n- 简化过密片段。\n- 确认和弦实际可演奏。\n- 大幅修改后重新播放。\n\n## AI 与手动扒谱结合\n\n听音扒谱锻炼听力；AI 则减少从白纸开始的负担，提供可检查的音符。它适合准备教材、作曲和学习较多声部。\n\n## 常见问题\n\n### 任何歌曲都能转换吗？\n\n可尝试多种歌曲，但清晰度很重要。独立吉他或分离音源通常比复杂混音更合适。\n\n### 结果可以直接演奏吗？\n\n有时可以，但即使音符接近，也可能需要调整指法。\n\n### 怎样快速试用？\n\n先选短片段。结果有用再继续；如果效果困难，尝试更清晰音源。\n\n生成后，在[编辑器](/editor)中完善成适合您实际演奏的版本。\n"
+}

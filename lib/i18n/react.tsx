@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import type { UrlObject } from "url";
-import { localeFromPath, localeHref, navigationLocaleForPath, preferredLocaleFromCookie, localeEnabled, type AppLocale } from "./locale";
+import { localeFromPath, localeHref, navigationLocaleForPath, preferredLocaleFromCookie, localeEnabled, localeDirection, type AppLocale } from "./locale";
 import { translate } from "./translate";
 const LocaleContext = createContext<{ locale: AppLocale; navigationLocale: AppLocale }>({ locale: "en", navigationLocale: "en" });
 export function LocaleProvider({ children, path }: { children: ReactNode; path: string }) {
@@ -9,6 +9,7 @@ export function LocaleProvider({ children, path }: { children: ReactNode; path: 
   const [preferredLocale, setPreferredLocale] = useState<AppLocale>(locale);
   useEffect(() => {
     document.documentElement.lang = locale;
+    document.documentElement.dir = localeDirection(locale);
     if (locale !== "en") document.cookie = `n2t_locale=${locale}; Path=/; Max-Age=2592000; SameSite=Lax`;
     setPreferredLocale(preferredLocaleFromCookie(document.cookie));
   }, [path, locale]);

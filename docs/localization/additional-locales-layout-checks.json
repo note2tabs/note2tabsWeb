@@ -1,0 +1,2561 @@
+{
+  "checked_layouts": 356,
+  "screen_widths": [
+    390,
+    768,
+    1440
+  ],
+  "menu_closes_after_selection": true,
+  "editor_language": "en",
+  "editor_return_url": "/zh-hans/transcribe",
+  "results": [
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/ar",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 768,
+      "switchHeight": 48,
+      "url": "/ar",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 1440,
+      "switchHeight": 48,
+      "url": "/ar",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/ar/transcribe",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 768,
+      "switchHeight": 48,
+      "url": "/ar/transcribe",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 1440,
+      "switchHeight": 48,
+      "url": "/ar/transcribe",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/pricing",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 768,
+      "url": "/ar/pricing",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 1440,
+      "url": "/ar/pricing",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 768,
+      "url": "/ar/editor",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 1440,
+      "url": "/ar/editor",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 768,
+      "url": "/ar/blog",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 1440,
+      "url": "/ar/blog",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/auth/signup",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 768,
+      "url": "/ar/auth/signup",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 1440,
+      "url": "/ar/auth/signup",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/terms",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 768,
+      "url": "/ar/terms",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 1440,
+      "url": "/ar/terms",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/features",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 768,
+      "url": "/ar/features",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 1440,
+      "url": "/ar/features",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/ko",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "switchHeight": 48,
+      "url": "/ko",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "switchHeight": 48,
+      "url": "/ko",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/ko/transcribe",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "switchHeight": 48,
+      "url": "/ko/transcribe",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "switchHeight": 48,
+      "url": "/ko/transcribe",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/pricing",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/ko/pricing",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/ko/pricing",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/ko/editor",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/ko/editor",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/ko/blog",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/ko/blog",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/auth/signup",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/ko/auth/signup",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/ko/auth/signup",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/terms",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/ko/terms",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/ko/terms",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/features",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/ko/features",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/ko/features",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/pl",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "switchHeight": 48,
+      "url": "/pl",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "switchHeight": 48,
+      "url": "/pl",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/pl/transcribe",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "switchHeight": 48,
+      "url": "/pl/transcribe",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "switchHeight": 48,
+      "url": "/pl/transcribe",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/pricing",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/pl/pricing",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/pl/pricing",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/pl/editor",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/pl/editor",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/pl/blog",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/pl/blog",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/auth/signup",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/pl/auth/signup",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/pl/auth/signup",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/terms",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/pl/terms",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/pl/terms",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/features",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/pl/features",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/pl/features",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/zh-hans",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "switchHeight": 48,
+      "url": "/zh-hans",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "switchHeight": 48,
+      "url": "/zh-hans",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/zh-hans/transcribe",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "switchHeight": 48,
+      "url": "/zh-hans/transcribe",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "switchHeight": 48,
+      "url": "/zh-hans/transcribe",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/pricing",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/zh-hans/pricing",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/zh-hans/pricing",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/zh-hans/editor",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/zh-hans/editor",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/zh-hans/blog",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/zh-hans/blog",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/auth/signup",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/zh-hans/auth/signup",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/zh-hans/auth/signup",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/terms",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/zh-hans/terms",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/zh-hans/terms",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/features",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/zh-hans/features",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/zh-hans/features",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/ar",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 768,
+      "switchHeight": 48,
+      "url": "/ar",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 1440,
+      "switchHeight": 48,
+      "url": "/ar",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/pricing",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 768,
+      "url": "/ar/pricing",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 1440,
+      "url": "/ar/pricing",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 768,
+      "url": "/ar/editor",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 1440,
+      "url": "/ar/editor",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/ar/transcribe",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 768,
+      "switchHeight": 48,
+      "url": "/ar/transcribe",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 1440,
+      "switchHeight": 48,
+      "url": "/ar/transcribe",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/pt-br",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "switchHeight": 48,
+      "url": "/pt-br",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "switchHeight": 48,
+      "url": "/pt-br",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pt-br/pricing",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/pt-br/pricing",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/pt-br/pricing",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pt-br/editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/pt-br/editor",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/pt-br/editor",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/pt-br/transcribe",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "switchHeight": 48,
+      "url": "/pt-br/transcribe",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "switchHeight": 48,
+      "url": "/pt-br/transcribe",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/es",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "switchHeight": 48,
+      "url": "/es",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "switchHeight": 48,
+      "url": "/es",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/es/pricing",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/es/pricing",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/es/pricing",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/es/editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/es/editor",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/es/editor",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/es/transcribe",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "switchHeight": 48,
+      "url": "/es/transcribe",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "switchHeight": 48,
+      "url": "/es/transcribe",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/ja",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "switchHeight": 48,
+      "url": "/ja",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "switchHeight": 48,
+      "url": "/ja",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ja/pricing",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/ja/pricing",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/ja/pricing",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ja/editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "url": "/ja/editor",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/ja/editor",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/ja/transcribe",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 768,
+      "switchHeight": 48,
+      "url": "/ja/transcribe",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 1440,
+      "switchHeight": 48,
+      "url": "/ja/transcribe",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/about",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/contact",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/privacy",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/affiliate-program",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/internship-application",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/audio-to-guitar-tab-converter",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/mp3-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/youtube-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/ai-guitar-tab-generator",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/free-guitar-tab-maker",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/auth/login",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/auth/verify-email",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/reset-password",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/email/unsubscribe",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/email/share-preferences",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/features/guitar-tab-fingering-optimizer",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/features/guitar-tab-key-detector",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/features/guitar-chord-strumming-editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/features/guitar-tab-editor-shortcuts",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/features/guitar-tab-import-export",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/features/guitar-tab-practice-trainer",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/ai-guitar-tab-editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/ascii-guitar-tab-editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/free-online-guitar-tab-maker",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/guitar-fingering-optimizer",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/guitar-pro-alternative-online",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/guitar-solo-tab-maker",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/guitar-tab-creator-with-playback",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/guitar-tab-editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/how-to-convert-audio-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/how-to-edit-guitar-tabs-for-practice",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/how-to-fix-ai-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/mp3-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/song-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/tab-editor-for-guitar",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/wav-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/why-guitar-tabs-can-be-wrong",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/blog/youtube-to-guitar-tabs-workflow",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/about",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/contact",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/privacy",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/affiliate-program",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/internship-application",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/audio-to-guitar-tab-converter",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/mp3-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/youtube-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/ai-guitar-tab-generator",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/free-guitar-tab-maker",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/auth/login",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/auth/verify-email",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/reset-password",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/email/unsubscribe",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/email/share-preferences",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/features/guitar-tab-fingering-optimizer",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/features/guitar-tab-key-detector",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/features/guitar-chord-strumming-editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/features/guitar-tab-editor-shortcuts",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/features/guitar-tab-import-export",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/features/guitar-tab-practice-trainer",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/ai-guitar-tab-editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/ascii-guitar-tab-editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/free-online-guitar-tab-maker",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/guitar-fingering-optimizer",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/guitar-pro-alternative-online",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/guitar-solo-tab-maker",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/guitar-tab-creator-with-playback",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/guitar-tab-editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/how-to-convert-audio-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/how-to-edit-guitar-tabs-for-practice",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/how-to-fix-ai-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/mp3-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/song-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/tab-editor-for-guitar",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/wav-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/why-guitar-tabs-can-be-wrong",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/blog/youtube-to-guitar-tabs-workflow",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/about",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/contact",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/privacy",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/affiliate-program",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/internship-application",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/audio-to-guitar-tab-converter",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/mp3-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/youtube-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/ai-guitar-tab-generator",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/free-guitar-tab-maker",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/auth/login",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/auth/verify-email",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/reset-password",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/email/unsubscribe",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/email/share-preferences",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/features/guitar-tab-fingering-optimizer",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/features/guitar-tab-key-detector",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/features/guitar-chord-strumming-editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/features/guitar-tab-editor-shortcuts",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/features/guitar-tab-import-export",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/features/guitar-tab-practice-trainer",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/ai-guitar-tab-editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/ascii-guitar-tab-editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/free-online-guitar-tab-maker",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/guitar-fingering-optimizer",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/guitar-pro-alternative-online",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/guitar-solo-tab-maker",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/guitar-tab-creator-with-playback",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/guitar-tab-editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/how-to-convert-audio-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/how-to-edit-guitar-tabs-for-practice",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/how-to-fix-ai-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/mp3-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/song-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/tab-editor-for-guitar",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/wav-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/why-guitar-tabs-can-be-wrong",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/blog/youtube-to-guitar-tabs-workflow",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/about",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/contact",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/privacy",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/affiliate-program",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/internship-application",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/audio-to-guitar-tab-converter",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/mp3-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/youtube-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/ai-guitar-tab-generator",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/free-guitar-tab-maker",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/auth/login",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/auth/verify-email",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/reset-password",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/email/unsubscribe",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/email/share-preferences",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/features/guitar-tab-fingering-optimizer",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/features/guitar-tab-key-detector",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/features/guitar-chord-strumming-editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/features/guitar-tab-editor-shortcuts",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/features/guitar-tab-import-export",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/features/guitar-tab-practice-trainer",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/ai-guitar-tab-editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/ascii-guitar-tab-editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/free-online-guitar-tab-maker",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/guitar-fingering-optimizer",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/guitar-pro-alternative-online",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/guitar-solo-tab-maker",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/guitar-tab-creator-with-playback",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/guitar-tab-editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/how-to-convert-audio-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/how-to-edit-guitar-tabs-for-practice",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/how-to-fix-ai-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/mp3-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/song-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/tab-editor-for-guitar",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/wav-to-guitar-tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/why-guitar-tabs-can-be-wrong",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/blog/youtube-to-guitar-tabs-workflow",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pricing",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/transcribe",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pt-br/editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pt-br/pricing",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/pt-br/transcribe",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/es/editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/es/pricing",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/es/transcribe",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ja/editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ja/pricing",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/ja/transcribe",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/ko/pricing",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/ko/transcribe",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/pl/pricing",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/pl/transcribe",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "url": "/ar/pricing",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/ar/transcribe",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/editor",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "url": "/zh-hans/pricing",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "scrollWidth": 390,
+      "switchHeight": 48,
+      "url": "/zh-hans/transcribe",
+      "width": 390
+    }
+  ]
+}
