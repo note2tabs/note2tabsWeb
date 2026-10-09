@@ -1,5 +1,5 @@
-import { stripLocale, localeFromPath } from "../lib/i18n/locale";
-import { translate } from "../lib/i18n/translate";
+import { stripLocale } from "../lib/i18n/locale";
+import SkipLink from "../components/SkipLink";
 import { DisplayCurrencyContext } from "../lib/useDisplayCurrency";
 import { LocaleProvider } from "../lib/i18n/react";
 import type { AppProps } from "next/app";
@@ -84,13 +84,13 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
   }, [router.events]);
 
   return (
-    <DisplayCurrencyContext.Provider value={pageProps.initialDisplayCurrency || "USD"}><LocaleProvider path={router.asPath}><SessionProvider session={session} refetchInterval={0} refetchOnWindowFocus={false}>
+    <DisplayCurrencyContext.Provider value={pageProps.initialDisplayCurrency || "USD"}><LocaleProvider path={router.asPath} initialEditorLocale={pageProps.initialEditorLocale} initialEditorMessages={pageProps.initialEditorMessages}><SessionProvider session={session} refetchInterval={0} refetchOnWindowFocus={false}>
       <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
       <div className="app-shell">
         <RouteLoadingIndicator />
-        <a className="skip-link" href="#main-content">{translate("Skip to main content", localeFromPath(router.asPath))}</a>
+        <SkipLink />
         <NavBar editorRevealMode={isGteEditorPage} />
         <div
           id="main-content"

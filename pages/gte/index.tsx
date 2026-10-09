@@ -1,3 +1,7 @@
+import { editorName } from "../../lib/i18n/editor/names";
+import { withEditorLocale } from "../../lib/i18n/editor/request";
+import { translatedError } from "../../lib/i18n/translate";
+import { useLocale } from "../../lib/i18n/react";
 import { GetServerSideProps } from "next";
 import Link from "../../components/LocaleLink";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -21,6 +25,7 @@ type Props = {
 };
 
 export default function GteIndexPage({ userId }: Props) {
+  const { t, locale } = useLocale();
   const [editors, setEditors] = useState<EditorListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -246,7 +251,7 @@ export default function GteIndexPage({ userId }: Props) {
 
   const handleDiscardGuestDraft = async () => {
     if (!guestDraft) return;
-    if (!window.confirm("Discard your guest draft? This cannot be undone.")) return;
+    if (!window.confirm(t("Discard your guest draft? This cannot be undone."))) return;
     await gteApi.deleteEditor(GTE_GUEST_EDITOR_ID).catch(() => {});
     clearGuestDraft();
     setGuestDraft(null);
@@ -254,13 +259,13 @@ export default function GteIndexPage({ userId }: Props) {
 
   return (
     <>
-      <NoIndexHead title="Guitar Tab Editor Library | Note2Tabs" canonicalPath="/gte" />
+      <NoIndexHead title={t("Guitar Tab Editor Library | Note2Tabs")} canonicalPath="/gte" />
     <main className="page">
       <div className="container stack">
         <div className="page-header">
           <div>
-            <h1 className="page-title">Guitar Tab Editor</h1>
-            <p className="page-subtitle">Open your tabs, start a new arrangement, or import work made elsewhere.</p>
+            <h1 className="page-title">{t("Guitar Tab Editor")}</h1>
+            <p className="page-subtitle">{t("Open your tabs, start a new arrangement, or import work made elsewhere.")}</p>
           </div>
           <div className="button-row">
             <GteFileImportButton
@@ -278,17 +283,15 @@ export default function GteIndexPage({ userId }: Props) {
               }}
               onError={(message) => setError(message || null)}
               busyLabel="Importing..."
-              title="Import a tab file"
-            >
-              Import tabs
-            </GteFileImportButton>
+              title={t("Import a tab file")}
+            >{t("Import tabs")}</GteFileImportButton>
             <button
               type="button"
               onClick={handleCreate}
               disabled={creating}
               className="button-primary button-small"
             >
-              {creating ? "Creating..." : "New tab"}
+              {creating ? t("Creating...") : t("New tab")}
             </button>
           </div>
         </div>
@@ -301,12 +304,9 @@ export default function GteIndexPage({ userId }: Props) {
             >
               <div className="page-header">
                 <div>
-                  <p className="tabs-row-main-title">
-                    Guest draft found{guestDraft.name ? `: ${guestDraft.name}` : ""}
+                  <p className="tabs-row-main-title">{t("Guest draft found")}{guestDraft.name ? t(": {value1}", {value1: guestDraft.name}) : ""}
                   </p>
-                  <p className="muted text-small tabs-row-main-meta">
-                    Import it into your account so it shows up in your library.
-                  </p>
+                  <p className="muted text-small tabs-row-main-meta">{t("Import it into your account so it shows up in your library.")}</p>
                 </div>
                 <div className="button-row">
                   <button
@@ -315,19 +315,15 @@ export default function GteIndexPage({ userId }: Props) {
                     onClick={() => void handleImportGuestDraft()}
                     disabled={guestImporting}
                   >
-                    {guestImporting ? "Importing..." : "Import draft"}
+                    {guestImporting ? t("Importing...") : t("Import draft")}
                   </button>
-                  <Link href={`/gte/${GTE_GUEST_EDITOR_ID}`} className="button-secondary button-small">
-                    Keep editing in guest mode
-                  </Link>
+                  <Link href={`/gte/${GTE_GUEST_EDITOR_ID}`} className="button-secondary button-small">{t("Keep editing in guest mode")}</Link>
                   <button
                     type="button"
                     className="button-secondary button-small"
                     onClick={() => void handleDiscardGuestDraft()}
                     disabled={guestImporting}
-                  >
-                    Discard draft
-                  </button>
+                  >{t("Discard draft")}</button>
                 </div>
               </div>
             </div>
@@ -335,21 +331,19 @@ export default function GteIndexPage({ userId }: Props) {
           {loading && <EditorLibraryLoadingState />}
           {error && (
             <div className="error flex flex-wrap items-center justify-between gap-3" role="alert">
-              <span>{error}</span>
-              <button type="button" className="button-secondary button-small" onClick={() => void loadEditors(true)}>
-                Try again
-              </button>
+              <span>{translatedError(error, locale)}</span>
+              <button type="button" className="button-secondary button-small" onClick={() => void loadEditors(true)}>{t("Try again")}</button>
             </div>
           )}
           {!loading && !editors.length && (
             <div className="blog-empty stack-tight">
-              <strong>Your tab library is ready.</strong>
-              <span>Create a blank tab, import an existing file, or transcribe a recording to begin.</span>
+              <strong>{t("Your tab library is ready.")}</strong>
+              <span>{t("Create a blank tab, import an existing file, or transcribe a recording to begin.")}</span>
               <div className="button-row">
                 <button type="button" className="button-primary button-small" onClick={handleCreate} disabled={creating}>
-                  {creating ? "Creating…" : "Create a blank tab"}
+                  {creating ? t("Creating…") : t("Create a blank tab")}
                 </button>
-                <Link href="/transcribe" className="button-secondary button-small">Transcribe a recording</Link>
+                <Link href="/transcribe" className="button-secondary button-small">{t("Transcribe a recording")}</Link>
               </div>
             </div>
           )}
@@ -359,7 +353,7 @@ export default function GteIndexPage({ userId }: Props) {
                 <Link
                   href={`/gte/${editor.id}`}
                   className="gte-library-row-link"
-                  aria-label={`Open ${editor.name || "Untitled tab"}`}
+                  aria-label={t("Open {value1}", {value1: editorName(editor.name, t) || t("Untitled tab")})}
                   onPointerDown={() => {
                     void gteApi.prefetchEditor(editor.id).catch(() => undefined);
                   }}
@@ -369,14 +363,14 @@ export default function GteIndexPage({ userId }: Props) {
                     }
                   }}
                 >
-                  <span className="sr-only">Open {editor.name || "Untitled tab"}</span>
+                  <span className="sr-only">{t("Open ")}{editorName(editor.name, t) || t("Untitled tab")}</span>
                 </Link>
                 <div className="gte-library-card-head">
-                  <h2 className="gte-library-card-title">{editor.name || "Untitled"}</h2>
+                  <h2 className="gte-library-card-title">{editorName(editor.name, t) || t("Untitled")}</h2>
                 </div>
                 <div className="muted text-small gte-library-meta">
-                  <p>{editor.noteCount ?? 0} notes · {editor.chordCount ?? 0} chords</p>
-                  {editor.updatedAt && <p><time dateTime={editor.updatedAt}>Updated {new Date(editor.updatedAt).toLocaleString()}</time></p>}
+                  <p>{editor.noteCount ?? 0}{t(" notes · ")}{editor.chordCount ?? 0}{t(" chords")}</p>
+                  {editor.updatedAt && <p><time dateTime={editor.updatedAt}>{t("Updated ")}{new Date(editor.updatedAt).toLocaleString(locale)}</time></p>}
                 </div>
                 <div className="gte-library-row-menu" data-editor-row-menu="true">
                   <div style={{ position: "relative" }}>
@@ -384,10 +378,10 @@ export default function GteIndexPage({ userId }: Props) {
                       type="button"
                       className="button-secondary button-small"
                       onClick={() => setOpenMenuId((prev) => (prev === editor.id ? null : editor.id))}
-                      aria-label={`Options for ${editor.name || "Untitled tab"}`}
+                      aria-label={t("Options for {value1}", {value1: editorName(editor.name, t) || t("Untitled tab")})}
                       aria-expanded={openMenuId === editor.id}
                       aria-haspopup="menu"
-                      title="Tab options"
+                      title={t("Tab options")}
                     >
                       <span aria-hidden="true">⋯</span>
                     </button>
@@ -402,9 +396,7 @@ export default function GteIndexPage({ userId }: Props) {
                             setRenameDialog({ id: editor.id, name: editor.name || "Untitled" });
                           }}
                           disabled={renamingId === editor.id || deletingId === editor.id}
-                        >
-                          Rename
-                        </button>
+                        >{t("Rename")}</button>
                         <button
                           type="button"
                           className="editor-actions-menu-item editor-actions-menu-item--danger"
@@ -414,9 +406,7 @@ export default function GteIndexPage({ userId }: Props) {
                             setDeleteDialog(editor);
                           }}
                           disabled={deletingId === editor.id || renamingId === editor.id}
-                        >
-                          Delete
-                        </button>
+                        >{t("Delete")}</button>
                       </div>
                     )}
                   </div>
@@ -430,13 +420,13 @@ export default function GteIndexPage({ userId }: Props) {
         <div className="dialog-scrim" onMouseDown={() => !renamingId && setRenameDialog(null)}>
           <div className="dialog-card" role="dialog" aria-modal="true" aria-labelledby="rename-tab-title" onMouseDown={(event) => event.stopPropagation()}>
             <div className="stack-tight">
-              <h2 id="rename-tab-title" className="page-title" style={{ fontSize: "1.25rem" }}>Rename tab</h2>
-              <p className="muted text-small">Choose a new name for this editor.</p>
+              <h2 id="rename-tab-title" className="page-title" style={{ fontSize: "1.25rem" }}>{t("Rename tab")}</h2>
+              <p className="muted text-small">{t("Choose a new name for this editor.")}</p>
             </div>
             <div className="stack-tight">
               <input
                 type="text"
-                aria-label="Tab name"
+                aria-label={t("Tab name")}
                 value={renameDialog.name}
                 onChange={(event) =>
                   setRenameDialog((prev) => (prev ? { ...prev, name: event.target.value } : prev))
@@ -459,16 +449,14 @@ export default function GteIndexPage({ userId }: Props) {
                 className="button-secondary button-small"
                 onClick={() => setRenameDialog(null)}
                 disabled={Boolean(renamingId)}
-              >
-                Cancel
-              </button>
+              >{t("Cancel")}</button>
               <button
                 type="button"
                 className="button-primary button-small"
                 onClick={() => void handleRename(renameDialog.id, renameDialog.name)}
                 disabled={Boolean(renamingId)}
               >
-                {renamingId ? "Renaming..." : "Save"}
+                {renamingId ? t("Renaming...") : t("Save")}
               </button>
             </div>
           </div>
@@ -478,10 +466,8 @@ export default function GteIndexPage({ userId }: Props) {
         <div className="dialog-scrim" onMouseDown={() => !deletingId && setDeleteDialog(null)}>
           <div className="dialog-card" role="alertdialog" aria-modal="true" aria-labelledby="delete-tab-title" aria-describedby="delete-tab-description" onMouseDown={(event) => event.stopPropagation()}>
             <div className="stack-tight">
-              <h2 id="delete-tab-title" className="page-title" style={{ fontSize: "1.25rem" }}>Delete tab?</h2>
-              <p id="delete-tab-description" className="muted text-small">
-                Delete "{deleteDialog.name || "Untitled"}"? This cannot be undone.
-              </p>
+              <h2 id="delete-tab-title" className="page-title" style={{ fontSize: "1.25rem" }}>{t("Delete tab?")}</h2>
+              <p id="delete-tab-description" className="muted text-small">{t("Delete \"")}{deleteDialog.name || t("Untitled")}{t("\"? This cannot be undone.")}</p>
             </div>
             <div className="button-row" style={{ justifyContent: "flex-end" }}>
               <button
@@ -489,16 +475,14 @@ export default function GteIndexPage({ userId }: Props) {
                 className="button-secondary button-small"
                 onClick={() => setDeleteDialog(null)}
                 disabled={Boolean(deletingId)}
-              >
-                Cancel
-              </button>
+              >{t("Cancel")}</button>
               <button
                 type="button"
                 className="button-secondary button-small button-delete-final"
                 onClick={() => void handleDelete(deleteDialog)}
                 disabled={Boolean(deletingId)}
               >
-                {deletingId ? "Deleting..." : "Delete"}
+                {deletingId ? t("Deleting...") : t("Delete")}
               </button>
             </div>
           </div>
@@ -509,7 +493,7 @@ export default function GteIndexPage({ userId }: Props) {
   );
 }
 
-export const getServerSideProps: GetServerSideProps = async (ctx) => {
+export const getServerSideProps: GetServerSideProps = withEditorLocale(async (ctx) => {
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
   if (!session?.user?.id) {
     return {
@@ -520,4 +504,4 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     };
   }
   return { props: { userId: session.user.id } };
-};
+});

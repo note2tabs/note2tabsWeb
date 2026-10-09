@@ -1,14 +1,17 @@
+import {getEditorCatalog} from "../lib/i18n/editor/catalogs";
+import {registerEditorCatalog} from "../lib/i18n/translate";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useRef } from "react";
 import { sendEvent } from "../lib/analytics";
-import { LOCALE_VERSION, localeSwitchHref, supportsLocalizedPath, localeEnabled, ALL_LOCALES, LOCALE_NAMES, LOCALE_LANGUAGE_LABELS, type AppLocale } from "../lib/i18n/locale";
+import { LOCALE_VERSION, localeSwitchHref, supportsLocalizedPath, localeEnabled, ALL_LOCALES, LOCALE_NAMES, LOCALE_LANGUAGE_LABELS, isEditorPath, type AppLocale } from "../lib/i18n/locale";
 import { useLocale } from "../lib/i18n/react";
 
 export default function LanguageSelector() {
   const router = useRouter();
   const { locale } = useLocale();
   const menuRef = useRef<HTMLDetailsElement>(null);
+  const selectionSequence=useRef(0);
   const label = LOCALE_NAMES[locale];
 
   useEffect(() => {
@@ -24,8 +27,19 @@ export default function LanguageSelector() {
   }, []);
 
   if (!ALL_LOCALES.some(target => target !== "en" && localeEnabled(target)) || !supportsLocalizedPath(router.asPath)) return null;
-  const select = (target: AppLocale) => {
+  const select = async (target: AppLocale) => {
+    const sequence=++selectionSequence.current;
     if (menuRef.current) menuRef.current.open = false;
+    if(isEditorPath(router.asPath)) {
+      try {
+        const copy=await getEditorCatalog(target);
+        if(sequence!==selectionSequence.current)return;
+        registerEditorCatalog(target,copy);
+      } catch {
+        if(sequence===selectionSequence.current && menuRef.current)menuRef.current.open=true;
+        return;
+      }
+    }
     document.cookie = `n2t_locale=${target}; Path=/; Max-Age=2592000; SameSite=Lax`;
     window.dispatchEvent(new Event("note2tabs:locale-changed"));
     try { window.localStorage.setItem("n2t:preferred-locale", target); } catch { /* choice still works without storage */ }
@@ -48,8 +62,11 @@ export default function LanguageSelector() {
     </summary>
     <nav className="language-selector__options" aria-label={LOCALE_LANGUAGE_LABELS[locale]}>
       {ALL_LOCALES.filter(localeEnabled).map(target =>
-        <Link key={target} href={localeSwitchHref(router.asPath, target)} hrefLang={target} lang={target}
-          aria-current={locale === target ? "true" : undefined} onClick={() => select(target)} dir={target === "ar" ? "rtl" : "ltr"}>{LOCALE_NAMES[target]}</Link>)}
+        <Link key={target} href={localeSwitchHref(router.asPath, target)} prefetch={isEditorPath(router.asPath) ? false : undefined} hrefLang={target} lang={target}
+          aria-current={locale === target ? "true" : undefined} onClick={(event) => {
+            if (isEditorPath(router.asPath)) event.preventDefault();
+            void select(target);
+          }} dir={target === "ar" ? "rtl" : "ltr"}>{LOCALE_NAMES[target]}</Link>)}
     </nav>
   </details>;
 }

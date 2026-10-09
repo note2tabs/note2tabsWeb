@@ -1,18 +1,23 @@
 import { createContext, useContext, useMemo, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import type { UrlObject } from "url";
-import { localeFromPath, localeHref, navigationLocaleForPath, preferredLocaleFromCookie, localeEnabled, localeDirection, type AppLocale } from "./locale";
-import { translate } from "./translate";
+import { localeFromPath, localeHref, navigationLocaleForPath, preferredLocaleFromCookie, localeEnabled, localeDirection, isEditorPath, type AppLocale } from "./locale";
+import { translate, registerEditorCatalog } from "./translate";
 const LocaleContext = createContext<{ locale: AppLocale; navigationLocale: AppLocale }>({ locale: "en", navigationLocale: "en" });
-export function LocaleProvider({ children, path }: { children: ReactNode; path: string }) {
-  const locale = localeFromPath(path);
-  const [preferredLocale, setPreferredLocale] = useState<AppLocale>(locale);
+export function LocaleProvider({ children, path, initialEditorLocale = "en", initialEditorMessages }: { children: ReactNode; path: string; initialEditorLocale?: AppLocale; initialEditorMessages?: Record<string,string> }) {
+  useMemo(() => {
+    if(initialEditorMessages)registerEditorCatalog(initialEditorLocale,initialEditorMessages);
+  }, [initialEditorLocale,initialEditorMessages]);
+  const routeLocale = localeFromPath(path);
+  const editor = isEditorPath(path);
+  const [preferredLocale, setPreferredLocale] = useState<AppLocale>(editor ? initialEditorLocale : routeLocale);
+  const locale = editor ? (localeEnabled(preferredLocale) ? preferredLocale : "en") : routeLocale;
   useEffect(() => {
     document.documentElement.lang = locale;
     document.documentElement.dir = localeDirection(locale);
     if (locale !== "en") document.cookie = `n2t_locale=${locale}; Path=/; Max-Age=2592000; SameSite=Lax`;
-    setPreferredLocale(preferredLocaleFromCookie(document.cookie));
-  }, [path, locale]);
+    setPreferredLocale(document.cookie.split(";").some(part => part.trim().startsWith("n2t_locale=")) ? preferredLocaleFromCookie(document.cookie) : editor ? initialEditorLocale : routeLocale);
+  }, [path, locale, editor, initialEditorLocale, routeLocale]);
   useEffect(() => {
     const update = () => setPreferredLocale(preferredLocaleFromCookie(document.cookie));
     window.addEventListener("note2tabs:locale-changed", update);

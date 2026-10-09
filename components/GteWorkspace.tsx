@@ -1,3 +1,6 @@
+import { editorCount } from "../lib/i18n/editor/counts";
+import { translatedError } from "../lib/i18n/translate";
+import { useLocale } from "../lib/i18n/react";
 import {
   Fragment,
   useCallback,
@@ -643,6 +646,7 @@ const NON_TEXT_INPUT_TYPES = new Set([
 
 const isShortcutTextEntryTarget = (target: HTMLElement | null) => {
   if (!target) return false;
+  if (target.closest(".language-selector")) return true;
   if (target.isContentEditable || target.closest("textarea, select")) return true;
   const input = target.closest("input");
   if (!(input instanceof HTMLInputElement)) return false;
@@ -1793,6 +1797,7 @@ function ChordFingeringDiagram({
   fingering: ChordFingering;
   leftHanded?: boolean;
 }) {
+  const { t } = useLocale();
   const hydrated = hydrateChordFingering(fingering);
   const positions = hydrated.positions;
   const fingers = hydrated.fingers || [];
@@ -1875,8 +1880,7 @@ function ChordFingeringDiagram({
     <div className="relative h-[76px] w-[82px] select-none">
       {baseFret > 1 ? (
         <span className="absolute left-0 top-[19px] w-5 text-right text-[9px] font-semibold text-slate-500">
-          {baseFret}fr
-        </span>
+          {baseFret}{t("fr")}</span>
       ) : null}
       <div className="absolute left-5 top-4 h-[54px] w-[54px]">
         {Array.from({ length: 6 }, (_, stringIndex) => (
@@ -1920,9 +1924,7 @@ function ChordFingeringDiagram({
                 key={`mute-${index}`}
                 className="absolute -top-4 -translate-x-1/2 text-[10px] font-bold leading-none text-slate-500"
                 style={{ left: `${x}%` }}
-              >
-                x
-              </span>
+              >{t("x")}</span>
             );
           }
           if (fret === 0) {
@@ -1931,9 +1933,7 @@ function ChordFingeringDiagram({
                 key={`open-${index}`}
                 className="absolute -top-4 -translate-x-1/2 text-[10px] font-bold leading-none text-slate-500"
                 style={{ left: `${x}%` }}
-              >
-                o
-              </span>
+              >{t("o")}</span>
             );
           }
           if (fret < baseFret || fret > maxVisibleFret || barredPositions.has(index)) return null;
@@ -2063,6 +2063,7 @@ function ChordLaneWorkspace({
   mobileViewport = false,
   mobileMode,
 }: Props) {
+  const { t } = useLocale();
   useGteRenderInstrumentation("GteWorkspace", `${editorId}:chords`);
   const timelineRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<ChordEditorDragState | null>(null);
@@ -3132,8 +3133,7 @@ function ChordLaneWorkspace({
                         key={`practice-chord-bar-${barIndex}`}
                         className="min-w-0 border-l border-slate-400 px-1.5 pb-2 pt-1 last:border-r"
                       >
-                        <div className="mb-1 text-[9px] font-semibold text-slate-500">
-                          Bar {barIndex + 1}
+                        <div className="mb-1 text-[9px] font-semibold text-slate-500">{t("Bar ")}{barIndex + 1}
                         </div>
                         <div className="flex min-h-9 flex-wrap content-start gap-1.5">
                           {barItems.map((item) => {
@@ -3144,7 +3144,7 @@ function ChordLaneWorkspace({
                                 type="button"
                                 onClick={() => seekToChord(item.start)}
                                 aria-current={active ? "true" : undefined}
-                                aria-label={`Play from ${item.label} in bar ${item.bar}`}
+                                aria-label={t("Play from {value1} in bar {value2}", {value1: t(item.label), value2: item.bar})}
                                 className={`flex max-w-full flex-col items-center rounded-md border px-1.5 py-1 transition ${
                                   chordFingeringsVisible ? "w-[92px]" : "min-w-[52px]"
                                 } ${
@@ -3154,7 +3154,7 @@ function ChordLaneWorkspace({
                                 }`}
                               >
                                 <span className="max-w-full truncate text-xs font-bold leading-tight">
-                                  {item.label}
+                                  {t(item.label)}
                                 </span>
                                 {chordFingeringsVisible ? (
                                   item.fingering ? (
@@ -3163,9 +3163,7 @@ function ChordLaneWorkspace({
                                       leftHanded={leftHandedChordDiagrams}
                                     />
                                   ) : (
-                                    <span className="grid h-[76px] w-[82px] place-items-center text-[10px] font-semibold text-slate-400">
-                                      No shape
-                                    </span>
+                                    <span className="grid h-[76px] w-[82px] place-items-center text-[10px] font-semibold text-slate-400">{t("No shape")}</span>
                                   )
                                 ) : null}
                               </button>
@@ -3179,9 +3177,7 @@ function ChordLaneWorkspace({
               );
             })
           ) : (
-            <div className="px-1 py-6 text-xs font-semibold text-slate-400">
-              This chord track has no chords yet.
-            </div>
+            <div className="px-1 py-6 text-xs font-semibold text-slate-400">{t("This chord track has no chords yet.")}</div>
           )}
         </div>
         {showChordPlaybackUi && (
@@ -3194,7 +3190,7 @@ function ChordLaneWorkspace({
                 <span
                   className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-slate-200 bg-white/95 px-2 py-1 text-[10px] font-semibold tabular-nums text-slate-600 shadow-sm"
                   role="timer"
-                  aria-label="Playback time"
+                  aria-label={t("Playback time")}
                 >
                   {formatPlaybackTimer(effectivePlayheadFrame / chordPlaybackFps)} / {formatPlaybackTimer(totalFrames / chordPlaybackFps)}
                 </span>
@@ -3202,14 +3198,14 @@ function ChordLaneWorkspace({
               <div
                 className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur"
                 role="toolbar"
-                aria-label="Playback controls"
+                aria-label={t("Playback controls")}
               >
                 <button
                   type="button"
                   onClick={() => onGlobalPlaybackSkipToStart?.()}
                   className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-slate-100"
-                  title="Go to start"
-                  aria-label="Go to start"
+                  title={t("Go to start")}
+                  aria-label={t("Go to start")}
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <rect x="4" y="5" width="2" height="14" />
@@ -3220,8 +3216,8 @@ function ChordLaneWorkspace({
                   type="button"
                   onClick={() => onGlobalPlaybackSkipBackwardBar?.()}
                   className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-slate-100"
-                  title="Previous bar"
-                  aria-label="Previous bar"
+                  title={t("Previous bar")}
+                  aria-label={t("Previous bar")}
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <polygon points="17,5 7,12 17,19" />
@@ -3232,18 +3228,10 @@ function ChordLaneWorkspace({
                   onClick={() => onGlobalPlaybackToggle?.()}
                   className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700 disabled:cursor-wait disabled:bg-slate-700"
                   title={
-                    globalPlaybackIsPreparing
-                      ? "Loading guitar sound"
-                      : globalPlaybackIsPlaying
-                      ? "Pause"
-                      : "Play"
+                    globalPlaybackIsPreparing ? t("Loading guitar sound") : globalPlaybackIsPlaying ? t("Pause") : t("Play")
                   }
                   aria-label={
-                    globalPlaybackIsPreparing
-                      ? "Loading guitar sound"
-                      : globalPlaybackIsPlaying
-                      ? "Pause"
-                      : "Play"
+                    globalPlaybackIsPreparing ? t("Loading guitar sound") : globalPlaybackIsPlaying ? t("Pause") : t("Play")
                   }
                   aria-busy={globalPlaybackIsPreparing}
                   disabled={globalPlaybackIsPreparing}
@@ -3265,8 +3253,8 @@ function ChordLaneWorkspace({
                   type="button"
                   onClick={() => onGlobalPlaybackSkipForwardBar?.()}
                   className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-slate-100"
-                  title="Next bar"
-                  aria-label="Next bar"
+                  title={t("Next bar")}
+                  aria-label={t("Next bar")}
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <polygon points="7,5 17,12 7,19" />
@@ -3287,8 +3275,8 @@ function ChordLaneWorkspace({
                   value={globalPlaybackVolume ?? 1}
                   onChange={(event) => onGlobalPlaybackVolumeChange?.(Number(event.target.value))}
                   className="w-20 accent-slate-700"
-                  title="Volume"
-                  aria-label="Playback volume"
+                  title={t("Volume")}
+                  aria-label={t("Playback volume")}
                 />
               </div>
             </div>
@@ -3315,8 +3303,8 @@ function ChordLaneWorkspace({
           >
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <div className="text-[10px] font-bold uppercase tracking-[.14em] text-emerald-700">Chord palette</div>
-                <div className="text-xs text-slate-500">Drag a chord onto the score</div>
+                <div className="text-[10px] font-bold uppercase tracking-[.14em] text-emerald-700">{t("Chord palette")}</div>
+                <div className="text-xs text-slate-500">{t("Drag a chord onto the score")}</div>
               </div>
               <button
                 type="button"
@@ -3325,7 +3313,7 @@ function ChordLaneWorkspace({
                   setPendingChordFrame(null);
                 }}
                 className="h-7 w-7 rounded-full hover:bg-slate-100"
-                aria-label="Close chord palette"
+                aria-label={t("Close chord palette")}
               >
                 ×
               </button>
@@ -3368,12 +3356,10 @@ function ChordLaneWorkspace({
                               : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 opacity-60"
                           }`}
                           title={
-                            chordInKey
-                              ? `Drag ${label} to the chord editor`
-                              : `${label} is outside the current key`
+                            chordInKey ? t("Drag {value1} to the chord editor", {value1: label}) : t("{value1} is outside the current key", {value1: label})
                           }
                         >
-                          {label}
+                          {t(String(label))}
                         </button>
                       );
                     })}
@@ -3396,9 +3382,7 @@ function ChordLaneWorkspace({
                 ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
                 : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
             }`}
-          >
-            Fingerings
-          </button>
+          >{t("Fingerings")}</button>
         </div>
         <div className="px-8">
         <div
@@ -3484,9 +3468,9 @@ function ChordLaneWorkspace({
                             width: stackedChordBarWidth,
                             height: TIMELINE_BAR_HEADER_HEIGHT,
                           }}
-                          aria-label={`Select Bar ${barIndex + 1}`}
+                          aria-label={t("Select Bar {value1}", {value1: barIndex + 1})}
                         >
-                          {showBarNumbers ? `Bar ${barIndex + 1}` : null}
+                          {showBarNumbers ? t("Bar {value1}", {value1: barIndex + 1}) : null}
                         </button>
                         {selected ? (
                           <div
@@ -3659,14 +3643,14 @@ function ChordLaneWorkspace({
                             top: TIMELINE_BAR_HEADER_HEIGHT + 12,
                             width: chordBlockWidth,
                           }}
-                          aria-label={`${label} chord`}
+                          aria-label={t("{value1} chord", {value1: label})}
                         >
                           {segmentContainsStart ? (
                             <button
                               type="button"
                               data-track-reorder-block="true"
                               className="absolute left-0 top-0 z-20 h-full w-2 cursor-ew-resize rounded-l bg-transparent"
-                              aria-label="Resize chord start"
+                              aria-label={t("Resize chord start")}
                               onMouseDown={(event) => {
                                 event.preventDefault();
                                 event.stopPropagation();
@@ -3684,7 +3668,7 @@ function ChordLaneWorkspace({
                               }}
                             />
                           ) : null}
-                          <span className="max-w-full truncate">{label}</span>
+                          <span className="max-w-full truncate">{t(String(label))}</span>
                           {strums.map((strum) => {
                             const strumFrame = start + strum.time;
                             if (strumFrame < visibleStart || strumFrame >= visibleEnd) return null;
@@ -3694,7 +3678,7 @@ function ChordLaneWorkspace({
                                 className="pointer-events-none absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 text-base leading-none text-slate-700"
                                 style={{ left: (strumFrame - visibleStart) * pxPerFrame }}
                               >
-                                {strum.direction === "mute" ? "x" : strum.direction === "up" ? "↑" : "↓"}
+                                {strum.direction === "mute" ? t("x") : strum.direction === "up" ? "↑" : "↓"}
                               </span>
                             );
                           })}
@@ -3703,7 +3687,7 @@ function ChordLaneWorkspace({
                               type="button"
                               data-track-reorder-block="true"
                               className="absolute right-0 top-0 z-20 h-full w-2 cursor-ew-resize rounded-r bg-transparent"
-                              aria-label="Resize chord end"
+                              aria-label={t("Resize chord end")}
                               onMouseDown={(event) => {
                                 event.preventDefault();
                                 event.stopPropagation();
@@ -3740,7 +3724,7 @@ function ChordLaneWorkspace({
                                   type="button"
                                   className="grid h-6 w-6 place-items-center rounded border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                                   disabled={fingeringOptions.length <= 1}
-                                  aria-label={`Previous ${label} fingering`}
+                                  aria-label={t("Previous {value1} fingering", {value1: label})}
                                   onClick={() => {
                                     if (!fingeringOptions.length) return;
                                     const nextIndex =
@@ -3756,15 +3740,13 @@ function ChordLaneWorkspace({
                                   {"<"}
                                 </button>
                                 <span className="max-w-[58px] truncate text-center text-[10px] font-semibold text-slate-700">
-                                  {fingeringOptions.length
-                                    ? `${savedFingeringIndex + 1}/${fingeringOptions.length}`
-                                    : "0/0"}
+                                  {fingeringOptions.length ? t("{value1}/{value2}", {value1: savedFingeringIndex + 1, value2: fingeringOptions.length}) : "0/0"}
                                 </span>
                                 <button
                                   type="button"
                                   className="grid h-6 w-6 place-items-center rounded border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                                   disabled={fingeringOptions.length <= 1}
-                                  aria-label={`Next ${label} fingering`}
+                                  aria-label={t("Next {value1} fingering", {value1: label})}
                                   onClick={() => {
                                     if (!fingeringOptions.length) return;
                                     const nextIndex =
@@ -3785,9 +3767,7 @@ function ChordLaneWorkspace({
                                   leftHanded={leftHandedChordDiagrams}
                                 />
                               ) : (
-                                <span className="grid h-[76px] w-[82px] place-items-center text-[10px] font-semibold text-slate-400">
-                                  No shape
-                                </span>
+                                <span className="grid h-[76px] w-[82px] place-items-center text-[10px] font-semibold text-slate-400">{t("No shape")}</span>
                               )}
                             </div>
                           ) : null}
@@ -3814,10 +3794,8 @@ function ChordLaneWorkspace({
                               type="button"
                               className="absolute right-1 top-1 z-20 grid h-5 w-5 place-items-center rounded border border-slate-200 bg-white text-[11px] font-bold text-slate-500 hover:bg-slate-50"
                               onClick={closeStrumEditor}
-                              aria-label="Close strum editor"
-                            >
-                              x
-                            </button>
+                              aria-label={t("Close strum editor")}
+                            >{t("x")}</button>
                             <div
                               className="absolute bottom-2 left-2 right-2 top-7 rounded border border-slate-200 bg-slate-50"
                               onMouseDown={(event) => {
@@ -3906,11 +3884,7 @@ function ChordLaneWorkspace({
                                       });
                                     }}
                                   >
-                                    {strum.direction === "mute"
-                                      ? "x"
-                                      : strum.direction === "up"
-                                      ? "↑"
-                                      : "↓"}
+                                    {strum.direction === "mute" ? t("x") : strum.direction === "up" ? "↑" : "↓"}
                                   </button>
                                 );
                               })}
@@ -3958,7 +3932,7 @@ function ChordLaneWorkspace({
                                         });
                                       }}
                                     >
-                                      {label}
+                                      {t(String(label))}
                                     </button>
                                   ))}
                                 </div>
@@ -3991,8 +3965,8 @@ function ChordLaneWorkspace({
                     TIMELINE_BAR_HEADER_HEIGHT +
                     Math.max(4, timelineRowHeight / 2 - ADD_BAR_BUTTON_HALF_SIZE),
             }}
-            title="Add bar to end"
-            aria-label="Add bar to end"
+            title={t("Add bar to end")}
+            aria-label={t("Add bar to end")}
           >
             <AddBarIcon />
           </button>
@@ -4051,23 +4025,17 @@ function ChordLaneWorkspace({
                       copyChordIds(targetChordIds);
                       setChordContextMenu(null);
                     }}
-                  >
-                    Copy
-                  </button>
+                  >{t("Copy")}</button>
                   <button
                     type="button"
                     className={menuItemClass}
                     disabled={!chordClipboard.length}
                     onClick={() => pasteChordsAtFrame(readExternalPlaybackFrame())}
-                  >
-                    Paste
-                  </button>
+                  >{t("Paste")}</button>
                   {targetChordIds.length === 1 ? (
                     <>
                       <div className="my-1 border-t border-slate-100" />
-                      <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                        Extension
-                      </div>
+                      <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t("Extension")}</div>
                       <div className="grid grid-cols-3 gap-1 px-1 pb-1">
                         {CHORD_PALETTE_EXTENSIONS.map((extension) => {
                           const active = currentExtension === extension.value;
@@ -4086,13 +4054,11 @@ function ChordLaneWorkspace({
                               aria-pressed={active}
                               disabled={!extensionInKey}
                               title={
-                                extensionInKey
-                                  ? `Set extension to ${extension.label}`
-                                  : `${getChordEditorLabel(
+                                extensionInKey ? t("Set extension to {value1}", {value1: t(extension.label)}) : t("{value1} is outside the current key", {value1: getChordEditorLabel(
                                       contextChordRoot,
                                       contextChordQuality,
                                       extension.value
-                                    )} is outside the current key`
+                                    )})
                               }
                               className={`rounded border px-1.5 py-1 text-xs font-semibold transition ${
                                 !extensionInKey
@@ -4103,7 +4069,7 @@ function ChordLaneWorkspace({
                               }`}
                               onClick={() => applyChordExtension(chord.id, extension.value)}
                             >
-                              {extension.label}
+                              {t(extension.label)}
                             </button>
                           );
                         })}
@@ -4111,37 +4077,27 @@ function ChordLaneWorkspace({
                     </>
                   ) : null}
                   <div className="my-1 border-t border-slate-100" />
-                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                    Quick strumming
-                  </div>
+                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t("Quick strumming")}</div>
                   <button
                     type="button"
                     className={menuItemClass}
                     onClick={() => applyQuickStrumming(targetChordIds, "whole")}
-                  >
-                    Whole beat strum
-                  </button>
+                  >{t("Whole beat strum")}</button>
                   <button
                     type="button"
                     className={menuItemClass}
                     onClick={() => applyQuickStrumming(targetChordIds, "half")}
-                  >
-                    Half beat strum
-                  </button>
+                  >{t("Half beat strum")}</button>
                   <button
                     type="button"
                     className={menuItemClass}
                     onClick={() => applyQuickStrumming(targetChordIds, "quarter")}
-                  >
-                    Quarter beat strum
-                  </button>
+                  >{t("Quarter beat strum")}</button>
                   <button
                     type="button"
                     className={menuItemClass}
                     onClick={() => applyQuickStrumming(targetChordIds, "clear")}
-                  >
-                    Clear
-                  </button>
+                  >{t("Clear")}</button>
                 </div>
               );
             })()
@@ -4166,9 +4122,9 @@ function ChordLaneWorkspace({
           onTouchStart={(event) => event.stopPropagation()}
         >
           <div className="mb-2 grid grid-cols-[1fr_auto_1fr] items-start gap-2">
-            <div className="pt-1 text-[11px] font-bold text-slate-800">Chords</div>
+            <div className="pt-1 text-[11px] font-bold text-slate-800">{t("Chords")}</div>
             <label className="flex flex-col items-center gap-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
-              <span>Extension</span>
+              <span>{t("Extension")}</span>
               <select
                 value={chordPaletteExtension}
                 onChange={(event) => {
@@ -4178,11 +4134,11 @@ function ChordLaneWorkspace({
                   event.currentTarget.blur();
                 }}
                 className="h-7 min-w-20 rounded-md border border-slate-300 bg-white px-2 text-center text-xs font-semibold normal-case tracking-normal text-slate-700 shadow-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-                aria-label="Chord extension"
+                aria-label={t("Chord extension")}
               >
                 {CHORD_PALETTE_EXTENSIONS.map((extension) => (
                   <option key={extension.value || "none"} value={extension.value}>
-                    {extension.label}
+                    {t(extension.label)}
                   </option>
                 ))}
               </select>
@@ -4191,10 +4147,8 @@ function ChordLaneWorkspace({
               type="button"
               onClick={() => setChordMenuOpen(false)}
               className="grid h-6 w-6 place-items-center justify-self-end rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-400 shadow-sm transition hover:bg-slate-50 hover:text-slate-700"
-              aria-label="Close chords"
-            >
-              x
-            </button>
+              aria-label={t("Close chords")}
+            >{t("x")}</button>
           </div>
           <div className="space-y-2">
             {CHORD_EDITOR_QUALITIES.map((quality) => (
@@ -4237,12 +4191,10 @@ function ChordLaneWorkspace({
                             : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 opacity-60"
                         }`}
                         title={
-                          chordInKey
-                            ? `Drag ${label} to the chord editor`
-                            : `${label} is outside the current key`
+                          chordInKey ? t("Drag {value1} to the chord editor", {value1: label}) : t("{value1} is outside the current key", {value1: label})
                         }
                       >
-                        {label}
+                        {t(String(label))}
                       </button>
                     );
                   })}
@@ -4264,9 +4216,7 @@ function ChordLaneWorkspace({
                 ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
                 : "border-sky-300 bg-sky-100/95 text-sky-900 hover:bg-sky-50"
             }`}
-          >
-            Chords
-          </button>
+          >{t("Chords")}</button>
         </div>
       )}
       <div className="flex items-center justify-end border-b border-slate-100 bg-white px-3 py-2">
@@ -4282,9 +4232,7 @@ function ChordLaneWorkspace({
               ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-700"
               : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
           }`}
-        >
-          Fingerings
-        </button>
+        >{t("Fingerings")}</button>
       </div>
       <div
         ref={timelineRef}
@@ -4350,7 +4298,7 @@ function ChordLaneWorkspace({
                     selected ? "bg-sky-500 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
                   }`}
                   style={{ width: FIXED_FRAMES_PER_BAR * pxPerFrame }}
-                  aria-label={`Select bar ${barIndex + 1}`}
+                  aria-label={t("Select bar {value1}", {value1: barIndex + 1})}
                 >
                   {showBarNumbers ? barIndex + 1 : null}
                 </button>
@@ -4371,7 +4319,7 @@ function ChordLaneWorkspace({
                 data-track-offset-blank="true"
                 className="absolute top-0 z-[60] h-full cursor-default overflow-hidden border-r border-slate-200 bg-white"
                 style={{ left: timelineContentOffset, width: trackOffsetWidth }}
-                title={`Track begins at bar ${trackOffsetFrames / FIXED_FRAMES_PER_BAR + 1}`}
+                title={t("Track begins at bar {value1}", {value1: trackOffsetFrames / FIXED_FRAMES_PER_BAR + 1})}
                 onMouseDown={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
@@ -4546,7 +4494,7 @@ function ChordLaneWorkspace({
                     type="button"
                     data-track-reorder-block="true"
                     className="absolute left-0 top-0 z-20 h-full w-2 cursor-ew-resize rounded-l bg-transparent"
-                    aria-label="Resize chord start"
+                    aria-label={t("Resize chord start")}
                     onMouseDown={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
@@ -4572,14 +4520,14 @@ function ChordLaneWorkspace({
                       className="pointer-events-none absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 text-base leading-none text-slate-700"
                       style={{ left: Math.max(0, Math.min(chordWidth, strum.time * pxPerFrame)) }}
                     >
-                      {strum.direction === "mute" ? "x" : strum.direction === "up" ? "↑" : "↓"}
+                      {strum.direction === "mute" ? t("x") : strum.direction === "up" ? "↑" : "↓"}
                     </span>
                   ))}
                   <button
                     type="button"
                     data-track-reorder-block="true"
                     className="absolute right-0 top-0 z-20 h-full w-2 cursor-ew-resize rounded-r bg-transparent"
-                    aria-label="Resize chord end"
+                    aria-label={t("Resize chord end")}
                     onMouseDown={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
@@ -4621,7 +4569,7 @@ function ChordLaneWorkspace({
                           type="button"
                           className="grid h-6 w-6 place-items-center rounded border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                           disabled={fingeringOptions.length <= 1}
-                          aria-label={`Previous ${chordLabel} fingering`}
+                          aria-label={t("Previous {value1} fingering", {value1: chordLabel})}
                           onClick={() => {
                             if (!fingeringOptions.length) return;
                             const nextIndex = (savedFingeringIndex - 1 + fingeringOptions.length) % fingeringOptions.length;
@@ -4631,13 +4579,13 @@ function ChordLaneWorkspace({
                           {"<"}
                         </button>
                         <span className="max-w-[58px] truncate text-center text-[10px] font-semibold text-slate-700">
-                          {fingeringOptions.length ? `${savedFingeringIndex + 1}/${fingeringOptions.length}` : "0/0"}
+                          {fingeringOptions.length ? t("{value1}/{value2}", {value1: savedFingeringIndex + 1, value2: fingeringOptions.length}) : "0/0"}
                         </span>
                         <button
                           type="button"
                           className="grid h-6 w-6 place-items-center rounded border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                           disabled={fingeringOptions.length <= 1}
-                          aria-label={`Next ${chordLabel} fingering`}
+                          aria-label={t("Next {value1} fingering", {value1: chordLabel})}
                           onClick={() => {
                             if (!fingeringOptions.length) return;
                             const nextIndex = (savedFingeringIndex + 1) % fingeringOptions.length;
@@ -4653,9 +4601,7 @@ function ChordLaneWorkspace({
                           leftHanded={leftHandedChordDiagrams}
                         />
                       ) : (
-                        <div className="grid h-[76px] place-items-center text-[10px] font-semibold text-slate-400">
-                          No shape
-                        </div>
+                        <div className="grid h-[76px] place-items-center text-[10px] font-semibold text-slate-400">{t("No shape")}</div>
                       )}
                     </div>
                   ) : null}
@@ -4680,10 +4626,8 @@ function ChordLaneWorkspace({
                         type="button"
                         className="absolute right-1 top-1 z-20 grid h-5 w-5 place-items-center rounded border border-slate-200 bg-white text-[11px] font-bold text-slate-500 hover:bg-slate-50"
                         onClick={closeStrumEditor}
-                        aria-label="Close strum editor"
-                      >
-                        x
-                      </button>
+                        aria-label={t("Close strum editor")}
+                      >{t("x")}</button>
                       <div
                         className="absolute bottom-2 left-2 right-2 top-7 rounded border border-slate-200 bg-slate-50"
                         onMouseDown={(event) => {
@@ -4759,7 +4703,7 @@ function ChordLaneWorkspace({
                                 });
                               }}
                             >
-                              {strum.direction === "mute" ? "x" : strum.direction === "up" ? "↑" : "↓"}
+                              {strum.direction === "mute" ? t("x") : strum.direction === "up" ? "↑" : "↓"}
                             </button>
                           );
                         })}
@@ -4803,7 +4747,7 @@ function ChordLaneWorkspace({
                                   });
                                 }}
                               >
-                                {label}
+                                {t(String(label))}
                               </button>
                             ))}
                           </div>
@@ -4823,8 +4767,8 @@ function ChordLaneWorkspace({
                 width: timelineWidth,
                 height: CHORD_TIME_RULER_HEIGHT,
               }}
-              title="Click to jump playback"
-              aria-label="Timeline seconds ruler, starting at 0:00"
+              title={t("Click to jump playback")}
+              aria-label={t("Timeline seconds ruler, starting at 0:00")}
               onMouseDown={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -4895,23 +4839,17 @@ function ChordLaneWorkspace({
                     copyChordIds(targetChordIds);
                     setChordContextMenu(null);
                   }}
-                >
-                  Copy
-                </button>
+                >{t("Copy")}</button>
                 <button
                   type="button"
                   className={menuItemClass}
                   disabled={!chordClipboard.length}
                   onClick={() => pasteChordsAtFrame(readExternalPlaybackFrame())}
-                >
-                  Paste
-                </button>
+                >{t("Paste")}</button>
                 {targetChordIds.length === 1 ? (
                   <>
                     <div className="my-1 border-t border-slate-100" />
-                    <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                      Extension
-                    </div>
+                    <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t("Extension")}</div>
                     <div className="grid grid-cols-3 gap-1 px-1 pb-1">
                       {CHORD_PALETTE_EXTENSIONS.map((extension) => {
                         const active = currentExtension === extension.value;
@@ -4930,13 +4868,11 @@ function ChordLaneWorkspace({
                             aria-pressed={active}
                             disabled={!extensionInKey}
                             title={
-                              extensionInKey
-                                ? `Set extension to ${extension.label}`
-                                : `${getChordEditorLabel(
+                              extensionInKey ? t("Set extension to {value1}", {value1: t(extension.label)}) : t("{value1} is outside the current key", {value1: getChordEditorLabel(
                                     contextChordRoot,
                                     contextChordQuality,
                                     extension.value
-                                  )} is outside the current key`
+                                  )})
                             }
                             className={`rounded border px-1.5 py-1 text-xs font-semibold transition ${
                               !extensionInKey
@@ -4947,7 +4883,7 @@ function ChordLaneWorkspace({
                             }`}
                             onClick={() => applyChordExtension(chord.id, extension.value)}
                           >
-                            {extension.label}
+                            {t(extension.label)}
                           </button>
                         );
                       })}
@@ -4955,37 +4891,27 @@ function ChordLaneWorkspace({
                   </>
                 ) : null}
                 <div className="my-1 border-t border-slate-100" />
-                <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                  Quick strumming
-                </div>
+                <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t("Quick strumming")}</div>
                 <button
                   type="button"
                   className={menuItemClass}
                   onClick={() => applyQuickStrumming(targetChordIds, "whole")}
-                >
-                  Whole beat strum
-                </button>
+                >{t("Whole beat strum")}</button>
                 <button
                   type="button"
                   className={menuItemClass}
                   onClick={() => applyQuickStrumming(targetChordIds, "half")}
-                >
-                  Half beat strum
-                </button>
+                >{t("Half beat strum")}</button>
                 <button
                   type="button"
                   className={menuItemClass}
                   onClick={() => applyQuickStrumming(targetChordIds, "quarter")}
-                >
-                  Quarter beat strum
-                </button>
+                >{t("Quarter beat strum")}</button>
                 <button
                   type="button"
                   className={menuItemClass}
                   onClick={() => applyQuickStrumming(targetChordIds, "clear")}
-                >
-                  Clear
-                </button>
+                >{t("Clear")}</button>
               </div>
             );
           })()
@@ -5094,6 +5020,7 @@ export default function GteWorkspace({
   mobileViewport = false,
   mobileMode,
 }: Props) {
+  const { t, locale } = useLocale();
   useGteRenderInstrumentation("GteWorkspace", `${editorId}:tab`);
   if (isChordEditorSnapshot(snapshot)) {
     return (
@@ -14870,7 +14797,7 @@ export default function GteWorkspace({
       if (!description) return null;
       return (
         <p className="-mt-1 ml-2 mr-1 border-l-2 border-sky-200 py-0.5 pl-2 pr-1 text-[9px] leading-3.5 text-slate-400">
-          {description}
+          {t(description)}
         </p>
       );
     };
@@ -14889,24 +14816,12 @@ export default function GteWorkspace({
           onMouseDown={(event) => event.stopPropagation()}
           onTouchStart={(event) => event.stopPropagation()}
         >
-          <button type="button" onClick={() => void handleOptimizeFingering()} disabled={optimizingFingering || allTrackEventsEmpty} className={mobileButtonClass}>
-            Optimize fingering
-          </button>
-          <button type="button" onClick={() => runMobileWholeTrackTool("coordinates")} disabled={snapshot.notes.length === 0} className={mobileButtonClass}>
-            Optimize to coordinates
-          </button>
-          <button type="button" onClick={() => runMobileWholeTrackTool("snap-key")} disabled={snapshot.notes.length === 0} className={mobileButtonClass}>
-            Snap to key
-          </button>
-          <button type="button" onClick={() => void handleMakeChord()} disabled={chordizeCandidateCount < 2 || selectionActionsLocked} className={mobileButtonClass}>
-            Merge to chord
-          </button>
-          <button type="button" onClick={handleDisbandChord} disabled={!selectedChord || selectionActionsLocked} className={mobileButtonClass}>
-            Disband chord
-          </button>
-          <button type="button" onClick={() => runMobileWholeTrackTool("quantize")} disabled={allTrackEventsEmpty || selectionActionsLocked} className={mobileButtonClass}>
-            Quantize
-          </button>
+          <button type="button" onClick={() => void handleOptimizeFingering()} disabled={optimizingFingering || allTrackEventsEmpty} className={mobileButtonClass}>{t("Optimize fingering")}</button>
+          <button type="button" onClick={() => runMobileWholeTrackTool("coordinates")} disabled={snapshot.notes.length === 0} className={mobileButtonClass}>{t("Optimize to coordinates")}</button>
+          <button type="button" onClick={() => runMobileWholeTrackTool("snap-key")} disabled={snapshot.notes.length === 0} className={mobileButtonClass}>{t("Snap to key")}</button>
+          <button type="button" onClick={() => void handleMakeChord()} disabled={chordizeCandidateCount < 2 || selectionActionsLocked} className={mobileButtonClass}>{t("Merge to chord")}</button>
+          <button type="button" onClick={handleDisbandChord} disabled={!selectedChord || selectionActionsLocked} className={mobileButtonClass}>{t("Disband chord")}</button>
+          <button type="button" onClick={() => runMobileWholeTrackTool("quantize")} disabled={allTrackEventsEmpty || selectionActionsLocked} className={mobileButtonClass}>{t("Quantize")}</button>
         </div>
       );
     }
@@ -14925,11 +14840,9 @@ export default function GteWorkspace({
       >
         <div className="mb-1 flex items-start justify-between gap-2">
           <div>
-            {!topMenu ? <div className="text-[11px] font-bold text-slate-800">Toolbar</div> : null}
+            {!topMenu ? <div className="text-[11px] font-bold text-slate-800">{t("Toolbar")}</div> : null}
             {!topMenu && inlineMobile ? (
-              <div className="text-[9px] text-slate-400">
-                Edit notes, chords and playing coordinates
-              </div>
+              <div className="text-[9px] text-slate-400">{t("Edit notes, chords and playing coordinates")}</div>
             ) : null}
           </div>
 
@@ -14938,22 +14851,22 @@ export default function GteWorkspace({
               type="button"
               onClick={() => setToolHelpOpen((open) => !open)}
               aria-expanded={toolHelpOpen}
-              aria-label={toolHelpOpen ? "Hide tool explanations" : "Explain the editor tools"}
-              title="What do these tools do?"
+              aria-label={toolHelpOpen ? t("Hide tool explanations") : t("Explain the editor tools")}
+              title={t("What do these tools do?")}
               className={`flex h-6 items-center justify-center rounded-full border text-[10px] font-semibold shadow-sm transition-all ${
                 toolHelpOpen
                   ? "gap-1 border-sky-300 bg-sky-50 px-2 text-sky-700"
                   : "w-6 border-slate-200 bg-white font-serif text-slate-500 hover:bg-slate-50 hover:text-slate-800"
               }`}
             >
-              <span className="font-serif font-bold">i</span>
-              {toolHelpOpen ? <span>Help on</span> : null}
+              <span className="font-serif font-bold">{t("i")}</span>
+              {toolHelpOpen ? <span>{t("Help on")}</span> : null}
             </button>
             {!topMenu ? (
               <button
                 type="button"
                 onClick={() => setToolbarOpen(false)}
-                aria-label="Close toolbar"
+                aria-label={t("Close toolbar")}
                 className="grid h-6 w-6 place-items-center rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-400 shadow-sm transition hover:bg-slate-50 hover:text-slate-700"
               >
                 ×
@@ -14963,15 +14876,12 @@ export default function GteWorkspace({
         </div>
 
         {toolHelpOpen ? (
-          <div className="rounded-md border border-sky-100 bg-sky-50/70 px-2 py-1 text-[9px] leading-3.5 text-sky-700">
-            Help is on — short explanations now appear beneath every tool.
-          </div>
+          <div className="rounded-md border border-sky-100 bg-sky-50/70 px-2 py-1 text-[9px] leading-3.5 text-sky-700">{t("Help is on — short explanations now appear beneath every tool.")}</div>
         ) : null}
 
         {pendingSelectionTool && (
           <div className="rounded-md bg-sky-50 px-2 py-1.5 text-[10px] leading-4 text-sky-800">
-            {pendingSelectionToolLabel} is ready. Select everything you want to change, then choose Apply.
-          </div>
+            {t(pendingSelectionToolLabel)}{t(" is ready. Select everything you want to change, then choose Apply.")}</div>
         )}
 
         <fieldset
@@ -14980,7 +14890,7 @@ export default function GteWorkspace({
         >
         <div className="grid grid-cols-1 gap-0">
           <div className={sectionClass}>
-            <div className={sectionTitleClass}>Notes & chords</div>
+            <div className={sectionTitleClass}>{t("Notes & chords")}</div>
 
             <div className="grid grid-cols-1 gap-1.5">
               {!bassLane && <>
@@ -14991,9 +14901,7 @@ export default function GteWorkspace({
                 }}
                 disabled={chordizeCandidateCount < 2 || selectionActionsLocked}
                 title={
-                  selectionActionsLocked
-                    ? "Disabled while notes/chords are selected in multiple tracks"
-                    : "Merges notes into a chord object - Shortcut: C"
+                  selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Merges notes into a chord object - Shortcut: C")
                 }
                 className={
                   chordizeCandidateCount >= 2 && !selectionActionsLocked
@@ -15001,9 +14909,7 @@ export default function GteWorkspace({
                     : textButtonClass
                 }
               >
-                <span className={shortcutClass}>C</span>
-                Merge to Chord
-              </button>
+                <span className={shortcutClass}>{t("C")}</span>{t("Merge to Chord")}</button>
               {renderToolHelp("Merge to Chord")}
 
               <button
@@ -15031,15 +14937,11 @@ export default function GteWorkspace({
                 }}
                 disabled={activeChordIds.length === 0 || selectionActionsLocked}
                 title={
-                  selectionActionsLocked
-                    ? "Disabled while notes/chords are selected in multiple tracks"
-                    : "Disband selected chord into notes - Shortcut: Shift+L"
+                  selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Disband selected chord into notes - Shortcut: Shift+L")
                 }
                 className={textButtonClass}
               >
-                <span className={shortcutClass}>Shift+L</span>
-                Disband Chord
-              </button>
+                <span className={shortcutClass}>{t("Shift+L")}</span>{t("Disband Chord")}</button>
               {renderToolHelp("Disband Chord")}
               </>}
 
@@ -15050,15 +14952,11 @@ export default function GteWorkspace({
                 }}
                 disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
                 title={
-                  selectionActionsLocked
-                    ? "Disabled while notes/chords are selected in multiple tracks"
-                    : "Moves selected notes to their best playing coordinates - Shortcut: O"
+                  selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Moves selected notes to their best playing coordinates - Shortcut: O")
                 }
                 className={textButtonClass}
               >
-                <span className={shortcutClass}>O</span>
-                Optimize to Coordinates
-              </button>
+                <span className={shortcutClass}>{t("O")}</span>{t("Optimize to Coordinates")}</button>
               {renderToolHelp("Optimize to Coordinates")}
 
               <button
@@ -15072,16 +14970,10 @@ export default function GteWorkspace({
                   selectionActionsLocked
                 }
                 title={
-                  optimizingFingering
-                    ? "Optimizing fingering"
-                    : selectionActionsLocked
-                    ? "Disabled while notes/chords are selected in multiple tracks"
-                    : "Chordizes simultaneous notes and optimizes the whole track"
+                  optimizingFingering ? t("Optimizing fingering") : selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Chordizes simultaneous notes and optimizes the whole track")
                 }
                 className={textButtonClass}
-              >
-                Optimize Fingering
-              </button>
+              >{t("Optimize Fingering")}</button>
               {renderToolHelp("Optimize Fingering")}
 
               <button
@@ -15089,14 +14981,10 @@ export default function GteWorkspace({
                 onClick={() => handleSnapSelectedNotesToKey()}
                 disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
                 title={
-                  selectionActionsLocked
-                    ? "Disabled while notes/chords are selected in multiple tracks"
-                    : "Snap selected notes to the current key"
+                  selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Snap selected notes to the current key")
                 }
                 className={textButtonClass}
-              >
-                Snap to Key
-              </button>
+              >{t("Snap to Key")}</button>
               {renderToolHelp("Snap to Key")}
 
               <button
@@ -15113,20 +15001,14 @@ export default function GteWorkspace({
                 }}
                 disabled={selectionActionsLocked}
                 title={
-                  selectionActionsLocked
-                    ? "Disabled while notes/chords are selected in multiple tracks"
-                    : selectedNoteIds.length + selectedChordIds.length > 0
-                    ? "Quantize selected notes/chords"
-                    : "Choose Quantize, then select notes or chords"
+                  selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : selectedNoteIds.length + selectedChordIds.length > 0 ? t("Quantize selected notes/chords") : t("Choose Quantize, then select notes or chords")
                 }
                 className={
                   quantizeDialogOpen || pendingSelectionTool === "quantize"
                     ? `${activeButtonClass} bg-sky-600`
                     : textButtonClass
                 }
-              >
-                Quantize
-              </button>
+              >{t("Quantize")}</button>
               {renderToolHelp("Quantize")}
 
               <button
@@ -15136,15 +15018,11 @@ export default function GteWorkspace({
                 }}
                 disabled={selectedNoteIds.length < 2 || selectionActionsLocked}
                 title={
-                  selectionActionsLocked
-                    ? "Disabled while notes/chords are selected in multiple tracks"
-                    : "Merges notes into a single one - Shortcut: J"
+                  selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Merges notes into a single one - Shortcut: J")
                 }
                 className={textButtonClass}
               >
-                <span className={shortcutClass}>J</span>
-                Merge Notes
-              </button>
+                <span className={shortcutClass}>{t("J")}</span>{t("Merge Notes")}</button>
               {renderToolHelp("Merge Notes")}
 
               <div className="grid grid-cols-1 gap-1.5">
@@ -15167,12 +15045,12 @@ export default function GteWorkspace({
                     event.currentTarget.blur();
                   }}
                   className="h-7 min-w-0 rounded-md border-0 bg-transparent px-2 text-[11px] font-normal text-slate-700 shadow-none outline-none transition hover:bg-slate-100 focus:bg-slate-100"
-                  title="Scale mode - Shortcut: D"
-                  aria-label="Scale mode"
+                  title={t("Scale mode - Shortcut: D")}
+                  aria-label={t("Scale mode")}
                 >
-                  <option value="both">Start + length</option>
-                  <option value="length">Length scaling</option>
-                  <option value="start">Start-time scaling</option>
+                  <option value="both">{t("Start + length")}</option>
+                  <option value="length">{t("Length scaling")}</option>
+                  <option value="start">{t("Start-time scaling")}</option>
                 </select>
 
                 <button
@@ -15190,9 +15068,7 @@ export default function GteWorkspace({
                   }}
                   disabled={selectionActionsLocked}
                   title={
-                    selectedNoteIds.length + selectedChordIds.length > 0
-                      ? "Scale selected notes/chords - Shortcut: S"
-                      : "Choose Scale, then select notes or chords - Shortcut: S"
+                    selectedNoteIds.length + selectedChordIds.length > 0 ? t("Scale selected notes/chords - Shortcut: S") : t("Choose Scale, then select notes or chords - Shortcut: S")
                   }
                   className={
                     scaleToolActive || pendingSelectionTool === "scale"
@@ -15200,7 +15076,7 @@ export default function GteWorkspace({
                       : iconButtonClass
                   }
                 >
-                  <span className={shortcutClass}>S</span>
+                  <span className={shortcutClass}>{t("S")}</span>
                   <svg
                     viewBox="0 0 24 24"
                     className="h-3.5 w-3.5 fill-current"
@@ -15209,31 +15085,27 @@ export default function GteWorkspace({
                     <path d="M3 10h18v4H3z" />
                     <path d="M7 6l-4 6 4 6z" />
                     <path d="M17 6l4 6-4 6z" />
-                  </svg>
-                  Scale
-                </button>
+                  </svg>{t("Scale")}</button>
                 {renderToolHelp("Scale")}
               </div>
 
               <button
                 type="button"
                 onClick={toggleSliceTool}
-                title="Note slicing tool, click on the note and where you want to cut it - Shortcut: Shift+S"
+                title={t("Note slicing tool, click on the note and where you want to cut it - Shortcut: Shift+S")}
                 className={
                   sliceToolActive
                     ? `${activeButtonClass} bg-indigo-600`
                     : iconButtonClass
                 }
               >
-                <span className={shortcutClass}>Shift+S</span>
+                <span className={shortcutClass}>{t("Shift+S")}</span>
                 <img
                   src={STREAMLINE_TOOLBAR_ICONS.slice}
                   alt=""
                   aria-hidden="true"
                   className="h-3.5 w-3.5"
-                />
-                Slicing Tool
-              </button>
+                />{t("Slicing Tool")}</button>
               {renderToolHelp("Slicing Tool")}
 
               <button
@@ -15251,9 +15123,7 @@ export default function GteWorkspace({
                 }}
                 disabled={selectionActionsLocked}
                 title={
-                  selectedNoteIds.length + selectedChordIds.length > 0
-                    ? "Move selected notes/chords with the mouse - Shortcut: G"
-                    : "Choose Move, then select notes or chords - Shortcut: G"
+                  selectedNoteIds.length + selectedChordIds.length > 0 ? t("Move selected notes/chords with the mouse - Shortcut: G") : t("Choose Move, then select notes or chords - Shortcut: G")
                 }
                 className={
                   moveToolActive || pendingSelectionTool === "move"
@@ -15261,7 +15131,7 @@ export default function GteWorkspace({
                     : iconButtonClass
                 }
               >
-                <span className={shortcutClass}>G</span>
+                <span className={shortcutClass}>{t("G")}</span>
                 <svg
                   viewBox="0 0 24 24"
                   className="h-3.5 w-3.5 fill-current"
@@ -15269,15 +15139,13 @@ export default function GteWorkspace({
                 >
                   <path d="M11 3h2v5h4l-5 5-5-5h4V3z" />
                   <path d="M11 21h2v-5h4l-5-5-5 5h4v5z" />
-                </svg>
-                Move
-              </button>
+                </svg>{t("Move")}</button>
               {renderToolHelp("Move")}
             </div>
           </div>
 
           <div className={sectionClass}>
-            <div className={sectionTitleClass}>Effects</div>
+            <div className={sectionTitleClass}>{t("Effects")}</div>
             <div className="grid grid-cols-1 gap-1.5">
               <button
                 type="button"
@@ -15294,17 +15162,13 @@ export default function GteWorkspace({
                 }}
                 disabled={selectionActionsLocked || activeChordIds.length > 0}
                 title={
-                  selectionActionsLocked
-                    ? "Disabled while notes/chords are selected in multiple tracks"
-                    : "Connect selected notes with hammer-ons or pull-offs - Shortcut: H"
+                  selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Connect selected notes with hammer-ons or pull-offs - Shortcut: H")
                 }
                 className={
                   pendingSelectionTool === "hammer-pull" ? activeButtonClass : textButtonClass
                 }
               >
-                <span className={shortcutClass}>H</span>
-                Hammer/Pull
-              </button>
+                <span className={shortcutClass}>{t("H")}</span>{t("Hammer/Pull")}</button>
               {renderToolHelp("Hammer/Pull")}
 
               <button
@@ -15320,15 +15184,11 @@ export default function GteWorkspace({
                 }}
                 disabled={selectionActionsLocked || activeChordIds.length > 0}
                 title={
-                  selectionActionsLocked
-                    ? "Disabled while notes/chords are selected in multiple tracks"
-                    : "Connect selected notes with slides - Shortcut: L"
+                  selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Connect selected notes with slides - Shortcut: L")
                 }
                 className={pendingSelectionTool === "slide" ? activeButtonClass : textButtonClass}
               >
-                <span className={shortcutClass}>L</span>
-                Slide
-              </button>
+                <span className={shortcutClass}>{t("L")}</span>{t("Slide")}</button>
               {renderToolHelp("Slide")}
 
               <button
@@ -15344,21 +15204,17 @@ export default function GteWorkspace({
                 }}
                 disabled={selectionActionsLocked || activeChordIds.length > 0}
                 title={
-                  selectionActionsLocked
-                    ? "Disabled while notes/chords are selected in multiple tracks"
-                    : "Connect selected notes with bends - Shortcut: B"
+                  selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Connect selected notes with bends - Shortcut: B")
                 }
                 className={pendingSelectionTool === "bend" ? activeButtonClass : textButtonClass}
               >
-                <span className={shortcutClass}>B</span>
-                Bend
-              </button>
+                <span className={shortcutClass}>{t("B")}</span>{t("Bend")}</button>
               {renderToolHelp("Bend")}
             </div>
           </div>
 
           <div className={sectionClass}>
-            <div className={sectionTitleClass}>Playing Coordinates</div>
+            <div className={sectionTitleClass}>{t("Playing Coordinates")}</div>
 
             <div className="grid grid-cols-1 gap-1.5">
               <button
@@ -15366,33 +15222,29 @@ export default function GteWorkspace({
                 data-gte-editor-control="true"
                 onClick={handleMergeRedundantCutRegions}
                 disabled={!hasRedundantCutRegions}
-                title="Merges adjacent cut regions with the same coordinates"
+                title={t("Merges adjacent cut regions with the same coordinates")}
                 className={textButtonClass}
-              >
-                Clean Playing-Coordinates
-              </button>
+              >{t("Clean Playing-Coordinates")}</button>
               {renderToolHelp("Clean Playing-Coordinates")}
 
               <button
                 type="button"
                 data-gte-editor-control="true"
                 onClick={toggleCutTool}
-                title="Cut tool for cutting playing coordinates - Shortcut: K"
+                title={t("Cut tool for cutting playing coordinates - Shortcut: K")}
                 className={
                   cutToolActive
                     ? `${activeButtonClass} bg-sky-600`
                     : iconButtonClass
                 }
               >
-                <span className={shortcutClass}>K</span>
+                <span className={shortcutClass}>{t("K")}</span>
                 <img
                   src={STREAMLINE_TOOLBAR_ICONS.cut}
                   alt=""
                   aria-hidden="true"
                   className="h-3.5 w-3.5"
-                />
-                Cut
-              </button>
+                />{t("Cut")}</button>
               {renderToolHelp("Cut")}
 
               <button
@@ -15400,11 +15252,9 @@ export default function GteWorkspace({
                 data-gte-editor-control="true"
                 onClick={handleMergeCutBoundary}
                 disabled={selectedCutBoundaryIndex === null}
-                title="Merge/delete selected boundary"
+                title={t("Merge/delete selected boundary")}
                 className={textButtonClass}
-              >
-                Merge
-              </button>
+              >{t("Merge")}</button>
               {renderToolHelp("Merge")}
             </div>
           </div>
@@ -15425,7 +15275,7 @@ export default function GteWorkspace({
         compact ? "h-8" : "h-9"
       } items-center gap-1 rounded-full border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-500 shadow-sm backdrop-blur`}
     >
-      <span className="whitespace-nowrap">add note size</span>
+      <span className="whitespace-nowrap">{t("add note size")}</span>
       <select
         value={defaultNoteLengthDenominator}
         onChange={(event) => {
@@ -15435,8 +15285,8 @@ export default function GteWorkspace({
         }}
         onKeyDown={blockSizeSelectKeyboardChange}
         className="h-6 rounded-full border border-slate-200 bg-white px-1 text-xs font-semibold text-slate-700"
-        title="Add note size"
-        aria-label="Add note size"
+        title={t("Add note size")}
+        aria-label={t("Add note size")}
       >
         {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
           <option key={denominator} value={denominator}>
@@ -15453,7 +15303,7 @@ export default function GteWorkspace({
         compact ? "h-8" : "h-9"
       } items-center gap-1 rounded-full border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-500 shadow-sm backdrop-blur`}
     >
-      <span className="whitespace-nowrap">cursor size</span>
+      <span className="whitespace-nowrap">{t("cursor size")}</span>
       <select
         value={cursorSizeDenominator}
         onChange={(event) => {
@@ -15462,8 +15312,8 @@ export default function GteWorkspace({
         }}
         onKeyDown={blockSizeSelectKeyboardChange}
         className="h-6 rounded-full border border-slate-200 bg-white px-1 text-xs font-semibold text-slate-700"
-        title="Cursor size"
-        aria-label="Cursor size"
+        title={t("Cursor size")}
+        aria-label={t("Cursor size")}
       >
         {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
           <option key={denominator} value={denominator}>
@@ -15488,42 +15338,33 @@ export default function GteWorkspace({
         onFocusWorkspace?.();
       }}
     >
-      {editMenuPortalTarget
-        ? createPortal(renderEditMenuPanel(true), editMenuPortalTarget)
-        : null}
+      {editMenuPortalTarget ? createPortal(renderEditMenuPanel(true), editMenuPortalTarget) : null}
       {pendingSelectionTool && (
         <div
           data-gte-floating-ui="true"
           data-gte-editor-control="true"
           className="fixed bottom-28 left-1/2 z-[10020] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl border border-sky-200 bg-white/95 px-3 py-2 shadow-xl backdrop-blur"
           role="toolbar"
-          aria-label={`${pendingSelectionToolLabel} selection`}
+          aria-label={t("{value1} selection", {value1: pendingSelectionToolLabel})}
         >
           <span className="whitespace-nowrap text-xs text-slate-600">
-            <strong className="text-slate-900">{pendingSelectionToolLabel}</strong>
+            <strong className="text-slate-900">{t(pendingSelectionToolLabel)}</strong>
             {" · "}
-            {pendingSelectionCount} selected
-          </span>
+            {pendingSelectionCount}{t(" selected")}</span>
           <button
             type="button"
             onClick={() => setPendingSelectionTool(null)}
             className="rounded-md px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"
-          >
-            Cancel
-          </button>
+          >{t("Cancel")}</button>
           <button
             type="button"
             onClick={applyPendingSelectionTool}
             disabled={!canApplyPendingSelectionTool}
             className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
             title={
-              pendingSelectionToolIsEffect
-                ? "Select at least two notes"
-                : "Select at least one note or chord"
+              pendingSelectionToolIsEffect ? t("Select at least two notes") : t("Select at least one note or chord")
             }
-          >
-            Apply
-          </button>
+          >{t("Apply")}</button>
         </div>
       )}
       {directCanvasTool && (
@@ -15532,7 +15373,7 @@ export default function GteWorkspace({
           data-gte-editor-control="true"
           className="fixed bottom-28 left-1/2 z-[10020] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-indigo-200 bg-white/95 px-3 py-2 shadow-xl backdrop-blur"
           role="toolbar"
-          aria-label={`${directCanvasTool} tool`}
+          aria-label={t("{value1} tool", {value1: directCanvasTool})}
         >
           <span className="min-w-0 text-xs text-slate-600">
             <strong className="text-slate-900">{directCanvasTool}</strong>
@@ -15551,10 +15392,8 @@ export default function GteWorkspace({
               }
             }}
             className="shrink-0 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700"
-            title="Return to normal editing (Escape)"
-          >
-            Done
-          </button>
+            title={t("Return to normal editing (Escape)")}
+          >{t("Done")}</button>
         </div>
       )}
       {sliceToolActive && (
@@ -15563,13 +15402,11 @@ export default function GteWorkspace({
           data-gte-editor-control="true"
           className="fixed bottom-28 left-1/2 z-[10020] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-indigo-200 bg-white/95 px-3 py-2 shadow-xl backdrop-blur"
           role="toolbar"
-          aria-label="Slice mode"
+          aria-label={t("Slice mode")}
         >
           <span className="whitespace-nowrap text-xs text-slate-600">
-            <strong className="text-slate-900">Slice mode</strong>
-            {" · "}
-            Click a note where you want to split it
-          </span>
+            <strong className="text-slate-900">{t("Slice mode")}</strong>
+            {" · "}{t("Click a note where you want to split it")}</span>
           <button
             type="button"
             onClick={() => {
@@ -15577,9 +15414,7 @@ export default function GteWorkspace({
               setSliceCursor(null);
             }}
             className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700"
-          >
-            Done
-          </button>
+          >{t("Done")}</button>
         </div>
       )}
       {scaleToolActive && scaleHudPosition && (
@@ -15591,14 +15426,10 @@ export default function GteWorkspace({
           onMouseDown={(event) => event.stopPropagation()}
         >
           <div className="text-[9px] font-semibold uppercase tracking-wide text-amber-700">
-            {scaleToolMode === "length"
-              ? "Length scaling"
-              : scaleToolMode === "start"
-              ? "Start-time scaling"
-              : "Start + length"}
+            {scaleToolMode === "length" ? t("Length scaling") : scaleToolMode === "start" ? t("Start-time scaling") : t("Start + length")}
           </div>
           <div className="mt-0.5 flex items-center gap-1">
-            <span className="text-[10px] text-slate-600">x</span>
+            <span className="text-[10px] text-slate-600">{t("x")}</span>
             <input
               type="text"
               value={scaleFactorInput}
@@ -15616,7 +15447,7 @@ export default function GteWorkspace({
               className="w-16 rounded border border-slate-200 bg-white px-1 py-0.5 text-[11px] text-slate-700"
             />
           </div>
-          <div className="mt-0.5 text-[9px] text-slate-500">Enter or click to apply</div>
+          <div className="mt-0.5 text-[9px] text-slate-500">{t("Enter or click to apply")}</div>
         </div>
       )}
       {quantizeDialogOpen && (
@@ -15633,28 +15464,20 @@ export default function GteWorkspace({
         >
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 id="gte-quantize-dialog-title" className="m-0 text-sm font-semibold text-slate-900">
-                Quantize notes
-              </h2>
-              <p className="mt-1 text-[11px] leading-4 text-slate-500">
-                Preview selected notes against beat subdivisions.
-              </p>
+              <h2 id="gte-quantize-dialog-title" className="m-0 text-sm font-semibold text-slate-900">{t("Quantize notes")}</h2>
+              <p className="mt-1 text-[11px] leading-4 text-slate-500">{t("Preview selected notes against beat subdivisions.")}</p>
             </div>
             <button
               type="button"
               onClick={deactivateQuantizeTool}
               className="grid h-6 w-6 place-items-center rounded-md border border-slate-200 bg-white text-[12px] font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-800"
-              aria-label="Close quantize"
-              title="Close"
-            >
-              x
-            </button>
+              aria-label={t("Close quantize")}
+              title={t("Close")}
+            >{t("x")}</button>
           </div>
 
           <div className="mt-3 grid gap-2">
-            <label className="grid gap-1 text-[11px] font-semibold text-slate-600">
-              Beat subdivision
-              <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+            <label className="grid gap-1 text-[11px] font-semibold text-slate-600">{t("Beat subdivision")}<div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
                 <span className="text-sm font-semibold text-slate-700">1 /</span>
                 <input
                   type="number"
@@ -15687,9 +15510,7 @@ export default function GteWorkspace({
               </div>
             </label>
 
-            <label className="grid gap-1 text-[11px] font-semibold text-slate-600">
-              Pre scaling
-              <input
+            <label className="grid gap-1 text-[11px] font-semibold text-slate-600">{t("Pre scaling")}<input
                 type="number"
                 min={SCALE_FACTOR_MIN}
                 max={SCALE_FACTOR_MAX}
@@ -15729,9 +15550,7 @@ export default function GteWorkspace({
                   applyQuantizePreview(quantizeSubdivision, quantizePreScale, checked, { syncInputs: false });
                 }}
                 className="h-4 w-4 accent-sky-600"
-              />
-              Apply to length
-            </label>
+              />{t("Apply to length")}</label>
           </div>
 
           <div className="mt-3 flex justify-end gap-2">
@@ -15739,16 +15558,12 @@ export default function GteWorkspace({
               type="button"
               onClick={deactivateQuantizeTool}
               className="h-8 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
-            >
-              Cancel
-            </button>
+            >{t("Cancel")}</button>
             <button
               type="button"
               onClick={commitQuantizeTool}
               className="h-8 rounded-lg bg-sky-600 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-sky-500"
-            >
-              Apply
-            </button>
+            >{t("Apply")}</button>
           </div>
         </div>
       )}
@@ -15769,12 +15584,10 @@ export default function GteWorkspace({
               submitAddBarsDialog();
             }}
           >
-            <h2 id="gte-add-bars-dialog-title" className="m-0 text-sm font-semibold text-slate-900">
-              Add bars
-            </h2>
+            <h2 id="gte-add-bars-dialog-title" className="m-0 text-sm font-semibold text-slate-900">{t("Add bars")}</h2>
             <label className="mt-3 grid gap-1 text-[11px] font-semibold text-slate-600">
               <span className="flex items-center justify-between">
-                <span>Number of bars</span>
+                <span>{t("Number of bars")}</span>
                 {isMobileEditMode && (
                   <span className="text-base font-bold tabular-nums text-slate-900">{addBarsCountInput}</span>
                 )}
@@ -15788,7 +15601,7 @@ export default function GteWorkspace({
                   value={addBarsCountInput}
                   onChange={(event) => setAddBarsCountInput(event.target.value)}
                   className="h-10 w-full accent-emerald-600"
-                  aria-label="Number of bars to add"
+                  aria-label={t("Number of bars to add")}
                 />
               ) : (
                 <input
@@ -15810,22 +15623,18 @@ export default function GteWorkspace({
               )}
             </label>
             <p className="mt-1.5 text-[11px] text-slate-500">
-              {isMobileEditMode ? "Slide to choose between 1 and 10 bars." : "Enter a whole number from 1 to 10."}
+              {isMobileEditMode ? t("Slide to choose between 1 and 10 bars.") : t("Enter a whole number from 1 to 10.")}
             </p>
             <div className="mt-4 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setAddBarsDialogOpen(false)}
                 className="h-8 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
-              >
-                Cancel
-              </button>
+              >{t("Cancel")}</button>
               <button
                 type="submit"
                 className="h-8 rounded-lg bg-sky-600 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-sky-500"
-              >
-                OK
-              </button>
+              >{t("OK")}</button>
             </div>
           </form>
         </div>
@@ -15848,9 +15657,7 @@ export default function GteWorkspace({
           {contextMenu.kind === "bar" ? (
             <>
               <div className="border-b border-slate-100 px-3 py-2 text-slate-600">
-                <div className="mb-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                  Tempo
-                </div>
+                <div className="mb-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">{t("Tempo")}</div>
                 {selectedBarBpmSegments.map((segment) => {
                   const barLabel =
                     segment.startBarIndex === segment.endBarIndex
@@ -15861,10 +15668,9 @@ export default function GteWorkspace({
                       key={`${segment.startBarIndex}-${segment.endBarIndex}-${formatTimingBpm(segment.bpm)}`}
                       className="flex items-center justify-between gap-2 py-0.5"
                     >
-                      <span>{barLabel}</span>
+                      <span>{t(barLabel)}</span>
                       <span className="font-semibold text-slate-800">
-                        {formatTimingBpm(segment.bpm)} BPM
-                      </span>
+                        {formatTimingBpm(segment.bpm)}{t("BPM")}</span>
                     </div>
                   );
                 })}
@@ -15877,9 +15683,7 @@ export default function GteWorkspace({
                 }}
                 disabled={selectedBarIndices.length === 0}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
-              >
-                Copy bars
-              </button>
+              >{t("Copy bars")}</button>
               <button
                 type="button"
                 onClick={() => {
@@ -15888,9 +15692,7 @@ export default function GteWorkspace({
                 }}
                 disabled={!barClipboardAvailable}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
-              >
-                Paste bars
-              </button>
+              >{t("Paste bars")}</button>
               <button
                 type="button"
                 onClick={() => {
@@ -15899,15 +15701,11 @@ export default function GteWorkspace({
                 }}
                 disabled={selectedBarIndices.length === 0}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-rose-600 hover:bg-rose-50 disabled:text-slate-400"
-              >
-                Delete bars
-              </button>
+              >{t("Delete bars")}</button>
             </>
           ) : contextMenu.kind === "playingCoordinates" ? (
             <>
-              <div className="px-3 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                Playing Coordinates
-              </div>
+              <div className="px-3 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">{t("Playing Coordinates")}</div>
               <button
                 type="button"
                 onClick={() => {
@@ -15915,9 +15713,7 @@ export default function GteWorkspace({
                   setContextMenu(null);
                 }}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
-              >
-                Generate Playing-Coordinates
-              </button>
+              >{t("Generate Playing-Coordinates")}</button>
               <button
                 type="button"
                 onClick={() => {
@@ -15926,9 +15722,7 @@ export default function GteWorkspace({
                 }}
                 disabled={!hasRedundantCutRegions}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
-              >
-                Clean Playing-Coordinates
-              </button>
+              >{t("Clean Playing-Coordinates")}</button>
               <button
                 type="button"
                 onClick={() => {
@@ -15937,8 +15731,8 @@ export default function GteWorkspace({
                 }}
                 className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-100"
               >
-                <span>Cut</span>
-                <span className="text-[10px] text-slate-400">K</span>
+                <span>{t("Cut")}</span>
+                <span className="text-[10px] text-slate-400">{t("K")}</span>
               </button>
               <button
                 type="button"
@@ -15948,9 +15742,7 @@ export default function GteWorkspace({
                 }}
                 disabled={selectedCutBoundaryIndex === null}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
-              >
-                Merge
-              </button>
+              >{t("Merge")}</button>
             </>
           ) : (
             <>
@@ -15962,9 +15754,7 @@ export default function GteWorkspace({
                 }}
                 disabled={selectedNoteIds.length + selectedChordIds.length === 0}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
-              >
-                Copy
-              </button>
+              >{t("Copy")}</button>
               <button
                 type="button"
                 onClick={() => {
@@ -15972,15 +15762,11 @@ export default function GteWorkspace({
                   setContextMenu(null);
                 }}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-100"
-              >
-                Paste
-              </button>
+              >{t("Paste")}</button>
               {contextMenu.kind === "note" && (
                 <>
                   <div className="my-1 border-t border-slate-200" />
-                  <div className="px-3 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                    Notes &amp; chords
-                  </div>
+                  <div className="px-3 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">{t("Notes &amp; chords")}</div>
                   {!bassLane && <button
                     type="button"
                     onClick={() => {
@@ -15990,8 +15776,8 @@ export default function GteWorkspace({
                     disabled={chordizeCandidateCount < 2 || selectionActionsLocked}
                     className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
                   >
-                    <span>Merge to Chord</span>
-                    <span className="text-[10px] text-slate-400">C</span>
+                    <span>{t("Merge to Chord")}</span>
+                    <span className="text-[10px] text-slate-400">{t("C")}</span>
                   </button>}
                   {!bassLane && <button
                     type="button"
@@ -16002,8 +15788,8 @@ export default function GteWorkspace({
                     disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
                     className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
                   >
-                    <span>Optimize to Coordinates</span>
-                    <span className="text-[10px] text-slate-400">O</span>
+                    <span>{t("Optimize to Coordinates")}</span>
+                    <span className="text-[10px] text-slate-400">{t("O")}</span>
                   </button>}
                   <button
                     type="button"
@@ -16030,8 +15816,8 @@ export default function GteWorkspace({
                     disabled={activeChordIds.length === 0 || selectionActionsLocked}
                     className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
                   >
-                    <span>Disband Chord</span>
-                    <span className="text-[10px] text-slate-400">Shift+L</span>
+                    <span>{t("Disband Chord")}</span>
+                    <span className="text-[10px] text-slate-400">{t("Shift+L")}</span>
                   </button>
                   <button
                     type="button"
@@ -16046,7 +15832,7 @@ export default function GteWorkspace({
                     }
                     className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
                   >
-                    <span>Optimize Fingering</span>
+                    <span>{t("Optimize Fingering")}</span>
                   </button>
                   <button
                     type="button"
@@ -16056,9 +15842,7 @@ export default function GteWorkspace({
                     }}
                     disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
                     className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
-                  >
-                    Snap to Key
-                  </button>
+                  >{t("Snap to Key")}</button>
                   <button
                     type="button"
                     onClick={() => {
@@ -16070,9 +15854,7 @@ export default function GteWorkspace({
                       selectionActionsLocked
                     }
                     className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
-                  >
-                    Quantize
-                  </button>
+                  >{t("Quantize")}</button>
                   <button
                     type="button"
                     onClick={() => {
@@ -16082,11 +15864,11 @@ export default function GteWorkspace({
                     disabled={selectedNoteIds.length < 2 || selectionActionsLocked}
                     className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
                   >
-                    <span>Merge Notes</span>
-                    <span className="text-[10px] text-slate-400">J</span>
+                    <span>{t("Merge Notes")}</span>
+                    <span className="text-[10px] text-slate-400">{t("J")}</span>
                   </button>
                   <label className="flex items-center justify-between gap-3 px-3 py-1.5 text-slate-700">
-                    <span>Scale mode</span>
+                    <span>{t("Scale mode")}</span>
                     <select
                       data-scale-mode-select="true"
                       value={scaleToolMode}
@@ -16103,9 +15885,9 @@ export default function GteWorkspace({
                       }}
                       className="h-6 min-w-0 rounded border border-slate-200 bg-white px-1 text-[10px] text-slate-700"
                     >
-                      <option value="length">Length</option>
-                      <option value="start">Start time</option>
-                      <option value="both">Start + length</option>
+                      <option value="length">{t("Length")}</option>
+                      <option value="start">{t("Start time")}</option>
+                      <option value="both">{t("Start + length")}</option>
                     </select>
                   </label>
                   <button
@@ -16120,8 +15902,8 @@ export default function GteWorkspace({
                     }
                     className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
                   >
-                    <span>Scale</span>
-                    <span className="text-[10px] text-slate-400">S</span>
+                    <span>{t("Scale")}</span>
+                    <span className="text-[10px] text-slate-400">{t("S")}</span>
                   </button>
                   <button
                     type="button"
@@ -16131,8 +15913,8 @@ export default function GteWorkspace({
                     }}
                     className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100"
                   >
-                    <span>Slicing Tool</span>
-                    <span className="text-[10px] text-slate-400">Shift+S</span>
+                    <span>{t("Slicing Tool")}</span>
+                    <span className="text-[10px] text-slate-400">{t("Shift+S")}</span>
                   </button>
                   <button
                     type="button"
@@ -16150,14 +15932,12 @@ export default function GteWorkspace({
                     }
                     className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
                   >
-                    <span>Move</span>
-                    <span className="text-[10px] text-slate-400">M</span>
+                    <span>{t("Move")}</span>
+                    <span className="text-[10px] text-slate-400">{t("M")}</span>
                   </button>
 
                   <div className="my-1 border-t border-slate-200" />
-                  <div className="px-3 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                    Effects
-                  </div>
+                  <div className="px-3 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">{t("Effects")}</div>
                   {[
                     ["Hammer/Pull", "H", 1],
                     ["Slide", "L", 2],
@@ -16173,7 +15953,7 @@ export default function GteWorkspace({
                       disabled={!canCreateNoteEffect}
                       className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
                     >
-                      <span>{label}</span>
+                      <span>{t(String(label))}</span>
                       <span className="text-[10px] text-slate-400">{shortcut}</span>
                     </button>
                   ))}
@@ -16202,7 +15982,7 @@ export default function GteWorkspace({
               <span
                 className="pointer-events-auto absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-slate-200 bg-white/95 px-2 py-1 text-[10px] font-semibold tabular-nums text-slate-600 shadow-sm backdrop-blur"
                 role="timer"
-                aria-label="Playback time"
+                aria-label={t("Playback time")}
               >
                 {formatPlaybackTimer(effectivePlayheadFrame / playbackFps)} / {formatPlaybackTimer(timelineEnd / playbackFps)}
               </span>
@@ -16213,14 +15993,14 @@ export default function GteWorkspace({
                 data-gte-floating-ui="true"
                 className="flex w-full items-center justify-around gap-0.5 rounded-2xl border border-slate-200 bg-white/96 px-1 py-1.5 text-slate-700 shadow-lg backdrop-blur"
                 role="toolbar"
-                aria-label="Playback controls"
+                aria-label={t("Playback controls")}
               >
                 <button
                   type="button"
                   onClick={skipToStart}
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-slate-100"
-                  title="Go to start"
-                  aria-label="Go to start"
+                  title={t("Go to start")}
+                  aria-label={t("Go to start")}
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <rect x="4" y="5" width="2" height="14" />
@@ -16231,8 +16011,8 @@ export default function GteWorkspace({
                   type="button"
                   onClick={skipBackwardBar}
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-slate-100"
-                  title="Previous bar"
-                  aria-label="Previous bar"
+                  title={t("Previous bar")}
+                  aria-label={t("Previous bar")}
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <polygon points="17,5 7,12 17,19" />
@@ -16244,8 +16024,8 @@ export default function GteWorkspace({
                     togglePlayback();
                   }}
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700 disabled:cursor-wait disabled:bg-slate-700"
-                  title={effectivePlaybackPreparing ? "Loading guitar sound" : effectiveIsPlaying ? "Pause" : "Play"}
-                  aria-label={effectivePlaybackPreparing ? "Loading guitar sound" : effectiveIsPlaying ? "Pause" : "Play"}
+                  title={effectivePlaybackPreparing ? t("Loading guitar sound") : effectiveIsPlaying ? t("Pause") : t("Play")}
+                  aria-label={effectivePlaybackPreparing ? t("Loading guitar sound") : effectiveIsPlaying ? t("Pause") : t("Play")}
                   aria-busy={effectivePlaybackPreparing}
                   disabled={effectivePlaybackPreparing}
                 >
@@ -16266,8 +16046,8 @@ export default function GteWorkspace({
                   type="button"
                   onClick={skipForwardBar}
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-slate-100"
-                  title="Next bar"
-                  aria-label="Next bar"
+                  title={t("Next bar")}
+                  aria-label={t("Next bar")}
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <polygon points="7,5 17,12 7,19" />
@@ -16283,11 +16063,9 @@ export default function GteWorkspace({
                   className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
                     effectivePracticeLoopEnabled ? "bg-emerald-100 text-emerald-800" : "hover:bg-slate-100"
                   }`}
-                  title="Loop selected bars"
-                  aria-label="Loop selected bars"
-                >
-                  L
-                </button>
+                  title={t("Loop selected bars")}
+                  aria-label={t("Loop selected bars")}
+                >{t("L")}</button>
                 <button
                   type="button"
                   onClick={() => setEffectiveMetronomeEnabled(!effectiveMetronomeEnabled)}
@@ -16295,11 +16073,9 @@ export default function GteWorkspace({
                   className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
                     effectiveMetronomeEnabled ? "bg-sky-100 text-sky-800" : "hover:bg-slate-100"
                   }`}
-                  title="Metronome"
-                  aria-label="Metronome"
-                >
-                  M
-                </button>
+                  title={t("Metronome")}
+                  aria-label={t("Metronome")}
+                >{t("M")}</button>
                 <button
                   type="button"
                   onClick={() => setEffectiveCountInEnabled(!effectiveCountInEnabled)}
@@ -16307,8 +16083,8 @@ export default function GteWorkspace({
                   className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
                     effectiveCountInEnabled ? "bg-amber-100 text-amber-800" : "hover:bg-slate-100"
                   }`}
-                  title="One-bar count-in"
-                  aria-label="One-bar count-in"
+                  title={t("One-bar count-in")}
+                  aria-label={t("One-bar count-in")}
                 >
                   1
                 </button>
@@ -16320,16 +16096,14 @@ export default function GteWorkspace({
                   className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
                     effectiveSpeedTrainerEnabled ? "bg-violet-100 text-violet-800" : "hover:bg-slate-100"
                   }`}
-                  title="Speed trainer"
-                  aria-label="Speed trainer"
-                >
-                  T
-                </button>
+                  title={t("Speed trainer")}
+                  aria-label={t("Speed trainer")}
+                >{t("T")}</button>
                 <select
                   value={effectivePlaybackSpeed}
                   onChange={(event) => setEffectivePlaybackSpeed(Number(event.target.value))}
                   className="h-11 shrink-0 rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
-                  title="Playback speed"
+                  title={t("Playback speed")}
                 >
                   {effectivePlaybackSpeedOptions.map((speed) => (
                     <option key={speed} value={speed}>
@@ -16343,11 +16117,10 @@ export default function GteWorkspace({
                       value={effectiveSpeedTrainerTarget}
                       onChange={(event) => setEffectiveSpeedTrainerTarget(Number(event.target.value))}
                       className="h-9 rounded-full border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
-                      title="Speed trainer target"
+                      title={t("Speed trainer target")}
                     >
                       {SPEED_TRAINER_TARGET_OPTIONS.map((speed) => (
-                        <option key={speed} value={speed}>
-                          to {Math.round(speed * 100)}%
+                        <option key={speed} value={speed}>{t("to ")}{Math.round(speed * 100)}%
                         </option>
                       ))}
                     </select>
@@ -16355,7 +16128,7 @@ export default function GteWorkspace({
                       value={effectiveSpeedTrainerStep}
                       onChange={(event) => setEffectiveSpeedTrainerStep(Number(event.target.value))}
                       className="h-9 rounded-full border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
-                      title="Speed trainer step"
+                      title={t("Speed trainer step")}
                     >
                       {SPEED_TRAINER_STEP_OPTIONS.map((step) => (
                         <option key={step} value={step}>
@@ -16376,8 +16149,8 @@ export default function GteWorkspace({
                   type="button"
                   onClick={skipToStart}
                   className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-slate-100"
-                  title="Go to start"
-                  aria-label="Go to start"
+                  title={t("Go to start")}
+                  aria-label={t("Go to start")}
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <rect x="4" y="5" width="2" height="14" />
@@ -16388,8 +16161,8 @@ export default function GteWorkspace({
                   type="button"
                   onClick={skipBackwardBar}
                   className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-slate-100"
-                  title="Previous bar"
-                  aria-label="Previous bar"
+                  title={t("Previous bar")}
+                  aria-label={t("Previous bar")}
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <polygon points="17,5 7,12 17,19" />
@@ -16401,8 +16174,8 @@ export default function GteWorkspace({
                     togglePlayback();
                   }}
                   className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700 disabled:cursor-wait disabled:bg-slate-700"
-                  title={effectivePlaybackPreparing ? "Loading guitar sound" : effectiveIsPlaying ? "Pause" : "Play"}
-                  aria-label={effectivePlaybackPreparing ? "Loading guitar sound" : effectiveIsPlaying ? "Pause" : "Play"}
+                  title={effectivePlaybackPreparing ? t("Loading guitar sound") : effectiveIsPlaying ? t("Pause") : t("Play")}
+                  aria-label={effectivePlaybackPreparing ? t("Loading guitar sound") : effectiveIsPlaying ? t("Pause") : t("Play")}
                   aria-busy={effectivePlaybackPreparing}
                   disabled={effectivePlaybackPreparing}
                 >
@@ -16423,8 +16196,8 @@ export default function GteWorkspace({
                   type="button"
                   onClick={skipForwardBar}
                   className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-slate-100"
-                  title="Next bar"
-                  aria-label="Next bar"
+                  title={t("Next bar")}
+                  aria-label={t("Next bar")}
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <polygon points="7,5 17,12 7,19" />
@@ -16444,8 +16217,8 @@ export default function GteWorkspace({
                     value={effectivePlaybackVolume}
                     onChange={(event) => setEffectivePlaybackVolume(Number(event.target.value))}
                     className="w-20 accent-slate-700"
-                    title="Volume"
-                    aria-label="Playback volume"
+                    title={t("Volume")}
+                    aria-label={t("Playback volume")}
                   />
               </div>
               </div>
@@ -16457,7 +16230,7 @@ export default function GteWorkspace({
       <div className={`flex flex-wrap items-center ${embedded ? "gap-2" : "gap-3"}`}>
         {!embedded && (
         <div className="flex items-center gap-2 text-xs text-slate-600">
-          <span>BPM</span>
+          <span>{t("BPM")}</span>
           <input
             type="number"
             min={1}
@@ -16497,7 +16270,7 @@ export default function GteWorkspace({
         {!embedded && (
           <div className="flex items-center gap-3 text-xs text-slate-600">
             <div className="flex items-center gap-2">
-              <span>Time signature</span>
+              <span>{t("Time signature")}</span>
               <div className="flex items-center gap-1">
                 <select
                   value={timeSignature}
@@ -16506,8 +16279,8 @@ export default function GteWorkspace({
                     event.currentTarget.blur();
                   }}
                   className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
-                  aria-label="Time signature top number"
-                  title="Top number"
+                  aria-label={t("Time signature top number")}
+                  title={t("Top number")}
                 >
                   {TIME_SIGNATURE_TOP_OPTIONS.map((value) => (
                     <option key={value} value={value}>
@@ -16523,8 +16296,8 @@ export default function GteWorkspace({
                     event.currentTarget.blur();
                   }}
                   className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
-                  aria-label="Time signature bottom number"
-                  title="Bottom number"
+                  aria-label={t("Time signature bottom number")}
+                  title={t("Bottom number")}
                 >
                   {TIME_SIGNATURE_BOTTOM_OPTIONS.map((value) => (
                     <option key={value} value={value}>
@@ -16545,9 +16318,8 @@ export default function GteWorkspace({
                 ? "border-emerald-300 bg-emerald-100 text-emerald-800"
                 : "border-slate-200 bg-white text-slate-600"
             }`}
-            title="Snap new notes to the beat grid"
-          >
-            Snap to grid: {snapToGridEnabled ? "On" : "Off"}
+            title={t("Snap new notes to the beat grid")}
+          >{t("Snap to grid: ")}{snapToGridEnabled ? t("On") : t("Off")}
           </button>
         )}
         {!embedded && (
@@ -16559,9 +16331,8 @@ export default function GteWorkspace({
                 ? "border-sky-300 bg-sky-100 text-sky-800"
                 : "border-slate-200 bg-white text-slate-600"
             }`}
-            title="Auto-correct new and edited notes to the current key"
-          >
-            Snap to key: {snapToKeyEnabled ? "On" : "Off"}
+            title={t("Auto-correct new and edited notes to the current key")}
+          >{t("Snap to key: ")}{snapToKeyEnabled ? t("On") : t("Off")}
           </button>
         )}
         {!embedded && (
@@ -16569,10 +16340,8 @@ export default function GteWorkspace({
             type="button"
             disabled
             className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-500 opacity-80"
-            title="Generate tabs is disabled for this update"
-          >
-            Generate tabs (Disabled)
-          </button>
+            title={t("Generate tabs is disabled for this update")}
+          >{t("Generate tabs (Disabled)")}</button>
         )}
         {!embedded && (
           <button
@@ -16584,7 +16353,7 @@ export default function GteWorkspace({
                 : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
             }`}
           >
-            {tabPreviewOpen ? "Hide tablature" : "View tablature"}
+            {tabPreviewOpen ? t("Hide tablature") : t("View tablature")}
           </button>
         )}
         {!embedded && (
@@ -16593,13 +16362,13 @@ export default function GteWorkspace({
               value={exportFormat}
               onChange={(event) => setExportFormat(event.target.value as GteExportFormat)}
               className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
-              title="Export file type"
-              aria-label="Export file type"
+              title={t("Export file type")}
+              aria-label={t("Export file type")}
               disabled={busy}
             >
               {GTE_EXPORT_FORMAT_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.label)}
                 </option>
               ))}
             </select>
@@ -16608,16 +16377,15 @@ export default function GteWorkspace({
               onClick={() => void handleExport()}
               disabled={busy}
               className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              title="Export this track"
+              title={t("Export this track")}
             >
-              {busy ? "Exporting..." : "Export"}
+              {busy ? t("Exporting...") : t("Export")}
             </button>
           </div>
         )}
-        {!embedded && <div className="text-xs text-slate-600">Scale: {scale}px/frame (auto)</div>}
+        {!embedded && <div className="text-xs text-slate-600">{t("Scale: ")}{scale}{t("px/frame (auto)")}</div>}
         {!embedded && (
-          <div className="text-xs text-slate-500">
-              FPS: {fps} - Time signature: {timeSignature}/{timeSignatureBottom}
+          <div className="text-xs text-slate-500">{t("FPS: ")}{fps}{t(" - Time signature: ")}{timeSignature}/{timeSignatureBottom}
             </div>
         )}
       </div>
@@ -16625,16 +16393,12 @@ export default function GteWorkspace({
       {tabPreviewOpen && !embedded && (
         <div className="card-outline stack">
           <div className="page-header">
-            <h2 className="section-title" style={{ margin: 0, fontSize: "1rem" }}>
-              Tablature view
-            </h2>
+            <h2 className="section-title" style={{ margin: 0, fontSize: "1rem" }}>{t("Tablature view")}</h2>
             <button
               type="button"
               onClick={() => setTabPreviewOpen(false)}
               className="button-secondary button-small"
-            >
-              Close
-            </button>
+            >{t("Close")}</button>
           </div>
           <TabViewer tabText={tabPreviewText} songTitle={snapshot.name || "note2tabs"} />
         </div>
@@ -16646,7 +16410,7 @@ export default function GteWorkspace({
           role="alert"
           aria-live="assertive"
         >
-          {error}
+          {translatedError(error, locale)}
         </div>
       )}
 
@@ -16667,21 +16431,15 @@ export default function GteWorkspace({
             aria-labelledby="generate-coordinates-dialog-title"
             aria-describedby="generate-coordinates-dialog-description"
           >
-            <h2 id="generate-coordinates-dialog-title" className="text-base font-semibold text-slate-900">
-              Generate playing coordinates?
-            </h2>
-            <p id="generate-coordinates-dialog-description" className="mt-2 text-sm text-slate-600">
-              This will replace the current playing coordinates on this track.
-            </p>
+            <h2 id="generate-coordinates-dialog-title" className="text-base font-semibold text-slate-900">{t("Generate playing coordinates?")}</h2>
+            <p id="generate-coordinates-dialog-description" className="mt-2 text-sm text-slate-600">{t("This will replace the current playing coordinates on this track.")}</p>
             <div className="mt-4 flex justify-end gap-2">
               <button
                 type="button"
                 className="button-secondary button-small"
                 onClick={() => setShowGenerateCutsConfirm(false)}
                 autoFocus
-              >
-                Cancel
-              </button>
+              >{t("Cancel")}</button>
               <button
                 type="button"
                 className="button-primary button-small"
@@ -16689,9 +16447,7 @@ export default function GteWorkspace({
                   setShowGenerateCutsConfirm(false);
                   handleGenerateCuts();
                 }}
-              >
-                Generate
-              </button>
+              >{t("Generate")}</button>
             </div>
           </div>
         </div>
@@ -16782,10 +16538,10 @@ export default function GteWorkspace({
                           width: segment.width,
                           height: TIMELINE_BAR_HEADER_HEIGHT,
                         }}
-                        aria-label={`Select ${segment.empty ? `empty bars ${label}` : label}`}
-                        title={segment.empty ? `Empty bars ${label}` : barBpmTitle(segment.startBar)}
+                        aria-label={t("Select {value1}", {value1: segment.empty ? t("empty bars {value1}", {value1: label}) : label})}
+                        title={segment.empty ? t("Empty bars {value1}", {value1: label}) : t(barBpmTitle(segment.startBar))}
                       >
-                        {label}
+                        {t(String(label))}
                       </button>
                     );
                   })}
@@ -16814,13 +16570,13 @@ export default function GteWorkspace({
                           <button
                             type="button"
                             className="h-5 max-w-24 truncate rounded-md border border-slate-300 bg-slate-100 px-1.5 text-[10px] font-bold text-slate-800 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
-                            aria-label={`${item.label} chord diagram`}
+                            aria-label={t("{value1} chord diagram", {value1: t(item.label)})}
                           >
-                            {item.label}
+                            {t(item.label)}
                           </button>
                           <div className="invisible absolute left-1/2 top-full z-50 mt-1 -translate-x-1/2 rounded-lg border border-slate-200 bg-white p-2 opacity-0 shadow-xl transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
                             <div className="mb-1 text-center text-xs font-bold text-slate-800">
-                              {item.label}
+                              {t(item.label)}
                             </div>
                             {item.fingering ? (
                               <ChordFingeringDiagram
@@ -16828,9 +16584,7 @@ export default function GteWorkspace({
                                 leftHanded={leftHandedChordDiagrams}
                               />
                             ) : (
-                              <div className="grid h-[76px] w-[82px] place-items-center text-[10px] font-semibold text-slate-400">
-                                No shape
-                              </div>
+                              <div className="grid h-[76px] w-[82px] place-items-center text-[10px] font-semibold text-slate-400">{t("No shape")}</div>
                             )}
                           </div>
                         </div>
@@ -16864,7 +16618,7 @@ export default function GteWorkspace({
                             line.y * practiceVerticalScale,
                         }}
                       >
-                        {line.label}
+                        {t(line.label)}
                       </div>
                       <div
                         className="absolute h-px bg-slate-500"
@@ -16916,13 +16670,9 @@ export default function GteWorkspace({
                               y * practiceVerticalScale,
                           }}
                           title={
-                            rating
-                              ? rating.status === "missed"
-                                ? "Missed note"
-                                : `Timing ${Math.round(rating.timingAccuracy)}%${timingDetail}`
-                              : undefined
+                            rating ? rating.status === "missed" ? t("Missed note") : t("Timing {value1}%{value2}", {value1: Math.round(rating.timingAccuracy), value2: timingDetail}) : undefined
                           }
-                          aria-label={`Play from fret ${placement.fret}`}
+                          aria-label={t("Play from fret {value1}", {value1: placement.fret})}
                         >
                           {placement.fret}
                         </button>
@@ -16948,8 +16698,8 @@ export default function GteWorkspace({
                             left: getPracticeRowX(segments, sourceX),
                             top: TIMELINE_BAR_HEADER_HEIGHT + 1,
                           }}
-                          title={`Unexpected MIDI note ${falseNote.pitchMidi}`}
-                          aria-label="Unexpected note"
+                          title={t("Unexpected MIDI note {value1}", {value1: falseNote.pitchMidi})}
+                          aria-label={t("Unexpected note")}
                         >
                           ?
                         </span>
@@ -16985,7 +16735,7 @@ export default function GteWorkspace({
                         >
                           <div className="absolute left-0 right-0 top-2 h-px bg-slate-600" />
                           <span className="absolute top-0 bg-white px-0.5 text-[9px] font-bold text-slate-700">
-                            {effect.label}
+                            {t(effect.label)}
                           </span>
                         </div>
                       );
@@ -17078,12 +16828,12 @@ export default function GteWorkspace({
                         width: editorTabView.barWidths[barIndex],
                         height: TIMELINE_BAR_HEADER_HEIGHT,
                       }}
-                      title={barBpmTitle(barIndex)}
-                      aria-label={`Select Bar ${barIndex + 1}, ${formatTimingBpm(
+                      title={t(barBpmTitle(barIndex))}
+                      aria-label={t("Select Bar {value1}, {value2} BPM", {value1: barIndex + 1, value2: formatTimingBpm(
                         getTimingBarBpm(timingMap, barIndex, fallbackBarBpm)
-                      )} BPM`}
+                      )})}
                     >
-                      {showBarNumbers ? <span className="truncate">Bar {barIndex + 1}</span> : null}
+                      {showBarNumbers ? <span className="truncate">{t("Bar ")}{barIndex + 1}</span> : null}
                     </button>
                   );
                 })}
@@ -17128,7 +16878,7 @@ export default function GteWorkspace({
                         height: TIMELINE_BAR_HEADER_HEIGHT + editorTabView.height,
                         opacity: dragEnabled ? (isActiveDrop ? 0.95 : mobileViewport ? 0.32 : 0.5) : 0,
                       }}
-                      title={dragEnabled ? `Insert bars at ${insertIndex + 1}` : undefined}
+                      title={dragEnabled ? t("Insert bars at {value1}", {value1: insertIndex + 1}) : undefined}
                     />
                   );
                 })}
@@ -17143,7 +16893,7 @@ export default function GteWorkspace({
                       editorTabView.barStartXs[0],
                     height: editorTabView.height + TIMELINE_BAR_HEADER_HEIGHT + CUT_SEGMENT_OFFSET,
                   }}
-                  title={`Track begins at bar ${trackOffsetFrames / FIXED_FRAMES_PER_BAR + 1}`}
+                  title={t("Track begins at bar {value1}", {value1: trackOffsetFrames / FIXED_FRAMES_PER_BAR + 1})}
                   onMouseDown={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
@@ -17201,7 +16951,7 @@ export default function GteWorkspace({
               >
                 <div
                   role="group"
-                  aria-label="String tuning"
+                  aria-label={t("String tuning")}
                   className="absolute left-0 border-r border-slate-200 bg-gradient-to-r from-white via-white to-white/90"
                   style={{
                     top: TIMELINE_BAR_HEADER_HEIGHT,
@@ -17215,7 +16965,7 @@ export default function GteWorkspace({
                       className="absolute left-0 flex w-7 -translate-y-1/2 justify-end pr-1 text-[11px] font-medium tabular-nums text-slate-500"
                       style={{ top: line.y }}
                     >
-                      {line.label}
+                      {t(line.label)}
                     </div>
                   ))}
                 </div>
@@ -17247,7 +16997,7 @@ export default function GteWorkspace({
                       className="absolute top-0 -translate-x-1/2 rounded-sm bg-white px-1 text-[10px] font-semibold text-slate-600"
                       style={{ left: effect.x - left }}
                     >
-                      {effect.label}
+                      {t(effect.label)}
                     </span>
                   </div>
                 );
@@ -17282,8 +17032,8 @@ export default function GteWorkspace({
                   width: editorTabView.width,
                   height: CUT_SEGMENT_OFFSET,
                 }}
-                title="Click to jump playback"
-                aria-label="Timeline seconds ruler, starting at 0:00"
+                title={t("Click to jump playback")}
+                aria-label={t("Timeline seconds ruler, starting at 0:00")}
                 onMouseDown={handleTabViewRulerMouseDown}
                 onKeyDown={(event) => {
                   if (event.key !== "Enter" && event.key !== " ") return;
@@ -17404,10 +17154,10 @@ export default function GteWorkspace({
                                   width: editorTabView.barWidths[barIndex],
                                   height: TIMELINE_BAR_HEADER_HEIGHT,
                                 }}
-                                title={barBpmTitle(barIndex)}
-                                aria-label={`Select Bar ${barIndex + 1}`}
+                                title={t(barBpmTitle(barIndex))}
+                                aria-label={t("Select Bar {value1}", {value1: barIndex + 1})}
                               >
-                                {showBarNumbers ? <span className="truncate">Bar {barIndex + 1}</span> : null}
+                                {showBarNumbers ? <span className="truncate">{t("Bar ")}{barIndex + 1}</span> : null}
                               </button>
                             );
                           })}
@@ -17508,7 +17258,7 @@ export default function GteWorkspace({
                               className="absolute left-0 flex w-7 -translate-y-1/2 justify-end pr-1 text-[11px] font-medium text-slate-500"
                               style={{ top: line.y }}
                             >
-                              {line.label}
+                              {t(line.label)}
                             </span>
                           ))}
                         </div>
@@ -17543,7 +17293,7 @@ export default function GteWorkspace({
                               >
                                 <div className="absolute left-0 right-0 top-2 h-px bg-slate-500" />
                                 <span className="absolute top-0 rounded-sm bg-white px-1 text-[10px] font-semibold text-slate-600">
-                                  {effect.label}
+                                  {t(effect.label)}
                                 </span>
                               </div>
                             );
@@ -17650,8 +17400,8 @@ export default function GteWorkspace({
                     }}
                     className="absolute z-40 flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-emerald-600 text-2xl font-semibold leading-none text-white shadow-[0_8px_22px_rgba(5,150,105,0.32)] ring-1 ring-emerald-700/30 transition hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow-[0_10px_26px_rgba(5,150,105,0.4)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
                     style={{ left: tabAddBarLeft, top: tabAddBarTop }}
-                    title="Add bars to end"
-                    aria-label="Add bars to end"
+                    title={t("Add bars to end")}
+                    aria-label={t("Add bars to end")}
                   >
                     <AddBarIcon />
                   </button>
@@ -17693,7 +17443,7 @@ export default function GteWorkspace({
                     className="flex items-center justify-end pr-2"
                     style={{ height: ROW_HEIGHT }}
                   >
-                    {label}
+                    {t(String(label))}
                   </div>
                 ))}
               </div>
@@ -17766,12 +17516,12 @@ export default function GteWorkspace({
                             : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-800"
                         }`}
                         style={{ left, top: rowTop, width, height: TIMELINE_BAR_HEADER_HEIGHT }}
-                        title={barBpmTitle(barIndex)}
-                        aria-label={`Select Bar ${barIndex + 1}, ${formatTimingBpm(
+                        title={t(barBpmTitle(barIndex))}
+                        aria-label={t("Select Bar {value1}, {value2} BPM", {value1: barIndex + 1, value2: formatTimingBpm(
                           getTimingBarBpm(timingMap, barIndex, fallbackBarBpm)
-                        )} BPM`}
+                        )})}
                       >
-                        {showBarNumbers ? <span className="truncate">Bar {barIndex + 1}</span> : null}
+                        {showBarNumbers ? <span className="truncate">{t("Bar ")}{barIndex + 1}</span> : null}
                       </button>
                     );
                   })}
@@ -17815,7 +17565,7 @@ export default function GteWorkspace({
                           height: TIMELINE_BAR_HEADER_HEIGHT + timelineHeight,
                           opacity: dragEnabled ? (isActiveDrop ? 0.95 : mobileViewport ? 0.32 : 0.5) : 0,
                         }}
-                        title={dragEnabled ? `Insert bars at ${insertIndex + 1}` : undefined}
+                        title={dragEnabled ? t("Insert bars at {value1}", {value1: insertIndex + 1}) : undefined}
                       />
                     );
                   })}
@@ -17831,8 +17581,8 @@ export default function GteWorkspace({
                       left: Math.max(0, Math.min(timelineChromeWidth - ADD_BAR_BUTTON_SIZE, addBarLeft)),
                       top: addBarTop,
                     }}
-                  title="Add bars to end"
-                  aria-label="Add bars to end"
+                  title={t("Add bars to end")}
+                  aria-label={t("Add bars to end")}
                 >
                   <AddBarIcon />
                 </button>
@@ -17875,7 +17625,7 @@ export default function GteWorkspace({
                     data-track-offset-blank="true"
                     className="absolute left-0 top-0 z-[60] cursor-default overflow-hidden border-r border-slate-200 bg-white"
                     style={{ width: trackOffsetWidth, height: rowHeight }}
-                    title={`Track begins at bar ${trackOffsetFrames / FIXED_FRAMES_PER_BAR + 1}`}
+                    title={t("Track begins at bar {value1}", {value1: trackOffsetFrames / FIXED_FRAMES_PER_BAR + 1})}
                     onMouseDown={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
@@ -17917,7 +17667,7 @@ export default function GteWorkspace({
                       data-bar-select-editor={editorId}
                       className="absolute top-0 z-20 pointer-events-none bg-transparent"
                       style={{ left, top: rowIndex * rowStride, width, height: rowHeight }}
-                      title={barBpmTitle(barIndex)}
+                      title={t(barBpmTitle(barIndex))}
                     />
                   );
                 })}
@@ -18017,7 +17767,7 @@ export default function GteWorkspace({
                     type="button"
                     data-gte-cursor-add="true"
                     data-gte-editor-control="true"
-                    aria-label="Add note at cursor"
+                    aria-label={t("Add note at cursor")}
                     className="absolute z-30 touch-none rounded-sm border border-slate-400/75 bg-slate-300/45 p-0"
                     style={{
                       left: keyboardCursorMarker.left,
@@ -18102,8 +17852,8 @@ export default function GteWorkspace({
                       ref={timelinePlayheadRef}
                       data-gte-playhead="timeline"
                       type="button"
-                      aria-label="Playback position. Drag to seek."
-                      title="Drag playback position"
+                      aria-label={t("Playback position. Drag to seek.")}
+                      title={t("Drag playback position")}
                       onMouseDown={(event) => {
                         event.preventDefault();
                         event.stopPropagation();
@@ -18239,8 +17989,8 @@ export default function GteWorkspace({
                         role="group"
                         className="absolute rounded-md border border-sky-300 bg-sky-200/60 px-2 py-1 text-[10px] text-slate-700"
                         style={{ top, left, width, height: CUT_SEGMENT_HEIGHT }}
-                        title="Playing coordinates - The fingerings of the notes are ranked based on the playing coordinate below"
-                        aria-label={`Playing coordinates ${stringLabel}${fretLabel}`}
+                        title={t("Playing coordinates - The fingerings of the notes are ranked based on the playing coordinate below")}
+                        aria-label={t("Playing coordinates {value1}{value2}", {value1: stringLabel, value2: fretLabel})}
                         onMouseDown={(event) => {
                           if (event.button !== 0) {
                             event.stopPropagation();
@@ -18266,8 +18016,8 @@ export default function GteWorkspace({
                             cutToolActive ? "cursor-crosshair" : "cursor-pointer"
                           }`}
                           style={{ left: labelLeft - left, top: 0, width: coordLabelWidth, height: 24 }}
-                          title="Playing coordinates - The fingerings of the notes are ranked based on the playing coordinate below"
-                          aria-label={`Playing coordinates ${stringLabel}${fretLabel}`}
+                          title={t("Playing coordinates - The fingerings of the notes are ranked based on the playing coordinate below")}
+                          aria-label={t("Playing coordinates {value1}{value2}", {value1: stringLabel, value2: fretLabel})}
                           onClick={(event) => {
                             if (cutToolActive) {
                               event.preventDefault();
@@ -18318,7 +18068,7 @@ export default function GteWorkspace({
                                 >
                                   <div className="flex min-w-0 flex-1 flex-col justify-center">
                                     <span className="text-[8px] font-semibold uppercase tracking-wide text-slate-400">
-                                      {label}
+                                      {t(String(label))}
                                     </span>
                                     {field === "stringIndex" ? (
                                       <div className="mt-0.5 h-5 text-[11px] font-semibold leading-5 text-slate-700">
@@ -18358,7 +18108,7 @@ export default function GteWorkspace({
                                       onMouseDown={(event) => event.preventDefault()}
                                       onClick={() => adjustSegmentCoordinateDraft(field, 1)}
                                       className="flex h-3 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] text-slate-600"
-                                      aria-label={`Increase ${label.toLowerCase()}`}
+                                      aria-label={t("Increase {value1}", {value1: label.toLowerCase()})}
                                     >
                                       &#9650;
                                     </button>
@@ -18367,7 +18117,7 @@ export default function GteWorkspace({
                                       onMouseDown={(event) => event.preventDefault()}
                                       onClick={() => adjustSegmentCoordinateDraft(field, -1)}
                                       className="flex h-3 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[8px] text-slate-600"
-                                      aria-label={`Decrease ${label.toLowerCase()}`}
+                                      aria-label={t("Decrease {value1}", {value1: label.toLowerCase()})}
                                     >
                                       &#9660;
                                     </button>
@@ -18430,13 +18180,12 @@ export default function GteWorkspace({
                           borderRadius: 0,
                         }}
                         title={
-                          effect.noteEffectLabel ||
-                          getNoteEffectTypeName(effect.type).toLowerCase()
+                          effect.noteEffectLabel || getNoteEffectTypeName(effect.type).toLowerCase()
                         }
                       >
                         {idx === 0 ? (
                           <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[11px] font-semibold text-slate-900">
-                            {effect.noteEffectLabel}
+                            {t(effect.noteEffectLabel)}
                           </span>
                         ) : null}
                       </button>
@@ -18801,15 +18550,11 @@ export default function GteWorkspace({
                         className="flex cursor-move items-center justify-between rounded-md bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700"
                         onMouseDown={(event) => startFloatingPanelDrag("note", event)}
                       >
-                        <span>Note #{selectedNote.id}</span>
-                        <span className="text-[9px] font-medium uppercase tracking-wide text-slate-400">
-                          Drag
-                        </span>
+                        <span>{t("Note #")}{selectedNote.id}</span>
+                        <span className="text-[9px] font-medium uppercase tracking-wide text-slate-400">{t("Drag")}</span>
                       </div>
                       <div className="mt-2 space-y-2">
-                        <label className="block text-[10px] text-slate-500">
-                          Fret
-                          <div className="mt-1 flex items-stretch gap-1">
+                        <label className="block text-[10px] text-slate-500">{t("Fret")}<div className="mt-1 flex items-stretch gap-1">
                             <input
                               type="number"
                               min={0}
@@ -18840,25 +18585,19 @@ export default function GteWorkspace({
                                 type="button"
                                 className="flex h-[18px] items-center justify-center rounded border border-slate-200 bg-slate-50 text-[10px] text-slate-700"
                                 onClick={() => adjustDesktopNoteMenuFret(1)}
-                                aria-label="Increase fret"
-                              >
-                                &uarr;
-                              </button>
+                                aria-label={t("Increase fret")}
+                              >{"↑"}</button>
                               <button
                                 type="button"
                                 className="flex h-[18px] items-center justify-center rounded border border-slate-200 bg-slate-50 text-[10px] text-slate-700"
                                 onClick={() => adjustDesktopNoteMenuFret(-1)}
-                                aria-label="Decrease fret"
-                              >
-                                &darr;
-                              </button>
+                                aria-label={t("Decrease fret")}
+                              >{"↓"}</button>
                             </div>
                           </div>
                         </label>
                         <div className="grid grid-cols-[1fr_80px] gap-2">
-                          <label className="block text-[10px] text-slate-500">
-                            Length (sec)
-                            <input
+                          <label className="block text-[10px] text-slate-500">{t("Length (sec)")}<input
                               type="number"
                               min={framesToDurationSeconds(1)}
                               max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
@@ -18886,9 +18625,7 @@ export default function GteWorkspace({
                               onBlur={() => commitNoteMenuLength()}
                             />
                           </label>
-                          <label className="block text-[10px] text-slate-500">
-                            Length
-                            <select
+                          <label className="block text-[10px] text-slate-500">{t("Length")}<select
                               className="mt-1 h-[26px] w-full rounded border border-slate-200 bg-white px-1 text-xs"
                               value={getNearestNoteFractionDenominator(selectedNote.length)}
                               onChange={(event) => commitNoteMenuFractionLength(event.target.value)}
@@ -18904,7 +18641,7 @@ export default function GteWorkspace({
                                   setNoteMenuDraft(null);
                                 }
                               }}
-                              aria-label={`Musical note length ${formatLengthFramesAsFraction(selectedNote.length)}`}
+                              aria-label={t("Musical note length {value1}", {value1: formatLengthFramesAsFraction(selectedNote.length)})}
                             >
                               {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
                                 <option key={denominator} value={denominator}>
@@ -18918,7 +18655,7 @@ export default function GteWorkspace({
                       {noteAlternates?.possibleTabs?.length ||
                       noteAlternates?.blockedTabs?.length ? (
                         <div className="mt-3">
-                          <div className="text-[10px] text-slate-500">Alternative fingerings</div>
+                          <div className="text-[10px] text-slate-500">{t("Alternative fingerings")}</div>
                           <div className="mt-1 flex flex-wrap gap-1">
                             {(noteAlternates?.possibleTabs || []).slice(0, 10).map((tab, idx) => (
                               <button
@@ -18955,9 +18692,7 @@ export default function GteWorkspace({
                             setNoteMenuDraft(null);
                           }}
                         className="mt-3 w-full rounded-md bg-rose-500/80 px-2 py-1 text-xs font-semibold text-white"
-                      >
-                        Delete note
-                      </button>
+                      >{t("Delete note")}</button>
                     </div>
                   )}
 
@@ -18977,15 +18712,11 @@ export default function GteWorkspace({
                         className="flex cursor-move items-center justify-between rounded-md bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700"
                         onMouseDown={(event) => startFloatingPanelDrag("chord", event)}
                       >
-                        <span>Chord #{selectedChord.id}</span>
-                        <span className="text-[9px] font-medium uppercase tracking-wide text-slate-400">
-                          Drag
-                        </span>
+                        <span>{t("Chord #")}{selectedChord.id}</span>
+                        <span className="text-[9px] font-medium uppercase tracking-wide text-slate-400">{t("Drag")}</span>
                       </div>
                       <div className="mt-2 space-y-2">
-                        <label className="block text-[10px] text-slate-500">
-                          Length (sec)
-                          <input
+                        <label className="block text-[10px] text-slate-500">{t("Length (sec)")}<input
                             type="number"
                             min={framesToDurationSeconds(1)}
                             max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
@@ -19016,7 +18747,7 @@ export default function GteWorkspace({
                       </div>
                       {chordAlternatives.length ? (
                         <div className="mt-3">
-                          <div className="text-[10px] text-slate-500">Fingerings</div>
+                          <div className="text-[10px] text-slate-500">{t("Fingerings")}</div>
                           <div className="mt-1 flex flex-wrap gap-1">
                             {chordAlternatives.slice(0, 8).map((tabs, idx) => (
                               <button
@@ -19035,24 +18766,18 @@ export default function GteWorkspace({
                         type="button"
                         onClick={(event) => openChordEdit(selectedChord.id, event)}
                         className="mt-3 w-full rounded-md border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-100"
-                      >
-                        Edit chord
-                      </button>
+                      >{t("Edit chord")}</button>
                       <div className="mt-3 grid grid-cols-2 gap-2">
                         <button
                           type="button"
                           onClick={() => handleChordOctaveShift(-1)}
                           className="rounded-md border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-100"
-                        >
-                          Octave down
-                        </button>
+                        >{t("Octave down")}</button>
                         <button
                           type="button"
                           onClick={() => handleChordOctaveShift(1)}
                           className="rounded-md border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-100"
-                        >
-                          Octave up
-                        </button>
+                        >{t("Octave up")}</button>
                       </div>
                       <div className="mt-2 grid grid-cols-2 gap-2">
                         <button
@@ -19069,9 +18794,7 @@ export default function GteWorkspace({
                             setChordMenuDraft(null);
                           }}
                           className="rounded-md border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-100"
-                        >
-                          Disband
-                        </button>
+                        >{t("Disband")}</button>
                         <button
                           type="button"
                           onClick={() => {
@@ -19081,9 +18804,7 @@ export default function GteWorkspace({
                             setChordMenuDraft(null);
                           }}
                           className="rounded-md bg-rose-500/80 px-2 py-1 text-[10px] font-semibold text-white"
-                        >
-                          Delete
-                        </button>
+                        >{t("Delete")}</button>
                       </div>
                     </div>
                   )}
@@ -19095,17 +18816,14 @@ export default function GteWorkspace({
                     style={{ left: editingChordAnchor.x, top: editingChordAnchor.y }}
                     onMouseDown={(event) => event.stopPropagation()}
                   >
-                    <div className="text-[11px] font-semibold text-slate-700">
-                      Editing chord #{editingChordId}
+                    <div className="text-[11px] font-semibold text-slate-700">{t("Editing chord #")}{editingChordId}
                     </div>
-                    <p className="mt-1 text-[10px] text-slate-500">Click chord notes to edit.</p>
+                    <p className="mt-1 text-[10px] text-slate-500">{t("Click chord notes to edit.")}</p>
                     <button
                       type="button"
                       onClick={exitChordEdit}
                       className="mt-2 w-full rounded-md bg-emerald-500/80 px-2 py-1 text-[10px] font-semibold text-slate-900"
-                    >
-                      Done
-                    </button>
+                    >{t("Done")}</button>
                   </div>
                 )}
 
@@ -19120,13 +18838,10 @@ export default function GteWorkspace({
                       style={{ left: chordNoteMenuAnchor.x, top: chordNoteMenuAnchor.y }}
                       onMouseDown={(event) => event.stopPropagation()}
                     >
-                      <div className="text-[11px] font-semibold text-slate-700">
-                        Chord note #{chordNoteMenuIndex + 1}
+                      <div className="text-[11px] font-semibold text-slate-700">{t("Chord note #")}{chordNoteMenuIndex + 1}
                       </div>
                       <div className="mt-2 space-y-2">
-                        <label className="block text-[10px] text-slate-500">
-                          Fret
-                          <input
+                        <label className="block text-[10px] text-slate-500">{t("Fret")}<input
                             type="number"
                             min={0}
                             max={maxFret}
@@ -19152,9 +18867,7 @@ export default function GteWorkspace({
                             onBlur={() => commitChordNoteFret()}
                           />
                         </label>
-                        <label className="block text-[10px] text-slate-500">
-                          Length (sec)
-                          <input
+                        <label className="block text-[10px] text-slate-500">{t("Length (sec)")}<input
                             type="number"
                             min={framesToDurationSeconds(1)}
                             max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
@@ -19187,9 +18900,7 @@ export default function GteWorkspace({
                         type="button"
                         onClick={deleteChordNote}
                         className="mt-3 w-full rounded-md bg-rose-500/80 px-2 py-1 text-[10px] font-semibold text-white"
-                      >
-                        Delete note
-                      </button>
+                      >{t("Delete note")}</button>
                     </div>
                   )}
 
@@ -19203,20 +18914,20 @@ export default function GteWorkspace({
                     }}
                     role="status"
                     aria-live="polite"
-                    aria-label="Optimizing fingering"
+                    aria-label={t("Optimizing fingering")}
                   >
                     <span
                       className="h-9 w-9 animate-spin rounded-full border-[3px] border-slate-200 border-t-slate-800 shadow-sm"
                       aria-hidden="true"
                     />
-                    <span className="sr-only">Optimizing fingering</span>
+                    <span className="sr-only">{t("Optimizing fingering")}</span>
                   </div>
                 )}
 
                 {draftNote && mobileViewport && typeof document !== "undefined" && createPortal(
                   <div
                     data-gte-floating-ui="true"
-                    aria-label="Dismiss add note"
+                    aria-label={t("Dismiss add note")}
                     className="fixed inset-0 z-[9998]"
                     onClick={() => {
                       setDraftNote(null);
@@ -19247,11 +18958,8 @@ export default function GteWorkspace({
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                          Add note
-                        </div>
-                        <div className="mt-1 text-sm text-slate-700">
-                          String {stringLabels[draftNote.stringIndex]} at {draftNote.startTime}
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t("Add note")}</div>
+                        <div className="mt-1 text-sm text-slate-700">{t("String ")}{stringLabels[draftNote.stringIndex]}{t(" at ")}{draftNote.startTime}
                         </div>
                       </div>
                       <button
@@ -19268,13 +18976,11 @@ export default function GteWorkspace({
                           setDraftNoteAnchor(null);
                         }}
                         className="rounded-md border border-slate-200 px-2 py-1 text-[11px] text-slate-600"
-                      >
-                        Cancel
-                      </button>
+                      >{t("Cancel")}</button>
                     </div>
                     <label className="mt-3 block rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
                       <span className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                        <span>Fret</span>
+                        <span>{t("Fret")}</span>
                         <span className="text-xl font-bold tabular-nums text-slate-900">{draftNote.fret ?? 0}</span>
                       </span>
                       <input
@@ -19289,7 +18995,7 @@ export default function GteWorkspace({
                           playNotePreview([draftNote.stringIndex, fret]);
                         }}
                         className="mt-3 h-8 w-full accent-emerald-600"
-                        aria-label="New note fret"
+                        aria-label={t("New note fret")}
                       />
                     </label>
                     <div className="mt-3 grid grid-cols-2 gap-2">
@@ -19307,9 +19013,7 @@ export default function GteWorkspace({
                           setDraftNoteAnchor(null);
                         }}
                         className="h-11 rounded-xl border border-slate-300 bg-white text-sm font-semibold text-slate-700"
-                      >
-                        Cancel
-                      </button>
+                      >{t("Cancel")}</button>
                       <button
                         type="button"
                         onClick={(event) => {
@@ -19326,9 +19030,7 @@ export default function GteWorkspace({
                         }}
                         disabled={draftNote.fret === null}
                         className="h-11 rounded-xl bg-slate-900 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-                      >
-                        Done
-                      </button>
+                      >{t("Done")}</button>
                     </div>
                   </div>,
                   document.body
@@ -19347,8 +19049,7 @@ export default function GteWorkspace({
                       event.stopPropagation();
                     }}
                   >
-                    <div className="text-[11px] text-slate-600">
-                      String {stringLabels[draftNote.stringIndex]} @ {draftNote.startTime}
+                    <div className="text-[11px] text-slate-600">{t("String ")}{stringLabels[draftNote.stringIndex]} @ {draftNote.startTime}
                     </div>
                     <div className="mt-1 flex items-end gap-2">
                       <div className="flex flex-col items-start gap-1">
@@ -19375,9 +19076,9 @@ export default function GteWorkspace({
                             }
                           }}
                           className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
-                          placeholder="Fret"
+                          placeholder={t("Fret")}
                         />
-                        <span className="text-[10px] text-slate-500">Fret</span>
+                        <span className="text-[10px] text-slate-500">{t("Fret")}</span>
                       </div>
                       <div className="flex flex-col items-start gap-1">
                         <input
@@ -19409,18 +19110,16 @@ export default function GteWorkspace({
                             }
                           }}
                           className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
-                          placeholder="Sec"
+                          placeholder={t("Sec")}
                         />
-                        <span className="text-[10px] text-slate-500">Length sec</span>
+                        <span className="text-[10px] text-slate-500">{t("Length sec")}</span>
                       </div>
                       <button
                         type="button"
                         onClick={handleAddNote}
                         onMouseDown={(event) => event.stopPropagation()}
                         className="rounded-md bg-emerald-500/80 px-2 py-1 text-[11px] font-semibold text-slate-900"
-                      >
-                        Add
-                      </button>
+                      >{t("Add")}</button>
                       <button
                         type="button"
                         onClick={() => {
@@ -19429,11 +19128,9 @@ export default function GteWorkspace({
                         }}
                         onMouseDown={(event) => event.stopPropagation()}
                         className="rounded-md border border-slate-200 px-2 py-1 text-[11px] text-slate-700"
-                      >
-                        Cancel
-                      </button>
+                      >{t("Cancel")}</button>
                     </div>
-                    <div className="mt-1 text-[10px] text-slate-500">Type a fret and press Enter.</div>
+                    <div className="mt-1 text-[10px] text-slate-500">{t("Type a fret and press Enter.")}</div>
                   </div>
                 )}
               </div>
@@ -19464,9 +19161,7 @@ export default function GteWorkspace({
                 type="button"
                 onClick={openMobileAddNoteAtCursor}
                 className="flex h-12 w-full items-center justify-center rounded-2xl bg-emerald-600 text-base font-semibold text-white shadow-xl ring-1 ring-emerald-700/30 active:bg-emerald-700"
-              >
-                + Add note
-              </button>
+              >{t("+ Add note")}</button>
             </div>,
             document.body
           )}
@@ -19497,9 +19192,7 @@ export default function GteWorkspace({
                 >
                   <div className="min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                        Note settings
-                      </div>
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Note settings")}</div>
                       <button
                         type="button"
                         onClick={() => {
@@ -19510,13 +19203,11 @@ export default function GteWorkspace({
                           setNoteMenuDraft(null);
                         }}
                         className="rounded-md bg-rose-500/90 px-2 py-1 text-[10px] font-semibold text-white"
-                      >
-                        Delete
-                      </button>
+                      >{t("Delete")}</button>
                     </div>
                     <label className="mt-2 block rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                       <span className="flex items-center justify-between text-[9px] font-semibold uppercase tracking-wide text-slate-500">
-                        <span>Fret</span>
+                        <span>{t("Fret")}</span>
                         <span className="text-lg font-bold tabular-nums text-slate-900">{noteMenuDraft.fret}</span>
                       </span>
                       <input
@@ -19531,19 +19222,19 @@ export default function GteWorkspace({
                           scheduleNoteFretArrowCommit(selectedNote.id, fret);
                         }}
                         className="mt-1 h-7 w-full accent-emerald-600"
-                        aria-label="Selected note fret"
+                        aria-label={t("Selected note fret")}
                       />
                     </label>
                   </div>
                   <div className="min-w-0">
-                    <div className={`grid grid-cols-4 gap-1.5 ${mobileLandscape ? "" : "mt-2"}`} aria-label="Move selected note">
+                    <div className={`grid grid-cols-4 gap-1.5 ${mobileLandscape ? "" : "mt-2"}`} aria-label={t("Move selected note")}>
                       {(["left", "up", "down", "right"] as const).map((direction) => (
                         <button
                           key={direction}
                           type="button"
                           onClick={() => moveSelectedMobileNote(direction)}
                           className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-700 shadow-sm active:bg-slate-100"
-                          aria-label={`Move note ${direction}`}
+                          aria-label={t("Move note {value1}", {value1: direction})}
                         >
                           {direction === "left" ? "←" : direction === "right" ? "→" : direction === "up" ? "↑" : "↓"}
                         </button>
@@ -19554,20 +19245,16 @@ export default function GteWorkspace({
                         type="button"
                         onClick={() => scaleSelectedMobileNote(0.5)}
                         className="h-10 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm active:bg-slate-100"
-                      >
-                        Scale ½×
-                      </button>
+                      >{t("Scale ½×")}</button>
                       <button
                         type="button"
                         onClick={() => scaleSelectedMobileNote(2)}
                         className="h-10 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm active:bg-slate-100"
-                      >
-                        Scale 2×
-                      </button>
+                      >{t("Scale 2×")}</button>
                     </div>
                   </div>
                   <div className={`min-w-0 ${mobileLandscape ? "max-h-[9.5rem] overflow-y-auto" : "mt-2"}`}>
-                      <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Fingering</div>
+                      <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">{t("Fingering")}</div>
                       {noteAlternates?.possibleTabs?.length || noteAlternates?.blockedTabs?.length ? (
                         <div className="mt-1.5 flex flex-wrap gap-1.5">
                           {(noteAlternates?.possibleTabs || []).slice(0, 10).map((tab, index) => (
@@ -19592,7 +19279,7 @@ export default function GteWorkspace({
                           ))}
                         </div>
                       ) : (
-                        <div className="mt-1.5 text-xs text-slate-400">No alternative fingerings</div>
+                        <div className="mt-1.5 text-xs text-slate-400">{t("No alternative fingerings")}</div>
                       )}
                     </div>
                 </div>
@@ -19611,26 +19298,23 @@ export default function GteWorkspace({
           >
             <div className="flex items-center justify-between gap-2">
               <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                {mobileMultiSelectionCount} selected
-                {selectedNoteIds.length ? ` · ${selectedNoteIds.length} note${selectedNoteIds.length === 1 ? "" : "s"}` : ""}
-                {activeChordIds.length ? ` · ${activeChordIds.length} chord${activeChordIds.length === 1 ? "" : "s"}` : ""}
+                {mobileMultiSelectionCount}{t(" selected")}{selectedNoteIds.length ? " · " + editorCount(selectedNoteIds.length, "notes", locale) : ""}
+                {activeChordIds.length ? " · " + editorCount(activeChordIds.length, "chords", locale) : ""}
               </div>
               <button
                 type="button"
                 onClick={deleteSelectedMobileEvents}
                 className="rounded-lg bg-rose-500/90 px-3 py-2 text-xs font-semibold text-white"
-              >
-                Delete
-              </button>
+              >{t("Delete")}</button>
             </div>
             <div className={mobileLandscape ? "mt-2 grid grid-cols-2 gap-3" : ""}>
               <div>
-                <div className="mt-2 grid grid-cols-2 gap-2" aria-label="Move selection">
+                <div className="mt-2 grid grid-cols-2 gap-2" aria-label={t("Move selection")}>
                   <button
                     type="button"
                     onClick={() => moveSelectedMobileEvents("left")}
                     className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-700 shadow-sm active:bg-slate-100"
-                    aria-label="Move selection left"
+                    aria-label={t("Move selection left")}
                   >
                     ←
                   </button>
@@ -19638,7 +19322,7 @@ export default function GteWorkspace({
                     type="button"
                     onClick={() => moveSelectedMobileEvents("right")}
                     className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-700 shadow-sm active:bg-slate-100"
-                    aria-label="Move selection right"
+                    aria-label={t("Move selection right")}
                   >
                     →
                   </button>
@@ -19648,13 +19332,11 @@ export default function GteWorkspace({
                   onClick={() => handleOptimizeToCoordinates()}
                   disabled={selectedNoteIds.length === 0}
                   className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm active:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                >
-                  Optimize to coordinates
-                </button>
+                >{t("Optimize to coordinates")}</button>
               </div>
               <label className="mt-2 block rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                 <span className="flex items-center justify-between text-[9px] font-semibold uppercase tracking-wide text-slate-500">
-                  <span>Scale (start + length)</span>
+                  <span>{t("Scale (start + length)")}</span>
                   <span className="text-lg font-bold tabular-nums text-slate-900">{mobileScaleSliderValue.toFixed(2)}×</span>
                 </span>
                 <input
@@ -19671,7 +19353,7 @@ export default function GteWorkspace({
                   onPointerCancel={commitMobileScale}
                   onKeyUp={commitMobileScale}
                   className="mt-1 h-7 w-full accent-emerald-600"
-                  aria-label="Scale selection"
+                  aria-label={t("Scale selection")}
                 />
               </label>
             </div>
@@ -19691,9 +19373,7 @@ export default function GteWorkspace({
               onMouseDown={(event) => event.stopPropagation()}
             >
               <div className="flex items-center justify-between gap-2">
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                  Chord settings
-                </div>
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Chord settings")}</div>
                 <button
                   type="button"
                   onClick={() => {
@@ -19704,13 +19384,9 @@ export default function GteWorkspace({
                     setChordMenuDraft(null);
                   }}
                   className="rounded-lg bg-rose-500/90 px-3 py-2 text-xs font-semibold text-white"
-                >
-                  Delete
-                </button>
+                >{t("Delete")}</button>
               </div>
-              <label className="mt-2 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                Length (seconds)
-                <input
+              <label className="mt-2 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Length (seconds)")}<input
                   type="number"
                   min={framesToDurationSeconds(1)}
                   max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
@@ -19734,9 +19410,7 @@ export default function GteWorkspace({
               </label>
               {chordAlternatives.length > 0 && (
                 <div className="mt-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                    Fingering
-                  </div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Fingering")}</div>
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {chordAlternatives.slice(0, 8).map((tabs, index) => (
                       <button
@@ -19751,12 +19425,12 @@ export default function GteWorkspace({
                   </div>
                 </div>
               )}
-              <div className="mt-3 grid grid-cols-2 gap-2" aria-label="Move selected chord">
+              <div className="mt-3 grid grid-cols-2 gap-2" aria-label={t("Move selected chord")}>
                 <button
                   type="button"
                   onClick={() => moveSelectedMobileChord("left")}
                   className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-700 shadow-sm active:bg-slate-100"
-                  aria-label="Move chord left"
+                  aria-label={t("Move chord left")}
                 >
                   ←
                 </button>
@@ -19764,7 +19438,7 @@ export default function GteWorkspace({
                   type="button"
                   onClick={() => moveSelectedMobileChord("right")}
                   className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-700 shadow-sm active:bg-slate-100"
-                  aria-label="Move chord right"
+                  aria-label={t("Move chord right")}
                 >
                   →
                 </button>
@@ -19774,16 +19448,12 @@ export default function GteWorkspace({
                   type="button"
                   onClick={() => handleChordOctaveShift(-1)}
                   className="h-10 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700"
-                >
-                  Octave −
-                </button>
+                >{t("Octave −")}</button>
                 <button
                   type="button"
                   onClick={() => handleChordOctaveShift(1)}
                   className="h-10 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700"
-                >
-                  Octave +
-                </button>
+                >{t("Octave +")}</button>
                 <button
                   type="button"
                   onClick={() => {
@@ -19796,9 +19466,7 @@ export default function GteWorkspace({
                     setChordMenuDraft(null);
                   }}
                   className="h-10 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700"
-                >
-                  Disband
-                </button>
+                >{t("Disband")}</button>
               </div>
             </div>,
             document.body

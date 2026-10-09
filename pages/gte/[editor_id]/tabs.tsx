@@ -1,3 +1,8 @@
+import {editorName} from "../../../lib/i18n/editor/names";
+import {editorCount} from "../../../lib/i18n/editor/counts";
+import { withEditorLocale } from "../../../lib/i18n/editor/request";
+import { translatedError } from "../../../lib/i18n/translate";
+import { useLocale } from "../../../lib/i18n/react";
 import { GetServerSideProps } from "next";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -64,6 +69,7 @@ const parseEditorLanes = (value: unknown): EditorLane[] => {
 };
 
 export default function GteAsciiTabsPage({ editorId }: Props) {
+  const { t, locale } = useLocale();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -217,7 +223,7 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
 
   return (
     <>
-      <NoIndexHead title="Text tab export | Note2Tabs" canonicalPath={`/gte/${editorId}/tabs`} />
+      <NoIndexHead title={t("Text tab export | Note2Tabs")} canonicalPath={`/gte/${editorId}/tabs`} />
       <main className="content py-8">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
           <div className="flex flex-wrap items-center gap-2">
@@ -225,19 +231,13 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
               type="button"
               onClick={() => void router.push(`/gte/${editorId}`)}
               className="button-secondary button-small"
-            >
-              Back to editor
-            </button>
-            <Link href="/gte" className="button-secondary button-small">
-              Editors
-            </Link>
+            >{t("Back to editor")}</button>
+            <Link href="/gte" className="button-secondary button-small">{t("Editors")}</Link>
           </div>
 
           <section className="py-1">
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Tab view</h1>
-            <p className="mt-2 text-sm text-slate-600">
-              A clean text export of your guitar tab, ready to copy, save, or share.
-            </p>
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900">{t("Tab view")}</h1>
+            <p className="mt-2 text-sm text-slate-600">{t("A clean text export of your guitar tab, ready to copy, save, or share.")}</p>
           </section>
 
           {loading && (
@@ -258,14 +258,14 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
 
           {error && !loading && (
             <section className="rounded-xl bg-rose-50 p-4 text-sm text-rose-700">
-              {error}
+              {translatedError(error, locale)}
             </section>
           )}
 
           {!loading && !error && (
             <section>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm font-medium text-slate-700">Tabs</p>
+                <p className="text-sm font-medium text-slate-700">{t("Tabs")}</p>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="inline-flex items-center overflow-hidden rounded-full border border-slate-200 bg-white">
                     <button
@@ -273,21 +273,20 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
                       onClick={decreaseTabSize}
                       className="h-7 w-7 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={tabFontSizePx <= TAB_FONT_SIZE_MIN}
-                      aria-label="Shrink tabs"
-                      title="Shrink tabs"
+                      aria-label={t("Shrink tabs")}
+                      title={t("Shrink tabs")}
                     >
                       -
                     </button>
                     <span className="min-w-[3rem] border-l border-r border-slate-200 px-2 text-center text-xs text-slate-600">
-                      {tabFontSizePx}px
-                    </span>
+                      {tabFontSizePx}{t("px")}</span>
                     <button
                       type="button"
                       onClick={increaseTabSize}
                       className="h-7 w-7 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={tabFontSizePx >= TAB_FONT_SIZE_MAX}
-                      aria-label="Enlarge tabs"
-                      title="Enlarge tabs"
+                      aria-label={t("Enlarge tabs")}
+                      title={t("Enlarge tabs")}
                     >
                       +
                     </button>
@@ -298,21 +297,20 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
                       onClick={decreaseSpotsPerBar}
                       className="h-7 w-7 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={spotsPerBar <= SPOTS_PER_BAR_MIN}
-                      aria-label="Decrease ticks per bar"
-                      title="Decrease ticks per bar"
+                      aria-label={t("Decrease ticks per bar")}
+                      title={t("Decrease ticks per bar")}
                     >
                       -
                     </button>
                     <span className="min-w-[5rem] border-l border-r border-slate-200 px-2 text-center text-xs text-slate-600">
-                      {spotsPerBar} ticks/bar
-                    </span>
+                      {spotsPerBar}{t(" ticks/bar")}</span>
                     <button
                       type="button"
                       onClick={increaseSpotsPerBar}
                       className="h-7 w-7 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={spotsPerBar >= SPOTS_PER_BAR_MAX}
-                      aria-label="Increase spots per bar"
-                      title="Increase spots per bar"
+                      aria-label={t("Increase spots per bar")}
+                      title={t("Increase spots per bar")}
                     >
                       +
                     </button>
@@ -323,21 +321,20 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
                       onClick={decreaseBarsPerLine}
                       className="h-7 w-7 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={barsPerLine <= BARS_PER_LINE_MIN}
-                      aria-label="Decrease bars per line"
-                      title="Decrease bars per line"
+                      aria-label={t("Decrease bars per line")}
+                      title={t("Decrease bars per line")}
                     >
                       -
                     </button>
                     <span className="min-w-[5rem] border-l border-r border-slate-200 px-2 text-center text-xs text-slate-600">
-                      {barsPerLine} bars
-                    </span>
+                      {editorCount(barsPerLine,"bars",locale)}</span>
                     <button
                       type="button"
                       onClick={increaseBarsPerLine}
                       className="h-7 w-7 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={barsPerLine >= BARS_PER_LINE_MAX}
-                      aria-label="Increase bars per line"
-                      title="Increase bars per line"
+                      aria-label={t("Increase bars per line")}
+                      title={t("Increase bars per line")}
                     >
                       +
                     </button>
@@ -351,14 +348,14 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
                     <div key={lane.id}>
                       <div className="rounded-xl border border-slate-200 bg-white p-3">
                         <div className="mb-2 flex items-center justify-between gap-2">
-                          <p className="text-sm font-medium text-slate-700">{lane.title}</p>
+                          <p className="text-sm font-medium text-slate-700">{editorName(lane.title,t)}</p>
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
                               onClick={() => void handleCopySingleTab(lane)}
                               className="button-secondary button-small"
                             >
-                              {laneCopyState[lane.id] === "copied" ? "Copied" : "Copy"}
+                              {laneCopyState[lane.id] === "copied" ? t("Copied") : t("Copy")}
                             </button>
                             <button
                               type="button"
@@ -369,7 +366,7 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
                               aria-expanded={!collapsed}
                               aria-controls={`lane-tab-${lane.id}`}
                             >
-                              {collapsed ? "Maximize" : "Minimize"}
+                              {collapsed ? t("Maximize") : t("Minimize")}
                             </button>
                           </div>
                         </div>
@@ -382,7 +379,7 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
                                 lineHeight: `${Math.max(16, Math.round(tabFontSizePx * 1.5))}px`,
                               }}
                             >
-                              {lane.text || "No tabs available yet."}
+                              {lane.text || t("No tabs available yet.")}
                             </pre>
                           </div>
                         )}
@@ -399,7 +396,7 @@ export default function GteAsciiTabsPage({ editorId }: Props) {
   );
 }
 
-export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
+export const getServerSideProps: GetServerSideProps<Props> = withEditorLocale<Props>(async (ctx) => {
   const rawEditorId = ctx.params?.editor_id;
   const editorId = typeof rawEditorId === "string" ? rawEditorId : "";
   if (!editorId) {
@@ -410,4 +407,4 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
       editorId,
     },
   };
-};
+});

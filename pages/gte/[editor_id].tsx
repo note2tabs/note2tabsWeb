@@ -1,3 +1,8 @@
+import {editorInstrumentName} from "../../lib/i18n/editor/instruments";
+import { editorName } from "../../lib/i18n/editor/names";
+import { editorCount } from "../../lib/i18n/editor/counts";
+import { withEditorLocale } from "../../lib/i18n/editor/request";
+import { translatedError } from "../../lib/i18n/translate";
 import { requestLocale } from "../../lib/i18n/request";
 import { localeSwitchHref } from "../../lib/i18n/locale";
 import { GetServerSideProps } from "next";
@@ -160,9 +165,7 @@ import {
 import { isMobileGteDevice } from "../../lib/gteMobileDevice";
 
 const GteWorkspace = dynamic(() => import("../../components/GteTrackWorkspace"), {
-  loading: () => (
-    <div className="gte-workspace-loading" role="status" aria-label="Loading editor controls" />
-  ),
+  loading: () => <EditorLoadingState label="Loading editor controls" />,
 });
 
 type Props = {
@@ -317,6 +320,7 @@ const NON_TEXT_INPUT_TYPES = new Set([
 
 const isShortcutTextEntryTarget = (target: HTMLElement | null) => {
   if (!target) return false;
+  if (target.closest(".language-selector")) return true;
   if (target.isContentEditable || target.closest("textarea, select")) return true;
   const input = target.closest("input");
   if (!(input instanceof HTMLInputElement)) return false;
@@ -379,13 +383,15 @@ const SizeLinkToggle = ({
   linked: boolean;
   onToggle: () => void;
   className?: string;
-}) => (
+}) => {
+  const { t } = useLocale();
+  return (
   <button
     type="button"
     onClick={onToggle}
     aria-pressed={linked}
-    aria-label={linked ? "Unlink note and cursor sizes" : "Link note and cursor sizes"}
-    title={linked ? "Note and cursor sizes are linked" : "Link note and cursor sizes"}
+    aria-label={t(linked ? "Unlink note and cursor sizes" : "Link note and cursor sizes")}
+    title={t(linked ? "Note and cursor sizes are linked" : "Link note and cursor sizes")}
     className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition ${
       linked
         ? "border-sky-300 bg-sky-50 text-sky-600 hover:bg-sky-100"
@@ -398,6 +404,7 @@ const SizeLinkToggle = ({
     </svg>
   </button>
 );
+};
 
 const isCanvasSnapshot = (value: unknown): value is CanvasSnapshot =>
   Boolean(value && typeof value === "object" && Array.isArray((value as CanvasSnapshot).editors));
@@ -1682,7 +1689,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const transcriberHref = isGuestMode
     ? "/#hero"
     : `/?appendEditorId=${encodeURIComponent(editorId)}#hero`;
-  const { href: localePath } = useLocale();
+  const { t, locale, href: localePath } = useLocale();
   const transcriberNewHref = localePath("/transcribe");
   const transcriberAppendHref = `/transcriber?appendEditorId=${encodeURIComponent(editorId)}`;
   const isPaidUser = Boolean(
@@ -2921,7 +2928,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     ].sort((left, right) => left.startTime - right.startTime || left.midiNum - right.midiNum);
     const playable = candidates.filter((note) => getAllTabsForMidi(bassBase, note.midiNum).length > 0);
     const dropped = candidates.length - playable.length;
-    if (!window.confirm(`Convert this track to four-string bass? ${playable.length} notes will be kept and ${dropped} out-of-range notes will be removed. Chords will become independent notes.`)) return;
+    if (!window.confirm(t("Convert this track to four-string bass? {value1} notes will be kept and {value2} out-of-range notes will be removed. Chords will become independent notes.", {value1: playable.length, value2: dropped}))) return;
     let nextId = Math.max(0, ...lane.notes.map((note) => note.id), ...lane.chords.map((chord) => chord.id)) + 1;
     bassBase.notes = playable.map((note) => {
       const tabs = getAllTabsForMidi(bassBase, note.midiNum);
@@ -2933,7 +2940,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     const nextCanvas = normalizeCanvas({ ...current, editors: current.editors.map((item) => item.id === laneId ? bassBase : item) }, editorId);
     await gteApi.applySnapshot(editorId, nextCanvas);
     applyCanvasUpdate(nextCanvas, { markDirty: true });
-  }, [applyCanvasUpdate, editorId]);
+  }, [applyCanvasUpdate, editorId, t]);
 
   const handleLaneNameCommit = useCallback(
     async (laneId: string, rawName: string) => {
@@ -3816,13 +3823,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const saveStatus = useMemo(() => {
     if (savingCanvas || hasPendingCommit) return "Unsaved changes";
     if (lastCommittedAt) {
-      return `Saved ${new Date(lastCommittedAt).toLocaleTimeString([], {
+      return t("Saved {value1}", {value1: new Date(lastCommittedAt).toLocaleTimeString(locale, {
         hour: "2-digit",
         minute: "2-digit",
-      })}`;
+      })});
     }
     return "Unsaved changes";
-  }, [hasPendingCommit, lastCommittedAt, savingCanvas]);
+  }, [hasPendingCommit, lastCommittedAt, savingCanvas, locale, t]);
 
   const sharedViewportBarCount = useMemo(() => {
     if (!canvas) return 1;
@@ -5982,8 +5989,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         onClick={handleCanvasUndo}
         disabled={canvasUndoCount === 0 || mobileHistoryBusy}
         className="flex h-11 w-11 items-center justify-center text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
-        title="Undo"
-        aria-label="Undo"
+        title={t("Undo")}
+        aria-label={t("Undo")}
       >
         <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
           <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
@@ -5995,8 +6002,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         onClick={handleCanvasRedo}
         disabled={canvasRedoCount === 0 || mobileHistoryBusy}
         className="flex h-11 w-11 items-center justify-center text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
-        title="Redo"
-        aria-label="Redo"
+        title={t("Redo")}
+        aria-label={t("Redo")}
       >
         <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
           <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
@@ -6024,7 +6031,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       <div
         className={`relative grid ${compact ? "grid-cols-2" : "grid-cols-3"}`}
         role="group"
-        aria-label="Workspace mode"
+        aria-label={t("Workspace mode")}
       >
         <span
           aria-hidden="true"
@@ -6040,9 +6047,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
             editorMode === "canvas" ? "text-slate-900" : "text-slate-600 hover:text-slate-800"
           }`}
-        >
-          Canvas
-        </button>
+        >{t("Canvas")}</button>
         {!compact && (
           <button
             type="button"
@@ -6051,9 +6056,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
               editorMode === "tab" ? "text-slate-900" : "text-slate-600 hover:text-slate-800"
             }`}
-          >
-            Tab view
-          </button>
+          >{t("Tab view")}</button>
         )}
         <button
           type="button"
@@ -6062,9 +6065,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 ${
             practiceModeEnabled ? "text-emerald-800" : "text-slate-600 hover:text-slate-800"
           }`}
-        >
-          Practice
-        </button>
+        >{t("Practice")}</button>
       </div>
     </div>
     );
@@ -6371,17 +6372,15 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     >
       <div className="flex flex-col gap-2 lg:block">
         <div className="flex min-w-36 items-center gap-2 border-b border-slate-100 pb-2 lg:border-r-0 lg:pr-0">
-          <h2 id="practice-mode-title" className="text-sm font-semibold text-slate-900">Practice</h2>
+          <h2 id="practice-mode-title" className="text-sm font-semibold text-slate-900">{t("Practice")}</h2>
           <span className="text-xs text-slate-500">
-            {barSelection?.barIndices.length
-              ? `${barSelection.barIndices.length} bar${barSelection.barIndices.length === 1 ? "" : "s"}`
-              : "Whole song"}
+            {barSelection?.barIndices.length ? editorCount(barSelection.barIndices.length, "bars", locale) : t("Whole song")}
           </span>
         </div>
         <div
           className="flex flex-1 flex-wrap items-center gap-1.5 lg:mt-3 lg:flex-col lg:items-stretch"
           role="group"
-          aria-label="Practice controls"
+          aria-label={t("Practice controls")}
         >
           {PRACTICE_RATING_UI_ENABLED && practiceRatingReplaysForLane.length > 0 && (
             <div className="order-[1] w-full rounded-lg border border-slate-200 bg-slate-50 p-2">
@@ -6391,7 +6390,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 aria-pressed={showPracticeRating}
                 className="flex w-full items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-slate-600"
               >
-                <span>Show replay feedback</span>
+                <span>{t("Show replay feedback")}</span>
                 <span
                   className={`relative h-5 w-9 rounded-full transition ${
                     showPracticeRating ? "bg-emerald-500" : "bg-slate-300"
@@ -6405,7 +6404,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   />
                 </span>
               </button>
-              <div className="mt-2 grid grid-cols-3 gap-1" aria-label="Choose a rated replay">
+              <div className="mt-2 grid grid-cols-3 gap-1" aria-label={t("Choose a rated replay")}>
                 {practiceRatingReplaysForLane.map((replay, index) => (
                   <button
                     key={replay.id}
@@ -6423,7 +6422,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         : "border-slate-200 bg-slate-100 text-slate-500"
                     }`}
                   >
-                    {index === 0 ? "Latest" : `Replay ${index + 1}`}
+                    {index === 0 ? t("Latest") : t("Replay {value1}", {value1: index + 1})}
                   </button>
                 ))}
               </div>
@@ -6431,16 +6430,12 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 <div
                   className="mt-2 flex items-center justify-between gap-2 border-t border-slate-200 pt-2"
                   role="group"
-                  aria-label="Replay audio"
+                  aria-label={t("Replay audio")}
                 >
                   <div className="min-w-0">
-                    <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">
-                      Replay audio
-                    </p>
+                    <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">{t("Replay audio")}</p>
                     <p className="truncate text-[9px] leading-3 text-slate-400">
-                      {selectedPracticeRatingForPlayback.audioStorageKey
-                        ? "Plays this recording on the timeline"
-                        : "Audio is unavailable for this older replay"}
+                      {selectedPracticeRatingForPlayback.audioStorageKey ? t("Plays this recording on the timeline") : t("Audio is unavailable for this older replay")}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
@@ -6449,11 +6444,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       onClick={() => void downloadPracticeReplayAudio(selectedPracticeRatingForPlayback)}
                       disabled={!selectedPracticeRatingForPlayback.audioStorageKey}
                       className="flex h-8 items-center rounded-lg border border-slate-300 bg-white px-2 text-[10px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      aria-label="Download replay audio"
-                      title="Download this microphone recording"
-                    >
-                      Download
-                    </button>
+                      aria-label={t("Download replay audio")}
+                      title={t("Download this microphone recording")}
+                    >{t("Download")}</button>
                   <button
                     type="button"
                     onClick={toggleSelectedPracticeReplay}
@@ -6463,17 +6456,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     }
                     className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-2.5 text-[10px] font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
                     aria-label={
-                      practiceReplayPlayingId === selectedPracticeRatingForPlayback.id
-                        ? "Pause replay audio"
-                        : "Play replay audio"
+                      practiceReplayPlayingId === selectedPracticeRatingForPlayback.id ? t("Pause replay audio") : t("Play replay audio")
                     }
                   >
                     <span aria-hidden="true">
                       {practiceReplayPlayingId === selectedPracticeRatingForPlayback.id ? "Ⅱ" : "▶"}
                     </span>
-                    {practiceReplayPlayingId === selectedPracticeRatingForPlayback.id
-                      ? "Pause"
-                      : "Play"}
+                    {practiceReplayPlayingId === selectedPracticeRatingForPlayback.id ? t("Pause") : t("Play")}
                   </button>
                   </div>
                 </div>
@@ -6484,9 +6473,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     selectedPracticeRating.bars.length > 15 ? "overflow-x-auto" : "overflow-hidden"
                   }`}
                   role="img"
-                  aria-label={`Accuracy by bar: ${selectedPracticeRating.bars
+                  aria-label={t("Accuracy by bar: {value1}", {value1: selectedPracticeRating.bars
                     .map((bar) => `Bar ${bar.barIndex + 1}, ${bar.score}%`)
-                    .join("; ")}`}
+                    .join("; ")})}
                 >
                   {(() => {
                     const bars = selectedPracticeRating.bars;
@@ -6539,7 +6528,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               : "#f43f5e";
                           return (
                             <g key={`${selectedPracticeRating.id}-bar-${point.barIndex}`}>
-                              <title>{`Bar ${point.barIndex + 1}: ${point.score}% accuracy`}</title>
+                              <title>{t("Bar {value1}: {value2}% accuracy", {value1: point.barIndex + 1, value2: point.score})}</title>
                               <circle cx={point.x} cy={point.y} r="2.4" fill={fill} stroke="white" strokeWidth="0.8" />
                               <text
                                 x={point.x}
@@ -6558,8 +6547,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                 fontSize="5.5"
                                 fontWeight="600"
                                 fill="#64748b"
-                              >
-                                B{point.barIndex + 1}
+                              >{t("B")}{point.barIndex + 1}
                               </text>
                             </g>
                           );
@@ -6572,14 +6560,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             </div>
           )}
           <label className="flex h-9 items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700">
-            <span>Speed</span>
+            <span>{t("Speed")}</span>
             <select
               value={normalizedPlaybackSpeed}
               name="practice-playback-speed"
               onChange={(event) => setPlaybackSpeed(Number(event.target.value))}
               disabled={speedTrainerSessionActive}
               className="bg-transparent text-xs font-semibold text-slate-900 outline-none disabled:cursor-not-allowed"
-              aria-label="Practice playback speed"
+              aria-label={t("Practice playback speed")}
             >
               {!PLAYBACK_SPEED_OPTIONS.some((speed) => speed === normalizedPlaybackSpeed) && (
                 <option value={normalizedPlaybackSpeed}>
@@ -6601,8 +6589,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 ? "border-emerald-300 bg-emerald-100 text-emerald-900"
                 : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300"
             }`}
-          >
-            Loop {practiceLoopEnabled ? "on" : "off"}
+          >{t("Loop ")}{practiceLoopEnabled ? t("on") : t("off")}
           </button>
           <button
             type="button"
@@ -6613,8 +6600,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 ? "border-sky-300 bg-sky-100 text-sky-900"
                 : "border-slate-200 bg-white text-slate-700 hover:border-sky-300"
             }`}
-          >
-            Metronome {metronomeEnabled ? "on" : "off"}
+          >{t("Metronome ")}{metronomeEnabled ? t("on") : t("off")}
           </button>
           <button
             type="button"
@@ -6632,8 +6618,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 ? "border-violet-300 bg-violet-100 text-violet-900"
                 : "border-slate-200 bg-white text-slate-700 hover:border-violet-300"
             }`}
-          >
-            Focus {practiceFocusEnabled ? "on" : "selection"}
+          >{t("Focus ")}{practiceFocusEnabled ? t("on") : t("selection")}
           </button>
           {practiceViewedLaneIsChord && (
             <button
@@ -6645,33 +6630,28 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   ? "border-slate-900 bg-slate-900 text-white"
                   : "border-slate-200 bg-white text-slate-700 hover:border-slate-400"
               }`}
-            >
-              Fingerings {practiceChordFingeringsVisible ? "on" : "off"}
+            >{t("Fingerings ")}{practiceChordFingeringsVisible ? t("on") : t("off")}
             </button>
           )}
           {practiceSoundLaneId && (
             <details className="group relative">
-              <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                Sound
-                <span className="truncate text-[10px] font-medium text-slate-500">
-                  {trackInstrumentOptions.find((option) => option.id === practiceInstrumentValue)?.label || "Guitar"}
+              <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">{t("Sound")}<span className="truncate text-[10px] font-medium text-slate-500">
+                  {editorInstrumentName(trackInstrumentOptions.find((option) => option.id === practiceInstrumentValue)?.label || "",t) || t("Guitar")}
                 </span>
               </summary>
               <div className="absolute right-0 top-11 z-50 w-64 space-y-3 rounded-xl border border-slate-200 bg-white p-3 shadow-xl lg:static lg:mt-2 lg:w-full lg:shadow-sm">
-                <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                  Instrument
-                  <select
+                <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Instrument")}<select
                     value={practiceInstrumentValue}
                     name="practice-instrument"
                     onChange={(event) =>
                       handleLaneInstrumentChange(practiceSoundLaneId, event.target.value)
                     }
                     className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
-                    aria-label="Practice instrument"
+                    aria-label={t("Practice instrument")}
                   >
                     {(practiceSoundLane && isBassLane(practiceSoundLane) ? trackInstrumentOptions.filter((option) => option.id === "bass_overdrive") : trackInstrumentOptions).map((option) => (
                       <option key={`practice-instrument-${option.id}`} value={option.id}>
-                        {option.label}
+                        {editorInstrumentName(option.label,t)}
                       </option>
                     ))}
                   </select>
@@ -6687,7 +6667,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         : "border-slate-200 text-slate-700"
                     }`}
                   >
-                    {trackMuteById[practiceSoundLaneId] ? "Muted" : "Mute"}
+                    {trackMuteById[practiceSoundLaneId] ? t("Muted") : t("Mute")}
                   </button>
                   <button
                     type="button"
@@ -6699,12 +6679,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         : "border-slate-200 text-slate-700"
                     }`}
                   >
-                    {isolatedTrackIds.has(practiceSoundLaneId) ? "Soloed" : "Solo"}
+                    {isolatedTrackIds.has(practiceSoundLaneId) ? t("Soloed") : t("Solo")}
                   </button>
                 </div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                  Volume
-                  <input
+                <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Volume")}<input
                     type="range"
                     name="practice-track-volume"
                     min={0}
@@ -6718,12 +6696,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     onPointerCancel={() => commitTrackVolume(practiceSoundLaneId)}
                     onBlur={() => commitTrackVolume(practiceSoundLaneId)}
                     className="mt-1.5 w-full accent-slate-700"
-                    aria-label="Practice track volume"
+                    aria-label={t("Practice track volume")}
                   />
                 </label>
-                <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                  Pan
-                  <input
+                <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Pan")}<input
                     type="range"
                     name="practice-track-pan"
                     min={-1}
@@ -6734,17 +6710,15 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       handleTrackPanChange(practiceSoundLaneId, Number(event.target.value))
                     }
                     className="mt-1.5 w-full accent-slate-700"
-                    aria-label="Practice track pan"
+                    aria-label={t("Practice track pan")}
                   />
                 </label>
               </div>
             </details>
           )}
           <details className="group relative">
-            <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-              More
-              {(countInEnabled || speedTrainerEnabled) && (
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-label="Additional practice settings active" />
+            <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">{t("More")}{(countInEnabled || speedTrainerEnabled) && (
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-label={t("Additional practice settings active")} />
               )}
               <span className="text-[10px] text-slate-400 transition-transform group-open:rotate-180" aria-hidden="true">▾</span>
             </summary>
@@ -6759,20 +6733,18 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                 }`}
               >
-                <span>Count-in</span>
-                <span>{countInEnabled ? "On" : "Off"}</span>
+                <span>{t("Count-in")}</span>
+                <span>{countInEnabled ? t("On") : t("Off")}</span>
               </button>
               {countInEnabled && (
                 <div className="grid grid-cols-2 gap-2">
-                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                    Length
-                    <select
+                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Length")}<select
                       value={countInBars}
                       onChange={(event) => setCountInBars(Number(event.target.value))}
                       className="mt-1 h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs normal-case text-slate-700"
-                      aria-label="Count-in bars"
+                      aria-label={t("Count-in bars")}
                     >
-                      {[1, 2, 3].map((bars) => <option key={bars} value={bars}>{bars} bar{bars === 1 ? "" : "s"}</option>)}
+                      {[1, 2, 3].map((bars) => <option key={bars} value={bars}>{bars}{t(" bar")}{bars === 1 ? "" : (locale === "en" ? "s" : "")}</option>)}
                     </select>
                   </label>
                   <button
@@ -6782,14 +6754,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     className={`mt-4 h-8 rounded-lg border px-2 text-[10px] font-semibold ${
                       countInEveryLoop ? "border-amber-300 bg-amber-50 text-amber-900" : "border-slate-200 text-slate-600"
                     }`}
-                  >
-                    Every loop {countInEveryLoop ? "on" : "off"}
+                  >{t("Every loop ")}{countInEveryLoop ? t("on") : t("off")}
                   </button>
                 </div>
               )}
-              <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                Metronome volume
-                <input
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Metronome volume")}<input
                   type="range"
                   name="practice-metronome-volume"
                   min={0}
@@ -6798,7 +6767,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   value={metronomeVolume}
                   onChange={(event) => setMetronomeVolume(Number(event.target.value))}
                   className="mt-1 w-full accent-sky-600"
-                  aria-label="Practice metronome volume"
+                  aria-label={t("Practice metronome volume")}
                 />
               </label>
               {practiceFullscreenSupported && (
@@ -6807,8 +6776,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   onClick={() => void toggleElementFullscreen(practiceRootRef.current, document)}
                   className="flex h-9 w-full items-center justify-between rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                 >
-                  <span>Fullscreen</span>
-                  <span>{practiceFullscreen ? "Exit" : "Open"}</span>
+                  <span>{t("Fullscreen")}</span>
+                  <span>{practiceFullscreen ? t("Exit") : t("Open")}</span>
                 </button>
               )}
               <div className="border-t border-slate-100 pt-3">
@@ -6822,20 +6791,20 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                   }`}
                 >
-                  <span>Speed trainer</span>
-                  <span>{speedTrainerSessionActive ? "Running" : speedTrainerEnabled ? "On" : "Off"}</span>
+                  <span>{t("Speed trainer")}</span>
+                  <span>{speedTrainerSessionActive ? t("Running") : speedTrainerEnabled ? t("On") : t("Off")}</span>
                 </button>
               </div>
               {speedTrainerEnabled && (
                 <div className="grid grid-cols-1 gap-1.5">
                   <label className="flex h-8 w-full items-center justify-between rounded-lg border border-violet-200 bg-white px-2 text-[11px] font-semibold text-violet-900">
-                    <span>Start</span>
+                    <span>{t("Start")}</span>
                     <select
                       value={speedTrainerStart}
                       onChange={(event) => setSpeedTrainerStart(Number(event.target.value))}
                       disabled={speedTrainerSessionActive}
                       className="min-w-0 bg-transparent text-right text-[11px] font-semibold outline-none disabled:cursor-not-allowed"
-                      aria-label="Speed trainer start"
+                      aria-label={t("Speed trainer start")}
                     >
                       {SPEED_TRAINER_START_OPTIONS.filter(
                         (speed) => speed <= speedTrainerTarget
@@ -6845,7 +6814,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     </select>
                   </label>
                   <label className="flex h-8 w-full items-center justify-between rounded-lg border border-violet-200 bg-white px-2 text-[11px] font-semibold text-violet-900">
-                    <span>Target</span>
+                    <span>{t("Target")}</span>
                     <select
                       value={speedTrainerTarget}
                       onChange={(event) => {
@@ -6855,7 +6824,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       }}
                       disabled={speedTrainerSessionActive}
                       className="min-w-0 bg-transparent text-right text-[11px] font-semibold outline-none disabled:cursor-not-allowed"
-                      aria-label="Speed trainer target"
+                      aria-label={t("Speed trainer target")}
                     >
                       {SPEED_TRAINER_TARGET_OPTIONS.map((speed) => (
                         <option key={speed} value={speed}>{Math.round(speed * 100)}%</option>
@@ -6863,13 +6832,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     </select>
                   </label>
                   <label className="flex h-8 w-full items-center justify-between rounded-lg border border-violet-200 bg-white px-2 text-[11px] font-semibold text-violet-900">
-                    <span>Step</span>
+                    <span>{t("Step")}</span>
                     <select
                       value={speedTrainerStep}
                       onChange={(event) => setSpeedTrainerStep(Number(event.target.value))}
                       disabled={speedTrainerSessionActive}
                       className="min-w-0 bg-transparent text-right text-[11px] font-semibold outline-none disabled:cursor-not-allowed"
-                      aria-label="Speed trainer increase"
+                      aria-label={t("Speed trainer increase")}
                     >
                       {SPEED_TRAINER_STEP_OPTIONS.map((step) => (
                         <option key={step} value={step}>+{Math.round(step * 100)}%</option>
@@ -6885,20 +6854,18 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               type="button"
               onClick={() => openShareDialog("practice_controls")}
               className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-700 focus-visible:ring-offset-2 lg:w-full"
-              title="Share this tab"
+              title={t("Share this tab")}
             >
               <svg viewBox="0 0 20 20" className="h-4 w-4 fill-none stroke-current" aria-hidden="true">
                 <circle cx="5" cy="10" r="2" />
                 <circle cx="15" cy="5" r="2" />
                 <circle cx="15" cy="15" r="2" />
                 <path d="m6.8 9.1 6.4-3.2M6.8 10.9l6.4 3.2" strokeLinecap="round" />
-              </svg>
-              Share tab
-            </button>
+              </svg>{t("Share tab")}</button>
           )}
           {PRACTICE_RATING_UI_ENABLED && practiceRatingError && (
             <p className="order-[2] w-full rounded-lg bg-rose-50 px-2 py-1.5 text-[10px] leading-4 text-rose-700" role="alert">
-              {practiceRatingError}
+              {translatedError(practiceRatingError, locale)}
             </p>
           )}
           {PRACTICE_RATING_UI_ENABLED && (
@@ -6909,19 +6876,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             disabled={practiceRatingBusy || !practiceLaneId}
             className="order-[3] h-9 rounded-lg border border-emerald-400 bg-emerald-600 px-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {practiceRatingState === "countdown"
-              ? `Starting in ${practiceRatingCountdown}`
-              : practiceRatingState === "permission"
-              ? "Allow microphone…"
-              : practiceRatingState === "recording"
-              ? "Listening…"
-              : practiceRatingState === "scoring"
-              ? "Rating…"
-              : "Play & rate"}
+            {practiceRatingState === "countdown" ? t("Starting in {value1}", {value1: practiceRatingCountdown}) : practiceRatingState === "permission" ? t("Allow microphone…") : practiceRatingState === "recording" ? t("Listening…") : practiceRatingState === "scoring" ? t("Rating…") : t("Play & rate")}
           </button>
-          <p className="order-[4] px-1 text-[9px] leading-3 text-slate-400">
-            Rating playback is silent so the microphone records only your instrument.
-          </p>
+          <p className="order-[4] px-1 text-[9px] leading-3 text-slate-400">{t("Rating playback is silent so the microphone records only your instrument.")}</p>
             </>
           )}
         </div>
@@ -6931,20 +6888,18 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
 
   const renderPracticeHelp = () => (
     <aside className="mx-auto w-full max-w-[1100px] rounded-xl border border-slate-200 bg-white p-3 text-[11px] leading-4 text-slate-500 shadow-sm lg:fixed lg:right-4 lg:top-28 lg:z-40 lg:w-56 lg:max-w-none">
-      <h2 className="text-xs font-semibold text-slate-800">Practice shortcuts</h2>
+      <h2 className="text-xs font-semibold text-slate-800">{t("Practice shortcuts")}</h2>
       <div className="mt-2 space-y-1">
-        <p><span className="font-semibold text-slate-700">Space</span> Play or pause</p>
-        <p><span className="font-semibold text-slate-700">← / →</span> Previous or next bar</p>
-        <p><span className="font-semibold text-slate-700">L</span> Toggle loop</p>
-        <p><span className="font-semibold text-slate-700">M</span> Toggle metronome</p>
-        <p><span className="font-semibold text-slate-700">[ / ]</span> Change speed</p>
+        <p><span className="font-semibold text-slate-700">{t("Space")}</span>{t(" Play or pause")}</p>
+        <p><span className="font-semibold text-slate-700">← / →</span>{t(" Previous or next bar")}</p>
+        <p><span className="font-semibold text-slate-700">{t("L")}</span>{t(" Toggle loop")}</p>
+        <p><span className="font-semibold text-slate-700">{t("M")}</span>{t(" Toggle metronome")}</p>
+        <p><span className="font-semibold text-slate-700">[ / ]</span>{t(" Change speed")}</p>
       </div>
       <p className="mt-3 border-t border-slate-100 pt-3">
-        {barSelection?.barIndices.length
-          ? `${barSelection.barIndices.length} bar${barSelection.barIndices.length === 1 ? "" : "s"} selected for playback.`
-          : "Select one or more bars for playback. Shift-click another bar to select everything in between."}
+        {barSelection?.barIndices.length ? t("{value1} bar{value2} selected for playback.", {value1: barSelection.barIndices.length, value2: barSelection.barIndices.length === 1 ? "" : (locale === "en" ? "s" : "")}) : t("Select one or more bars for playback. Shift-click another bar to select everything in between.")}
       </p>
-      <p className="mt-2">Bluetooth pedals that send arrow or Page keys work automatically.</p>
+      <p className="mt-2">{t("Bluetooth pedals that send arrow or Page keys work automatically.")}</p>
     </aside>
   );
 
@@ -6964,9 +6919,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   return (
     <>
       <script dangerouslySetInnerHTML={{ __html: bootstrapEditorScript }} />
-      <NoIndexHead title="Guitar Tab Editor Workspace | Note2Tabs" canonicalPath={`/gte/${editorId}`} />
+      <NoIndexHead title={t("Guitar Tab Editor Workspace | Note2Tabs")} canonicalPath={`/gte/${editorId}`} />
       <main
         ref={practiceRootRef}
+        dir="ltr"
+        data-editor-locale={locale}
         className={`page page-tight overflow-x-clip ${
           isMobileEditMode ? "h-[100dvh] overflow-hidden overscroll-none py-3" : ""
         } ${practiceFullscreen ? "gte-practice-fullscreen overflow-y-auto" : ""}`}
@@ -7010,7 +6967,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     onClick={() => setMobileNavOpen((prev) => !prev)}
                     className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm"
                     aria-expanded={mobileNavOpen}
-                    aria-label="Open menu"
+                    aria-label={t("Open menu")}
                   >
                     <span className="flex flex-col gap-1">
                       <span className="block h-0.5 w-5 rounded-full bg-current" />
@@ -7020,26 +6977,24 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   </button>
                   {mobileNavOpen && (
                     <div className="absolute left-0 top-12 z-40 w-64 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                        Menu
-                      </div>
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t("Menu")}</div>
                       <div className="mt-3 space-y-2">
                         <details className="rounded-xl border border-slate-200 bg-white">
                           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold text-slate-700">
-                            <span>Help</span>
+                            <span>{t("Help")}</span>
                             <span aria-hidden="true" className="text-slate-400">›</span>
                           </summary>
                           <div className="max-h-[55vh] overflow-y-auto border-t border-slate-200 p-2">
                             <div className="mb-2 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                              <span>Editor tutorial</span>
+                              <span>{t("Editor tutorial")}</span>
                               <EditorTutorialTrigger />
                             </div>
                             {SHORTCUT_HELP_SECTIONS.map(([title, shortcuts]) => (
                               <section key={`mobile-help-${title}`} className="border-t border-slate-100 py-2 first:border-0">
-                                <h3 className="px-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{title}</h3>
+                                <h3 className="px-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t(title)}</h3>
                                 {shortcuts.map(([label, shortcut]) => (
                                   <div key={`mobile-help-${title}-${label}`} className="flex min-h-8 items-center gap-2 rounded-lg px-2 text-xs text-slate-700">
-                                    <span>{label}</span><span className="ml-auto text-[10px] text-slate-400">{shortcut}</span>
+                                    <span>{t(label)}</span><span className="ml-auto text-[10px] text-slate-400">{shortcut}</span>
                                   </div>
                                 ))}
                               </section>
@@ -7048,31 +7003,23 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         </details>
                         {isGuestMode ? (
                           <>
-                            <Link href="/" className="block rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
-                              Home
-                            </Link>
+                            <Link href="/" className="block rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">{t("Home")}</Link>
                             {session?.user?.id ? (
                               <button
                                 type="button"
                                 onClick={() => void router.push(saveToAccountPath)}
                                 className="block w-full rounded-xl bg-slate-900 px-3 py-2 text-left text-sm font-semibold text-white"
-                              >
-                                Save draft to account
-                              </button>
+                              >{t("Save draft to account")}</button>
                             ) : (
                               <>
                                 <Link
                                   href={loginSaveHref}
                                   className="block rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700"
-                                >
-                                  Log in to save
-                                </Link>
+                                >{t("Log in to save")}</Link>
                                 <Link
                                   href={signupSaveHref}
                                   className="block rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white"
-                                >
-                                  Create account
-                                </Link>
+                                >{t("Create account")}</Link>
                               </>
                             )}
                           </>
@@ -7082,9 +7029,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               type="button"
                               onClick={() => void router.push("/gte")}
                               className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm text-slate-700"
-                            >
-                              Back to editors
-                            </button>
+                            >{t("Back to editors")}</button>
                             <GteFileImportButton
                               editorId={editorId}
                               onImported={async () => {
@@ -7093,10 +7038,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               onError={(message) => setError(message || null)}
                               className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm text-slate-700"
                               busyLabel="Importing..."
-                              title="Import a tab file"
-                            >
-                              Import tabs
-                            </GteFileImportButton>
+                              title={t("Import a tab file")}
+                            >{t("Import tabs")}</GteFileImportButton>
                           </>
                         )}
                         <button
@@ -7106,7 +7049,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           disabled={exportingTrack || !canvas?.editors.length}
                           aria-expanded={exportMenuOpen}
                         >
-                          <span>{exportingTrack ? "Exporting..." : "Export"}</span>
+                          <span>{exportingTrack ? t("Exporting...") : t("Export")}</span>
                           <span className="text-slate-400" aria-hidden="true">⌄</span>
                         </button>
                         {exportMenuOpen && (
@@ -7119,7 +7062,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                 className="rounded-lg bg-white px-3 py-2 text-left text-sm text-slate-700 shadow-sm hover:bg-slate-50"
                                 disabled={exportingTrack}
                               >
-                                {option.label}
+                                {editorInstrumentName(option.label,t)}
                               </button>
                             ))}
                           </div>
@@ -7130,16 +7073,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm text-slate-700 disabled:cursor-not-allowed disabled:text-slate-400"
                           disabled={savingCanvas || isGuestMode}
                         >
-                          {savingCanvas ? "Saving..." : "Save"}
+                          {savingCanvas ? t("Saving...") : t("Save")}
                         </button>
                       </div>
                       <div className="mt-3 text-xs text-slate-600" role="status" aria-live="polite">
-                        {saveStatus}
+                        {t(saveStatus)}
                       </div>
                       {isGuestMode && (
-                        <div className="mt-2 text-xs text-slate-600">
-                          This draft stays in this browser until you save it to your account.
-                        </div>
+                        <div className="mt-2 text-xs text-slate-600">{t("This draft stays in this browser until you save it to your account.")}</div>
                       )}
                     </div>
                   )}
@@ -7150,23 +7091,19 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             <div className={practiceModeEnabled ? "hidden" : "space-y-2"}>
               <details className="rounded-xl border border-slate-200 bg-white shadow-sm">
                 <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold text-slate-700">
-                  <span>Tools</span>
+                  <span>{t("Tools")}</span>
                   <span aria-hidden="true" className="text-slate-400">⌄</span>
                 </summary>
                 <div className="max-h-[60vh] overflow-y-auto border-t border-slate-200 p-2">
                   <div ref={setEditMenuPortalTarget} />
                   <div className="mt-1 grid gap-1 border-t border-slate-100 pt-1">
-                    <button type="button" onClick={() => setFindKeyDialogOpen(true)} className="min-h-11 rounded-xl px-3 text-left text-sm font-medium text-slate-700 active:bg-slate-100">
-                      Detect song key
-                    </button>
+                    <button type="button" onClick={() => setFindKeyDialogOpen(true)} className="min-h-11 rounded-xl px-3 text-left text-sm font-medium text-slate-700 active:bg-slate-100">{t("Detect song key")}</button>
                     <button
                       type="button"
                       onClick={() => setGeneratePlayingCoordinatesRequest((request) => request + 1)}
                       disabled={!activeLaneId}
                       className="min-h-11 rounded-xl px-3 text-left text-sm font-medium text-slate-700 active:bg-slate-100 disabled:text-slate-400"
-                    >
-                      Generate playing coordinates
-                    </button>
+                    >{t("Generate playing coordinates")}</button>
                   </div>
                 </div>
               </details>
@@ -7180,8 +7117,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   className={`min-w-0 rounded-xl border p-3 text-left shadow-sm ${mobileControlsOpen ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-white"}`}
                   aria-expanded={mobileControlsOpen}
                 >
-                  <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Project settings</span>
-                  <span className="mt-1 block truncate text-xs text-slate-700">{mobileControlsSummary}</span>
+                  <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Project settings")}</span>
+                  <span className="mt-1 block truncate text-xs text-slate-700">{t(mobileControlsSummary)}</span>
                 </button>
                 <button
                   type="button"
@@ -7192,17 +7129,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   className={`min-w-0 rounded-xl border p-3 text-left shadow-sm ${mobileEditingSettingsOpen ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-white"}`}
                   aria-expanded={mobileEditingSettingsOpen}
                 >
-                  <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Editing settings</span>
-                  <span className="mt-1 block truncate text-xs text-slate-700">
-                    Note 1/{chordOnlyDefaultNoteLengthDenominator} · Cursor 1/{chordOnlyCursorSizeDenominator}
+                  <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Editing settings")}</span>
+                  <span className="mt-1 block truncate text-xs text-slate-700">{t("Note 1/")}{chordOnlyDefaultNoteLengthDenominator}{t(" · Cursor 1/")}{chordOnlyCursorSizeDenominator}
                   </span>
                 </button>
               </div>
               {mobileControlsOpen && (
                 <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    Name
-                    <input
+                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t("Name")}<input
                       type="text"
                       value={nameDraft}
                       onChange={(event) => setNameDraft(event.target.value)}
@@ -7213,13 +7147,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         void commitName(nameDraft);
                       }}
                       className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700"
-                      placeholder="Untitled"
+                      placeholder={t("Untitled")}
                     />
                   </label>
                   <div className="grid grid-cols-2 gap-2">
-                    <label className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                      Key
-                      <select
+                    <label className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t("Key")}<select
                         value={normalizeKeyBase(canvas?.keyBase)}
                         onChange={(event) => {
                           commitCanvasKey(
@@ -7229,18 +7161,16 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           event.currentTarget.blur();
                         }}
                         className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium normal-case tracking-normal text-slate-700"
-                        aria-label="Key root"
+                        aria-label={t("Key root")}
                       >
                         {KEY_BASE_OPTIONS.map((label, index) => (
                           <option key={label} value={index}>
-                            {label}
+                            {t(label)}
                           </option>
                         ))}
                       </select>
                     </label>
-                    <label className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                      Scale
-                      <select
+                    <label className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t("Scale")}<select
                         value={normalizeKeyType(canvas?.keyType)}
                         onChange={(event) => {
                           commitCanvasKey(
@@ -7250,20 +7180,18 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           event.currentTarget.blur();
                         }}
                         className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium normal-case tracking-normal text-slate-700"
-                        aria-label="Key scale"
+                        aria-label={t("Key scale")}
                       >
                         {KEY_TYPE_OPTIONS.map((label, index) => (
                           <option key={label} value={index}>
-                            {label}
+                            {t(label)}
                           </option>
                         ))}
                       </select>
                     </label>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <label className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                      BPM
-                      <span className="mt-2 flex items-center gap-2">
+                    <label className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t("BPM")}<span className="mt-2 flex items-center gap-2">
                         <input
                           type="number"
                           step={1}
@@ -7292,9 +7220,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         />
                       </span>
                     </label>
-                    <label className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                      Time signature
-                      <span className="mt-2 flex items-center gap-2">
+                    <label className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t("Time signature")}<span className="mt-2 flex items-center gap-2">
                         <select
                           value={normalizeTimeSignature(timeSignatureDraft) ?? 8}
                           onChange={(event) => {
@@ -7303,7 +7229,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             event.currentTarget.blur();
                           }}
                           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700"
-                          aria-label="Time signature top number"
+                          aria-label={t("Time signature top number")}
                         >
                           {TIME_SIGNATURE_TOP_OPTIONS.map((value) => (
                             <option key={value} value={value}>
@@ -7319,7 +7245,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             event.currentTarget.blur();
                           }}
                           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700"
-                          aria-label="Time signature bottom number"
+                          aria-label={t("Time signature bottom number")}
                         >
                           {TIME_SIGNATURE_BOTTOM_OPTIONS.map((value) => (
                             <option key={value} value={value}>
@@ -7331,12 +7257,12 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     </label>
                   </div>
                   <div className="flex min-h-[1.25rem] flex-wrap items-center gap-3 text-xs">
-                    <span className="text-slate-600" role="status" aria-live="polite">{saveStatus}</span>
-                    {(nameSaving || bpmSaving) && !isGuestMode && <span className="muted">Saving draft...</span>}
-                    {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
+                    <span className="text-slate-600" role="status" aria-live="polite">{t(saveStatus)}</span>
+                    {(nameSaving || bpmSaving) && !isGuestMode && <span className="muted">{t("Saving draft...")}</span>}
+                    {(nameError || bpmError) && <span className="error">{translatedError(nameError, locale) || translatedError(bpmError, locale)}</span>}
                     {(timeSignatureSaving || timeSignatureError) && (
                       <span className={timeSignatureError ? "error" : "muted"}>
-                        {timeSignatureError || "Saving time signature..."}
+                        {translatedError(timeSignatureError, locale) || t("Saving time signature...")}
                       </span>
                     )}
                   </div>
@@ -7345,9 +7271,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               {mobileEditingSettingsOpen && (
                 <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                   <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2">
-                    <label className="grid gap-1 text-xs font-medium text-slate-600">
-                      Add note size
-                      <select
+                    <label className="grid gap-1 text-xs font-medium text-slate-600">{t("Add note size")}<select
                         value={chordOnlyDefaultNoteLengthDenominator}
                         onKeyDown={blockSizeSelectKeyboardChange}
                         onChange={(event) => handleDefaultNoteLengthDenominatorChange(Number(event.target.value))}
@@ -7359,9 +7283,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       </select>
                     </label>
                     <SizeLinkToggle linked={noteCursorSizesLinked} onToggle={toggleNoteCursorSizeLink} className="self-center" />
-                    <label className="grid gap-1 text-xs font-medium text-slate-600">
-                      Cursor size
-                      <select
+                    <label className="grid gap-1 text-xs font-medium text-slate-600">{t("Cursor size")}<select
                         value={chordOnlyCursorSizeDenominator}
                         onKeyDown={blockSizeSelectKeyboardChange}
                         onChange={(event) => handleCursorSizeDenominatorChange(Number(event.target.value))}
@@ -7379,7 +7301,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     aria-pressed={globalSnapToGridEnabled}
                     className="flex min-h-11 items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 text-left text-sm text-slate-700"
                   >
-                    <span>Grid</span><span className="text-xs text-slate-500">{globalSnapToGridEnabled ? "On" : "Off"}</span>
+                    <span>{t("Grid")}</span><span className="text-xs text-slate-500">{globalSnapToGridEnabled ? t("On") : t("Off")}</span>
                   </button>
                   <button
                     type="button"
@@ -7387,7 +7309,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     aria-pressed={globalSnapToKeyEnabled}
                     className="flex min-h-11 items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 text-left text-sm text-slate-700"
                   >
-                    <span>Key</span><span className="text-xs text-slate-500">{globalSnapToKeyEnabled ? "On" : "Off"}</span>
+                    <span>{t("Key")}</span><span className="text-xs text-slate-500">{globalSnapToKeyEnabled ? t("On") : t("Off")}</span>
                   </button>
                 </div>
               )}
@@ -7398,28 +7320,22 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           <div
             className="flex shrink-0 items-center gap-2 overflow-x-auto pb-1"
             role="toolbar"
-            aria-label="Editor controls"
+            aria-label={t("Editor controls")}
           >
             <button
               type="button"
               onClick={exitMobileEditMode}
               className="h-11 shrink-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm"
-            >
-              Back
-            </button>
+            >{t("Back")}</button>
             {renderMobileHistoryControls()}
             <details className="relative shrink-0">
-              <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm">
-                Tools
-              </summary>
+              <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm">{t("Tools")}</summary>
               <div className="absolute left-0 top-[calc(100%+4px)] z-[10000] min-w-60 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                 <button
                   type="button"
                   onClick={() => setFindKeyDialogOpen(true)}
                   className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
-                >
-                  Detect song key
-                </button>
+                >{t("Detect song key")}</button>
                 <button
                   type="button"
                   onClick={() =>
@@ -7427,18 +7343,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   }
                   disabled={!activeLaneId}
                   className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
-                >
-                  Generate playing coordinates
-                </button>
+                >{t("Generate playing coordinates")}</button>
               </div>
             </details>
             <details className="relative shrink-0">
-              <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm">
-                Edit settings
-              </summary>
+              <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm">{t("Edit settings")}</summary>
               <div className="absolute right-0 top-[calc(100%+4px)] z-[10000] w-64 rounded-lg border border-slate-200 bg-white p-2 shadow-xl">
                 <label className="flex min-h-11 items-center justify-between gap-3 rounded-md px-2 text-sm text-slate-700">
-                  <span>Add note size</span>
+                  <span>{t("Add note size")}</span>
                   <select
                     value={chordOnlyDefaultNoteLengthDenominator}
                     onKeyDown={blockSizeSelectKeyboardChange}
@@ -7446,7 +7358,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       handleDefaultNoteLengthDenominatorChange(Number(event.target.value))
                     }
                     className="h-10 rounded-md border border-slate-200 bg-white px-2 text-sm font-semibold"
-                    aria-label="Add note size"
+                    aria-label={t("Add note size")}
                   >
                     {(noteCursorSizesLinked
                       ? CURSOR_SIZE_FRACTION_DENOMINATORS
@@ -7462,7 +7374,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   <SizeLinkToggle linked={noteCursorSizesLinked} onToggle={toggleNoteCursorSizeLink} />
                 </div>
                 <label className="flex min-h-11 items-center justify-between gap-3 rounded-md px-2 text-sm text-slate-700">
-                  <span>Cursor size</span>
+                  <span>{t("Cursor size")}</span>
                   <select
                     value={chordOnlyCursorSizeDenominator}
                     onKeyDown={blockSizeSelectKeyboardChange}
@@ -7470,7 +7382,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       handleCursorSizeDenominatorChange(Number(event.target.value))
                     }
                     className="h-10 rounded-md border border-slate-200 bg-white px-2 text-sm font-semibold"
-                    aria-label="Cursor size"
+                    aria-label={t("Cursor size")}
                   >
                     {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
                       <option key={denominator} value={denominator}>
@@ -7485,8 +7397,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   aria-pressed={globalSnapToGridEnabled}
                   className="flex min-h-11 w-full items-center justify-between rounded-md px-2 text-sm text-slate-700 hover:bg-slate-100"
                 >
-                  <span>Snap to grid</span>
-                  <span className="text-xs">{globalSnapToGridEnabled ? "On" : "Off"}</span>
+                  <span>{t("Snap to grid")}</span>
+                  <span className="text-xs">{globalSnapToGridEnabled ? t("On") : t("Off")}</span>
                 </button>
                 <button
                   type="button"
@@ -7494,15 +7406,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   aria-pressed={globalSnapToKeyEnabled}
                   className="flex min-h-11 w-full items-center justify-between rounded-md px-2 text-sm text-slate-700 hover:bg-slate-100"
                 >
-                  <span>Snap to key</span>
-                  <span className="text-xs">{globalSnapToKeyEnabled ? "On" : "Off"}</span>
+                  <span>{t("Snap to key")}</span>
+                  <span className="text-xs">{globalSnapToKeyEnabled ? t("On") : t("Off")}</span>
                 </button>
               </div>
             </details>
             <details className="relative shrink-0">
-              <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm">
-                View
-              </summary>
+              <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm">{t("View")}</summary>
               <div className="absolute right-0 top-[calc(100%+4px)] z-[10000] grid w-64 gap-1 rounded-lg border border-slate-200 bg-white p-2 text-sm text-slate-700 shadow-xl">
                 {([
                   ["showBarNumbers", "Bar numbers"],
@@ -7515,8 +7425,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     aria-pressed={displayPreferences[key]}
                     className="flex min-h-10 items-center justify-between rounded-md px-2 text-left hover:bg-slate-100"
                   >
-                    <span>{label}</span>
-                    <span className="text-xs">{displayPreferences[key] ? "On" : "Off"}</span>
+                    <span>{t(label)}</span>
+                    <span className="text-xs">{displayPreferences[key] ? t("On") : t("Off")}</span>
                   </button>
                 ))}
               </div>
@@ -7566,15 +7476,15 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     }}
                     className="min-w-0 max-w-full bg-transparent p-0 text-[1.15rem] font-medium text-slate-700 outline-none"
                     style={{ border: "none", boxShadow: "none" }}
-                    placeholder="Untitled"
+                    placeholder={t("Untitled")}
                   />
                 ) : (
                   <button
                     type="button"
                     onClick={() => setNameEditing(true)}
                     className="min-w-0 cursor-text rounded-sm bg-transparent p-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-                    title="Rename song"
-                    aria-label={`Rename ${canvas?.name || "Untitled"}`}
+                    title={t("Rename song")}
+                    aria-label={t("Rename {value1}", {value1: editorName(canvas?.name, t) || t("Untitled")})}
                     style={{
                       paddingLeft: isMobileViewport ? 0 : 4,
                       paddingRight: 0,
@@ -7589,7 +7499,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       maxWidth: isMobileViewport ? "100%" : "min(32rem, 100%)",
                     }}
                   >
-                    {canvas?.name || "Untitled"}
+                    {editorName(canvas?.name, t) || t("Untitled")}
                   </button>
                 )}
               </span>
@@ -7611,19 +7521,17 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     }}
                     onMouseLeave={() => setOpenTopMenu(null)}
                   >
-                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
-                      File
-                    </summary>
+                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{t("File")}</summary>
                     <div className="absolute left-0 top-full z-[10000] min-w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                       {!isGuestMode && (
                         <button
                           type="button"
                           onClick={() => void commitCanvasToBackend({ force: true })}
                           className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
-                          title="Save editor now"
+                          title={t("Save editor now")}
                           disabled={savingCanvas}
                         >
-                          {savingCanvas ? "Saving..." : "Save"}
+                          {savingCanvas ? t("Saving...") : t("Save")}
                         </button>
                       )}
                       {!isGuestMode && (
@@ -7635,10 +7543,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           onError={(message) => setError(message || null)}
                           className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
                           busyLabel="Importing..."
-                          title="Import a tab file"
-                        >
-                          Import tabs
-                        </GteFileImportButton>
+                          title={t("Import a tab file")}
+                        >{t("Import tabs")}</GteFileImportButton>
                       )}
                       <details className="group/export relative">
                         <summary
@@ -7648,7 +7554,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               : "cursor-pointer text-slate-700"
                           }`}
                         >
-                          <span>{exportingTrack ? "Exporting..." : "Export"}</span>
+                          <span>{exportingTrack ? t("Exporting...") : t("Export")}</span>
                           <span aria-hidden="true">›</span>
                         </summary>
                         <div className="absolute left-full top-0 z-[10001] min-w-44 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
@@ -7660,7 +7566,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
                               disabled={exportingTrack}
                             >
-                              {option.label}
+                              {editorInstrumentName(option.label,t)}
                             </button>
                           ))}
                         </div>
@@ -7668,7 +7574,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       {!isGuestMode && (
                         <details className="group/transcribe relative">
                           <summary className="flex list-none cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
-                            <span>Transcribe</span>
+                            <span>{t("Transcribe")}</span>
                             <span aria-hidden="true">›</span>
                           </summary>
                           <div className="absolute left-full top-0 z-[10001] min-w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
@@ -7676,18 +7582,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               type="button"
                               onClick={() => void router.push(transcriberNewHref)}
                               className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
-                              title="Transcribe audio into a new editor"
-                            >
-                              Transcribe new
-                            </button>
+                              title={t("Transcribe audio into a new editor")}
+                            >{t("Transcribe new")}</button>
                             <button
                               type="button"
                               onClick={() => void router.push(transcriberAppendHref)}
                               className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
-                              title="Transcribe audio and import it into this editor"
-                            >
-                              Transcribe to this editor
-                            </button>
+                              title={t("Transcribe audio and import it into this editor")}
+                            >{t("Transcribe to this editor")}</button>
                           </div>
                         </details>
                       )}
@@ -7706,9 +7608,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     }}
                     onMouseLeave={scheduleEditMenuClose}
                   >
-                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
-                      Tools
-                    </summary>
+                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{t("Tools")}</summary>
                     <div className="absolute left-0 top-full z-[10000] max-h-[calc(100vh-10rem)] w-72 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                       <div ref={setEditMenuPortalTarget}>
                         {!editMenuOwnerLaneId && (
@@ -7753,14 +7653,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                 className="border-b border-slate-200 py-1 last:border-b-0"
                               >
                                 <div className="px-2 pb-1 pt-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                                  {section.title}
+                                  {t(section.title)}
                                 </div>
                                 {section.items.map(([label, shortcut]) => (
                                   <div
                                     key={`disabled-edit-${section.title}-${label}`}
                                     className="flex h-7 items-center gap-2 rounded-md px-2 text-[11px] text-slate-400"
                                   >
-                                    <span>{label}</span>
+                                    <span>{t(label)}</span>
                                     {shortcut && (
                                       <span className="ml-auto text-[10px] opacity-60">{shortcut}</span>
                                     )}
@@ -7777,19 +7677,15 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           onClick={openTimingEditor}
                           disabled={!canvas?.editors.length}
                           className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
-                          title="Edit BPM for selected bars or the full song"
-                        >
-                          Bar tempo…
-                        </button>
+                          title={t("Edit BPM for selected bars or the full song")}
+                        >{t("Bar tempo…")}</button>
                         <button
                           type="button"
                           onClick={openTrackMerge}
                           disabled={isGuestMode || (canvas?.editors.length || 0) < 2}
                           className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
-                          title={isGuestMode ? "Save this draft before merging tracks" : "Combine notes and chords into a new optimized track"}
-                        >
-                          Merge tracks…
-                        </button>
+                          title={isGuestMode ? t("Save this draft before merging tracks") : t("Combine notes and chords into a new optimized track")}
+                        >{t("Merge tracks…")}</button>
                         <button
                           type="button"
                           onClick={() => {
@@ -7798,10 +7694,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           }}
                           disabled={!activeLaneId}
                           className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
-                          title={activeLaneId ? "Generate playing coordinates for the active track" : "Select a track first"}
-                        >
-                          Generate playing coordinates
-                        </button>
+                          title={activeLaneId ? t("Generate playing coordinates for the active track") : t("Select a track first")}
+                        >{t("Generate playing coordinates")}</button>
                       </div>
                     </div>
                   </details>
@@ -7817,27 +7711,23 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     }}
                     onMouseLeave={() => setOpenTopMenu(null)}
                   >
-                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
-                      Help
-                    </summary>
+                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{t("Help")}</summary>
                     <div className="absolute left-0 top-full z-[10000] max-h-[calc(100vh-10rem)] w-80 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
-                      <div className="px-2 pb-1.5 pt-1 text-xs font-semibold text-slate-700">
-                        Keyboard shortcut help
-                      </div>
+                      <div className="px-2 pb-1.5 pt-1 text-xs font-semibold text-slate-700">{t("Keyboard shortcut help")}</div>
                       {SHORTCUT_HELP_SECTIONS.map(([title, shortcuts]) => (
                         <section
                           key={`shortcut-help-${title}`}
                           className="border-t border-slate-200 py-1"
                         >
                           <h3 className="px-2 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                            {title}
+                            {t(title)}
                           </h3>
                           {shortcuts.map(([label, shortcut]) => (
                             <div
                               key={`shortcut-help-${title}-${label}`}
                               className="flex min-h-7 items-center gap-3 rounded-md px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100"
                             >
-                              <span>{label}</span>
+                              <span>{t(label)}</span>
                               <span className="ml-auto shrink-0 text-[10px] text-slate-500">
                                 {shortcut}
                               </span>
@@ -7859,20 +7749,18 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     }}
                     onMouseLeave={() => setOpenTopMenu(null)}
                   >
-                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
-                      View
-                    </summary>
+                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{t("View")}</summary>
                     <div className="absolute left-0 top-full z-[10000] w-64 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                       <button
                         type="button"
                         onClick={() => setLeftHandedChordDiagrams((leftHanded) => !leftHanded)}
                         aria-pressed={leftHandedChordDiagrams}
                         className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
-                        title="Mirror chord diagrams for left- or right-handed playing"
+                        title={t("Mirror chord diagrams for left- or right-handed playing")}
                       >
-                        <span>Chord diagrams</span>
+                        <span>{t("Chord diagrams")}</span>
                         <span className="text-xs">
-                          {leftHandedChordDiagrams ? "Left-handed" : "Right-handed"}
+                          {leftHandedChordDiagrams ? t("Left-handed") : t("Right-handed")}
                         </span>
                       </button>
                       {([
@@ -7886,22 +7774,22 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           aria-pressed={displayPreferences[key]}
                           className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
                         >
-                          <span>{label}</span>
-                          <span className="text-xs">{displayPreferences[key] ? "On" : "Off"}</span>
+                          <span>{t(label)}</span>
+                          <span className="text-xs">{displayPreferences[key] ? t("On") : t("Off")}</span>
                         </button>
                       ))}
                       <button
                         type="button"
                         onClick={() => void router.push(`/gte/${editorId}/tabs`)}
                         className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
-                        title="Open the current project as readable ASCII tabs"
+                        title={t("Open the current project as readable ASCII tabs")}
                       >
-                        <span>Readable tab preview</span>
+                        <span>{t("Readable tab preview")}</span>
                         <span aria-hidden="true">↗</span>
                       </button>
                       <label className="mt-1 grid gap-1 border-t border-slate-100 px-3 py-2 text-sm text-slate-700">
                         <span className="flex items-center justify-between">
-                          <span>Bars per row</span>
+                          <span>{t("Bars per row")}</span>
                           <span className="text-xs text-slate-500">{desktopBarsPerRow}</span>
                         </span>
                         <input
@@ -7912,7 +7800,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           step={1}
                           value={desktopBarsPerRow}
                           onChange={(event) => setDesktopBarsPerRow(Number(event.target.value))}
-                          aria-label="Bars per row"
+                          aria-label={t("Bars per row")}
                         />
                       </label>
                     </div>
@@ -7933,12 +7821,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     }}
                     onMouseLeave={() => setOpenTopMenu(null)}
                   >
-                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
-                      Cursor
-                    </summary>
+                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{t("Cursor")}</summary>
                     <div className="absolute left-0 top-full z-[10000] w-60 rounded-lg border border-slate-200 bg-white p-2 shadow-xl">
                       <label className="flex items-center justify-between gap-3 rounded-md px-2 py-2 text-sm text-slate-700">
-                        <span>Add note size</span>
+                        <span>{t("Add note size")}</span>
                         <select
                           value={chordOnlyDefaultNoteLengthDenominator}
                           name="add-note-size"
@@ -7947,8 +7833,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             handleDefaultNoteLengthDenominatorChange(Number(event.target.value))
                           }
                           className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
-                          title="Add note size"
-                          aria-label="Add note size"
+                          title={t("Add note size")}
+                          aria-label={t("Add note size")}
                         >
                           {(noteCursorSizesLinked
                             ? CURSOR_SIZE_FRACTION_DENOMINATORS
@@ -7964,7 +7850,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         <SizeLinkToggle linked={noteCursorSizesLinked} onToggle={toggleNoteCursorSizeLink} />
                       </div>
                       <label className="flex items-center justify-between gap-3 rounded-md px-2 py-2 text-sm text-slate-700">
-                        <span>Cursor size</span>
+                        <span>{t("Cursor size")}</span>
                         <select
                           value={chordOnlyCursorSizeDenominator}
                           name="cursor-size"
@@ -7973,8 +7859,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             handleCursorSizeDenominatorChange(Number(event.target.value))
                           }
                           className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
-                          title="Cursor size"
-                          aria-label="Cursor size"
+                          title={t("Cursor size")}
+                          aria-label={t("Cursor size")}
                         >
                           {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
                             <option key={denominator} value={denominator}>
@@ -7997,36 +7883,28 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     }}
                     onMouseLeave={() => setOpenTopMenu(null)}
                   >
-                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
-                      Generate
-                    </summary>
+                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{t("Generate")}</summary>
                     <div className="absolute left-0 top-full z-[10000] min-w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                       {!isGuestMode && (
                         <button
                           type="button"
                           onClick={() => void router.push(transcriberHref)}
                           className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
-                          title="Open the standalone transcriber"
-                        >
-                          Generate tabs
-                        </button>
+                          title={t("Open the standalone transcriber")}
+                        >{t("Generate tabs")}</button>
                       )}
                       <button
                         type="button"
                         onClick={() => void router.push(`/gte/${editorId}/tabs`)}
                         className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
-                        title="View current editor as ASCII tabs"
-                      >
-                        View as tabs
-                      </button>
+                        title={t("View current editor as ASCII tabs")}
+                      >{t("View as tabs")}</button>
                       <button
                         type="button"
                         onClick={() => setFindKeyDialogOpen(true)}
                         className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
-                        title="Detect the key from all notes and chords"
-                      >
-                        Find key
-                      </button>
+                        title={t("Detect the key from all notes and chords")}
+                      >{t("Find key")}</button>
                       <button
                         type="button"
                         onClick={() => {
@@ -8036,13 +7914,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         disabled={!activeLaneId}
                         className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
                         title={
-                          activeLaneId
-                            ? "Generate playing coordinates for the active track"
-                            : "Select a track first"
+                          activeLaneId ? t("Generate playing coordinates for the active track") : t("Select a track first")
                         }
-                      >
-                        Generate playing coordinates
-                      </button>
+                      >{t("Generate playing coordinates")}</button>
                     </div>
                   </details>
 
@@ -8057,9 +7931,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     }}
                     onMouseLeave={() => setOpenTopMenu(null)}
                   >
-                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
-                      Snapping
-                    </summary>
+                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{t("Snapping")}</summary>
                     <div className="absolute left-0 top-full z-[10000] w-56 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                       <button
                         type="button"
@@ -8067,8 +7939,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         aria-pressed={globalSnapToGridEnabled}
                         className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
                       >
-                        <span>Snap to grid</span>
-                        <span className="text-xs">{globalSnapToGridEnabled ? "On" : "Off"}</span>
+                        <span>{t("Snap to grid")}</span>
+                        <span className="text-xs">{globalSnapToGridEnabled ? t("On") : t("Off")}</span>
                       </button>
                       <button
                         type="button"
@@ -8076,11 +7948,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         aria-pressed={globalSnapToKeyEnabled}
                         className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
                       >
-                        <span>Snap to key</span>
-                        <span className="text-xs">{globalSnapToKeyEnabled ? "On" : "Off"}</span>
+                        <span>{t("Snap to key")}</span>
+                        <span className="text-xs">{globalSnapToKeyEnabled ? t("On") : t("Off")}</span>
                       </button>
                       <label className="mt-1 flex items-center justify-between gap-3 border-t border-slate-100 px-3 py-2 text-sm text-slate-700">
-                        <span>Snapping accuracy</span>
+                        <span>{t("Snapping accuracy")}</span>
                         <select
                           value={globalSnapSubdivisionsPerBeat}
                           name="snap-subdivision"
@@ -8088,12 +7960,12 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             setGlobalSnapSubdivisionsPerBeat(Number(event.target.value))
                           }
                           className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
-                          title="Snap subdivisions per beat"
-                          aria-label="Snapping accuracy"
+                          title={t("Snap subdivisions per beat")}
+                          aria-label={t("Snapping accuracy")}
                         >
                           {SNAP_SUBDIVISION_OPTIONS.map((subdivision) => (
                             <option key={subdivision} value={subdivision}>
-                              {subdivision === 1 ? "1" : `1/${subdivision}`}
+                              {subdivision === 1 ? "1" : t("1/{value1}", {value1: subdivision})}
                             </option>
                           ))}
                         </select>
@@ -8112,9 +7984,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     }}
                     onMouseLeave={() => setOpenTopMenu(null)}
                   >
-                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
-                      Playback
-                    </summary>
+                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{t("Playback")}</summary>
                     <div className="absolute left-0 top-full z-[10000] w-64 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                       <button
                         type="button"
@@ -8123,8 +7993,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         aria-pressed={practiceLoopEnabled}
                         className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
                       >
-                        <span>Loop</span>
-                        <span className="text-xs">{practiceLoopEnabled ? "On" : "Off"}</span>
+                        <span>{t("Loop")}</span>
+                        <span className="text-xs">{practiceLoopEnabled ? t("On") : t("Off")}</span>
                       </button>
                       <button
                         type="button"
@@ -8132,8 +8002,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         aria-pressed={metronomeEnabled}
                         className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
                       >
-                        <span>Metronome</span>
-                        <span className="text-xs">{metronomeEnabled ? "On" : "Off"}</span>
+                        <span>{t("Metronome")}</span>
+                        <span className="text-xs">{metronomeEnabled ? t("On") : t("Off")}</span>
                       </button>
                       <button
                         type="button"
@@ -8141,8 +8011,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         aria-pressed={countInEnabled}
                         className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
                       >
-                        <span>Count-in</span>
-                        <span className="text-xs">{countInEnabled ? "On" : "Off"}</span>
+                        <span>{t("Count-in")}</span>
+                        <span className="text-xs">{countInEnabled ? t("On") : t("Off")}</span>
                       </button>
                       <button
                         type="button"
@@ -8150,17 +8020,17 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         aria-pressed={speedTrainerEnabled}
                         className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
                       >
-                        <span>Speed trainer</span>
-                        <span className="text-xs">{speedTrainerEnabled ? "On" : "Off"}</span>
+                        <span>{t("Speed trainer")}</span>
+                        <span className="text-xs">{speedTrainerEnabled ? t("On") : t("Off")}</span>
                       </button>
                       <label className="mt-1 flex items-center justify-between gap-3 border-t border-slate-100 px-3 py-2 text-sm text-slate-700">
-                        <span>Playback speed</span>
+                        <span>{t("Playback speed")}</span>
                         <select
                           value={normalizedPlaybackSpeed}
                           name="playback-speed"
                           onChange={(event) => setPlaybackSpeed(Number(event.target.value))}
                           className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
-                          title="Playback speed"
+                          title={t("Playback speed")}
                         >
                           {PLAYBACK_SPEED_OPTIONS.map((speed) => (
                             <option key={speed} value={speed}>
@@ -8175,11 +8045,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             value={speedTrainerTarget}
                             onChange={(event) => setSpeedTrainerTarget(Number(event.target.value))}
                             className="h-8 rounded-md border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
-                            title="Speed trainer target"
+                            title={t("Speed trainer target")}
                           >
                             {SPEED_TRAINER_TARGET_OPTIONS.map((speed) => (
-                              <option key={speed} value={speed}>
-                                to {Math.round(speed * 100)}%
+                              <option key={speed} value={speed}>{t("to ")}{Math.round(speed * 100)}%
                               </option>
                             ))}
                           </select>
@@ -8187,7 +8056,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             value={speedTrainerStep}
                             onChange={(event) => setSpeedTrainerStep(Number(event.target.value))}
                             className="h-8 rounded-md border border-violet-200 bg-white px-2 text-xs font-semibold text-violet-800"
-                            title="Speed trainer step"
+                            title={t("Speed trainer step")}
                           >
                             {SPEED_TRAINER_STEP_OPTIONS.map((step) => (
                               <option key={step} value={step}>
@@ -8209,8 +8078,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       onClick={handleCanvasUndo}
                       disabled={canvasUndoCount === 0 || mobileHistoryBusy}
                       className="flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                      title="Undo"
-                      aria-label="Undo"
+                      title={t("Undo")}
+                      aria-label={t("Undo")}
                     >
                       <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                         <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
@@ -8221,37 +8090,33 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       onClick={handleCanvasRedo}
                       disabled={canvasRedoCount === 0 || mobileHistoryBusy}
                       className="flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                      title="Redo"
-                      aria-label="Redo"
+                      title={t("Redo")}
+                      aria-label={t("Redo")}
                     >
                       <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                         <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
                       </svg>
                     </button>
                     <span className="text-xs text-slate-600" role="status" aria-live="polite">
-                      {saveStatus}
+                      {t(saveStatus)}
                     </span>
                     {!isGuestMode && (
                       <button
                         type="button"
                         onClick={() => openShareDialog("editor_toolbar")}
                         className="inline-flex h-8 w-32 items-center justify-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-700 focus-visible:ring-offset-2"
-                        title="Share this tab"
+                        title={t("Share this tab")}
                       >
                         <svg viewBox="0 0 20 20" className="h-4 w-4 fill-none stroke-current" aria-hidden="true">
                           <circle cx="5" cy="10" r="2" />
                           <circle cx="15" cy="5" r="2" />
                           <circle cx="15" cy="15" r="2" />
                           <path d="m6.8 9.1 6.4-3.2M6.8 10.9l6.4 3.2" strokeLinecap="round" />
-                        </svg>
-                        Share tab
-                      </button>
+                        </svg>{t("Share tab")}</button>
                     )}
                     {isGuestMode ? (
                       <div>
-                        <Link href="/" className="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
-                          Back home
-                        </Link>
+                        <Link href="/" className="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{t("Back home")}</Link>
                       </div>
                     ) : (
                       <div>
@@ -8259,9 +8124,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           type="button"
                           onClick={() => router.push("/gte")}
                           className="inline-flex h-8 w-32 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
-                        >
-                          Back to editors
-                        </button>
+                        >{t("Back to editors")}</button>
                       </div>
                     )}
                   </div>
@@ -8270,17 +8133,16 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 {!practiceModeEnabled && (
                 <details className="group w-fit max-w-full rounded-lg border border-slate-200 bg-white shadow-sm">
                   <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-1.5 text-xs text-slate-600">
-                    <span className="font-semibold text-slate-700">Song settings</span>
+                    <span className="font-semibold text-slate-700">{t("Song settings")}</span>
                     <span className="truncate">
-                      {KEY_BASE_OPTIONS[normalizeKeyBase(canvas?.keyBase)]} {KEY_TYPE_OPTIONS[normalizeKeyType(canvas?.keyType)]}
-                      {" · "}{bpmDraft} BPM
-                      {" · "}{normalizeTimeSignature(timeSignatureDraft) ?? 8}/{normalizeTimeSignatureBottom(timeSignatureBottomDraft) ?? 4}
+                      {KEY_BASE_OPTIONS[normalizeKeyBase(canvas?.keyBase)]} {t(KEY_TYPE_OPTIONS[normalizeKeyType(canvas?.keyType)])}
+                      {" · "}{bpmDraft}{t(" BPM")}{" · "}{normalizeTimeSignature(timeSignatureDraft) ?? 8}/{normalizeTimeSignatureBottom(timeSignatureBottomDraft) ?? 4}
                     </span>
                     <span className="transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
                   </summary>
                   <div className="flex flex-wrap items-end gap-3 border-t border-slate-200 p-3">
                     <label className="text-xs font-medium text-slate-600">
-                      <span className="mb-1 block">Key</span>
+                      <span className="mb-1 block">{t("Key")}</span>
                       <span className="flex items-center gap-1">
                         <select
                           value={normalizeKeyBase(canvas?.keyBase)}
@@ -8290,10 +8152,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             event.currentTarget.blur();
                           }}
                           className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm"
-                          aria-label="Base note"
+                          aria-label={t("Base note")}
                         >
                           {KEY_BASE_OPTIONS.map((label, index) => (
-                            <option key={label} value={index}>{label}</option>
+                            <option key={label} value={index}>{t(label)}</option>
                           ))}
                         </select>
                         <select
@@ -8304,16 +8166,16 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             event.currentTarget.blur();
                           }}
                           className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm"
-                          aria-label="Key extension"
+                          aria-label={t("Key extension")}
                         >
                           {KEY_TYPE_OPTIONS.map((label, index) => (
-                            <option key={label} value={index}>{label}</option>
+                            <option key={label} value={index}>{t(label)}</option>
                           ))}
                         </select>
                       </span>
                     </label>
                     <label className="text-xs font-medium text-slate-600">
-                      <span className="mb-1 block">BPM</span>
+                      <span className="mb-1 block">{t("BPM")}</span>
                       <span className="flex items-center gap-1">
                         <input
                           type="number"
@@ -8341,7 +8203,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       </span>
                     </label>
                     <label className="text-xs font-medium text-slate-600">
-                      <span className="mb-1 block">Time signature</span>
+                      <span className="mb-1 block">{t("Time signature")}</span>
                       <span className="flex items-center gap-1">
                         <select
                           value={normalizeTimeSignature(timeSignatureDraft) ?? 8}
@@ -8352,7 +8214,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             event.currentTarget.blur();
                           }}
                           className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm"
-                          aria-label="Time signature top number"
+                          aria-label={t("Time signature top number")}
                         >
                           {TIME_SIGNATURE_TOP_OPTIONS.map((value) => (
                             <option key={value} value={value}>{value}</option>
@@ -8367,7 +8229,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             event.currentTarget.blur();
                           }}
                           className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm"
-                          aria-label="Time signature bottom number"
+                          aria-label={t("Time signature bottom number")}
                         >
                           {TIME_SIGNATURE_BOTTOM_OPTIONS.map((value) => (
                             <option key={value} value={value}>{value}</option>
@@ -8379,27 +8241,22 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       type="button"
                       onClick={() => setFindKeyDialogOpen(true)}
                       className="h-8 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                      title="Detect the most likely key from all notes and chords"
-                    >
-                      Detect key…
-                    </button>
+                      title={t("Detect the most likely key from all notes and chords")}
+                    >{t("Detect key…")}</button>
                   </div>
                 </details>
                 )}
                 {!practiceModeEnabled && (
                 <details className="group w-fit max-w-full rounded-lg border border-slate-200 bg-white shadow-sm">
                   <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-1.5 text-xs text-slate-600">
-                    <span className="font-semibold text-slate-700">Editing settings</span>
-                    <span className="truncate">
-                      Note {formatNoteLengthOption(chordOnlyDefaultNoteLengthDenominator)}
-                      {" · "}Cursor 1/{chordOnlyCursorSizeDenominator}
+                    <span className="font-semibold text-slate-700">{t("Editing settings")}</span>
+                    <span className="truncate">{t("Note ")}{formatNoteLengthOption(chordOnlyDefaultNoteLengthDenominator)}
+                      {" · "}{t("Cursor 1/")}{chordOnlyCursorSizeDenominator}
                     </span>
                     <span className="transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
                   </summary>
                   <div className="flex flex-wrap items-end gap-3 border-t border-slate-200 p-3">
-                    <label className="grid gap-1 text-xs font-medium text-slate-600">
-                      Add note size
-                      <select
+                    <label className="grid gap-1 text-xs font-medium text-slate-600">{t("Add note size")}<select
                         value={chordOnlyDefaultNoteLengthDenominator}
                         name="editor-add-note-size"
                         onKeyDown={blockSizeSelectKeyboardChange}
@@ -8418,17 +8275,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         ))}
                       </select>
                       <span className="text-[10px] font-normal text-slate-400">
-                        <kbd>,</kbd> smaller / <kbd>.</kbd> larger
-                      </span>
+                        <kbd>,</kbd>{t(" smaller / ")}<kbd>.</kbd>{t(" larger")}</span>
                     </label>
                     <SizeLinkToggle
                       linked={noteCursorSizesLinked}
                       onToggle={toggleNoteCursorSizeLink}
                       className="self-center"
                     />
-                    <label className="grid gap-1 text-xs font-medium text-slate-600">
-                      Cursor size
-                      <select
+                    <label className="grid gap-1 text-xs font-medium text-slate-600">{t("Cursor size")}<select
                         value={chordOnlyCursorSizeDenominator}
                         name="editor-cursor-size"
                         onKeyDown={blockSizeSelectKeyboardChange}
@@ -8444,8 +8298,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         ))}
                       </select>
                       <span className="text-[10px] font-normal text-slate-400">
-                        <kbd>N</kbd> larger / <kbd>M</kbd> smaller
-                      </span>
+                        <kbd>{t("N")}</kbd>{t(" larger / ")}<kbd>{t("M")}</kbd>{t(" smaller")}</span>
                     </label>
                     <button
                       type="button"
@@ -8453,8 +8306,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       aria-pressed={globalSnapToGridEnabled}
                       className="mt-[18px] flex h-8 min-w-28 self-start items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 hover:bg-slate-50"
                     >
-                      <span>Grid</span>
-                      <span>{globalSnapToGridEnabled ? "On" : "Off"}</span>
+                      <span>{t("Grid")}</span>
+                      <span>{globalSnapToGridEnabled ? t("On") : t("Off")}</span>
                     </button>
                     <button
                       type="button"
@@ -8462,8 +8315,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       aria-pressed={globalSnapToKeyEnabled}
                       className="mt-[18px] flex h-8 min-w-28 self-start items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 hover:bg-slate-50"
                     >
-                      <span>Key</span>
-                      <span>{globalSnapToKeyEnabled ? "On" : "Off"}</span>
+                      <span>{t("Key")}</span>
+                      <span>{globalSnapToKeyEnabled ? t("On") : t("Off")}</span>
                     </button>
                   </div>
                 </details>
@@ -8475,12 +8328,12 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   timeSignatureError) && (
                   <div className="text-xs">
                     {(nameSaving || bpmSaving) && !isGuestMode && (
-                      <span className="muted">Saving draft...</span>
+                      <span className="muted">{t("Saving draft...")}</span>
                     )}
-                    {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
+                    {(nameError || bpmError) && <span className="error">{translatedError(nameError, locale) || translatedError(bpmError, locale)}</span>}
                     {(timeSignatureSaving || timeSignatureError) && (
                       <span className={timeSignatureError ? "error" : "muted"}>
-                        {timeSignatureError || "Saving time signature..."}
+                        {translatedError(timeSignatureError, locale) || t("Saving time signature...")}
                       </span>
                     )}
                   </div>
@@ -8497,7 +8350,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 className="rounded-lg border border-slate-200 bg-white px-2 py-1 shadow-sm"
                 style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
               >
-                <span className="text-small muted">Key</span>
+                <span className="text-small muted">{t("Key")}</span>
                 <select
                   value={normalizeKeyBase(canvas?.keyBase)}
                   onChange={(event) => {
@@ -8505,12 +8358,12 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     event.currentTarget.blur();
                   }}
                   className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
-                  title="Base note"
-                  aria-label="Base note"
+                  title={t("Base note")}
+                  aria-label={t("Base note")}
                 >
                   {KEY_BASE_OPTIONS.map((label, index) => (
                     <option key={label} value={index}>
-                      {label}
+                      {t(label)}
                     </option>
                   ))}
                 </select>
@@ -8521,19 +8374,17 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     event.currentTarget.blur();
                   }}
                   className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
-                  title="Key extension"
-                  aria-label="Key extension"
+                  title={t("Key extension")}
+                  aria-label={t("Key extension")}
                 >
                   {KEY_TYPE_OPTIONS.map((label, index) => (
                     <option key={label} value={index}>
-                      {label}
+                      {t(label)}
                     </option>
                   ))}
                 </select>
               </div>
-              <label className="text-small muted" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                BPM
-                <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+              <label className="text-small muted" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>{t("BPM")}<span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
                     <input
                       type="number"
                       step={1}
@@ -8579,9 +8430,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   />
                 </span>
               </label>
-              <label className="text-small muted" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                Time signature
-                <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+              <label className="text-small muted" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>{t("Time signature")}<span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
                   <select
                     value={normalizeTimeSignature(timeSignatureDraft) ?? 8}
                     onChange={(event) => {
@@ -8590,7 +8439,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       event.currentTarget.blur();
                     }}
                     className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
-                    aria-label="Time signature top number"
+                    aria-label={t("Time signature top number")}
                   >
                     {TIME_SIGNATURE_TOP_OPTIONS.map((value) => (
                       <option key={value} value={value}>
@@ -8606,7 +8455,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       event.currentTarget.blur();
                     }}
                     className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
-                    aria-label="Time signature bottom number"
+                    aria-label={t("Time signature bottom number")}
                   >
                     {TIME_SIGNATURE_BOTTOM_OPTIONS.map((value) => (
                       <option key={value} value={value}>
@@ -8622,19 +8471,15 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     type="button"
                     onClick={() => void router.push(transcriberHref)}
                     className="button-secondary button-small min-h-[34px]"
-                    title="Open the standalone transcriber"
-                  >
-                    Generate tabs
-                  </button>
+                    title={t("Open the standalone transcriber")}
+                  >{t("Generate tabs")}</button>
                 )}
                 <button
                   type="button"
                   onClick={() => void router.push(`/gte/${editorId}/tabs`)}
                   className="button-secondary button-small min-h-[34px]"
-                  title="View current editor as ASCII tabs"
-                >
-                  View as tabs
-                </button>
+                  title={t("View current editor as ASCII tabs")}
+                >{t("View as tabs")}</button>
                 {!isGuestMode && (
                   <GteFileImportButton
                     editorId={editorId}
@@ -8644,20 +8489,18 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     onError={(message) => setError(message || null)}
                     className="button-secondary button-small min-h-[34px]"
                     busyLabel="Importing..."
-                    title="Import a tab file"
-                  >
-                    Import tabs
-                  </GteFileImportButton>
+                    title={t("Import a tab file")}
+                  >{t("Import tabs")}</GteFileImportButton>
                 )}
                 {!isGuestMode && (
                   <button
                     type="button"
                     onClick={() => void commitCanvasToBackend({ force: true })}
                     className="button-secondary button-small min-h-[34px]"
-                    title="Save editor now"
+                    title={t("Save editor now")}
                     disabled={savingCanvas}
                   >
-                    {savingCanvas ? "Saving..." : "Save"}
+                    {savingCanvas ? t("Saving...") : t("Save")}
                   </button>
                 )}
                 <div className="relative">
@@ -8665,11 +8508,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     type="button"
                     onClick={() => setExportMenuOpen((prev) => !prev)}
                     className="button-secondary button-small min-h-[34px]"
-                    title="Export selected track"
+                    title={t("Export selected track")}
                     disabled={exportingTrack || !canvas?.editors.length}
                     aria-expanded={exportMenuOpen}
                   >
-                    {exportingTrack ? "Exporting..." : "Export"}
+                    {exportingTrack ? t("Exporting...") : t("Export")}
                   </button>
                   {exportMenuOpen && (
                     <div className="absolute right-0 top-[calc(100%+8px)] z-[10000] grid min-w-44 gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
@@ -8681,7 +8524,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           className="rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
                           disabled={exportingTrack}
                         >
-                          {option.label}
+                          {editorInstrumentName(option.label,t)}
                         </button>
                       ))}
                     </div>
@@ -8693,26 +8536,18 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   <>
                     <div className="relative">
                       <EditorTutorialTrigger className="absolute bottom-[calc(100%+6px)] right-0 z-10" />
-                      <Link href="/" className="button-secondary button-small min-h-[34px]">
-                        Back home
-                      </Link>
+                      <Link href="/" className="button-secondary button-small min-h-[34px]">{t("Back home")}</Link>
                     </div>
                     {session?.user?.id ? (
                       <button
                         type="button"
                         onClick={() => void router.push(saveToAccountPath)}
                         className="button-primary button-small min-h-[34px]"
-                      >
-                        Save draft to account
-                      </button>
+                      >{t("Save draft to account")}</button>
                     ) : (
                       <>
-                        <Link href={loginSaveHref} className="button-secondary button-small min-h-[34px]">
-                          Log in to save
-                        </Link>
-                        <Link href={signupSaveHref} className="button-primary button-small min-h-[34px]">
-                          Create account
-                        </Link>
+                        <Link href={loginSaveHref} className="button-secondary button-small min-h-[34px]">{t("Log in to save")}</Link>
+                        <Link href={signupSaveHref} className="button-primary button-small min-h-[34px]">{t("Create account")}</Link>
                       </>
                     )}
                   </>
@@ -8723,9 +8558,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       type="button"
                       onClick={() => router.push("/gte")}
                       className="button-secondary button-small min-h-[34px]"
-                    >
-                      Back to editors
-                    </button>
+                    >{t("Back to editors")}</button>
                   </div>
                 )}
               </div>
@@ -8734,12 +8567,12 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               className="text-small"
               style={{ minHeight: "1.25rem", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}
             >
-              <span className="text-slate-600">{saveStatus}</span>
-              {(nameSaving || bpmSaving) && !isGuestMode && <span className="muted">Saving draft...</span>}
-              {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
+              <span className="text-slate-600">{t(saveStatus)}</span>
+              {(nameSaving || bpmSaving) && !isGuestMode && <span className="muted">{t("Saving draft...")}</span>}
+              {(nameError || bpmError) && <span className="error">{translatedError(nameError, locale) || translatedError(bpmError, locale)}</span>}
               {(timeSignatureSaving || timeSignatureError) && (
                 <span className={timeSignatureError ? "error" : "muted"}>
-                  {timeSignatureError || "Saving time signature..."}
+                  {translatedError(timeSignatureError, locale) || t("Saving time signature...")}
                 </span>
               )}
             </div>
@@ -8754,10 +8587,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   aria-expanded={mobileControlsOpen}
                 >
                   <span className="min-w-0">
-                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                      Project settings
-                    </span>
-                    <span className="block truncate text-sm text-slate-700">{mobileControlsSummary}</span>
+                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t("Project settings")}</span>
+                    <span className="block truncate text-sm text-slate-700">{t(mobileControlsSummary)}</span>
                   </span>
                   <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600">
                     <svg
@@ -8780,7 +8611,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   <div className="mt-3 space-y-3">
                     <div className="flex gap-2 overflow-x-auto pb-1">
                       <label className="min-w-[172px] rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs font-medium text-slate-600">
-                        <span className="mb-1 block">BPM</span>
+                        <span className="mb-1 block">{t("BPM")}</span>
                         <span className="flex items-center gap-2">
                           <input
                             type="number"
@@ -8828,7 +8659,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         </span>
                       </label>
                       <label className="min-w-[172px] rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs font-medium text-slate-600">
-                        <span className="mb-1 block">Time signature</span>
+                        <span className="mb-1 block">{t("Time signature")}</span>
                         <span className="flex items-center gap-2">
                           <select
                             value={normalizeTimeSignature(timeSignatureDraft) ?? 8}
@@ -8838,7 +8669,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               event.currentTarget.blur();
                             }}
                             className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
-                            aria-label="Time signature top number"
+                            aria-label={t("Time signature top number")}
                           >
                             {TIME_SIGNATURE_TOP_OPTIONS.map((value) => (
                               <option key={value} value={value}>
@@ -8854,7 +8685,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               event.currentTarget.blur();
                             }}
                             className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
-                            aria-label="Time signature bottom number"
+                            aria-label={t("Time signature bottom number")}
                           >
                             {TIME_SIGNATURE_BOTTOM_OPTIONS.map((value) => (
                               <option key={value} value={value}>
@@ -8867,25 +8698,23 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <details className="relative">
-                        <summary className="cursor-pointer list-none rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
-                          Snapping
-                        </summary>
+                        <summary className="cursor-pointer list-none rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">{t("Snapping")}</summary>
                         <div className="absolute left-0 top-[calc(100%+4px)] z-[10000] w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                           <button
                             type="button"
                             onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
                             className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                           >
-                            <span>Snap to grid</span>
-                            <span className="text-xs">{globalSnapToGridEnabled ? "On" : "Off"}</span>
+                            <span>{t("Snap to grid")}</span>
+                            <span className="text-xs">{globalSnapToGridEnabled ? t("On") : t("Off")}</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
                             className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                           >
-                            <span>Snap to key</span>
-                            <span className="text-xs">{globalSnapToKeyEnabled ? "On" : "Off"}</span>
+                            <span>{t("Snap to key")}</span>
+                            <span className="text-xs">{globalSnapToKeyEnabled ? t("On") : t("Off")}</span>
                           </button>
                         </div>
                       </details>
@@ -8893,20 +8722,18 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         type="button"
                         onClick={() => void router.push(transcriberHref)}
                         className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                        title="Open the standalone transcriber"
-                      >
-                        Generate tabs
-                      </button>
+                        title={t("Open the standalone transcriber")}
+                      >{t("Generate tabs")}</button>
                     </div>
                   </div>
                 )}
                 <div className="mt-3 flex min-h-[1.25rem] flex-wrap items-center gap-3 text-xs">
-                  <span className="text-slate-600">{saveStatus}</span>
-                  {(nameSaving || bpmSaving) && !isGuestMode && <span className="muted">Saving draft...</span>}
-                  {(nameError || bpmError) && <span className="error">{nameError || bpmError}</span>}
+                  <span className="text-slate-600">{t(saveStatus)}</span>
+                  {(nameSaving || bpmSaving) && !isGuestMode && <span className="muted">{t("Saving draft...")}</span>}
+                  {(nameError || bpmError) && <span className="error">{translatedError(nameError, locale) || translatedError(bpmError, locale)}</span>}
                   {(timeSignatureSaving || timeSignatureError) && (
                     <span className={timeSignatureError ? "error" : "muted"}>
-                      {timeSignatureError || "Saving time signature..."}
+                      {translatedError(timeSignatureError, locale) || t("Saving time signature...")}
                     </span>
                   )}
                 </div>
@@ -8914,9 +8741,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             )}
             {isMobileViewport && (
               <div className="mt-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                  Time scale
-                </div>
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t("Time scale")}</div>
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
@@ -8935,7 +8760,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       );
                     }}
                     className="w-20 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
-                    title="Scale editor width in time direction"
+                    title={t("Scale editor width in time direction")}
                   />
                   <span className="text-sm text-slate-500">%</span>
                   <span className="inline-flex flex-col gap-1">
@@ -8948,8 +8773,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         )
                       }
                       className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] leading-none text-slate-600"
-                      title="Increase time scale"
-                      aria-label="Increase time scale"
+                      title={t("Increase time scale")}
+                      aria-label={t("Increase time scale")}
                     >
                       &#9650;
                     </button>
@@ -8962,8 +8787,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         )
                       }
                       className="flex h-5 w-6 items-center justify-center rounded border border-slate-200 bg-white text-[10px] leading-none text-slate-600"
-                      title="Decrease time scale"
-                      aria-label="Decrease time scale"
+                      title={t("Decrease time scale")}
+                      aria-label={t("Decrease time scale")}
                     >
                       &#9660;
                     </button>
@@ -8978,35 +8803,27 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm sm:flex-wrap sm:gap-4 sm:rounded-xl sm:px-4 sm:py-3">
             <div className="min-w-0">
               <div className="truncate text-xs font-medium text-slate-600 sm:hidden">
-                {session?.user?.id ? "Save your draft." : "Sign in to save."}
+                {session?.user?.id ? t("Save your draft.") : t("Sign in to save.")}
               </div>
-              <div className="hidden text-sm font-semibold text-slate-800 sm:block">Keep your work safe</div>
-              <div className="mt-0.5 hidden text-xs leading-5 text-slate-500 sm:block">
-                Create a free account to save this draft and continue on any device.
-              </div>
+              <div className="hidden text-sm font-semibold text-slate-800 sm:block">{t("Keep your work safe")}</div>
+              <div className="mt-0.5 hidden text-xs leading-5 text-slate-500 sm:block">{t("Create a free account to save this draft and continue on any device.")}</div>
             </div>
             {session?.user?.id ? (
               <button
                 type="button"
                 onClick={() => void router.push(saveToAccountPath)}
                 className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 sm:px-4 sm:py-2"
-              >
-                Save this draft
-              </button>
+              >{t("Save this draft")}</button>
             ) : (
               <div className="flex shrink-0 items-center gap-1 sm:gap-2">
                 <Link
                   href={loginSaveHref}
                   className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 sm:bg-transparent sm:py-2 sm:text-slate-600 sm:hover:bg-slate-100 sm:hover:text-slate-900"
-                >
-                  Sign in
-                </Link>
+                >{t("Sign in")}</Link>
                 <Link
                   href={signupSaveHref}
                   className="hidden rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 sm:block"
-                >
-                  Create free account
-                </Link>
+                >{t("Create free account")}</Link>
               </div>
             )}
           </div>
@@ -9022,7 +8839,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         )}
         {error && (
           <div className="error flex flex-wrap items-center justify-between gap-3" role="alert">
-            <span>{error}</span>
+            <span>{translatedError(error, locale)}</span>
             {!canvas && !loading && (
               <button
                 type="button"
@@ -9034,18 +8851,15 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     void loadEditor();
                   }
                 }}
-              >
-                Try again
-              </button>
+              >{t("Try again")}</button>
             )}
           </div>
         )}
         {importedBassDroppedCount > 0 && (
           <div className="mx-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
-            {importedBassDroppedCount} imported bass {importedBassDroppedCount === 1 ? "note was" : "notes were"} outside the selected 22-fret tuning and could not be added.
-          </div>
+            {importedBassDroppedCount}{t(" imported bass ")}{importedBassDroppedCount === 1 ? t("note was") : t("notes were")}{t(" outside the selected 22-fret tuning and could not be added.")}</div>
         )}
-        {saveError && <div className="error" role="alert">{saveError}</div>}
+        {saveError && <div className="error" role="alert">{translatedError(saveError, locale)}</div>}
         {canvas && (
           <div
             className={`gte-editor-stage stack min-w-0 content-start ${
@@ -9318,8 +9132,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                   name={`mobile-track-${index + 1}-name`}
                                   defaultValue={lane.name || `Track ${index + 1}`}
                                   maxLength={80}
-                                  aria-label={`Track ${index + 1} name`}
-                                  title="Rename track"
+                                  aria-label={t("Track {value1} name", {value1: index + 1})}
+                                  title={t("Rename track")}
                                   onClick={(event) => event.stopPropagation()}
                                   onBlur={(event) => void handleLaneNameCommit(laneId, event.currentTarget.value)}
                                   onKeyDown={(event) => {
@@ -9333,16 +9147,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                 />
                               </div>
                               <div className="mt-0.5 truncate text-[11px] text-slate-500">
-                                {instrumentLabel} - Bars: {laneBarCount}
+                                {editorInstrumentName(instrumentLabel,t)}{t(" - Bars: ")}{laneBarCount}
                               </div>
                             </div>
                             <button
                               type="button"
                               onClick={() => activateLaneForEditing(laneId)}
                               className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
-                            >
-                              Edit
-                            </button>
+                            >{t("Edit")}</button>
                             <div className="relative" data-track-menu="true">
                               <button
                                 type="button"
@@ -9353,8 +9165,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                   setOpenTrackMenuId((prev) => (prev === laneId ? null : laneId));
                                 }}
                                 className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600"
-                                title="Track options"
-                                aria-label="Track options"
+                                title={t("Track options")}
+                                aria-label={t("Track options")}
                                 aria-expanded={openTrackMenuId === laneId}
                               >
                                 <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
@@ -9366,9 +9178,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               {openTrackMenuId === laneId && (
                                 <div className="absolute right-0 top-11 z-30 w-60 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
                                   {!drumLane && (
-                                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                                      Sound
-                                      <select
+                                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t("Sound")}<select
                                         value={instrumentValue}
                                         onChange={(event) => {
                                           handleLaneInstrumentChange(laneId, event.target.value);
@@ -9378,7 +9188,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                       >
                                         {(isBassLane(lane) ? trackInstrumentOptions.filter((option) => option.id === "bass_overdrive") : trackInstrumentOptions).map((option) => (
                                           <option key={`${laneId}-mobile-instrument-${option.id}`} value={option.id}>
-                                            {option.label}
+                                            {editorInstrumentName(option.label,t)}
                                           </option>
                                         ))}
                                       </select>
@@ -9394,7 +9204,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                           : "border-slate-200 bg-white text-slate-600"
                                       }`}
                                     >
-                                      {isTrackMuted ? "Muted" : "Mute"}
+                                      {isTrackMuted ? t("Muted") : t("Mute")}
                                     </button>
                                     <button
                                       type="button"
@@ -9405,12 +9215,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                           : "border-slate-200 bg-white text-slate-600"
                                       }`}
                                     >
-                                      {isTrackIsolated ? "Isolated" : "Isolate"}
+                                      {isTrackIsolated ? t("Isolated") : t("Isolate")}
                                     </button>
                                   </div>
-                                  <label className="mt-3 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                                    Volume
-                                    <div className="mt-2 flex items-center gap-3">
+                                  <label className="mt-3 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t("Volume")}<div className="mt-2 flex items-center gap-3">
                                       <input
                                         type="range"
                                         min={0}
@@ -9422,7 +9230,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                         onPointerCancel={() => commitTrackVolume(laneId)}
                                         onBlur={() => commitTrackVolume(laneId)}
                                         className="flex-1 accent-slate-700"
-                                        aria-label={`Volume for ${lane.name || `Track ${index + 1}`}`}
+                                        aria-label={t("Volume for {value1}", {value1: editorName(lane.name, t) || t("Track {value1}", {value1: index + 1})})}
                                       />
                                       <span className="w-10 text-right text-xs text-slate-500">
                                         {Math.round(trackVolume * 100)}%
@@ -9430,37 +9238,29 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                     </div>
                                   </label>
                                   <div className="mt-3 border-t border-slate-100 pt-3">
-                                    <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                                      Timeline position
-                                    </div>
+                                    <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t("Timeline position")}</div>
                                     <button
                                       type="button"
                                       onClick={() => beginTrackOffset(laneId)}
                                       disabled={shiftingLaneId === laneId}
                                       className="mt-2 w-full rounded-md bg-slate-900 px-2 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-400"
-                                    >
-                                      Offset track…
-                                    </button>
+                                    >{t("Offset track…")}</button>
                                     <div className="mt-2 grid grid-cols-2 gap-2">
                                       <button
                                         type="button"
                                         onClick={() => void handleShiftTrack(laneId, -1)}
                                         disabled={shiftingLaneId === laneId || Math.max(0, Number(lane.timelineOffsetFrames) || 0) === 0}
                                         className="rounded-md border border-slate-200 px-2 py-2 text-xs font-semibold text-slate-600 disabled:cursor-not-allowed disabled:text-slate-300"
-                                      >
-                                        Move 1 bar left
-                                      </button>
+                                      >{t("Move 1 bar left")}</button>
                                       <button
                                         type="button"
                                         onClick={() => void handleShiftTrack(laneId, 1)}
                                         disabled={shiftingLaneId === laneId}
                                         className="rounded-md border border-slate-200 px-2 py-2 text-xs font-semibold text-slate-600 disabled:cursor-not-allowed disabled:text-slate-300"
-                                      >
-                                        Move 1 bar right
-                                      </button>
+                                      >{t("Move 1 bar right")}</button>
                                     </div>
                                     <p className="mt-2 text-[10px] leading-4 text-slate-400">
-                                      {`Starts at bar ${Math.floor(Math.max(0, Number(lane.timelineOffsetFrames) || 0) / FIXED_FRAMES_PER_BAR) + 1}.`}
+                                      {t("Starts at bar {value1}.", {value1: Math.floor(Math.max(0, Number(lane.timelineOffsetFrames) || 0) / FIXED_FRAMES_PER_BAR) + 1})}
                                     </p>
                                   </div>
                                   <button
@@ -9472,7 +9272,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                     className="mt-3 block w-full rounded-md bg-rose-50 px-3 py-2 text-left text-xs font-semibold text-rose-600"
                                     disabled={deletingLaneId === laneId}
                                   >
-                                    {deletingLaneId === laneId ? "Removing..." : "Remove track"}
+                                    {deletingLaneId === laneId ? t("Removing...") : t("Remove track")}
                                   </button>
                                 </div>
                               )}
@@ -9621,8 +9421,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             name={`track-${index + 1}-name`}
                             defaultValue={lane.name || `Track ${index + 1}`}
                             maxLength={80}
-                            aria-label={`Track ${index + 1} name`}
-                            title="Rename track"
+                            aria-label={t("Track {value1} name", {value1: index + 1})}
+                            title={t("Rename track")}
                             onClick={(event) => event.stopPropagation()}
                             onBlur={(event) => void handleLaneNameCommit(laneId, event.currentTarget.value)}
                             onKeyDown={(event) => {
@@ -9635,8 +9435,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             className="min-w-0 flex-1 border-0 bg-transparent p-0 text-xs font-semibold text-slate-700 outline-none focus:ring-0"
                           />
                           <span className="text-[10px] font-medium text-slate-500">
-                            {laneTypeLabel} · {laneBarCount} bars
-                          </span>
+                            {t(laneTypeLabel)} · {laneBarCount}{t(" bars")}</span>
                         </div>
                         {!drumLane && <div className="mt-2 min-w-0">
                           <select
@@ -9648,12 +9447,12 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             }}
                             onClick={(event) => event.stopPropagation()}
                             className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 shadow-sm"
-                            title="Track sound"
-                            aria-label="Track sound"
+                            title={t("Track sound")}
+                            aria-label={t("Track sound")}
                           >
                             {(isBassLane(lane) ? trackInstrumentOptions.filter((option) => option.id === "bass_overdrive") : trackInstrumentOptions).map((option) => (
                               <option key={`${laneId}-instrument-${option.id}`} value={option.id}>
-                                {option.label}
+                                {editorInstrumentName(option.label,t)}
                               </option>
                             ))}
                           </select>
@@ -9668,18 +9467,16 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               }
                               onClick={(event) => event.stopPropagation()}
                               className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 shadow-sm"
-                              title="Track tuning"
-                              aria-label="Track tuning"
+                              title={t("Track tuning")}
+                              aria-label={t("Track tuning")}
                             >
                               {(isBassLane(lane) ? BASS_TUNING_PRESETS : TUNING_PRESETS).map((preset) => (
                                 <option key={`${laneId}-tuning-${preset.id}`} value={preset.id}>
-                                  {preset.label}
+                                  {t(preset.label)}
                                 </option>
                               ))}
                             </select>
-                            {!isBassLane(lane) && <label className="flex items-center gap-1 text-[10px] font-medium text-slate-500">
-                              Capo
-                              <input
+                            {!isBassLane(lane) && <label className="flex items-center gap-1 text-[10px] font-medium text-slate-500">{t("Capo")}<input
                                 type="number"
                                 name={`track-${index + 1}-capo`}
                                 min={0}
@@ -9705,15 +9502,15 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                 }}
                                 onClick={(event) => event.stopPropagation()}
                                 className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 text-[10px] text-slate-700 shadow-sm"
-                                title="Track capo"
-                                aria-label="Track capo"
+                                title={t("Track capo")}
+                                aria-label={t("Track capo")}
                               />
                             </label>}
                           </div>
                         )}
                         <div className="mt-2 flex w-full flex-1 flex-col gap-2">
                           <div className="flex w-full min-w-0 items-center gap-1">
-                            <span className="w-6 shrink-0 text-[10px] font-medium text-slate-500">Vol</span>
+                            <span className="w-6 shrink-0 text-[10px] font-medium text-slate-500">{t("Vol")}</span>
                             <input
                               type="range"
                               name={`track-${index + 1}-volume`}
@@ -9727,15 +9524,15 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               onBlur={() => commitTrackVolume(laneId)}
                               onClick={(event) => event.stopPropagation()}
                               className="h-6 min-w-0 flex-1 accent-slate-700"
-                              title="Track volume"
-                              aria-label="Track volume"
+                              title={t("Track volume")}
+                              aria-label={t("Track volume")}
                             />
                             <div className="w-7 shrink-0 text-right text-[10px] font-medium text-slate-500">
                               {Math.round(trackVolume * 100)}%
                             </div>
                           </div>
                           <div className="flex w-full min-w-0 items-center gap-1">
-                            <span className="w-6 shrink-0 text-[10px] font-medium text-slate-500">Pan</span>
+                            <span className="w-6 shrink-0 text-[10px] font-medium text-slate-500">{t("Pan")}</span>
                             <input
                               type="range"
                               name={`track-${index + 1}-pan`}
@@ -9746,15 +9543,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               onChange={(event) => handleTrackPanChange(laneId, Number(event.target.value))}
                               onClick={(event) => event.stopPropagation()}
                               className="h-6 min-w-0 flex-1 accent-sky-700"
-                              title="Track pan"
-                              aria-label="headset direction (L/R)"
+                              title={t("Track pan")}
+                              aria-label={t("headset direction (L/R)")}
                             />
                             <div className="w-7 shrink-0 text-right text-[10px] font-medium text-slate-500">
-                              {trackPan < -0.05
-                                ? `L${Math.round(Math.abs(trackPan) * 100)}`
-                                : trackPan > 0.05
-                                ? `R${Math.round(trackPan * 100)}`
-                                : "C"}
+                              {trackPan < -0.05 ? t("L{value1}", {value1: Math.round(Math.abs(trackPan) * 100)}) : trackPan > 0.05 ? t("R{value1}", {value1: Math.round(trackPan * 100)}) : t("C")}
                             </div>
                           </div>
                           <div className="mt-auto flex flex-row items-center justify-center gap-1" data-track-menu="true">
@@ -9770,8 +9563,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                   ? "border-amber-300 bg-amber-50 text-amber-700"
                                   : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                               }`}
-                              title={isTrackMuted ? "Unmute track" : "Mute track"}
-                              aria-label={isTrackMuted ? "Unmute track" : "Mute track"}
+                              title={isTrackMuted ? t("Unmute track") : t("Mute track")}
+                              aria-label={isTrackMuted ? t("Unmute track") : t("Mute track")}
                             >
                               {isTrackMuted ? (
                                 <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
@@ -9797,8 +9590,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                   ? "border-sky-500 bg-sky-500 text-white hover:bg-sky-400"
                                   : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                               }`}
-                              title={isTrackIsolated ? "Stop isolating track" : "Isolate track"}
-                              aria-label={isTrackIsolated ? "Stop isolating track" : "Isolate track"}
+                              title={isTrackIsolated ? t("Stop isolating track") : t("Isolate track")}
+                              aria-label={isTrackIsolated ? t("Stop isolating track") : t("Isolate track")}
                             >
                               <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
                                 <path d="M12 4a8 8 0 0 0-8 8v5a3 3 0 0 0 3 3h2v-7H6v-1a6 6 0 0 1 12 0v1h-3v7h2a3 3 0 0 0 3-3v-5a8 8 0 0 0-8-8z" />
@@ -9813,8 +9606,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                   setOpenTrackMenuId((prev) => (prev === laneId ? null : laneId));
                                 }}
                                 className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                                title="Track options"
-                                aria-label="Track options"
+                                title={t("Track options")}
+                                aria-label={t("Track options")}
                                 aria-expanded={openTrackMenuId === laneId}
                               >
                                 <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
@@ -9829,9 +9622,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                     type="button"
                                     onClick={() => beginTrackOffset(laneId)}
                                     className="block w-full px-3 py-1.5 text-left text-[10px] font-medium text-slate-700 hover:bg-slate-50"
-                                  >
-                                    Offset track…
-                                  </button>
+                                  >{t("Offset track…")}</button>
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -9841,7 +9632,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                     className="block w-full px-3 py-1.5 text-left text-[10px] font-medium text-rose-600 hover:bg-rose-50"
                                     disabled={deletingLaneId === laneId}
                                   >
-                                    {deletingLaneId === laneId ? "..." : "Remove track"}
+                                    {deletingLaneId === laneId ? "..." : t("Remove track")}
                                   </button>
                                 </div>
                               )}
@@ -9857,14 +9648,12 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               <details className="group relative">
                                 <summary
                                   className="-ml-2 flex cursor-pointer list-none items-center gap-2 rounded-lg border border-transparent px-2 py-1 text-left transition hover:border-slate-200 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-                                  aria-label={`Switch practice track. Current track: ${lane.name || `Track ${index + 1}`}`}
+                                  aria-label={t("Switch practice track. Current track: {value1}", {value1: editorName(lane.name, t) || t("Track {value1}", {value1: index + 1})})}
                                 >
                                   <span className="min-w-0">
-                                    <span className="block text-[9px] font-semibold uppercase tracking-[0.1em] text-slate-400">
-                                      Switch track
-                                    </span>
+                                    <span className="block text-[9px] font-semibold uppercase tracking-[0.1em] text-slate-400">{t("Switch track")}</span>
                                     <span className="block max-w-56 truncate text-sm font-semibold text-slate-800">
-                                      {lane.name || `Track ${index + 1}`}
+                                      {editorName(lane.name, t) || t("Track {value1}", {value1: index + 1})}
                                     </span>
                                   </span>
                                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500 transition group-open:rotate-180 group-open:bg-slate-200" aria-hidden="true">
@@ -9876,11 +9665,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                 <div
                                   className="absolute left-0 top-[calc(100%+0.35rem)] z-50 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"
                                   role="group"
-                                  aria-label="Choose a track to practice"
+                                  aria-label={t("Choose a track to practice")}
                                 >
-                                  <div className="px-2 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
-                                    Choose a track
-                                  </div>
+                                  <div className="px-2 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">{t("Choose a track")}</div>
                                   {canvas.editors.map((candidate, candidateIndex) => {
                                       const candidateId =
                                         candidate.id || `ed-${candidateIndex + 1}`;
@@ -9907,16 +9694,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                               : "text-slate-700 hover:bg-slate-50"
                                           }`}
                                           role="group"
-                                          aria-label={`Sound controls for ${candidate.name || `Track ${candidateIndex + 1}`}`}
+                                          aria-label={t("Sound controls for {value1}", {value1: editorName(candidate.name, t) || t("Track {value1}", {value1: candidateIndex + 1})})}
                                         >
                                           <button
                                             type="button"
                                             aria-pressed={selected}
                                             disabled={candidateIsDrum}
                                             title={
-                                              candidateIsDrum
-                                                ? "Drum tracks can't be viewed in practice mode"
-                                                : undefined
+                                              candidateIsDrum ? t("Drum tracks can't be viewed in practice mode") : undefined
                                             }
                                             onClick={(event) => {
                                               if (candidateIsDrum) return;
@@ -9946,14 +9731,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                             </span>
                                             <span className="min-w-0 flex-1">
                                               <span className="block truncate text-xs font-semibold">
-                                                {candidate.name || `Track ${candidateIndex + 1}`}
+                                                {editorName(candidate.name, t) || t("Track {value1}", {value1: candidateIndex + 1})}
                                               </span>
                                               <span className="block truncate text-[10px] text-slate-500">
-                                                {candidateIsDrum
-                                                  ? `Track ${candidateIndex + 1} · Drums (sound only)`
-                                                  : isChordLane(candidate)
-                                                  ? `Track ${candidateIndex + 1} · Chords`
-                                                  : candidateInstrument}
+                                                {candidateIsDrum ? t("Track {value1} · Drums (sound only)", {value1: candidateIndex + 1}) : isChordLane(candidate) ? t("Track {value1} · Chords", {value1: candidateIndex + 1}) : candidateInstrument}
                                               </span>
                                             </span>
                                           </button>
@@ -9966,8 +9747,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                                 ? "border-amber-300 bg-amber-50 text-amber-800"
                                                 : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
                                             }`}
-                                            title={candidateMuted ? "Unmute track" : "Mute track"}
-                                            aria-label={`${candidateMuted ? "Unmute" : "Mute"} ${candidate.name || `Track ${candidateIndex + 1}`}`}
+                                            title={candidateMuted ? t("Unmute track") : t("Mute track")}
+                                            aria-label={t("{value1} {value2}", {value1: candidateMuted ? t("Unmute") : t("Mute"), value2: editorName(candidate.name, t) || t("Track {value1}", {value1: candidateIndex + 1})})}
                                           >
                                             <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                                               <path d="M4 10v4h4l5 4V6L8 10H4z" />
@@ -9987,8 +9768,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                                 ? "border-sky-300 bg-sky-50 text-sky-800"
                                                 : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
                                             }`}
-                                            title={candidateIsolated ? "Stop soloing track" : "Solo track"}
-                                            aria-label={`${candidateIsolated ? "Stop soloing" : "Solo"} ${candidate.name || `Track ${candidateIndex + 1}`}`}
+                                            title={candidateIsolated ? t("Stop soloing track") : t("Solo track")}
+                                            aria-label={t("{value1} {value2}", {value1: candidateIsolated ? t("Stop soloing") : t("Solo"), value2: editorName(candidate.name, t) || t("Track {value1}", {value1: candidateIndex + 1})})}
                                           >
                                             <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                                               <path d="M12 4a7 7 0 0 0-7 7v5a2.5 2.5 0 0 0 2.5 2.5H8a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H7v-.5a5 5 0 0 1 10 0v.5h-1a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h.5A2.5 2.5 0 0 0 19 16v-5a7 7 0 0 0-7-7z" />
@@ -10007,8 +9788,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                             onPointerCancel={() => commitTrackVolume(candidateId)}
                                             onBlur={() => commitTrackVolume(candidateId)}
                                             className="w-12 shrink-0 accent-slate-700"
-                                            title={`Volume ${Math.round(candidateVolume * 100)}%`}
-                                            aria-label={`Volume for ${candidate.name || `Track ${candidateIndex + 1}`}`}
+                                            title={t("Volume {value1}%", {value1: Math.round(candidateVolume * 100)})}
+                                            aria-label={t("Volume for {value1}", {value1: editorName(candidate.name, t) || t("Track {value1}", {value1: candidateIndex + 1})})}
                                           />
                                         </div>
                                       );
@@ -10017,29 +9798,27 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               </details>
                             ) : (
                               <h3 className="text-sm font-semibold text-slate-800">
-                                {isChordLane(lane)
-                                  ? `Track ${index + 1} · ${lane.name || "Chords"}`
-                                  : lane.name || `Track ${index + 1}`}
+                                {isChordLane(lane) ? t("Track {value1} · {value2}", {value1: index + 1, value2: editorName(lane.name, t) || t("Chords")}) : editorName(lane.name, t) || t("Track {value1}", {value1: index + 1})}
                               </h3>
                             )}
                             <div className="flex items-center gap-2">
                               {!isChordLane(lane) && practiceChordLaneOptions.length > 0 && (
                                 <label className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-500">
-                                  <span>Chord overlay</span>
+                                  <span>{t("Chord overlay")}</span>
                                   <select
                                     value={practiceChordOverlayLaneId ?? ""}
                                     onChange={(event) =>
                                       setPracticeChordOverlayLaneId(event.target.value || null)
                                     }
                                     className="max-w-32 bg-transparent text-[10px] font-semibold text-slate-700 outline-none"
-                                    aria-label="Chord overlay"
+                                    aria-label={t("Chord overlay")}
                                   >
-                                    <option value="">None</option>
+                                    <option value="">{t("None")}</option>
                                     {practiceChordLaneOptions.map(
                                       ({ lane: chordLane, laneId: chordLaneId, trackNumber }) => {
                                         return (
                                           <option key={chordLaneId} value={chordLaneId}>
-                                            {`Track ${trackNumber} · ${chordLane.name || "Chords"}`}
+                                            {t("Track {value1} · {value2}", {value1: trackNumber, value2: editorName(chordLane.name, t) || t("Chords")})}
                                           </option>
                                         );
                                       }
@@ -10048,8 +9827,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                 </label>
                               )}
                               <span className="text-[11px] text-slate-500">
-                                {isChordLane(lane) ? "Chords" : instrumentLabel} · {laneBarCount} bars
-                              </span>
+                                {isChordLane(lane) ? t("Chords") : editorInstrumentName(instrumentLabel,t)} · {laneBarCount}{t(" bars")}</span>
                             </div>
                           </div>
                         )}
@@ -10242,8 +10020,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         ? "border-emerald-600 bg-emerald-600 text-white"
                         : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
                     }`}
-                    title={local_isolate_bool ? "Stop local isolate" : "Locally isolate this track"}
-                    aria-label={local_isolate_bool ? "Stop local isolate" : "Locally isolate this track"}
+                    title={local_isolate_bool ? t("Stop local isolate") : t("Locally isolate this track")}
+                    aria-label={local_isolate_bool ? t("Stop local isolate") : t("Locally isolate this track")}
                     aria-pressed={local_isolate_bool}
                   >
                     <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current" aria-hidden="true">
@@ -10258,15 +10036,15 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         setDesktopTrackAddMenuOpen(false);
                       }}
                       className="absolute bottom-0 right-[calc(100%+0.75rem)] flex w-[28rem] items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left text-slate-700 shadow-[0_16px_45px_rgba(15,23,42,0.14)] transition hover:bg-slate-50"
-                      title="Choose a track"
-                      aria-label="Choose a track"
+                      title={t("Choose a track")}
+                      aria-label={t("Choose a track")}
                       aria-expanded={desktopTrackMenuOpen}
                       aria-haspopup="listbox"
                     >
                       <span className="min-w-0">
-                        <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Track</span>
+                        <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{t("Track")}</span>
                         <span className="mt-1 block truncate text-sm font-semibold text-slate-800">
-                          {selectedLane.name || `Track ${selectedIndex + 1}`}
+                          {editorName(selectedLane.name, t) || t("Track {value1}", {value1: selectedIndex + 1})}
                         </span>
                       </span>
                       <svg viewBox="0 0 20 20" className={`h-4 w-4 shrink-0 fill-current text-slate-500 transition ${desktopTrackMenuOpen ? "rotate-180" : ""}`} aria-hidden="true">
@@ -10290,7 +10068,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     aria-labelledby="desktop-track-settings-title"
                   >
                     <div className="flex w-full items-center justify-between border-b border-slate-100 px-4 py-4 text-slate-700">
-                      <span id="desktop-track-settings-title" className="text-sm font-semibold text-slate-700">Track settings</span>
+                      <span id="desktop-track-settings-title" className="text-sm font-semibold text-slate-700">{t("Track settings")}</span>
                       <button
                         type="button"
                         onClick={() => {
@@ -10298,8 +10076,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           setDesktopTrackMenuOpen(false);
                         }}
                         className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-                        title="Close track settings"
-                        aria-label="Close track settings"
+                        title={t("Close track settings")}
+                        aria-label={t("Close track settings")}
                       >
                         <svg viewBox="0 0 20 20" className="h-4 w-4 fill-none stroke-current" strokeWidth="1.8" aria-hidden="true">
                           <path d="m5.5 5.5 9 9m0-9-9 9" strokeLinecap="round" />
@@ -10308,23 +10086,20 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     </div>
                     {!desktopTrackSettingsCollapsed && <div className="m-4 mt-3 grid grid-cols-2 gap-3">
                       {!selectedDrumLane && (
-                        <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Instrument
-                          <select value={selectedInstrumentValue} onChange={(event) => handleLaneInstrumentChange(selectedLaneId, event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700">
-                            {(selectedBassLane ? trackInstrumentOptions.filter((option) => option.id === "bass_overdrive") : trackInstrumentOptions).map((option) => <option key={`${selectedLaneId}-screen-instrument-${option.id}`} value={option.id}>{option.label}</option>)}
+                        <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Instrument")}<select value={selectedInstrumentValue} onChange={(event) => handleLaneInstrumentChange(selectedLaneId, event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700">
+                            {(selectedBassLane ? trackInstrumentOptions.filter((option) => option.id === "bass_overdrive") : trackInstrumentOptions).map((option) => <option key={`${selectedLaneId}-screen-instrument-${option.id}`} value={option.id}>{editorInstrumentName(option.label,t)}</option>)}
                           </select>
                         </label>
                       )}
                       {!selectedChordLane && !selectedDrumLane && (
                         <div className="contents">
-                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Tuning
-                            <select value={selectedTuning.presetId} onChange={(event) => handleLaneTuningChange(selectedLaneId, event.target.value, selectedTuning.capo)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700">
-                              {(selectedBassLane ? BASS_TUNING_PRESETS : TUNING_PRESETS).map((preset) => <option key={`${selectedLaneId}-screen-tuning-${preset.id}`} value={preset.id}>{preset.label}</option>)}
+                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Tuning")}<select value={selectedTuning.presetId} onChange={(event) => handleLaneTuningChange(selectedLaneId, event.target.value, selectedTuning.capo)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700">
+                              {(selectedBassLane ? BASS_TUNING_PRESETS : TUNING_PRESETS).map((preset) => <option key={`${selectedLaneId}-screen-tuning-${preset.id}`} value={preset.id}>{t(preset.label)}</option>)}
                             </select>
                           </label>
                           {!selectedBassLane && <details className="rounded-lg border border-slate-200 px-3 py-2">
-                            <summary className="cursor-pointer text-xs font-medium text-slate-600">More settings</summary>
-                            <label className="mt-3 flex items-center justify-between gap-3 text-xs font-medium text-slate-600">Capo
-                              <input type="number" min={0} max={12} value={trackCapoDraftById[selectedLaneId] ?? String(selectedTuning.capo)} onChange={(event) => handleLaneCapoDraftChange(selectedLaneId, event.target.value)} onBlur={() => commitLaneCapoDraft(selectedLaneId, selectedTuning.presetId, selectedTuning.capo)} className="h-8 w-16 rounded-md border border-slate-200 px-2 text-xs text-slate-700" aria-label="Track capo" />
+                            <summary className="cursor-pointer text-xs font-medium text-slate-600">{t("More settings")}</summary>
+                            <label className="mt-3 flex items-center justify-between gap-3 text-xs font-medium text-slate-600">{t("Capo")}<input type="number" min={0} max={12} value={trackCapoDraftById[selectedLaneId] ?? String(selectedTuning.capo)} onChange={(event) => handleLaneCapoDraftChange(selectedLaneId, event.target.value)} onBlur={() => commitLaneCapoDraft(selectedLaneId, selectedTuning.presetId, selectedTuning.capo)} className="h-8 w-16 rounded-md border border-slate-200 px-2 text-xs text-slate-700" aria-label={t("Track capo")} />
                             </label>
                           </details>}
                           <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2">
@@ -10334,8 +10109,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${
                                 selectedMuted ? "text-rose-600" : "text-slate-500 hover:text-slate-800"
                               }`}
-                              title={selectedMuted ? "Unmute" : "Mute"}
-                              aria-label={selectedMuted ? "Unmute" : "Mute"}
+                              title={selectedMuted ? t("Unmute") : t("Mute")}
+                              aria-label={selectedMuted ? t("Unmute") : t("Mute")}
                               aria-pressed={selectedMuted}
                             >
                               <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
@@ -10353,8 +10128,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${
                                 selectedIsolated ? "text-emerald-600" : "text-slate-500 hover:text-slate-800"
                               }`}
-                              title={selectedIsolated ? "Stop soloing" : "Solo"}
-                              aria-label={selectedIsolated ? "Stop soloing" : "Solo"}
+                              title={selectedIsolated ? t("Stop soloing") : t("Solo")}
+                              aria-label={selectedIsolated ? t("Stop soloing") : t("Solo")}
                               aria-pressed={selectedIsolated}
                             >
                               <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
@@ -10372,14 +10147,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               onPointerCancel={() => commitTrackVolume(selectedLaneId)}
                               onBlur={() => commitTrackVolume(selectedLaneId)}
                               className="h-7 w-full min-w-0 accent-slate-700"
-                              aria-label={`Volume for ${selectedLane.name || `Track ${selectedIndex + 1}`}`}
+                              aria-label={t("Volume for {value1}", {value1: editorName(selectedLane.name, t) || t("Track {value1}", {value1: selectedIndex + 1})})}
                             />
                           </div>
                         </div>
                       )}
                       <div className="col-span-2 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
-                        <button type="button" onClick={() => beginTrackOffset(selectedLaneId)} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">Offset track</button>
-                        <button type="button" onClick={() => requestDeleteTrack(selectedLaneId)} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50">Remove</button>
+                        <button type="button" onClick={() => beginTrackOffset(selectedLaneId)} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">{t("Offset track")}</button>
+                        <button type="button" onClick={() => requestDeleteTrack(selectedLaneId)} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50">{t("Remove")}</button>
                       </div>
                     </div>}
                   </div>
@@ -10388,13 +10163,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   {desktopTrackSettingsCollapsed && desktopTrackMenuOpen && (
                     <div className="absolute bottom-16 right-[calc(100%+0.75rem)] w-[28rem] overflow-visible rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.18)]">
                       <div className="hidden border-b border-slate-100 px-4 py-3">
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Edit track</div>
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{t("Edit track")}</div>
                         <input
                           key={`${selectedLaneId}:${selectedLane.name || ""}`}
                           name={`desktop-track-${selectedIndex + 1}-name`}
                           defaultValue={selectedLane.name || `Track ${selectedIndex + 1}`}
                           maxLength={80}
-                          aria-label={`Track ${selectedIndex + 1} name`}
+                          aria-label={t("Track {value1} name", {value1: selectedIndex + 1})}
                           onBlur={(event) => void handleLaneNameCommit(selectedLaneId, event.currentTarget.value)}
                           onKeyDown={(event) => {
                             if (event.key === "Enter") event.currentTarget.blur();
@@ -10407,7 +10182,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         />
                       </div>
 
-                      <div className="border-b border-slate-100 p-1.5" role="listbox" aria-label="Choose a track to edit">
+                      <div className="border-b border-slate-100 p-1.5" role="listbox" aria-label={t("Choose a track to edit")}>
                         {canvas.editors.map((candidate, candidateIndex) => {
                           const candidateId = candidate.id || `ed-${candidateIndex + 1}`;
                           const active = candidateId === selectedLaneId;
@@ -10435,7 +10210,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                 autoFocus
                                 defaultValue={candidate.name || `Track ${candidateIndex + 1}`}
                                 maxLength={80}
-                                aria-label={`Track ${candidateIndex + 1} name`}
+                                aria-label={t("Track {value1} name", {value1: candidateIndex + 1})}
                                 onClick={(event) => event.stopPropagation()}
                                 onBlur={(event) => {
                                   void handleLaneNameCommit(candidateId, event.currentTarget.value);
@@ -10460,11 +10235,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                   event.stopPropagation();
                                   setDesktopRenamingLaneId(candidateId);
                                 }}
-                                title="Double-click to rename"
+                                title={t("Double-click to rename")}
                                 className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg px-1.5 py-1.5 text-left text-xs"
                               >
-                                <span className="min-w-0 truncate font-semibold">{candidate.name || `Track ${candidateIndex + 1}`}</span>
-                                <span className="shrink-0 text-[10px] font-medium text-slate-400">{type}</span>
+                                <span className="min-w-0 truncate font-semibold">{editorName(candidate.name, t) || t("Track {value1}", {value1: candidateIndex + 1})}</span>
+                                <span className="shrink-0 text-[10px] font-medium text-slate-400">{t(type)}</span>
                               </button>
                             )}
                             <button
@@ -10474,15 +10249,15 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                 setDesktopTrackSettingsCollapsed(false);
                               }}
                               className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
-                              title={`Edit settings for ${candidate.name || `Track ${candidateIndex + 1}`}`}
-                              aria-label={`Edit settings for ${candidate.name || `Track ${candidateIndex + 1}`}`}
+                              title={t("Edit settings for {value1}", {value1: editorName(candidate.name, t) || t("Track {value1}", {value1: candidateIndex + 1})})}
+                              aria-label={t("Edit settings for {value1}", {value1: editorName(candidate.name, t) || t("Track {value1}", {value1: candidateIndex + 1})})}
                             >
                               <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-none stroke-current" strokeWidth="1.8" aria-hidden="true">
                                 <path d="m4 20 4.2-1 10.6-10.6a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z" strokeLinecap="round" strokeLinejoin="round" />
                                 <path d="m14.5 6.7 2.8 2.8" strokeLinecap="round" />
                               </svg>
                             </button>
-                            <button type="button" onClick={() => toggleTrackMute(candidateId)} className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${candidateMuted ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-slate-200 text-slate-500"}`} aria-label={`${candidateMuted ? "Unmute" : "Mute"} ${candidate.name || `Track ${candidateIndex + 1}`}`}>
+                            <button type="button" onClick={() => toggleTrackMute(candidateId)} className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${candidateMuted ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-slate-200 text-slate-500"}`} aria-label={t("{value1} {value2}", {value1: candidateMuted ? t("Unmute") : t("Mute"), value2: editorName(candidate.name, t) || t("Track {value1}", {value1: candidateIndex + 1})})}>
                               <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                                 <path d="M4 10v4h4l5 4V6L8 10H4z" />
                                 {candidateMuted ? (
@@ -10492,12 +10267,12 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                 )}
                               </svg>
                             </button>
-                            <button type="button" onClick={() => toggleTrackIsolation(candidateId)} className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${candidateIsolated ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-200 text-slate-500"}`} aria-label={`${candidateIsolated ? "Stop soloing" : "Solo"} ${candidate.name || `Track ${candidateIndex + 1}`}`}>
+                            <button type="button" onClick={() => toggleTrackIsolation(candidateId)} className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${candidateIsolated ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-200 text-slate-500"}`} aria-label={t("{value1} {value2}", {value1: candidateIsolated ? t("Stop soloing") : t("Solo"), value2: editorName(candidate.name, t) || t("Track {value1}", {value1: candidateIndex + 1})})}>
                               <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                                 <path d="M12 4a7 7 0 0 0-7 7v5a2.5 2.5 0 0 0 2.5 2.5H8a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H7v-.5a5 5 0 0 1 10 0v.5h-1a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h.5A2.5 2.5 0 0 0 19 16v-5a7 7 0 0 0-7-7z" />
                               </svg>
                             </button>
-                            <input type="range" min={0} max={1} step={0.01} value={candidateVolume} onChange={(event) => handleTrackVolumePreview(candidateId, Number(event.target.value))} onPointerUp={() => commitTrackVolume(candidateId)} onPointerCancel={() => commitTrackVolume(candidateId)} onBlur={() => commitTrackVolume(candidateId)} className="w-12 accent-slate-700" aria-label={`Volume for ${candidate.name || `Track ${candidateIndex + 1}`}`} />
+                            <input type="range" min={0} max={1} step={0.01} value={candidateVolume} onChange={(event) => handleTrackVolumePreview(candidateId, Number(event.target.value))} onPointerUp={() => commitTrackVolume(candidateId)} onPointerCancel={() => commitTrackVolume(candidateId)} onBlur={() => commitTrackVolume(candidateId)} className="w-12 accent-slate-700" aria-label={t("Volume for {value1}", {value1: editorName(candidate.name, t) || t("Track {value1}", {value1: candidateIndex + 1})})} />
                             </div>
                           );
                         })}
@@ -10505,38 +10280,32 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
 
                       <div className="hidden space-y-3 p-4">
                         {!selectedDrumLane && (
-                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                            Instrument
-                            <select
+                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Instrument")}<select
                               value={selectedInstrumentValue}
                               onChange={(event) => handleLaneInstrumentChange(selectedLaneId, event.target.value)}
                               className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700"
                             >
                               {(selectedBassLane ? trackInstrumentOptions.filter((option) => option.id === "bass_overdrive") : trackInstrumentOptions).map((option) => (
-                                <option key={`${selectedLaneId}-desktop-instrument-${option.id}`} value={option.id}>{option.label}</option>
+                                <option key={`${selectedLaneId}-desktop-instrument-${option.id}`} value={option.id}>{editorInstrumentName(option.label,t)}</option>
                               ))}
                             </select>
                           </label>
                         )}
                         {!selectedChordLane && !selectedDrumLane && (
                           <>
-                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                              Tuning
-                              <select
+                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Tuning")}<select
                                 value={selectedTuning.presetId}
                                 onChange={(event) => handleLaneTuningChange(selectedLaneId, event.target.value, selectedTuning.capo)}
                                 className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700"
                               >
                                 {(selectedBassLane ? BASS_TUNING_PRESETS : TUNING_PRESETS).map((preset) => (
-                                  <option key={`${selectedLaneId}-desktop-tuning-${preset.id}`} value={preset.id}>{preset.label}</option>
+                                  <option key={`${selectedLaneId}-desktop-tuning-${preset.id}`} value={preset.id}>{t(preset.label)}</option>
                                 ))}
                               </select>
                             </label>
                             {!selectedBassLane && <details className="rounded-lg border border-slate-200 px-3 py-2">
-                              <summary className="cursor-pointer text-xs font-medium text-slate-600">More settings</summary>
-                              <label className="mt-3 flex items-center justify-between gap-3 text-xs font-medium text-slate-600">
-                                Capo
-                                <input
+                              <summary className="cursor-pointer text-xs font-medium text-slate-600">{t("More settings")}</summary>
+                              <label className="mt-3 flex items-center justify-between gap-3 text-xs font-medium text-slate-600">{t("Capo")}<input
                                   type="number"
                                   min={0}
                                   max={12}
@@ -10544,24 +10313,23 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                   onChange={(event) => handleLaneCapoDraftChange(selectedLaneId, event.target.value)}
                                   onBlur={() => commitLaneCapoDraft(selectedLaneId, selectedTuning.presetId, selectedTuning.capo)}
                                   className="h-8 w-16 rounded-md border border-slate-200 px-2 text-xs text-slate-700"
-                                  aria-label="Track capo"
+                                  aria-label={t("Track capo")}
                                 />
                               </label>
                             </details>}
                           </>
                         )}
                         <div className="flex gap-2">
-                          <button type="button" onClick={() => toggleTrackMute(selectedLaneId)} className={`flex-1 rounded-lg border px-3 py-2 text-xs font-semibold ${selectedMuted ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>{selectedMuted ? "Unmute" : "Mute"}</button>
-                          <button type="button" onClick={() => toggleTrackIsolation(selectedLaneId)} className={`flex-1 rounded-lg border px-3 py-2 text-xs font-semibold ${selectedIsolated ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>{selectedIsolated ? "Solo on" : "Solo"}</button>
+                          <button type="button" onClick={() => toggleTrackMute(selectedLaneId)} className={`flex-1 rounded-lg border px-3 py-2 text-xs font-semibold ${selectedMuted ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>{selectedMuted ? t("Unmute") : t("Mute")}</button>
+                          <button type="button" onClick={() => toggleTrackIsolation(selectedLaneId)} className={`flex-1 rounded-lg border px-3 py-2 text-xs font-semibold ${selectedIsolated ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>{selectedIsolated ? t("Solo on") : t("Solo")}</button>
                         </div>
-                        <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                          Volume <span className="float-right normal-case tracking-normal">{Math.round(selectedVolume * 100)}%</span>
-                          <input type="range" min={0} max={1} step={0.01} value={selectedVolume} onChange={(event) => handleTrackVolumePreview(selectedLaneId, Number(event.target.value))} onPointerUp={() => commitTrackVolume(selectedLaneId)} onPointerCancel={() => commitTrackVolume(selectedLaneId)} onBlur={() => commitTrackVolume(selectedLaneId)} className="mt-1.5 w-full accent-slate-700" aria-label={`Volume for ${selectedLane.name || `Track ${selectedIndex + 1}`}`} />
+                        <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Volume")}<span className="float-right normal-case tracking-normal">{Math.round(selectedVolume * 100)}%</span>
+                          <input type="range" min={0} max={1} step={0.01} value={selectedVolume} onChange={(event) => handleTrackVolumePreview(selectedLaneId, Number(event.target.value))} onPointerUp={() => commitTrackVolume(selectedLaneId)} onPointerCancel={() => commitTrackVolume(selectedLaneId)} onBlur={() => commitTrackVolume(selectedLaneId)} className="mt-1.5 w-full accent-slate-700" aria-label={t("Volume for {value1}", {value1: editorName(selectedLane.name, t) || t("Track {value1}", {value1: selectedIndex + 1})})} />
                         </label>
                         <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
-                          <button type="button" onClick={() => beginTrackOffset(selectedLaneId)} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">Offset track</button>
-                          <button type="button" onClick={() => requestDeleteTrack(selectedLaneId)} disabled={deletingLaneId === selectedLaneId} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50">{deletingLaneId === selectedLaneId ? "Removing..." : "Remove"}</button>
-                          {!selectedBassLane && !selectedChordLane && !selectedDrumLane && <button type="button" onClick={() => void handleConvertLaneToBass(selectedLaneId)} className="col-span-2 rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">Convert to bass</button>}
+                          <button type="button" onClick={() => beginTrackOffset(selectedLaneId)} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">{t("Offset track")}</button>
+                          <button type="button" onClick={() => requestDeleteTrack(selectedLaneId)} disabled={deletingLaneId === selectedLaneId} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50">{deletingLaneId === selectedLaneId ? t("Removing...") : t("Remove")}</button>
+                          {!selectedBassLane && !selectedChordLane && !selectedDrumLane && <button type="button" onClick={() => void handleConvertLaneToBass(selectedLaneId)} className="col-span-2 rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">{t("Convert to bass")}</button>}
                         </div>
                       </div>
 
@@ -10570,12 +10338,12 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           <div className="mb-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
                             {(["tab", "bass", "chords", "drums"] as const).map((type) => (
                               <button key={type} type="button" onClick={() => { setDesktopTrackAddMenuOpen(false); void handleAddLane(type); }} disabled={addingLane} className="block w-full rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50">
-                                {type === "tab" ? "Tab" : type === "bass" ? "Bass" : type === "chords" ? "Chords" : "Drums"}
+                                {type === "tab" ? t("Tab") : type === "bass" ? t("Bass") : type === "chords" ? t("Chords") : t("Drums")}
                               </button>
                             ))}
                           </div>
                         )}
-                        <button type="button" onClick={() => setDesktopTrackAddMenuOpen((open) => !open)} disabled={addingLane} className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><span className="text-base leading-none">+</span>{addingLane ? "Adding..." : "Add track"}</button>
+                        <button type="button" onClick={() => setDesktopTrackAddMenuOpen((open) => !open)} disabled={addingLane} className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><span className="text-base leading-none">+</span>{addingLane ? t("Adding...") : t("Add track")}</button>
                       </div>
                     </div>
                   )}
@@ -10603,35 +10371,29 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     data-gte-floating-ui="true"
                     data-mobile-bar-menu="true"
                     role="toolbar"
-                    aria-label="Bar actions"
+                    aria-label={t("Bar actions")}
                     onMouseDown={(event) => event.stopPropagation()}
                   >
                     <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white/98 p-2 shadow-xl backdrop-blur">
                       <span className="shrink-0 px-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                        {selectedCount} bar{selectedCount === 1 ? "" : "s"}
+                        {selectedCount}{t(" bar")}{selectedCount === 1 ? "" : (locale === "en" ? "s" : "")}
                       </span>
                       <button
                         type="button"
                         onClick={() => void handleCopySelectedBars(selectedLaneId, barSelection.barIndices)}
                         className="h-10 flex-1 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 active:bg-slate-100"
-                      >
-                        Copy
-                      </button>
+                      >{t("Copy")}</button>
                       <button
                         type="button"
                         onClick={() => void handlePasteBars(selectedLaneId, pasteIndex)}
                         disabled={!barClipboard}
                         className="h-10 flex-1 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 active:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                      >
-                        Paste
-                      </button>
+                      >{t("Paste")}</button>
                       <button
                         type="button"
                         onClick={() => handleDeleteSelectedBars(selectedLaneId, barSelection.barIndices)}
                         className="h-10 flex-1 rounded-xl bg-rose-500/90 text-sm font-semibold text-white active:bg-rose-600"
-                      >
-                        Delete
-                      </button>
+                      >{t("Delete")}</button>
                     </div>
                   </div>,
                   document.body
@@ -10640,7 +10402,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             {!practiceModeEnabled && isMobileViewport && !mobileEditLaneId && typeof document !== "undefined" && createPortal(
               <div className="!fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3 z-[9997] w-[calc(50vw-0.75rem)] max-w-[14rem]" style={{ position: "fixed" }} data-gte-floating-ui="true">
                 {mobileTrackMenuOpen && (
-                  <div className="mb-2 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-[0_18px_45px_rgba(15,23,42,0.2)]" role="listbox" aria-label="Choose track">
+                  <div className="mb-2 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-[0_18px_45px_rgba(15,23,42,0.2)]" role="listbox" aria-label={t("Choose track")}>
                     {canvas.editors.map((lane, index) => {
                       const laneId = lane.id || `ed-${index + 1}`;
                       const active = laneId === activeLaneId;
@@ -10657,9 +10419,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           }}
                           className={`flex min-h-11 w-full items-center justify-between rounded-xl px-3 text-left text-sm ${active ? "bg-emerald-50 font-semibold text-emerald-950" : "text-slate-700 active:bg-slate-50"}`}
                         >
-                          <span className="min-w-0 truncate">{lane.name || `Track ${index + 1}`}</span>
+                          <span className="min-w-0 truncate">{editorName(lane.name, t) || t("Track {value1}", {value1: index + 1})}</span>
                           <span className="ml-3 shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400">
-                            {isDrumLane(lane) ? "Drums" : isChordLane(lane) ? "Chords" : "Tab"}
+                            {isDrumLane(lane) ? t("Drums") : isChordLane(lane) ? t("Chords") : t("Tab")}
                           </span>
                         </button>
                       );
@@ -10667,7 +10429,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   </div>
                 )}
                 {addTrackMenuOpen && (
-                  <div className="mb-2 ml-auto w-44 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl" role="menu" aria-label="Add track">
+                  <div className="mb-2 ml-auto w-44 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl" role="menu" aria-label={t("Add track")}>
                     {(["tab", "chords", "drums"] as const).map((type) => (
                       <button
                         key={`mobile-add-${type}`}
@@ -10680,8 +10442,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         disabled={addingLane}
                         className="flex min-h-10 w-full items-center justify-between rounded-xl px-3 text-left text-sm font-medium text-slate-700 active:bg-slate-50 disabled:opacity-50"
                       >
-                        <span>{type === "tab" ? "Tab" : type === "chords" ? "Chords" : "Drums"}</span>
-                        <span className="text-xs text-slate-400">Track</span>
+                        <span>{type === "tab" ? t("Tab") : type === "chords" ? t("Chords") : t("Drums")}</span>
+                        <span className="text-xs text-slate-400">{t("Track")}</span>
                       </button>
                     ))}
                   </div>
@@ -10698,9 +10460,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     aria-haspopup="listbox"
                   >
                     <span className="min-w-0">
-                      <span className="block text-[9px] font-semibold uppercase tracking-[0.13em] text-slate-400">Track</span>
+                      <span className="block text-[9px] font-semibold uppercase tracking-[0.13em] text-slate-400">{t("Track")}</span>
                       <span className="block truncate text-sm font-semibold text-slate-800">
-                        {mobileActiveLane?.name || `Track ${mobileActiveLaneIndex + 1}`}
+                        {editorName(mobileActiveLane?.name, t) || t("Track {value1}", {value1: mobileActiveLaneIndex + 1})}
                       </span>
                     </span>
                     <span className={`ml-3 text-slate-500 transition ${mobileTrackMenuOpen ? "rotate-180" : ""}`} aria-hidden="true">⌃</span>
@@ -10713,8 +10475,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     }}
                     disabled={addingLane}
                     className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-xl text-white disabled:opacity-50"
-                    title="Add track"
-                    aria-label="Add track"
+                    title={t("Add track")}
+                    aria-label={t("Add track")}
                     aria-expanded={addTrackMenuOpen}
                   >
                     +
@@ -10740,12 +10502,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               aria-labelledby="remove-track-dialog-title"
               aria-describedby="remove-track-dialog-description"
             >
-              <h2 id="remove-track-dialog-title" className="text-base font-semibold text-slate-900">
-                Remove track?
-              </h2>
-              <p id="remove-track-dialog-description" className="mt-2 text-sm text-slate-600">
-                This will permanently delete the track and its notes/chords. You cannot undo this action.
-              </p>
+              <h2 id="remove-track-dialog-title" className="text-base font-semibold text-slate-900">{t("Remove track?")}</h2>
+              <p id="remove-track-dialog-description" className="mt-2 text-sm text-slate-600">{t("This will permanently delete the track and its notes/chords. You cannot undo this action.")}</p>
               <div className="mt-4 flex justify-end gap-2">
                 <button
                   type="button"
@@ -10753,16 +10511,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   onClick={() => setConfirmDeleteTrackId(null)}
                   disabled={Boolean(deletingLaneId)}
                   autoFocus
-                >
-                  Cancel
-                </button>
+                >{t("Cancel")}</button>
                 <button
                   type="button"
                   className="button-danger button-small"
                   onClick={() => void handleDeleteLane(confirmDeleteTrackId)}
                   disabled={Boolean(deletingLaneId)}
                 >
-                  {deletingLaneId === confirmDeleteTrackId ? "Removing..." : "Remove track"}
+                  {deletingLaneId === confirmDeleteTrackId ? t("Removing...") : t("Remove track")}
                 </button>
               </div>
             </div>
@@ -10783,36 +10539,25 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               aria-labelledby="tuning-dialog-title"
               aria-describedby="tuning-dialog-description"
             >
-              <h2 id="tuning-dialog-title" className="text-base font-semibold text-slate-900">
-                Adjust notes/chords to keep the sound?
-              </h2>
-              <p id="tuning-dialog-description" className="mt-2 text-sm text-slate-600">
-                Notes/Chords have different fingerings on different tunings. 
-                Automatically adjust them to keep the same sound.
-              </p>
+              <h2 id="tuning-dialog-title" className="text-base font-semibold text-slate-900">{t("Adjust notes/chords to keep the sound?")}</h2>
+              <p id="tuning-dialog-description" className="mt-2 text-sm text-slate-600">{t("Notes/Chords have different fingerings on different tunings. Automatically adjust them to keep the same sound.")}</p>
               <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   className="button-secondary button-small"
                   onClick={closeLaneTuningPrompt}
                   autoFocus
-                >
-                  Cancel
-                </button>
+                >{t("Cancel")}</button>
                 <button
                   type="button"
                   className="button-secondary button-small"
                   onClick={() => resolveLaneTuningPrompt(false)}
-                >
-                  Change tuning only
-                </button>
+                >{t("Change tuning only")}</button>
                 <button
                   type="button"
                   className="button-primary button-small"
                   onClick={() => resolveLaneTuningPrompt(true)}
-                >
-                  Adjust notes/chords
-                </button>
+                >{t("Adjust notes/chords")}</button>
               </div>
             </div>
           </div>
@@ -10834,13 +10579,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               if (event.key === "Escape") setFindKeyDialogOpen(false);
             }}
           >
-            <h2 id="find-key-dialog-title" className="text-base font-semibold text-slate-900">
-              Choose a likely key
-            </h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Note2Tabs compares the notes and chords in this project. Relative match scores rank these choices only; they are not probabilities.
-            </p>
-            <div className="mt-4 grid gap-2" role="radiogroup" aria-label="Likely song keys">
+            <h2 id="find-key-dialog-title" className="text-base font-semibold text-slate-900">{t("Choose a likely key")}</h2>
+            <p className="mt-1 text-sm text-slate-600">{t("Note2Tabs compares the notes and chords in this project. Relative match scores rank these choices only; they are not probabilities.")}</p>
+            <div className="mt-4 grid gap-2" role="radiogroup" aria-label={t("Likely song keys")}>
               {keyDetectionMatches.length ? (
                 keyDetectionMatches.map((candidate, index) => {
                   const value = `${candidate.rootKey}:${candidate.scaleType}`;
@@ -10863,18 +10604,16 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         className="accent-sky-600"
                       />
                       <span className="min-w-0 flex-1 text-sm font-semibold text-slate-800">
-                        {candidate.root} {candidate.scaleType}
+                        {candidate.root} {t(candidate.scaleType)}
                       </span>
                       <span className="text-right text-[10px] font-medium text-slate-500">
-                        {index === 0 ? "Closest match" : `Relative match ${candidate.relativeMatch}/100`}
+                        {index === 0 ? t("Closest match") : t("Relative match {value1}/100", {value1: candidate.relativeMatch})}
                       </span>
                     </label>
                   );
                 })
               ) : (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-600">
-                  Add some notes or chords before detecting the key.
-                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-600">{t("Add some notes or chords before detecting the key.")}</div>
               )}
             </div>
             <div className="mt-5 flex justify-end gap-2">
@@ -10883,17 +10622,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 onClick={() => setFindKeyDialogOpen(false)}
                 className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 autoFocus
-              >
-                Cancel
-              </button>
+              >{t("Cancel")}</button>
               <button
                 type="button"
                 onClick={handleContinueFindKey}
                 disabled={!selectedKeyCandidate}
                 className="rounded-md border border-slate-900 bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Apply key
-              </button>
+              >{t("Apply key")}</button>
             </div>
           </div>
         </div>
@@ -10908,7 +10643,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               <span
                 className="pointer-events-auto absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-slate-200 bg-white/95 px-2 py-1 text-[10px] font-semibold tabular-nums text-slate-600 shadow-sm"
                 role="timer"
-                aria-label="Playback time"
+                aria-label={t("Playback time")}
               >
                 {formatPlaybackTime(globalPlaybackCounterFrame / globalPlaybackFps)} / {formatPlaybackTime(canvasTimelineEnd / globalPlaybackFps)}
               </span>
@@ -10919,7 +10654,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   type="button"
                   onClick={skipGlobalPlaybackToStart}
                   className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
-                  title="Go to start"
+                  title={t("Go to start")}
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <rect x="4" y="5" width="2" height="14" />
@@ -10930,7 +10665,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   type="button"
                   onClick={skipGlobalPlaybackBackwardBar}
                   className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
-                  title="Previous bar"
+                  title={t("Previous bar")}
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <polygon points="17,5 7,12 17,19" />
@@ -10940,7 +10675,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   type="button"
                   onClick={toggleGlobalPlayback}
                   className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700"
-                  title={globalPlaybackIsPlaying ? "Pause" : "Play"}
+                  title={globalPlaybackIsPlaying ? t("Pause") : t("Play")}
                 >
                   {globalPlaybackIsPlaying ? (
                     <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
@@ -10957,7 +10692,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   type="button"
                   onClick={skipGlobalPlaybackForwardBar}
                   className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
-                  title="Next bar"
+                  title={t("Next bar")}
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <polygon points="7,5 17,12 7,19" />
@@ -10978,8 +10713,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     value={globalPlaybackVolume}
                     onChange={(event) => handleGlobalPlaybackVolumeChange(Number(event.target.value))}
                     className="w-20 accent-slate-700"
-                    title="Volume"
-                    aria-label="Playback volume"
+                    title={t("Volume")}
+                    aria-label={t("Playback volume")}
                   />
               </div>
             </div>
@@ -10993,7 +10728,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-1 shadow-sm">
               {!isMobileViewport && (
                 <label className="hidden w-48 shrink-0 items-center gap-2 text-xs font-medium text-slate-600 sm:flex">
-                  <span>Bars/row</span>
+                  <span>{t("Bars/row")}</span>
                   <input
                     type="range"
                     name="bottom-timeline-zoom"
@@ -11003,7 +10738,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     value={desktopBarsPerRow}
                     onChange={(event) => setDesktopBarsPerRow(Number(event.target.value))}
                     className="min-w-0 flex-1"
-                    aria-label="Bars per row"
+                    aria-label={t("Bars per row")}
                   />
                   <span className="w-4 text-right tabular-nums">{desktopBarsPerRow}</span>
                 </label>
@@ -11015,7 +10750,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 className="hidden"
                 onScroll={handleGlobalTimelineScrollbarScroll}
                 tabIndex={0}
-                aria-label="Scroll all tracks horizontally"
+                aria-label={t("Scroll all tracks horizontally")}
               >
                 <div style={{ width: globalTimelineTrackWidth, height: 1 }} />
               </div>
@@ -11034,18 +10769,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             type="button"
             onClick={() => beginTrackOffset(trackContextMenu.laneId)}
             className="block w-full px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            Offset track…
-          </button>
+          >{t("Offset track…")}</button>
           <div className="my-1 border-t border-slate-100" />
           <button
             type="button"
             disabled={canvas?.editors.findIndex((lane) => lane.id === trackContextMenu.laneId) === 0}
             onClick={() => handleMoveTrackBy(trackContextMenu.laneId, -1)}
             className="block w-full px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-white"
-          >
-            Move up
-          </button>
+          >{t("Move up")}</button>
           <button
             type="button"
             disabled={
@@ -11055,9 +10786,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             }
             onClick={() => handleMoveTrackBy(trackContextMenu.laneId, 1)}
             className="block w-full px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-white"
-          >
-            Move down
-          </button>
+          >{t("Move down")}</button>
         </div>
       )}
       {trackDropdownContextMenu && (
@@ -11075,9 +10804,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               setTrackDropdownContextMenu(null);
             }}
             className="block w-full px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            Rename
-          </button>
+          >{t("Rename")}</button>
           <button
             type="button"
             onClick={() => {
@@ -11085,16 +10812,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               setTrackDropdownContextMenu(null);
             }}
             className="block w-full px-3 py-2 text-left font-semibold text-rose-600 hover:bg-rose-50"
-          >
-            Delete
-          </button>
+          >{t("Delete")}</button>
         </div>
       )}
       {trackOffsetSession && (
         <div
           className="fixed inset-0 z-[10030] cursor-ew-resize touch-none select-none bg-sky-950/[0.04]"
           role="application"
-          aria-label="Offset track in whole-bar steps"
+          aria-label={t("Offset track in whole-bar steps")}
           onPointerDown={handleTrackOffsetPointerDown}
           onPointerMove={handleTrackOffsetPointerMove}
           onPointerUp={handleTrackOffsetPointerUp}
@@ -11106,28 +10831,21 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             className="absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-3 rounded-xl border border-sky-200 bg-white/95 px-4 py-2 text-xs text-slate-700 shadow-xl backdrop-blur"
             onPointerDown={(event) => event.stopPropagation()}
           >
-            <span className="font-semibold">Drag left or right</span>
-            <span className="tabular-nums text-sky-700">
-              Bar {trackOffsetSession.previewOffsetFrames / FIXED_FRAMES_PER_BAR + 1}
+            <span className="font-semibold">{t("Drag left or right")}</span>
+            <span className="tabular-nums text-sky-700">{t("Bar ")}{trackOffsetSession.previewOffsetFrames / FIXED_FRAMES_PER_BAR + 1}
             </span>
             <button
               type="button"
               onClick={() => void finishTrackOffset(false)}
               className="rounded-md border border-slate-200 px-2 py-1 font-semibold hover:bg-slate-50"
-            >
-              Cancel
-            </button>
+            >{t("Cancel")}</button>
             <button
               type="button"
               onClick={() => void finishTrackOffset(true)}
               className="rounded-md bg-sky-600 px-2 py-1 font-semibold text-white hover:bg-sky-500"
-            >
-              Done
-            </button>
+            >{t("Done")}</button>
           </div>
-          <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-sky-300 bg-white/90 px-5 py-2 text-lg font-bold tracking-[0.3em] text-sky-700 shadow-lg">
-            ← DRAG →
-          </div>
+          <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-sky-300 bg-white/90 px-5 py-2 text-lg font-bold tracking-[0.3em] text-sky-700 shadow-lg">{t("← DRAG →")}</div>
         </div>
       )}
       {pendingMeterChange && canvas && (
@@ -11140,13 +10858,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="stack-tight">
-              <h2 id="meter-change-title" className="page-title" style={{ fontSize: "1.25rem" }}>
-                Change to {pendingMeterChange.numerator}/{pendingMeterChange.denominator}?
+              <h2 id="meter-change-title" className="page-title" style={{ fontSize: "1.25rem" }}>{t("Change to ")}{pendingMeterChange.numerator}/{pendingMeterChange.denominator}?
               </h2>
               <p className="muted text-small">
-                {barSelection?.barIndices.length
-                  ? `This applies to ${barSelection.barIndices.length} selected bar${barSelection.barIndices.length === 1 ? "" : "s"}.`
-                  : "This applies to every bar."}
+                {barSelection?.barIndices.length ? t("This applies to {value1} selected bar{value2}.", {value1: barSelection.barIndices.length, value2: barSelection.barIndices.length === 1 ? "" : (locale === "en" ? "s" : "")}) : t("This applies to every bar.")}
               </p>
             </div>
             <div className="mt-4 grid gap-2">
@@ -11156,10 +10871,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 disabled={timeSignatureSaving}
                 className="rounded-xl border border-sky-300 bg-sky-50 px-4 py-3 text-left text-sm text-sky-950"
               >
-                <span className="block font-semibold">Adjust musical content</span>
-                <span className="mt-1 block text-xs leading-5 text-sky-800">
-                  Scale notes, chords, cuts, and drum loops inside the affected bars so their beat positions follow the new meter.
-                </span>
+                <span className="block font-semibold">{t("Adjust musical content")}</span>
+                <span className="mt-1 block text-xs leading-5 text-sky-800">{t("Scale notes, chords, cuts, and drum loops inside the affected bars so their beat positions follow the new meter.")}</span>
               </button>
               <button
                 type="button"
@@ -11167,10 +10880,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 disabled={timeSignatureSaving}
                 className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm text-slate-800"
               >
-                <span className="block font-semibold">Keep content in place</span>
-                <span className="mt-1 block text-xs leading-5 text-slate-500">
-                  Change the meter and timing anchors without moving notes or chords.
-                </span>
+                <span className="block font-semibold">{t("Keep content in place")}</span>
+                <span className="mt-1 block text-xs leading-5 text-slate-500">{t("Change the meter and timing anchors without moving notes or chords.")}</span>
               </button>
             </div>
             <div className="button-row mt-5" style={{ justifyContent: "flex-end" }}>
@@ -11179,9 +10890,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 className="button-secondary button-small"
                 onClick={cancelMeterChange}
                 disabled={timeSignatureSaving}
-              >
-                Cancel
-              </button>
+              >{t("Cancel")}</button>
             </div>
           </div>
         </div>
@@ -11199,14 +10908,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="stack-tight">
-              <h2 id="bar-tempo-title" className="page-title" style={{ fontSize: "1.25rem" }}>Bar tempo</h2>
-              <p className="muted text-small">
-                Set a precise tempo without moving any notes. Playback, seeking, the metronome, MIDI, and MusicXML use the same timing map.
-              </p>
+              <h2 id="bar-tempo-title" className="page-title" style={{ fontSize: "1.25rem" }}>{t("Bar tempo")}</h2>
+              <p className="muted text-small">{t("Set a precise tempo without moving any notes. Playback, seeking, the metronome, MIDI, and MusicXML use the same timing map.")}</p>
             </div>
-            <label className="mt-4 block text-sm font-medium text-slate-700">
-              BPM
-              <input
+            <label className="mt-4 block text-sm font-medium text-slate-700">{t("BPM")}<input
                 type="number"
                 min={40}
                 max={240}
@@ -11217,7 +10922,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 autoFocus
               />
             </label>
-            <div className="mt-3 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Tempo range">
+            <div className="mt-3 grid grid-cols-2 gap-2" role="radiogroup" aria-label={t("Tempo range")}>
               <button
                 type="button"
                 role="radio"
@@ -11230,10 +10935,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     : "border-slate-200 text-slate-600"
                 } disabled:cursor-not-allowed disabled:opacity-40`}
               >
-                <span className="block font-semibold">Selected bars</span>
+                <span className="block font-semibold">{t("Selected bars")}</span>
                 <span className="mt-1 block text-xs opacity-70">
-                  {barSelection?.barIndices.length || 0} selected
-                </span>
+                  {barSelection?.barIndices.length || 0}{t(" selected")}</span>
               </button>
               <button
                 type="button"
@@ -11246,8 +10950,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     : "border-slate-200 text-slate-600"
                 }`}
               >
-                <span className="block font-semibold">All bars</span>
-                <span className="mt-1 block text-xs opacity-70">Entire song</span>
+                <span className="block font-semibold">{t("All bars")}</span>
+                <span className="mt-1 block text-xs opacity-70">{t("Entire song")}</span>
               </button>
             </div>
             <div className="button-row mt-5" style={{ justifyContent: "flex-end" }}>
@@ -11256,16 +10960,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 className="button-secondary button-small"
                 onClick={() => setTimingDialogOpen(false)}
                 disabled={timingSaving}
-              >
-                Cancel
-              </button>
+              >{t("Cancel")}</button>
               <button
                 type="button"
                 className="button-primary button-small"
                 onClick={() => void commitTimingBpm()}
                 disabled={timingSaving}
               >
-                {timingSaving ? "Saving…" : "Set tempo"}
+                {timingSaving ? t("Saving…") : t("Set tempo")}
               </button>
             </div>
           </div>
@@ -11284,10 +10986,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="stack-tight">
-              <h2 id="merge-tracks-title" className="page-title" style={{ fontSize: "1.25rem" }}>Merge tracks</h2>
-              <p className="muted text-small">
-                Notes and chords are combined into one optimized track. The original tracks are removed.
-              </p>
+              <h2 id="merge-tracks-title" className="page-title" style={{ fontSize: "1.25rem" }}>{t("Merge tracks")}</h2>
+              <p className="muted text-small">{t("Notes and chords are combined into one optimized track. The original tracks are removed.")}</p>
             </div>
             <div className="mt-4 grid max-h-72 gap-2 overflow-y-auto">
               {canvas.editors.map((lane) => {
@@ -11312,35 +11012,31 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     />
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-semibold text-slate-800">
-                        {lane.name || "Untitled track"}
+                        {editorName(lane.name, t) || t("Untitled track")}
                       </span>
                       <span className="block text-xs text-slate-500">
-                        {isDrumLane(lane) ? "Drums" : `${lane.notes.length} notes · ${lane.chords.length} chords`}
+                        {isDrumLane(lane) ? t("Drums") : t("{value1} notes · {value2} chords", {value1: lane.notes.length, value2: lane.chords.length})}
                       </span>
                     </span>
                   </label>
                 );
               })}
             </div>
-            <p className="mt-3 text-xs text-slate-500">
-              Drum tracks can only be merged with other drum tracks. The upper selected track supplies the tuning.
-            </p>
+            <p className="mt-3 text-xs text-slate-500">{t("Drum tracks can only be merged with other drum tracks. The upper selected track supplies the tuning.")}</p>
             <div className="button-row mt-5" style={{ justifyContent: "flex-end" }}>
               <button
                 type="button"
                 className="button-secondary button-small"
                 onClick={() => setMergeTracksDialogOpen(false)}
                 disabled={mergeTracksBusy}
-              >
-                Cancel
-              </button>
+              >{t("Cancel")}</button>
               <button
                 type="button"
                 className="button-primary button-small"
                 onClick={() => void commitTrackMerge()}
                 disabled={mergeTracksBusy || mergeTrackIds.length < 2}
               >
-                {mergeTracksBusy ? "Merging…" : "Create merged track"}
+                {mergeTracksBusy ? t("Merging…") : t("Create merged track")}
               </button>
             </div>
           </div>
@@ -11440,7 +11136,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   );
 }
 
-export const getServerSideProps: GetServerSideProps = async (ctx) => {
+export const getServerSideProps: GetServerSideProps = withEditorLocale(async (ctx) => {
   const editorId = `${ctx.params?.editor_id || ""}`;
   const normalizedEditorId = editorId.trim().toLowerCase();
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
@@ -11477,4 +11173,4 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       passedTutorial: Boolean(tutorialUser?.passedTutorial),
     },
   };
-};
+});

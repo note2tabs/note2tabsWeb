@@ -1,3 +1,5 @@
+import { translatedError } from "../lib/i18n/translate";
+import { useLocale } from "../lib/i18n/react";
 import {
   useCallback,
   useEffect,
@@ -234,6 +236,7 @@ export default function GteDrumWorkspace({
   onGlobalPlaybackVolumeChange,
   onGlobalPlaybackFrameChange,
 }: GteDrumWorkspaceProps) {
+  const { t, locale } = useLocale();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const playheadRef = useRef<HTMLDivElement | null>(null);
   const syncingScrollRef = useRef(false);
@@ -2154,7 +2157,7 @@ export default function GteDrumWorkspace({
           const rowPlayheadFrame = globalPlaybackFrame - rowStart;
           return (
             <section key={`drum-score-row-${scoreRowIndex}`} className="gte-drum-score-row">
-              <div className="gte-drum-score-gutter" aria-hidden="true">KIT</div>
+              <div className="gte-drum-score-gutter" aria-hidden="true">{t("KIT")}</div>
               <div
                 className="gte-drum-bar-headings"
                 style={{ gridTemplateColumns: `repeat(${barsPerRow}, minmax(0, 1fr))` }}
@@ -2177,7 +2180,7 @@ export default function GteDrumWorkspace({
                         onContextMenu={(event) => handleBarContextMenu(barIndex, event)}
                         className={`gte-drum-bar-select${selected ? " is-selected" : ""}`}
                       >
-                        {showBarNumbers ? `Bar ${barIndex + 1}` : ""}
+                        {showBarNumbers ? t("Bar {value1}", {value1: barIndex + 1}) : ""}
                       </button>
                       <button
                         type="button"
@@ -2195,10 +2198,10 @@ export default function GteDrumWorkspace({
                           ];
                           setBarSubdivision(barIndex, nextOption.value);
                         }}
-                        title={`Bar ${barIndex + 1} grid: ${subdivisionLabel}. Click to change.`}
-                        aria-label={`Bar ${barIndex + 1} subdivision: ${subdivisionLabel}. Click to cycle.`}
+                        title={t("Bar {value1} grid: {value2}. Click to change.", {value1: barIndex + 1, value2: subdivisionLabel})}
+                        aria-label={t("Bar {value1} subdivision: {value2}. Click to cycle.", {value1: barIndex + 1, value2: subdivisionLabel})}
                       >
-                        {subdivisionLabel}
+                        {t(subdivisionLabel)}
                       </button>
                     </div>
                   );
@@ -2229,15 +2232,15 @@ export default function GteDrumWorkspace({
                           setSelectedLoopId(loop.id);
                           setLoopContextMenu({ x: event.clientX, y: event.clientY, loopId: loop.id });
                         }}
-                        title="Drag loop to move · drag right edge to repeat · right-click for options"
+                        title={t("Drag loop to move · drag right edge to repeat · right-click for options")}
                       >
                         <div className="gte-drum-score-loop-source" style={{ width: `${((sourceEnd - visibleStart) / Math.max(1, visibleEnd - visibleStart)) * 100}%` }} />
-                        <button type="button" className="gte-drum-score-loop-grab" aria-label="Move drum loop" title="Drag to move loop">Loop</button>
+                        <button type="button" className="gte-drum-score-loop-grab" aria-label={t("Move drum loop")} title={t("Drag to move loop")}>{t("Loop")}</button>
                         {endsHere && (
                           <button
                             type="button"
                             className="gte-drum-score-loop-handle"
-                            aria-label="Extend drum loop"
+                            aria-label={t("Extend drum loop")}
                             onPointerDown={(event) => beginScoreLoopInteraction(loop, "resize", barsPerRow, event)}
                           />
                         )}
@@ -2249,11 +2252,11 @@ export default function GteDrumWorkspace({
                     <button
                       type="button"
                       className="gte-drum-voice-label"
-                      title={`${voice.label} · key ${voice.key}`}
+                      title={t("{value1} · key {value2}", {value1: t(voice.label), value2: voice.key})}
                       onClick={() => void previewDrumVoice(voice.id).catch(() => {})}
                     >
                       <strong>{voice.shortLabel}</strong>
-                      <span>{voice.label}</span>
+                      <span>{t(voice.label)}</span>
                     </button>
                     <div
                       className="gte-drum-grid-row"
@@ -2303,7 +2306,7 @@ export default function GteDrumWorkspace({
                                     void addHit(voiceIndex, frame);
                                   }}
                                   onContextMenu={(event) => handleBarContextMenu(barIndex, event)}
-                                  aria-label={`Toggle ${voice.label} in bar ${barIndex + 1}`}
+                                  aria-label={t("Toggle {value1} in bar {value2}", {value1: t(voice.label), value2: barIndex + 1})}
                                 />
                               );
                             })}
@@ -2371,7 +2374,7 @@ export default function GteDrumWorkspace({
                                     onContextMenu={(event) => {
                                       if (!item.virtual) handleNoteContextMenu(note, event);
                                     }}
-                                    title={`${voice.label} · click to remove, shift+click to select`}
+                                    title={t("{value1} · click to remove, shift+click to select", {value1: t(voice.label)})}
                                   >
                                     {symbolForVoice(voice.id)}
                                   </button>
@@ -2397,14 +2400,14 @@ export default function GteDrumWorkspace({
         {selectionBox && <div className="gte-drum-score-selection" style={selectionBox} />}
         {barContextMenu && (
           <div data-drum-bar-context="true" className="fixed z-[9999] w-44 rounded-md border border-slate-200 bg-white py-1 text-xs shadow-lg" style={{ left: barContextMenu.x, top: barContextMenu.y }}>
-            <button type="button" className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={createLoopFromSelectedBars} disabled={!selectedBarIndices.length}>Loop selection</button>
-            <button type="button" className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={() => { void copySelectedNotes(); setBarContextMenu(null); }} disabled={selectedNoteIds.size === 0}>Copy notes</button>
-            <button type="button" className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={() => { copySelectedBars(); setBarContextMenu(null); }} disabled={selectedBarIndices.length === 0}>Copy bars</button>
+            <button type="button" className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={createLoopFromSelectedBars} disabled={!selectedBarIndices.length}>{t("Loop selection")}</button>
+            <button type="button" className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={() => { void copySelectedNotes(); setBarContextMenu(null); }} disabled={selectedNoteIds.size === 0}>{t("Copy notes")}</button>
+            <button type="button" className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={() => { copySelectedBars(); setBarContextMenu(null); }} disabled={selectedBarIndices.length === 0}>{t("Copy bars")}</button>
           </div>
         )}
         {loopContextMenu && (
           <div data-drum-loop-context="true" className="fixed z-[9999] w-40 rounded-md border border-slate-200 bg-white py-1 text-xs shadow-lg" style={{ left: loopContextMenu.x, top: loopContextMenu.y }}>
-            <button type="button" className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={() => deleteLoop(loopContextMenu.loopId)}>Delete loop</button>
+            <button type="button" className="block w-full px-3 py-2 text-left hover:bg-slate-100" onClick={() => deleteLoop(loopContextMenu.loopId)}>{t("Delete loop")}</button>
           </div>
         )}
         <button
@@ -2412,12 +2415,12 @@ export default function GteDrumWorkspace({
           data-gte-editor-control="true"
           onClick={appendDrumBar}
           className="ml-[4.5rem] flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-slate-300 bg-white text-base font-semibold text-slate-600 shadow-sm hover:border-slate-400 hover:bg-slate-100"
-          title="Add bar to end"
-          aria-label="Add bar to end"
+          title={t("Add bar to end")}
+          aria-label={t("Add bar to end")}
         >
           +
         </button>
-        {saveError ? <div className="text-xs font-medium text-rose-700">{saveError}</div> : null}
+        {saveError ? <div className="text-xs font-medium text-rose-700">{translatedError(saveError, locale)}</div> : null}
       </div>
     );
   }
@@ -2436,17 +2439,13 @@ export default function GteDrumWorkspace({
               onMouseLeave={onEditMenuPointerLeave}
             >
               <div className="border-b border-slate-200 py-1">
-                <div className="px-2 pb-1 pt-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                  Drum notes
-                </div>
+                <div className="px-2 pb-1 pt-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">{t("Drum notes")}</div>
                 <button
                   type="button"
                   onClick={openQuantizeTool}
                   disabled={selectedNoteIds.size === 0}
                   className="flex h-7 w-full items-center rounded-md px-2 text-left text-[11px] text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
-                >
-                  Quantize
-                </button>
+                >{t("Quantize")}</button>
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1 px-1">
                   <select
                     value={scaleMode}
@@ -2459,21 +2458,19 @@ export default function GteDrumWorkspace({
                       if (scaleDialogOpen) previewScale(scaleFactor, mode);
                     }}
                     className="h-7 min-w-0 rounded-md border-0 bg-transparent px-1 text-[11px] text-slate-700 hover:bg-slate-100"
-                    aria-label="Drum scale mode"
+                    aria-label={t("Drum scale mode")}
                   >
-                    <option value="length">Length scaling</option>
-                    <option value="start">Start-time scaling</option>
-                    <option value="both">Start + length</option>
+                    <option value="length">{t("Length scaling")}</option>
+                    <option value="start">{t("Start-time scaling")}</option>
+                    <option value="both">{t("Start + length")}</option>
                   </select>
                   <button
                     type="button"
                     onClick={openScaleTool}
                     disabled={selectedNoteIds.size === 0}
                     className="h-7 rounded-md px-2 text-[11px] text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
-                    title="Scale selected drum notes - Shortcut: S"
-                  >
-                    S&nbsp; Scale
-                  </button>
+                    title={t("Scale selected drum notes - Shortcut: S")}
+                  >{t("S&nbsp; Scale")}</button>
                 </div>
               </div>
             </div>,
@@ -2482,7 +2479,7 @@ export default function GteDrumWorkspace({
         : null}
       {saveError && (
         <div className="absolute right-2 top-1 z-40 rounded bg-rose-50 px-2 py-1 text-[10px] text-rose-700">
-          {saveError}
+          {translatedError(saveError, locale)}
         </div>
       )}
       {barContextMenu && (
@@ -2493,9 +2490,7 @@ export default function GteDrumWorkspace({
           onMouseDown={(event) => event.stopPropagation()}
         >
           <div className="border-b border-slate-100 px-3 py-2 text-slate-600">
-            <div className="mb-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-              Tempo
-            </div>
+            <div className="mb-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">{t("Tempo")}</div>
             {selectedBarBpmSegments.map((segment) => {
               const barLabel =
                 segment.startBarIndex === segment.endBarIndex
@@ -2506,10 +2501,9 @@ export default function GteDrumWorkspace({
                   key={`${segment.startBarIndex}-${segment.endBarIndex}-${formatTimingBpm(segment.bpm)}`}
                   className="flex items-center justify-between gap-2 py-0.5"
                 >
-                  <span>{barLabel}</span>
+                  <span>{t(barLabel)}</span>
                   <span className="font-semibold text-slate-800">
-                    {formatTimingBpm(segment.bpm)} BPM
-                  </span>
+                    {formatTimingBpm(segment.bpm)}{t(" BPM")}</span>
                 </div>
               );
             })}
@@ -2521,9 +2515,7 @@ export default function GteDrumWorkspace({
                 onClick={createLoopFromSelectedBars}
                 disabled={!selectedBarIndices.length}
                 className="flex w-full px-3 py-2 text-left font-semibold text-sky-700 hover:bg-sky-50 disabled:text-slate-400"
-              >
-                Loop
-              </button>
+              >{t("Loop")}</button>
               <button
                 type="button"
                 onClick={() => setSampleBeatMenuOpen((open) => !open)}
@@ -2531,8 +2523,8 @@ export default function GteDrumWorkspace({
                 aria-expanded={sampleBeatMenuOpen}
                 className="flex w-full items-center justify-between px-3 py-2 text-left font-semibold text-violet-700 hover:bg-violet-50 disabled:text-slate-400"
               >
-                <span>Sample beat</span>
-                <span aria-hidden="true">{sampleBeatMenuOpen ? "v" : ">"}</span>
+                <span>{t("Sample beat")}</span>
+                <span aria-hidden="true">{sampleBeatMenuOpen ? t("v") : ">"}</span>
               </button>
               {sampleBeatMenuOpen && (
                 <div className="mx-1 rounded border border-violet-100 bg-violet-50/50 py-1">
@@ -2541,10 +2533,10 @@ export default function GteDrumWorkspace({
                       key={pattern.id}
                       type="button"
                       onClick={() => applySampleBeat(pattern.id)}
-                      title={pattern.description}
+                      title={t(pattern.description)}
                       className="block w-full px-3 py-1.5 text-left text-slate-700 hover:bg-violet-100"
                     >
-                      {pattern.label}
+                      {t(pattern.label)}
                     </button>
                   ))}
                 </div>
@@ -2563,7 +2555,7 @@ export default function GteDrumWorkspace({
                 disabled={selectedNoteIds.size === 0 && selectedBarIndices.length === 0}
                 className="flex w-full px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
               >
-                {selectedNoteIds.size > 0 ? "Copy notes" : "Copy bars"}
+                {selectedNoteIds.size > 0 ? t("Copy notes") : t("Copy bars")}
               </button>
             </>
           )}
@@ -2573,9 +2565,7 @@ export default function GteDrumWorkspace({
             disabled={!barClipboardAvailable && !noteClipboardAvailable}
             className="flex w-full px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
           >
-            {lastClipboardKind === "notes" && noteClipboardAvailable
-              ? "Paste notes"
-              : "Paste bars"}
+            {lastClipboardKind === "notes" && noteClipboardAvailable ? t("Paste notes") : t("Paste bars")}
           </button>
           {barContextMenu.selectionActions && (
             <button
@@ -2591,7 +2581,7 @@ export default function GteDrumWorkspace({
               disabled={selectedNoteIds.size === 0 && selectedBarIndices.length === 0}
               className="flex w-full px-3 py-2 text-left text-rose-600 hover:bg-rose-50 disabled:text-slate-400"
             >
-              {selectedNoteIds.size > 0 ? "Delete notes" : "Delete bars"}
+              {selectedNoteIds.size > 0 ? t("Delete notes") : t("Delete bars")}
             </button>
           )}
         </div>
@@ -2614,16 +2604,12 @@ export default function GteDrumWorkspace({
                 setLoopContextMenu(null);
               }}
               className="flex w-full px-3 py-2 text-left text-slate-700 hover:bg-slate-100"
-            >
-              Change selected section
-            </button>
+            >{t("Change selected section")}</button>
             <button
               type="button"
               onClick={() => deleteLoop(loop.id)}
               className="flex w-full px-3 py-2 text-left text-rose-600 hover:bg-rose-50"
-            >
-              Delete loop
-            </button>
+            >{t("Delete loop")}</button>
           </div>
         );
       })()}
@@ -2635,14 +2621,12 @@ export default function GteDrumWorkspace({
         <button
           type="button"
           data-drum-track-selector="true"
-          aria-label="Select drum track for editing"
-          title="Select drum track for editing"
+          aria-label={t("Select drum track for editing")}
+          title={t("Select drum track for editing")}
           onMouseDown={(event) => event.stopPropagation()}
           onClick={selectTrackOnly}
           className="min-w-0 flex-1 text-left text-[10px] font-semibold text-slate-600"
-        >
-          Drum editor
-        </button>
+        >{t("Drum editor")}</button>
         {selectedNoteIds.size > 0 && (
           <button
             type="button"
@@ -2651,10 +2635,9 @@ export default function GteDrumWorkspace({
               void deleteHits(selectedNoteIds);
             }}
             className="rounded-md px-2 py-1 text-[10px] font-semibold text-rose-700 hover:bg-rose-50"
-            aria-label={`Delete ${selectedNoteIds.size} selected drum ${selectedNoteIds.size === 1 ? "hit" : "hits"}`}
-            title="Delete selected drum hits (Delete)"
-          >
-            Delete {selectedNoteIds.size}
+            aria-label={t("Delete {value1} selected drum {value2}", {value1: selectedNoteIds.size, value2: selectedNoteIds.size === 1 ? t("hit") : t("hits")})}
+            title={t("Delete selected drum hits (Delete)")}
+          >{t("Delete ")}{selectedNoteIds.size}
           </button>
         )}
       </div>
@@ -2729,7 +2712,7 @@ export default function GteDrumWorkspace({
                 width: trackOffsetWidth,
                 height: ROW_HEIGHT * DRUM_VOICES.length + RULER_HEIGHT,
               }}
-              title={`Track begins at bar ${trackOffsetFrames / FRAMES_PER_BAR + 1}`}
+              title={t("Track begins at bar {value1}", {value1: trackOffsetFrames / FRAMES_PER_BAR + 1})}
               onPointerDown={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -2785,11 +2768,11 @@ export default function GteDrumWorkspace({
                     height: RULER_HEIGHT,
                   }}
                   title={barBpmTitle(index)}
-                  aria-label={`Select Bar ${index + 1}, ${formatTimingBpm(
+                  aria-label={t("Select Bar {value1}, {value2} BPM", {value1: index + 1, value2: formatTimingBpm(
                     getTimingBarBpm(timingMap, index, fallbackBarBpm)
-                  )} BPM`}
+                  )})}
                 >
-                  {showBarNumbers ? <span className="truncate">Bar {index + 1}</span> : null}
+                  {showBarNumbers ? <span className="truncate">{t("Bar ")}{index + 1}</span> : null}
                 </button>
               );
             })}
@@ -2828,7 +2811,7 @@ export default function GteDrumWorkspace({
                   height: RULER_HEIGHT + ROW_HEIGHT * DRUM_VOICES.length,
                   opacity: dragEnabled ? (active ? 0.95 : 0.35) : 0,
                 }}
-                title={dragEnabled ? `Insert bars at ${insertIndex + 1}` : undefined}
+                title={dragEnabled ? t("Insert bars at {value1}", {value1: insertIndex + 1}) : undefined}
               />
             );
           })}
@@ -2849,7 +2832,7 @@ export default function GteDrumWorkspace({
               <div
                 className="sticky left-0 z-50 flex h-full items-center border-r border-slate-200 bg-slate-100 px-1.5 text-[9px] font-semibold text-slate-700"
                 style={{ width: VISIBLE_LABEL_WIDTH }}
-                title={`${voice.label} · key ${voice.key}`}
+                title={t("{value1} · key {value2}", {value1: t(voice.label), value2: voice.key})}
               >
                 <span>{shortLabelForVoice(voice.id)}</span>
               </div>
@@ -2902,7 +2885,7 @@ export default function GteDrumWorkspace({
                   width: loopWidth,
                   height: ROW_HEIGHT * DRUM_VOICES.length,
                 }}
-                title="Drag loop · Right-click for loop actions"
+                title={t("Drag loop · Right-click for loop actions")}
                 onPointerDown={(event) => startLoopInteraction(loop, "move", event)}
                 onContextMenu={(event) => {
                   event.preventDefault();
@@ -2915,8 +2898,7 @@ export default function GteDrumWorkspace({
                   className="pointer-events-none absolute inset-y-0 left-0 border-r border-dashed border-sky-600/70 bg-sky-200/25"
                   style={{ width: sourceWidth }}
                 />
-                <span className="pointer-events-none absolute left-1 top-0.5 rounded bg-white/80 px-1 text-[8px] font-bold text-sky-800 shadow-sm">
-                  Loop ×{repetitions.toFixed(repetitions % 1 === 0 ? 0 : 1)}
+                <span className="pointer-events-none absolute left-1 top-0.5 rounded bg-white/80 px-1 text-[8px] font-bold text-sky-800 shadow-sm">{t("Loop ×")}{repetitions.toFixed(repetitions % 1 === 0 ? 0 : 1)}
                 </span>
                 {editingSource && (
                   <>
@@ -2924,16 +2906,16 @@ export default function GteDrumWorkspace({
                       type="button"
                       className="absolute inset-y-0 left-0 z-30 w-3 -translate-x-1/2 cursor-ew-resize bg-sky-500/30"
                       onPointerDown={(event) => startLoopInteraction(loop, "resize-source-start", event)}
-                      title="Change loop source start"
-                      aria-label="Change loop source start"
+                      title={t("Change loop source start")}
+                      aria-label={t("Change loop source start")}
                     />
                     <button
                       type="button"
                       className="absolute inset-y-0 z-30 w-3 -translate-x-1/2 cursor-ew-resize bg-sky-500/30"
                       style={{ left: sourceWidth }}
                       onPointerDown={(event) => startLoopInteraction(loop, "resize-source-end", event)}
-                      title="Change loop source end"
-                      aria-label="Change loop source end"
+                      title={t("Change loop source end")}
+                      aria-label={t("Change loop source end")}
                     />
                   </>
                 )}
@@ -2941,8 +2923,8 @@ export default function GteDrumWorkspace({
                   type="button"
                   className="absolute inset-y-0 right-0 z-30 w-3 translate-x-1/2 cursor-ew-resize bg-sky-600/35"
                   onPointerDown={(event) => startLoopInteraction(loop, "resize-loop", event)}
-                  title="Extend loop"
-                  aria-label="Extend loop"
+                  title={t("Extend loop")}
+                  aria-label={t("Extend loop")}
                 />
               </div>
             );
@@ -3001,8 +2983,8 @@ export default function GteDrumWorkspace({
                   borderRadius: Math.min(6, drumHitSize / 4),
                   fontSize: drumHitSize >= 8 ? Math.min(10, drumHitSize * 0.45) : 0,
                 }}
-                title={`${virtual ? "Virtual " : ""}${voice.label} at frame ${note.startTime}. Select, drag, or press Delete to remove.`}
-                aria-label={`${virtual ? "Virtual " : ""}${voice.label} drum hit`}
+                title={t("{value1}{value2} at frame {value3}. Select, drag, or press Delete to remove.", {value1: virtual ? t("Virtual ") : "", value2: t(voice.label), value3: note.startTime})}
+                aria-label={t("{value1}{value2} drum hit", {value1: virtual ? t("Virtual ") : "", value2: t(voice.label)})}
                 onPointerDown={(event) => {
                   if (virtual) return;
                   if (event.button !== 0) return;
@@ -3075,8 +3057,8 @@ export default function GteDrumWorkspace({
               width: timelineWidth,
               height: TIME_RULER_HEIGHT,
             }}
-            title="Click to jump playback"
-            aria-label="Timeline seconds ruler"
+            title={t("Click to jump playback")}
+            aria-label={t("Timeline seconds ruler")}
             onPointerDown={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -3159,30 +3141,23 @@ export default function GteDrumWorkspace({
                 id="gte-drum-transform-title"
                 className="m-0 text-sm font-semibold text-slate-900"
               >
-                {quantizeDialogOpen
-                  ? "Quantize drum notes"
-                  : "Scale drum notes"}
+                {quantizeDialogOpen ? t("Quantize drum notes") : t("Scale drum notes")}
               </h2>
-              <p className="mt-1 text-[11px] leading-4 text-slate-500">
-                Previewing {selectedNoteIds.size} selected drum{" "}
-                {selectedNoteIds.size === 1 ? "note" : "notes"}.
+              <p className="mt-1 text-[11px] leading-4 text-slate-500">{t("Previewing ")}{selectedNoteIds.size}{t(" selected drum")}{" "}
+                {selectedNoteIds.size === 1 ? t("note") : t("notes")}.
               </p>
             </div>
             <button
               type="button"
               onClick={closeTransformTools}
               className="grid h-6 w-6 place-items-center rounded-md border border-slate-200 text-xs text-slate-500 hover:bg-slate-50"
-              aria-label="Close"
-            >
-              x
-            </button>
+              aria-label={t("Close")}
+            >{t("x")}</button>
           </div>
 
           {quantizeDialogOpen ? (
             <div className="mt-3 grid gap-2">
-              <label className="grid gap-1 text-[11px] font-semibold text-slate-600">
-                Beat subdivision
-                <input
+              <label className="grid gap-1 text-[11px] font-semibold text-slate-600">{t("Beat subdivision")}<input
                   type="number"
                   min={1}
                   max={64}
@@ -3203,9 +3178,7 @@ export default function GteDrumWorkspace({
                   className="h-9 rounded-lg border border-slate-200 px-2 text-sm"
                 />
               </label>
-              <label className="grid gap-1 text-[11px] font-semibold text-slate-600">
-                Pre scaling
-                <input
+              <label className="grid gap-1 text-[11px] font-semibold text-slate-600">{t("Pre scaling")}<input
                   type="number"
                   min={0.01}
                   max={16}
@@ -3240,15 +3213,11 @@ export default function GteDrumWorkspace({
                     );
                   }}
                   className="h-4 w-4 accent-sky-600"
-                />
-                Apply to length
-              </label>
+                />{t("Apply to length")}</label>
             </div>
           ) : (
             <div className="mt-3 grid gap-2">
-              <label className="grid gap-1 text-[11px] font-semibold text-slate-600">
-                Scale mode
-                <select
+              <label className="grid gap-1 text-[11px] font-semibold text-slate-600">{t("Scale mode")}<select
                   value={scaleMode}
                   onChange={(event) => {
                     const mode = event.target.value as
@@ -3260,14 +3229,12 @@ export default function GteDrumWorkspace({
                   }}
                   className="h-9 rounded-lg border border-slate-200 px-2 text-sm"
                 >
-                  <option value="length">Length scaling</option>
-                  <option value="start">Start-time scaling</option>
-                  <option value="both">Start + length</option>
+                  <option value="length">{t("Length scaling")}</option>
+                  <option value="start">{t("Start-time scaling")}</option>
+                  <option value="both">{t("Start + length")}</option>
                 </select>
               </label>
-              <label className="grid gap-1 text-[11px] font-semibold text-slate-600">
-                Scale factor
-                <input
+              <label className="grid gap-1 text-[11px] font-semibold text-slate-600">{t("Scale factor")}<input
                   type="number"
                   min={0.01}
                   max={16}
@@ -3292,16 +3259,12 @@ export default function GteDrumWorkspace({
               type="button"
               onClick={closeTransformTools}
               className="h-8 rounded-lg border border-slate-200 px-3 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
-            >
-              Cancel
-            </button>
+            >{t("Cancel")}</button>
             <button
               type="button"
               onClick={commitTransformTool}
               className="h-8 rounded-lg bg-sky-600 px-3 text-[11px] font-semibold text-white hover:bg-sky-500"
-            >
-              Apply
-            </button>
+            >{t("Apply")}</button>
           </div>
         </div>
       )}
@@ -3314,7 +3277,7 @@ export default function GteDrumWorkspace({
             <span
               className="pointer-events-auto absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-slate-200 bg-white/95 px-2 py-1 text-[10px] font-semibold tabular-nums text-slate-600 shadow-sm"
               role="timer"
-              aria-label="Playback time"
+              aria-label={t("Playback time")}
             >
               {formatTimelineSecondLabel((getGlobalPlaybackFrame?.() ?? globalPlaybackFrame) / playbackFps)} / {formatTimelineSecondLabel(totalFrames / playbackFps)}
             </span>
@@ -3326,18 +3289,10 @@ export default function GteDrumWorkspace({
               disabled={globalPlaybackIsPreparing}
               className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700 disabled:cursor-wait disabled:bg-slate-700"
               aria-label={
-                globalPlaybackIsPreparing
-                  ? "Loading drum sounds"
-                  : globalPlaybackIsPlaying
-                    ? "Pause"
-                    : "Play"
+                globalPlaybackIsPreparing ? t("Loading drum sounds") : globalPlaybackIsPlaying ? t("Pause") : t("Play")
               }
               title={
-                globalPlaybackIsPreparing
-                  ? "Loading drum sounds"
-                  : globalPlaybackIsPlaying
-                    ? "Pause"
-                    : "Play"
+                globalPlaybackIsPreparing ? t("Loading drum sounds") : globalPlaybackIsPlaying ? t("Pause") : t("Play")
               }
             >
               {globalPlaybackIsPreparing ? (
@@ -3369,8 +3324,8 @@ export default function GteDrumWorkspace({
                 onGlobalPlaybackVolumeChange?.(Number(event.target.value))
               }
               className="w-20 accent-slate-700"
-              title="Volume"
-              aria-label="Playback volume"
+              title={t("Volume")}
+              aria-label={t("Playback volume")}
             />
           </div>
         </div>,

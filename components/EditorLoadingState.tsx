@@ -33,12 +33,13 @@ export function EditorLoadingState({
 }
 
 export function EditorLibraryLoadingState() {
+  const { t } = useLocale();
   return (
     <div
       className="gte-library-loading"
       role="status"
       aria-live="polite"
-      aria-label="Loading editors"
+      aria-label={t("Loading editors")}
     >
       {[0, 1, 2].map((item) => (
         <div className="card-outline gte-library-row gte-library-row--loading" key={item}>

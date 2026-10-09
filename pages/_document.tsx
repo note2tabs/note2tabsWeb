@@ -1,5 +1,6 @@
+import { editorRequestLocale } from "../lib/i18n/editor/detection";
 import NextDocument, { Html, Head, Main, NextScript, type DocumentContext, type DocumentInitialProps } from "next/document";
-import { localeFromPath, localeDirection, type AppLocale } from "../lib/i18n/locale";
+import { localeFromPath, localeDirection, isEditorPath, type AppLocale } from "../lib/i18n/locale";
 
 export default function Document({ contentLocale = "en" }: DocumentInitialProps & { contentLocale?: AppLocale }) {
   return (
@@ -108,5 +109,5 @@ export default function Document({ contentLocale = "en" }: DocumentInitialProps 
 
 Document.getInitialProps = async (context: DocumentContext) => ({
   ...await NextDocument.getInitialProps(context),
-  contentLocale: localeFromPath(context.req?.url || context.pathname),
+  contentLocale: isEditorPath(context.req?.url || context.pathname) && context.req ? editorRequestLocale(context.req) : localeFromPath(context.req?.url || context.pathname),
 });

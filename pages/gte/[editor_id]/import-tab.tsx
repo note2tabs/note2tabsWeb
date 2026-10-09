@@ -1,3 +1,4 @@
+import { withEditorLocale } from "../../../lib/i18n/editor/request";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../api/auth/[...nextauth]";
@@ -6,7 +7,7 @@ export default function ImportTabRedirectPage() {
   return null;
 }
 
-export const getServerSideProps: GetServerSideProps = async (ctx) => {
+export const getServerSideProps: GetServerSideProps = withEditorLocale(async (ctx) => {
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
   const userId = (session?.user as { id?: string } | undefined)?.id;
   if (!userId) {
@@ -30,4 +31,4 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       permanent: false,
     },
   };
-};
+});

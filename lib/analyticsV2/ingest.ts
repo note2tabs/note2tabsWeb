@@ -1,4 +1,5 @@
-import {localeCohort, localeFromPath, normalizeLocale} from "../i18n/locale";
+import {editorRequestLocale} from "../i18n/editor/detection";
+import {localeCohort, localeFromPath, normalizeLocale, isEditorPath} from "../i18n/locale";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { isIP } from "node:net";
 import { createHash } from "node:crypto";
@@ -196,9 +197,15 @@ export async function ingestAnalyticsEvents(
     const safeReferrer = sanitizeAnalyticsReferrer(event.referrer);
     const safeReferringDomain = referringDomain(safeReferrer);
 
+    const contentLocale = event.path && isEditorPath(event.path)
+      ? editorRequestLocale({
+          cookies: {n2t_locale: cookies.n2t_locale || (typeof event.props.content_locale === "string" ? event.props.content_locale : undefined)},
+          headers: {"accept-language": header(context.req, "accept-language")},
+        })
+      : event.path ? localeFromPath(event.path) : normalizeLocale(event.props.content_locale);
     const properties = sanitizeAnalyticsProperties({
         ...clientEventProperties(event.props),
-        ...localeCohort(event.path ? localeFromPath(event.path) : normalizeLocale(event.props.content_locale), edgeCountry || (context.source === "transcription_job_outbox" ? event.props.visitor_country : undefined)),
+        ...localeCohort(contentLocale, edgeCountry || (context.source === "transcription_job_outbox" ? event.props.visitor_country : undefined)),
         $insert_id: event.eventId,
         $current_url: currentUrl,
         ...(safeHost ? { $host: safeHost } : {}),

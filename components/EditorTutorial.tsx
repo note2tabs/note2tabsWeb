@@ -1,3 +1,4 @@
+import { useLocale } from "../lib/i18n/react";
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -15,13 +16,14 @@ type Props = {
 const EDITOR_TUTORIAL_OPEN_EVENT = "note2tabs:open-editor-tutorial";
 
 export function EditorTutorialTrigger({ className = "" }: { className?: string }) {
+  const { t } = useLocale();
   return (
     <button
       type="button"
       onClick={() => window.dispatchEvent(new Event(EDITOR_TUTORIAL_OPEN_EVENT))}
       className={`flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-sm font-bold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${className}`.trim()}
-      aria-label="Open editor tutorial"
-      title="Editor tutorial"
+      aria-label={t("Open editor tutorial")}
+      title={t("Editor tutorial")}
     >
       ?
     </button>
@@ -39,17 +41,17 @@ const Arrow = ({ direction }: { direction: "left" | "right" }) => (
   </svg>
 );
 
-const tutorialToken = (token: string, key: number) => {
+const tutorialToken = (token: string, key: number, t: (source: string) => string) => {
   const keyClass = "mx-0.5 inline-flex min-h-5 min-w-5 items-center justify-center rounded border border-slate-300 bg-white px-1 text-[11px] font-semibold leading-none text-slate-700 shadow-[0_1px_0_rgba(15,23,42,0.12)] align-middle";
   if (token === "gridOn" || token === "keyOn") {
     return (
       <span
         key={key}
         className="mx-0.5 inline-flex min-h-6 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2 text-[11px] font-semibold leading-none text-slate-700 align-middle"
-        aria-label={`${token === "gridOn" ? "Grid" : "Key"} toggle on`}
+        aria-label={`${t(token === "gridOn" ? "Grid" : "Key")} toggle on`}
       >
-        {token === "gridOn" ? "Grid" : "Key"}
-        <span className="text-emerald-700">On</span>
+        {t(token === "gridOn" ? "Grid" : "Key")}
+        <span className="text-emerald-700">{t("On")}</span>
       </span>
     );
   }
@@ -58,8 +60,8 @@ const tutorialToken = (token: string, key: number) => {
       <span
         key={key}
         className="mx-0.5 inline-flex h-6 w-7 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 align-middle"
-        title="Box select"
-        aria-label="box select"
+        title={t("Box select")}
+        aria-label={t("box select")}
       >
         <svg viewBox="0 0 20 16" className="h-4 w-5 fill-none stroke-current" aria-hidden="true">
           <rect x="2.5" y="2.5" width="12" height="9" rx="1" strokeDasharray="2 1.5" />
@@ -73,8 +75,8 @@ const tutorialToken = (token: string, key: number) => {
       <span
         key={key}
         className="relative mx-0.5 inline-flex h-4 w-9 rounded border border-sky-400 bg-sky-100 align-middle"
-        title="Playing coordinate"
-        aria-label="playing coordinate"
+        title={t("Playing coordinate")}
+        aria-label={t("playing coordinate")}
       >
         <span className="absolute -bottom-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 border-b border-r border-sky-400 bg-sky-100" />
       </span>
@@ -90,16 +92,16 @@ const tutorialToken = (token: string, key: number) => {
         : "Optimize to coordinates";
     return (
       <span key={key} className="mx-0.5 inline-flex min-h-6 items-center rounded-md border border-slate-300 bg-white px-2 text-[11px] font-semibold leading-none text-slate-700 align-middle">
-        {label}
+        {t(label)}
       </span>
     );
   }
   if (token === "right") {
-    return <span key={key} className="mx-0.5 inline-block font-semibold text-slate-500" aria-label="then">→</span>;
+    return <span key={key} className="mx-0.5 inline-block font-semibold text-slate-500" aria-label={t("then")}>→</span>;
   }
   if (token === "mouse") {
     return (
-      <span key={key} className="mx-0.5 inline-flex align-middle" title="Mouse" aria-label="mouse">
+      <span key={key} className="mx-0.5 inline-flex align-middle" title={t("Mouse")} aria-label={t("mouse")}>
         <svg viewBox="0 0 16 22" className="h-[19px] w-3.5 fill-none stroke-current text-slate-700" aria-hidden="true">
           <rect x="2" y="1" width="12" height="20" rx="6" />
           <path d="M8 1v6" />
@@ -126,16 +128,17 @@ const tutorialToken = (token: string, key: number) => {
     m: "M",
     s: "S",
   };
-  return labels[token] ? <kbd key={key} className={keyClass}>{labels[token]}</kbd> : `{${token}}`;
+  return labels[token] ? <kbd key={key} className={keyClass} dir="ltr">{labels[token]}</kbd> : `{${token}}`;
 };
 
-const renderTutorialText = (text: string) =>
+const renderTutorialText = (text: string, t: (source: string) => string) =>
   text.split(/(\{(?:numbers|mouse|enter|plus|minus|arrows|backspace|delete|\?|comma|period|shift|a|o|g|n|m|s|boxSelect|coordinate|tools|help|right|optimizeFingering|optimizeCoordinates|gridOn|keyOn)\})/g).map((part, index) => {
     const match = part.match(/^\{(.+)\}$/);
-    return match ? tutorialToken(match[1], index) : part;
+    return match ? tutorialToken(match[1], index, t) : part;
   });
 
 export default function EditorTutorial({ hasAccount, passedTutorial, cards = EDITOR_TUTORIAL_CARDS }: Props) {
+  const { t, locale } = useLocale();
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
   const interactionRecorded = useRef(passedTutorial);
@@ -224,7 +227,7 @@ export default function EditorTutorial({ hasAccount, passedTutorial, cards = EDI
               type="button"
               onClick={() => interact(() => setOpen(false))}
               className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/70 bg-white/90 text-xl font-light text-slate-700 shadow-sm backdrop-blur hover:bg-white"
-              aria-label="Close tutorial"
+              aria-label={t("Close tutorial")}
             >
               ×
             </button>
@@ -234,7 +237,7 @@ export default function EditorTutorial({ hasAccount, passedTutorial, cards = EDI
                 <video
                   key={activeCard.id}
                   src={activeCard.mediaSrc}
-                  aria-label={activeCard.mediaAlt}
+                  aria-label={t(activeCard.mediaAlt)}
                   autoPlay
                   muted
                   loop
@@ -246,7 +249,7 @@ export default function EditorTutorial({ hasAccount, passedTutorial, cards = EDI
                 <Image
                   key={activeCard.id}
                   src={activeCard.mediaSrc}
-                  alt={activeCard.mediaAlt}
+                  alt={t(activeCard.mediaAlt)}
                   fill
                   priority={index === 0}
                   sizes="(max-width: 640px) calc(100vw - 32px), 576px"
@@ -258,12 +261,12 @@ export default function EditorTutorial({ hasAccount, passedTutorial, cards = EDI
 
             <div className="px-6 pb-5 pt-3 sm:px-8 sm:pb-7">
               <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-800/70">
-                {activeCard.eyebrow}
+                {t(activeCard.eyebrow)}
               </p>
               <h2 id="editor-tutorial-title" className="mb-0 mt-2 text-2xl font-semibold tracking-[-0.025em] text-slate-950">
-                {activeCard.title}
+                {t(activeCard.title)}
               </h2>
-              <p className="mb-0 mt-3 text-[15px] leading-6 text-slate-600">{renderTutorialText(activeCard.text)}</p>
+              <p className="mb-0 mt-3 text-[15px] leading-6 text-slate-600">{renderTutorialText(t(activeCard.text), t)}</p>
 
               <div className="mt-7 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
                 <button
@@ -272,10 +275,9 @@ export default function EditorTutorial({ hasAccount, passedTutorial, cards = EDI
                   onClick={() => interact(() => setIndex((current) => Math.max(0, current - 1)))}
                   className="inline-flex h-10 w-fit items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 disabled:invisible"
                 >
-                  <Arrow direction="left" /> Previous
-                </button>
+                  <Arrow direction={locale === "ar" ? "right" : "left"} />{t(" Previous")}</button>
 
-                <div className="flex items-center justify-center gap-2" aria-label={`Tutorial step ${index + 1} of ${cards.length}`}>
+                <div className="flex items-center justify-center gap-2" aria-label={t("Tutorial step {value1} of {value2}", {value1: index + 1, value2: cards.length})}>
                   {cards.map((card, cardIndex) => (
                     <button
                       key={card.id}
@@ -284,7 +286,7 @@ export default function EditorTutorial({ hasAccount, passedTutorial, cards = EDI
                       className={`rounded-full bg-slate-800 transition-all ${
                         cardIndex === index ? "h-2.5 w-2.5 opacity-90" : "h-2 w-2 opacity-25 hover:opacity-50"
                       }`}
-                      aria-label={`Go to tutorial step ${cardIndex + 1}`}
+                      aria-label={t("Go to tutorial step {value1}", {value1: cardIndex + 1})}
                       aria-current={cardIndex === index ? "step" : undefined}
                     />
                   ))}
@@ -298,7 +300,7 @@ export default function EditorTutorial({ hasAccount, passedTutorial, cards = EDI
                   })}
                   className="ml-auto inline-flex h-10 items-center gap-1.5 rounded-full bg-slate-950 px-4 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
                 >
-                  {index === cards.length - 1 ? "Done" : "Next"} <Arrow direction="right" />
+                  {index === cards.length - 1 ? t("Done") : t("Next")} <Arrow direction={locale === "ar" ? "left" : "right"} />
                 </button>
               </div>
             </div>

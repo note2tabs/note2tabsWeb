@@ -1,0 +1,167 @@
+{
+  "environment": "local production build",
+  "routes_checked": 16,
+  "anonymous_auth_redirect_languages_checked": 7,
+  "results": [
+    {
+      "locale": "en",
+      "path": "/gte/local",
+      "title": "Guitar Tab Editor Workspace | Note2Tabs",
+      "lang": "en",
+      "direction": "ltr",
+      "robots": "noindex,follow",
+      "canonical": "https://www.note2tabs.com/gte/local",
+      "catalogue_entries": 986
+    },
+    {
+      "locale": "en",
+      "path": "/gte/local/tabs",
+      "title": "Text tab export | Note2Tabs",
+      "lang": "en",
+      "direction": "ltr",
+      "robots": "noindex,follow",
+      "canonical": "https://www.note2tabs.com/gte/local/tabs",
+      "catalogue_entries": 986
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/gte/local",
+      "title": "Área de edição de tablaturas | Note2Tabs",
+      "lang": "pt-BR",
+      "direction": "ltr",
+      "robots": "noindex,follow",
+      "canonical": "https://www.note2tabs.com/gte/local",
+      "catalogue_entries": 986
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/gte/local/tabs",
+      "title": "Exportar tablatura de texto | Note2Tabs",
+      "lang": "pt-BR",
+      "direction": "ltr",
+      "robots": "noindex,follow",
+      "canonical": "https://www.note2tabs.com/gte/local/tabs",
+      "catalogue_entries": 986
+    },
+    {
+      "locale": "es",
+      "path": "/gte/local",
+      "title": "Área de edición de tablaturas | Note2Tabs",
+      "lang": "es",
+      "direction": "ltr",
+      "robots": "noindex,follow",
+      "canonical": "https://www.note2tabs.com/gte/local",
+      "catalogue_entries": 986
+    },
+    {
+      "locale": "es",
+      "path": "/gte/local/tabs",
+      "title": "Exportar tablatura de texto | Note2Tabs",
+      "lang": "es",
+      "direction": "ltr",
+      "robots": "noindex,follow",
+      "canonical": "https://www.note2tabs.com/gte/local/tabs",
+      "catalogue_entries": 986
+    },
+    {
+      "locale": "ja",
+      "path": "/gte/local",
+      "title": "ギターTAB譜の作業画面 · Note2Tabs",
+      "lang": "ja",
+      "direction": "ltr",
+      "robots": "noindex,follow",
+      "canonical": "https://www.note2tabs.com/gte/local",
+      "catalogue_entries": 986
+    },
+    {
+      "locale": "ja",
+      "path": "/gte/local/tabs",
+      "title": "テキストTAB譜の書き出し · Note2Tabs",
+      "lang": "ja",
+      "direction": "ltr",
+      "robots": "noindex,follow",
+      "canonical": "https://www.note2tabs.com/gte/local/tabs",
+      "catalogue_entries": 986
+    },
+    {
+      "locale": "ko",
+      "path": "/gte/local",
+      "title": "기타 타브 작업 공간 · Note2Tabs",
+      "lang": "ko",
+      "direction": "ltr",
+      "robots": "noindex,follow",
+      "canonical": "https://www.note2tabs.com/gte/local",
+      "catalogue_entries": 986
+    },
+    {
+      "locale": "ko",
+      "path": "/gte/local/tabs",
+      "title": "텍스트 타브 내보내기 · Note2Tabs",
+      "lang": "ko",
+      "direction": "ltr",
+      "robots": "noindex,follow",
+      "canonical": "https://www.note2tabs.com/gte/local/tabs",
+      "catalogue_entries": 986
+    },
+    {
+      "locale": "pl",
+      "path": "/gte/local",
+      "title": "Edytor tabulatur | Note2Tabs",
+      "lang": "pl",
+      "direction": "ltr",
+      "robots": "noindex,follow",
+      "canonical": "https://www.note2tabs.com/gte/local",
+      "catalogue_entries": 986
+    },
+    {
+      "locale": "pl",
+      "path": "/gte/local/tabs",
+      "title": "Eksport tabulatury tekstowej | Note2Tabs",
+      "lang": "pl",
+      "direction": "ltr",
+      "robots": "noindex,follow",
+      "canonical": "https://www.note2tabs.com/gte/local/tabs",
+      "catalogue_entries": 986
+    },
+    {
+      "locale": "ar",
+      "path": "/gte/local",
+      "title": "مساحة محرّر تابلاتشر الغيتار | Note2Tabs",
+      "lang": "ar",
+      "direction": "rtl",
+      "robots": "noindex,follow",
+      "canonical": "https://www.note2tabs.com/gte/local",
+      "catalogue_entries": 986
+    },
+    {
+      "locale": "ar",
+      "path": "/gte/local/tabs",
+      "title": "تصدير تابلاتشر نصي | Note2Tabs",
+      "lang": "ar",
+      "direction": "rtl",
+      "robots": "noindex,follow",
+      "canonical": "https://www.note2tabs.com/gte/local/tabs",
+      "catalogue_entries": 986
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/gte/local",
+      "title": "吉他六线谱编辑工作区 | Note2Tabs",
+      "lang": "zh-Hans",
+      "direction": "ltr",
+      "robots": "noindex,follow",
+      "canonical": "https://www.note2tabs.com/gte/local",
+      "catalogue_entries": 986
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/gte/local/tabs",
+      "title": "导出文本六线谱 | Note2Tabs",
+      "lang": "zh-Hans",
+      "direction": "ltr",
+      "robots": "noindex,follow",
+      "canonical": "https://www.note2tabs.com/gte/local/tabs",
+      "catalogue_entries": 986
+    }
+  ]
+}

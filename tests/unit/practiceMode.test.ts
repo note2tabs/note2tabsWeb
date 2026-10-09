@@ -37,16 +37,16 @@ describe("editor practice mode", () => {
     expect(editorPage).toContain('setEditorMode("canvas")');
     expect(editorPage).toContain('setEditorMode("tab")');
     expect(editorPage).toContain('setEditorMode("practice")');
-    expect(editorPage).toContain('aria-label="Workspace mode"');
+    expect(editorPage).toContain('aria-label={t("Workspace mode")}');
   });
 
   it("collects the existing training controls in the practice workspace", () => {
-    expect(editorPage).toContain(">Practice<");
-    expect(editorPage).toContain("Loop {practiceLoopEnabled");
-    expect(editorPage).toContain("Metronome {metronomeEnabled");
-    expect(editorPage).toContain("<span>Count-in</span>");
-    expect(editorPage).toContain("<span>Speed trainer</span>");
-    expect(editorPage).toContain('aria-label="Practice playback speed"');
+    expect(editorPage).toContain('>{t("Practice")}<');
+    expect(editorPage).toContain('{t("Loop ")}{practiceLoopEnabled');
+    expect(editorPage).toContain('{t("Metronome ")}{metronomeEnabled');
+    expect(editorPage).toContain('<span>{t("Count-in")}</span>');
+    expect(editorPage).toContain('<span>{t("Speed trainer")}</span>');
+    expect(editorPage).toContain('aria-label={t("Practice playback speed")}');
   });
 
   it("keeps practice controls out of the normal playback toolbar", () => {
@@ -70,7 +70,7 @@ describe("editor practice mode", () => {
 
   it("shows only the chosen track while practising", () => {
     expect(editorPage).toContain("Switch practice track. Current track:");
-    expect(editorPage).toContain('aria-label="Choose a track to practice"');
+    expect(editorPage).toContain('aria-label={t("Choose a track to practice")}');
     expect(editorPage).toContain(
       "practiceModeEnabled && laneId !== globalControlsLaneId"
     );
@@ -94,7 +94,7 @@ describe("editor practice mode", () => {
   });
 
   it("keeps playback sound controls available in practice", () => {
-    expect(editorPage).toContain('aria-label="Practice instrument"');
+    expect(editorPage).toContain('aria-label={t("Practice instrument")}');
     expect(editorPage).toContain("toggleTrackMute(practiceSoundLaneId)");
     expect(editorPage).toContain("toggleTrackIsolation(practiceSoundLaneId)");
     expect(editorPage).toContain("handleTrackVolumePreview(practiceSoundLaneId");
@@ -103,10 +103,10 @@ describe("editor practice mode", () => {
   });
 
   it("supports standalone chord tracks and chord overlays in practice", () => {
-    expect(editorPage).toContain('aria-label="Chord overlay"');
+    expect(editorPage).toContain('aria-label={t("Chord overlay")}');
     expect(editorPage).toContain("practiceChordOverlayLaneId");
     expect(editorPage).toContain("practiceChordOverlay={");
-    expect(editorPage).toContain("`Track ${candidateIndex + 1} · Chords`");
+    expect(editorPage).toContain('t("Track {value1} · Chords", {value1: candidateIndex + 1})');
     expect(workspace).toContain("practiceChordOverlay?: EditorSnapshot | null");
     expect(workspace).toContain("practiceChordOverlayItems");
     expect(workspace).toContain("getPracticeChordFingering");
@@ -118,8 +118,8 @@ describe("editor practice mode", () => {
     );
     expect(workspace).toContain("border-slate-300 bg-slate-100");
     expect(workspace).not.toContain("border-violet-200 bg-violet-50");
-    expect(editorPage).toContain("`Track ${trackNumber} · ${chordLane.name");
-    expect(editorPage).toContain("`Track ${candidateIndex + 1} · Chords`");
+    expect(editorPage).toContain('t("Track {value1} · {value2}", {value1: trackNumber, value2: editorName(chordLane.name');
+    expect(editorPage).toContain('t("Track {value1} · Chords", {value1: candidateIndex + 1})');
   });
 
   it("uses compact tab staffs with clearer row and chord spacing", () => {
@@ -147,7 +147,7 @@ describe("editor practice mode", () => {
   });
 
   it("runs speed training from a configured start and restores the previous speed", () => {
-    expect(editorPage).toContain('aria-label="Speed trainer start"');
+    expect(editorPage).toContain('aria-label={t("Speed trainer start")}');
     expect(editorPage).toContain("SPEED_TRAINER_START_OPTIONS.filter");
     expect(editorPage).toContain("speedTrainerOriginalSpeedRef.current = normalizedPlaybackSpeed");
     expect(editorPage).toContain("setPlaybackSpeed(nextSpeed)");

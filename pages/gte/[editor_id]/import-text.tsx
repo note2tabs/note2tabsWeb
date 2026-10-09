@@ -1,3 +1,6 @@
+import { withEditorLocale } from "../../../lib/i18n/editor/request";
+import { translatedError } from "../../../lib/i18n/translate";
+import { useLocale } from "../../../lib/i18n/react";
 import { GetServerSideProps } from "next";
 import Link from "next/link";
 import { getServerSession } from "next-auth/next";
@@ -20,6 +23,7 @@ A|3-----------3---|3-----------3---|
 E|----------------|----------------|`;
 
 export default function ImportTextTabPage({ editorId }: Props) {
+  const { t, locale } = useLocale();
   const router = useRouter();
   const [name, setName] = useState("Imported text tab");
   const [tabText, setTabText] = useState("");
@@ -57,7 +61,7 @@ export default function ImportTextTabPage({ editorId }: Props) {
 
   return (
     <>
-      <NoIndexHead title="Import text tab | Note2Tabs" canonicalPath={`/gte/${editorId}/import-text`} />
+      <NoIndexHead title={t("Import text tab | Note2Tabs")} canonicalPath={`/gte/${editorId}/import-text`} />
       <main className="content py-8">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
           <div className="flex flex-wrap items-center gap-2">
@@ -65,25 +69,17 @@ export default function ImportTextTabPage({ editorId }: Props) {
               type="button"
               onClick={() => void router.push(`/gte/${editorId}`)}
               className="button-secondary button-small"
-            >
-              Back to editor
-            </button>
-            <Link href="/gte" className="button-secondary button-small">
-              Editors
-            </Link>
+            >{t("Back to editor")}</button>
+            <Link href="/gte" className="button-secondary button-small">{t("Editors")}</Link>
           </div>
 
           <section>
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Paste text tab</h1>
-            <p className="mt-2 text-sm text-slate-600">
-              Paste a six-string ASCII guitar tab. The imported tab will be added as a new track in this editor.
-            </p>
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900">{t("Paste text tab")}</h1>
+            <p className="mt-2 text-sm text-slate-600">{t("Paste a six-string ASCII guitar tab. The imported tab will be added as a new track in this editor.")}</p>
           </section>
 
           <section className="grid gap-4">
-            <label className="block text-sm font-medium text-slate-700">
-              Track name
-              <input
+            <label className="block text-sm font-medium text-slate-700">{t("Track name")}<input
                 type="text"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
@@ -92,11 +88,9 @@ export default function ImportTextTabPage({ editorId }: Props) {
               />
             </label>
 
-            {error && <div className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
+            {error && <div className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{translatedError(error, locale)}</div>}
 
-            <label className="block text-sm font-medium text-slate-700">
-              Text tab
-              <textarea
+            <label className="block text-sm font-medium text-slate-700">{t("Text tab")}<textarea dir="ltr"
                 value={tabText}
                 onChange={(event) => setTabText(event.target.value)}
                 className="mt-2 min-h-[28rem] w-full resize-y rounded-lg border border-slate-200 bg-white p-3 font-mono text-sm leading-6 text-slate-800 shadow-sm"
@@ -114,16 +108,14 @@ export default function ImportTextTabPage({ editorId }: Props) {
                 }}
                 className="button-secondary button-small"
                 disabled={busy || !tabText}
-              >
-                Clear
-              </button>
+              >{t("Clear")}</button>
               <button
                 type="button"
                 onClick={() => void handleImport()}
                 className="button-primary button-small"
                 disabled={busy}
               >
-                {busy ? "Importing..." : "Import text tab"}
+                {busy ? t("Importing...") : t("Import text tab")}
               </button>
             </div>
           </section>
@@ -133,7 +125,7 @@ export default function ImportTextTabPage({ editorId }: Props) {
   );
 }
 
-export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
+export const getServerSideProps: GetServerSideProps<Props> = withEditorLocale<Props>(async (ctx) => {
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
   const userId = (session?.user as { id?: string } | undefined)?.id;
   if (!userId) {
@@ -156,4 +148,4 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
       editorId,
     },
   };
-};
+});
