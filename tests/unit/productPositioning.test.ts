@@ -47,7 +47,7 @@ describe("product positioning", () => {
     const editorCopy = readSource("pages/editor/index.tsx");
 
     expect(editorCopy).toContain(
-      'title="Online Guitar Tab Editor – Write, Play & Practise Tabs | Note2Tabs"'
+      'title={t("Online Guitar Tab Editor – Write, Play & Practise Tabs | Note2Tabs")}'
     );
     expect(editorCopy).toContain("Online guitar tab editor");
     expect(editorCopy).toContain("Import Guitar Pro, MIDI, MusicXML, or ASCII tab");

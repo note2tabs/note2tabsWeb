@@ -1744,5 +1744,12 @@
   "The speed trainer begins at the playback rate you choose and increases toward a target in configurable steps. Because the practice view and editor share the same project, you can stop, correct a fingering or rhythm, and immediately try the loop again.": "The speed trainer begins at the playback rate you choose and increases toward a target in configurable steps. Because the practice view and editor share the same project, you can stop, correct a fingering or rhythm, and immediately try the loop again.",
   "Short loops make it easier to isolate a position shift, bend, fast run, or chord change. Begin slowly enough to play cleanly, then increase the tempo only while the phrase remains controlled.": "Short loops make it easier to isolate a position shift, bend, fast run, or chord change. Begin slowly enough to play cleanly, then increase the tempo only while the phrase remains controlled.",
   "If a fingering or rhythm remains awkward, pause playback and correct it in place. This keeps practice feedback connected to the saved tab instead of forcing you to remember changes across separate tools.": "If a fingering or rhythm remains awkward, pause playback and correct it in place. This keeps practice feedback connected to the saved tab instead of forcing you to remember changes across separate tools.",
-  "Fretboard-aware": "Fretboard-aware"
+  "Fretboard-aware": "Fretboard-aware",
+  "Playability": "Playability",
+  "Practice": "Practice",
+  "Save {amount}!": "Save {amount}!",
+  "Save {amount} per year": "Save {amount} per year",
+  "{price}/{period} billed today. Cancel anytime.": "{price}/{period} billed today. Cancel anytime.",
+  "Credits refresh monthly.": "Credits refresh monthly.",
+  "{price} billed today": "{price} billed today"
 }

@@ -99,7 +99,7 @@ const SYMBOLS: Record<DisplayCurrency, string> = {
 };
 
 export function formatLocalizedAmount(amount: number, currency: DisplayCurrency, locale = "en") {
-  if (locale === "pt-BR" || locale === "es") return new Intl.NumberFormat(locale, {style: "currency", currency}).format(amount);
+  if (locale === "pt-BR" || locale === "es" || locale === "ja") return new Intl.NumberFormat(locale, {style: "currency", currency}).format(amount);
   const formatted = Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
   if (currency === "SEK" || currency === "NOK" || currency === "DKK") return `${formatted} kr`;
   if (currency === "CHF") return `CHF ${formatted}`;

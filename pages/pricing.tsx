@@ -272,7 +272,7 @@ export default function PricingPage() {
             ...premiumFunnelProperties(getFunnelContext()), ...premiumOfferExperimentProperties(offerVariant),
           });
           setBillingInterval(interval);
-        }} disabled={checkoutBusy}>{interval === "monthly" ? t("Monthly") : <>{t("Yearly")}<span className="pricing-billing-toggle__saving">{t("Save ")}{localizedAnnualSaving(showPro ? "PRO" : "PREMIUM", displayCurrency)}!</span></>}</button>)}
+        }} disabled={checkoutBusy}>{interval === "monthly" ? t("Monthly") : <>{t("Yearly")}<span className="pricing-billing-toggle__saving">{t("Save {amount}!", {amount: localizedAnnualSaving(showPro ? "PRO" : "PREMIUM", displayCurrency)})}</span></>}</button>)}
       </div>
       <section className={`pricing-page__plans${showPro ? " pricing-page__plans--three" : ""}`} aria-label={t("Note2Tabs plans")}>
         {planOrder.map((id) => {
@@ -286,14 +286,14 @@ export default function PricingPage() {
             <div className="pricing-plan__top"><h2>{t(plan.name)}</h2>
               <p>{plan.id === "FREE" ? t("Try short recordings.") : plan.id === "PREMIUM" ? t("For full songs.") : t("For frequent transcription.")}</p>
               <div className="pricing-plan__price"><strong>{paid ? formatLocalizedPrice(paidId, billingInterval, displayCurrency) : formatLocalizedAmount(0, displayCurrency)}</strong><span>/ {paid && billingInterval === "yearly" ? t("year") : t("month")}</span></div>
-              <p className="pricing-plan__saving">{paid && billingInterval === "yearly" && <><span className="pricing-plan__saving-amount">{t("Save ")}{localizedAnnualSaving(paidId, displayCurrency)}{t(" per year")}</span>{t(" · Billed annually")}</>}</p>
+              <p className="pricing-plan__saving">{paid && billingInterval === "yearly" && <><span className="pricing-plan__saving-amount">{t("Save {amount} per year", {amount: localizedAnnualSaving(paidId, displayCurrency)})}</span>{t(" · Billed annually")}</>}</p>
             </div>
             {!paid ? <Link href="/transcribe" className="pricing-plan__cta pricing-plan__cta--secondary" onClick={() => trackCtaClick("pricing_start_free", { surface: "pricing_page" })}>{t("Start free")}</Link>
               : included || current ? <Link href={included ? "/transcribe" : "/settings"} className="pricing-plan__cta pricing-plan__cta--secondary">{included ? t("{plan} access included", { plan: plan.name }) : t("Manage current plan")}</Link>
               : <button type="button" className={`pricing-plan__cta pricing-plan__cta--${plan.id === "PREMIUM" ? "primary" : "secondary"}`} onClick={() => void startCheckout(paidId)} disabled={checkoutBusy || sessionStatus === "loading"}>{checkoutBusy ? t("Opening checkout…") : hasPaidPremium ? t("Switch to {plan}", { plan: plan.name }) : plan.id === "PREMIUM" ? t("Get Premium") : t("Choose Pro")}</button>}
             <div className="pricing-plan__reassurance">
               {!paid ? t("No credit card required") : included || current ? t("Manage your subscription in your account.") : <>
-                {formatLocalizedPrice(paidId, billingInterval, displayCurrency)}/{billingInterval === "yearly" ? t("year") : t("month")}{t(" billed today. Cancel anytime. ")}</>}
+                {t("{price}/{period} billed today. Cancel anytime.", {price: formatLocalizedPrice(paidId, billingInterval, displayCurrency), period: billingInterval === "yearly" ? t("year") : t("month")})}</>}
             </div>
             <div className="pricing-plan__divider" />
             <ul className="pricing-plan__features">
@@ -305,7 +305,7 @@ export default function PricingPage() {
           </article>;
         })}
       </section>
-      <p className="pricing-credit-note">{t("A 60-second recording uses ")}{calculateTranscriptionCredits(60, "light")}{t(" credits with Light or ")}{calculateTranscriptionCredits(60, "super_heavy")}{t(" with Heavy. Credits refresh monthly.")}</p>
+      <p className="pricing-credit-note">{t("A 60-second recording uses {light} credits with Light or {heavy} with Heavy.", {light: calculateTranscriptionCredits(60, "light"), heavy: calculateTranscriptionCredits(60, "super_heavy")})} {t("Credits refresh monthly.")}</p>
       <details className="pricing-comparison"><summary>{t("Compare all limits")}</summary><div className="pricing-comparison-scroll"><table><caption>{t("Recording and upload limits")}</caption><thead><tr><th scope="col">{t("Limit")}</th>{["FREE", "PREMIUM", ...(showPro ? ["PRO"] : [])].map((id) => <th scope="col" key={id}>{t(PLAN_CATALOG[id as keyof typeof PLAN_CATALOG].name)}</th>)}</tr></thead><tbody>
         <tr><th scope="row">{t("Upload size")}</th>{["FREE", "PREMIUM", ...(showPro ? ["PRO"] : [])].map((id) => <td key={id}>{PLAN_CATALOG[id as keyof typeof PLAN_CATALOG].maxUploadBytes / (1024 * 1024)} MB</td>)}</tr>
         <tr><th scope="row">{t("YouTube clip length")}</th><td>{t("Up to ")}{MAX_FREE_YOUTUBE_SNIPPET_SEC}{t(" seconds")}</td><td>{t("Within selected window")}</td>{showPro && <td>{t("Within selected window")}</td>}</tr>

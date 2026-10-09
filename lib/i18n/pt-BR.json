@@ -1744,5 +1744,12 @@
   "The speed trainer begins at the playback rate you choose and increases toward a target in configurable steps. Because the practice view and editor share the same project, you can stop, correct a fingering or rhythm, and immediately try the loop again.": "O treino começa na velocidade escolhida e aumenta até um objetivo em passos configuráveis. Prática e edição compartilham o projeto: pare, corrija digitação ou ritmo e tente o loop novamente.",
   "Short loops make it easier to isolate a position shift, bend, fast run, or chord change. Begin slowly enough to play cleanly, then increase the tempo only while the phrase remains controlled.": "Loops curtos isolam mudanças de posição, bends, passagens rápidas e acordes. Comece devagar o suficiente para tocar limpo e aumente somente enquanto mantiver o controle.",
   "If a fingering or rhythm remains awkward, pause playback and correct it in place. This keeps practice feedback connected to the saved tab instead of forcing you to remember changes across separate tools.": "Se a digitação ou o ritmo estiver desconfortável, pause e corrija no mesmo lugar. A prática fica conectada à tablatura salva sem lembrar mudanças entre ferramentas.",
-  "Fretboard-aware": "Adaptado ao braço"
+  "Fretboard-aware": "Adaptado ao braço",
+  "Playability": "Facilidade de tocar",
+  "Practice": "Prática",
+  "Save {amount}!": "Economize {amount}!",
+  "Save {amount} per year": "Economize {amount} por ano",
+  "{price}/{period} billed today. Cancel anytime.": "{price}/{period} cobrados hoje. Cancele quando quiser.",
+  "Credits refresh monthly.": "Os créditos são renovados mensalmente.",
+  "{price} billed today": "{price} cobrados hoje"
 }

@@ -63,6 +63,13 @@ export async function sendVerificationEmail(
 ) {
   const locale = options?.locale || "en";
   const url = buildVerificationUrl(token, email, options?.returnTo, locale);
+  if (locale === "ja") {
+    const name = options?.name?.trim();
+    const greeting = name ? `${name} 様` : "Note2Tabsへようこそ。";
+    return sendTransactionalEmail({to: email, subject: "Note2Tabsのメールアドレスを確認してください",
+      text: `${greeting}\n\nアカウントの作成を完了して採譜を利用するには、メールアドレスを確認してください：\n${url}\n\nこのリンクは24時間で無効になります。登録にお心当たりがない場合は、このメールを無視してください。`,
+      html: renderProductEmail({locale, title: "メールアドレスを確認", preview: "メールアドレスを確認してNote2Tabsの登録を完了してください。", greeting: escapeEmailHtml(greeting), bodyHtml: "<p>アカウントの作成を完了して採譜を利用するには、メールアドレスを確認してください。</p>", action: {label: "メールアドレスを確認", url}, secondaryHtml: "このリンクは24時間で無効になります。登録にお心当たりがない場合は、このメールを無視してください。"})});
+  }
   if (locale === "es") {
     const name = options?.name?.trim() || "";
     const greeting = name ? `¡Hola, ${name}!` : "¡Hola!";

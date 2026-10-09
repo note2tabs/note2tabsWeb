@@ -10,7 +10,7 @@ describe("transcriber SEO experiment", () => {
     const homepage = readSource("pages/index.tsx");
 
     expect(homepage).toContain(
-      'title="AI Guitar Tab Generator – Audio & YouTube to Tabs | Note2Tabs"'
+      'title={t("AI Guitar Tab Generator – Audio & YouTube to Tabs | Note2Tabs")}'
     );
     expect(homepage).toContain(
       "Upload an MP3 or WAV, or paste a YouTube link to generate playable guitar tabs online."

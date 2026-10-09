@@ -34,7 +34,7 @@ export default async function proxy(request: NextRequest) {
     response.headers.set("Cache-Control", "private, no-store");
     return withCurrencyPreference(request, response);
   }
-  if ((request.nextUrl.pathname.startsWith("/pt-br") || request.nextUrl.pathname === "/es" || request.nextUrl.pathname.startsWith("/es/")) || request.nextUrl.pathname === "/pricing") {
+  if ((request.nextUrl.pathname.startsWith("/pt-br") || request.nextUrl.pathname === "/es" || request.nextUrl.pathname.startsWith("/es/") || request.nextUrl.pathname === "/ja" || request.nextUrl.pathname.startsWith("/ja/")) || request.nextUrl.pathname === "/pricing") {
     return withCurrencyPreference(request, NextResponse.next());
   }
   if (request.nextUrl.pathname !== "/") return withCurrencyPreference(request, NextResponse.next());
@@ -61,6 +61,6 @@ export const config = {
     "/", "/pricing", "/transcribe", "/editor", "/online-guitar-tab-editor", "/about", "/contact", "/terms", "/privacy",
     "/affiliate-program", "/internship-application", "/features/:path*", "/blog/:path*",
     "/audio-to-guitar-tab-converter", "/mp3-to-guitar-tabs", "/youtube-to-guitar-tabs", "/ai-guitar-tab-generator", "/free-guitar-tab-maker",
-    "/pt-br", "/pt-br/pricing", "/es", "/es/pricing",
+    "/pt-br", "/pt-br/pricing", "/es", "/es/pricing", "/ja", "/ja/pricing",
   ],
 };

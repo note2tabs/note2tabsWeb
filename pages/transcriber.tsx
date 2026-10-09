@@ -1498,7 +1498,7 @@ export default function TranscriberPage() {
                 <h1 className="hero-title">{t("Convert Any Song to Guitar Tabs")}</h1>
               </div>
               <p className="hero-subtitle hero-subtitle--conversion">{t(" Turn recordings into guitar tab you can edit, practice, and export. ")}</p>
-              {locale !== "en" && <p className="locale-scope-note">{t("The tab editor (/gte) is in English.")}</p>}
+
             </div>
             <form
               className="prompt-shell prompt-shell--funnel"

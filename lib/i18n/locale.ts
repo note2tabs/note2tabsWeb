@@ -1,6 +1,6 @@
 /** User-facing routes. The interactive /gte editor remains in English. */
-export type AppLocale = "en" | "pt-BR" | "es";
-export const LOCALE_VERSION = "multilingual-site-3";
+export type AppLocale = "en" | "pt-BR" | "es" | "ja";
+export const LOCALE_VERSION = "multilingual-site-4";
 export const LOCALIZED_PUBLIC_PATHS = ["/","/transcribe","/pricing","/editor","/about","/contact","/terms","/privacy","/affiliate-program","/internship-application","/features","/audio-to-guitar-tab-converter","/mp3-to-guitar-tabs","/youtube-to-guitar-tabs","/ai-guitar-tab-generator","/free-guitar-tab-maker","/online-guitar-tab-editor","/blog"] as const;
 export const LOCALIZED_FLOW_PATHS = [
   ...LOCALIZED_PUBLIC_PATHS, "/auth/login", "/auth/signup", "/auth/verify-email",
@@ -9,13 +9,13 @@ export const LOCALIZED_FLOW_PATHS = [
 export function normalizeLocale(value: unknown): AppLocale {
   if (typeof value !== "string") return "en";
   const code = value.toLowerCase();
-  return code === "pt-br" ? "pt-BR" : code === "es" ? "es" : "en";
+  return code === "pt-br" ? "pt-BR" : code === "es" ? "es" : code === "ja" ? "ja" : "en";
 }
 export function localeFromPath(path: string): AppLocale {
-  return /^\/pt-br(?:\/|[?#]|$)/i.test(path) ? "pt-BR" : /^\/es(?:\/|[?#]|$)/i.test(path) ? "es" : "en";
+  return /^\/pt-br(?:\/|[?#]|$)/i.test(path) ? "pt-BR" : /^\/es(?:\/|[?#]|$)/i.test(path) ? "es" : /^\/ja(?:\/|[?#]|$)/i.test(path) ? "ja" : "en";
 }
 export function stripLocale(path: string) {
-  const result = path.replace(/^\/(?:pt-br|es)(?=\/|[?#]|$)/i, "") || "/";
+  const result = path.replace(/^\/(?:pt-br|es|ja)(?=\/|[?#]|$)/i, "") || "/";
   return /^[?#]/.test(result) ? `/${result}` : result;
 }
 export function supportsLocalizedPath(path: string) {
@@ -60,12 +60,12 @@ export function isLocalizedPublicPath(path: string) {
   return LOCALIZED_PUBLIC_PATHS.includes(pathname as typeof LOCALIZED_PUBLIC_PATHS[number]) || /^\/features\/[^/]+$/.test(pathname) || /^\/blog\/(?:[^/]+|(?:category|tag|cluster)\/[^/]+)$/.test(pathname);
 }
 
-export const TRANSLATED_LOCALES = ["pt-BR", "es"] as const;
-export function localePrefix(locale: AppLocale) { return locale === "en" ? "" : locale === "pt-BR" ? "/pt-br" : "/es"; }
-export function localeEnabled(locale: AppLocale) { return locale === "en" || (locale === "pt-BR" ? process.env.NEXT_PUBLIC_PT_BR_AVAILABLE : process.env.NEXT_PUBLIC_ES_AVAILABLE) === "true"; }
+export const TRANSLATED_LOCALES = ["pt-BR", "es", "ja"] as const;
+export function localePrefix(locale: AppLocale) { return locale === "en" ? "" : locale === "pt-BR" ? "/pt-br" : locale === "es" ? "/es" : "/ja"; }
+export function localeEnabled(locale: AppLocale) { return locale === "en" || (locale === "pt-BR" ? process.env.NEXT_PUBLIC_PT_BR_AVAILABLE : locale === "es" ? process.env.NEXT_PUBLIC_ES_AVAILABLE : process.env.NEXT_PUBLIC_JA_AVAILABLE) === "true"; }
 export function localeMarket(country: unknown) {
   const code = typeof country === "string" && /^[A-Za-z]{2}$/.test(country) ? country.toUpperCase() : "unknown";
-  return code === "BR" ? "brazil" : code === "ES" ? "spain" : ["AR","BO","CL","CO","CR","CU","DO","EC","GT","HN","MX","NI","PA","PE","PR","PY","SV","UY","VE"].includes(code) ? "spanish_latin_america" : code === "unknown" ? "unknown" : "other";
+  return code === "BR" ? "brazil" : code === "ES" ? "spain" : code === "JP" ? "japan" : ["AR","BO","CL","CO","CR","CU","DO","EC","GT","HN","MX","NI","PA","PE","PR","PY","SV","UY","VE"].includes(code) ? "spanish_latin_america" : code === "unknown" ? "unknown" : "other";
 }
 export function localeCohort(locale: AppLocale, country: unknown) {
  const visitor_country = typeof country === "string" && /^[A-Za-z]{2}$/.test(country) ? country.toUpperCase() : "unknown";

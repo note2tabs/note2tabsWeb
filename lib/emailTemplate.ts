@@ -4,7 +4,7 @@ type EmailAction = {
 };
 
 type ProductEmailInput = {
-  locale?: "en" | "pt-BR" | "es";
+  locale?: "en" | "pt-BR" | "es" | "ja";
   title: string;
   preview: string;
   greeting?: string;

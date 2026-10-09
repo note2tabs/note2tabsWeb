@@ -50,7 +50,7 @@ export const getServerSideProps: GetServerSideProps = async ({ res, resolvedUrl 
     <title>Note2Tabs Blog</title>
     <link>${baseUrl}${localeHref("/blog", locale)}</link>
     <language>${locale}</language>
-    <description>${locale === "pt-BR" ? "Guias e novidades para criar tablaturas com Note2Tabs." : locale === "es" ? "Guías y novedades para crear tablaturas con Note2Tabs." : "Guides and updates for Note2Tabs guitar tab creation."}</description>
+    <description>${locale === "pt-BR" ? "Guias e novidades para criar tablaturas com Note2Tabs." : locale === "es" ? "Guías y novedades para crear tablaturas con Note2Tabs." : locale === "ja" ? "Note2TabsでギターのTAB譜を作成するためのガイドと最新情報。" : "Guides and updates for Note2Tabs guitar tab creation."}</description>
     ${items}
   </channel>
 </rss>`;

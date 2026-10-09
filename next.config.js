@@ -4,14 +4,17 @@ const nextConfig = {
   // Feature branches must be reviewable without exposing unfinished plans on
   // the production deployment. Vercel replaces this at build time.
   env: {
-    NEXT_PUBLIC_ES_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_ES_REVIEWED === "true" ? "true" : "false",
+    NEXT_PUBLIC_JA_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_JA_REVIEWED !== "false" ? "true" : "false",
+    NEXT_PUBLIC_ES_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_ES_REVIEWED !== "false" ? "true" : "false",
     NEXT_PUBLIC_PT_BR_PREVIEW: process.env.VERCEL_ENV === "preview" ? "true" : "false",
-    NEXT_PUBLIC_PT_BR_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_PT_BR_REVIEWED === "true" ? "true" : "false",
+    NEXT_PUBLIC_PT_BR_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_PT_BR_REVIEWED !== "false" ? "true" : "false",
     NEXT_PUBLIC_PRO_PLAN_PREVIEW:
       process.env.VERCEL_ENV === "production" ? "false" : "true",
   },
   async redirects() {
     return [
+      {source: "/ja/online-guitar-tab-editor", destination: "/ja/editor", permanent: true},
+      {source: "/ja/transcriber", destination: "/ja/transcribe", permanent: true},
       {source: "/es/online-guitar-tab-editor", destination: "/es/editor", permanent: true},
       {source: "/es/transcriber", destination: "/es/transcribe", permanent: true},
       {source: "/pt-br/online-guitar-tab-editor", destination: "/pt-br/editor", permanent: true},

@@ -92,3 +92,7 @@ The blog source was read from published content only. No database writes, emails
 Browser QA covered 342 page/viewport combinations: 31 site templates and all 26 articles, in English and Brazilian Portuguese at 320px, 820px and 1440px. No document overflow or clipped action buttons was found. The editor landing page feature headings and descriptions, and workflow headings and descriptions, share measured row positions on desktop. All translated articles rendered Portuguese bodies and self canonicals. Desktop and mobile editor landing screenshots are saved beside this document.
 
 The final navigation check opened the blank `/gte` editor from `/pt-br/editor`, returned home, and reached the Portuguese transcriber. Selecting English switched the page and links to English and closed the chooser. The shared desktop editor heading was checked again in both languages at all three widths. Screenshots: `pt-br-editor-desktop.jpg` and `pt-br-editor-mobile.jpg`.
+
+## Launch update — 9 October 2026
+
+Japanese is now implemented, and completed editions ship in production by default after the authorized merge. The old reviewed flags are retained as optional per-language disable switches (`false`); no production override is currently configured. Previews stay noindex. See [multilingual SEO](multilingual-seo.md) and [Japanese implementation](ja-pilot.md) for current release and validation details.

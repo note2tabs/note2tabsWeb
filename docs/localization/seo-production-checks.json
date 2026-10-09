@@ -1,0 +1,2694 @@
+{
+  "checked_pages": 192,
+  "sitemap_entries": 192,
+  "pages": [
+    {
+      "path": "/",
+      "status": 200,
+      "lang": "en",
+      "title": "AI Guitar Tab Generator – Audio & YouTube to Tabs | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/",
+      "alternates": {
+        "en": "https://www.note2tabs.com/",
+        "pt-BR": "https://www.note2tabs.com/pt-br",
+        "es": "https://www.note2tabs.com/es",
+        "ja": "https://www.note2tabs.com/ja",
+        "x-default": "https://www.note2tabs.com/"
+      }
+    },
+    {
+      "path": "/pt-br",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Gerador de tablaturas com IA — Áudio e YouTube | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br",
+      "alternates": {
+        "en": "https://www.note2tabs.com/",
+        "pt-BR": "https://www.note2tabs.com/pt-br",
+        "es": "https://www.note2tabs.com/es",
+        "ja": "https://www.note2tabs.com/ja",
+        "x-default": "https://www.note2tabs.com/"
+      }
+    },
+    {
+      "path": "/es",
+      "status": 200,
+      "lang": "es",
+      "title": "Generador de tablaturas con IA – Audio y YouTube | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es",
+      "alternates": {
+        "en": "https://www.note2tabs.com/",
+        "pt-BR": "https://www.note2tabs.com/pt-br",
+        "es": "https://www.note2tabs.com/es",
+        "ja": "https://www.note2tabs.com/ja",
+        "x-default": "https://www.note2tabs.com/"
+      }
+    },
+    {
+      "path": "/ja",
+      "status": 200,
+      "lang": "ja",
+      "title": "AIギターTAB譜作成 — 音声・YouTubeから採譜 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja",
+      "alternates": {
+        "en": "https://www.note2tabs.com/",
+        "pt-BR": "https://www.note2tabs.com/pt-br",
+        "es": "https://www.note2tabs.com/es",
+        "ja": "https://www.note2tabs.com/ja",
+        "x-default": "https://www.note2tabs.com/"
+      }
+    },
+    {
+      "path": "/pricing",
+      "status": 200,
+      "lang": "en",
+      "title": "Pricing | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pricing",
+      "alternates": {
+        "en": "https://www.note2tabs.com/pricing",
+        "pt-BR": "https://www.note2tabs.com/pt-br/pricing",
+        "es": "https://www.note2tabs.com/es/pricing",
+        "ja": "https://www.note2tabs.com/ja/pricing",
+        "x-default": "https://www.note2tabs.com/pricing"
+      }
+    },
+    {
+      "path": "/pt-br/pricing",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Planos e preços | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/pricing",
+      "alternates": {
+        "en": "https://www.note2tabs.com/pricing",
+        "pt-BR": "https://www.note2tabs.com/pt-br/pricing",
+        "es": "https://www.note2tabs.com/es/pricing",
+        "ja": "https://www.note2tabs.com/ja/pricing",
+        "x-default": "https://www.note2tabs.com/pricing"
+      }
+    },
+    {
+      "path": "/es/pricing",
+      "status": 200,
+      "lang": "es",
+      "title": "Precios | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/pricing",
+      "alternates": {
+        "en": "https://www.note2tabs.com/pricing",
+        "pt-BR": "https://www.note2tabs.com/pt-br/pricing",
+        "es": "https://www.note2tabs.com/es/pricing",
+        "ja": "https://www.note2tabs.com/ja/pricing",
+        "x-default": "https://www.note2tabs.com/pricing"
+      }
+    },
+    {
+      "path": "/ja/pricing",
+      "status": 200,
+      "lang": "ja",
+      "title": "料金 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/pricing",
+      "alternates": {
+        "en": "https://www.note2tabs.com/pricing",
+        "pt-BR": "https://www.note2tabs.com/pt-br/pricing",
+        "es": "https://www.note2tabs.com/es/pricing",
+        "ja": "https://www.note2tabs.com/ja/pricing",
+        "x-default": "https://www.note2tabs.com/pricing"
+      }
+    },
+    {
+      "path": "/transcribe",
+      "status": 200,
+      "lang": "en",
+      "title": "Audio to Guitar Tab Transcriber | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/transcribe",
+      "alternates": {
+        "en": "https://www.note2tabs.com/transcribe",
+        "pt-BR": "https://www.note2tabs.com/pt-br/transcribe",
+        "es": "https://www.note2tabs.com/es/transcribe",
+        "ja": "https://www.note2tabs.com/ja/transcribe",
+        "x-default": "https://www.note2tabs.com/transcribe"
+      }
+    },
+    {
+      "path": "/pt-br/transcribe",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Transcrição de áudio para tablatura de guitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/transcribe",
+      "alternates": {
+        "en": "https://www.note2tabs.com/transcribe",
+        "pt-BR": "https://www.note2tabs.com/pt-br/transcribe",
+        "es": "https://www.note2tabs.com/es/transcribe",
+        "ja": "https://www.note2tabs.com/ja/transcribe",
+        "x-default": "https://www.note2tabs.com/transcribe"
+      }
+    },
+    {
+      "path": "/es/transcribe",
+      "status": 200,
+      "lang": "es",
+      "title": "Transcriptor de audio a tablaturas de guitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/transcribe",
+      "alternates": {
+        "en": "https://www.note2tabs.com/transcribe",
+        "pt-BR": "https://www.note2tabs.com/pt-br/transcribe",
+        "es": "https://www.note2tabs.com/es/transcribe",
+        "ja": "https://www.note2tabs.com/ja/transcribe",
+        "x-default": "https://www.note2tabs.com/transcribe"
+      }
+    },
+    {
+      "path": "/ja/transcribe",
+      "status": 200,
+      "lang": "ja",
+      "title": "音声からギターTAB譜を作成 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/transcribe",
+      "alternates": {
+        "en": "https://www.note2tabs.com/transcribe",
+        "pt-BR": "https://www.note2tabs.com/pt-br/transcribe",
+        "es": "https://www.note2tabs.com/es/transcribe",
+        "ja": "https://www.note2tabs.com/ja/transcribe",
+        "x-default": "https://www.note2tabs.com/transcribe"
+      }
+    },
+    {
+      "path": "/editor",
+      "status": 200,
+      "lang": "en",
+      "title": "Online Guitar Tab Editor – Write, Play & Practise Tabs | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/editor",
+        "es": "https://www.note2tabs.com/es/editor",
+        "ja": "https://www.note2tabs.com/ja/editor",
+        "x-default": "https://www.note2tabs.com/editor"
+      }
+    },
+    {
+      "path": "/pt-br/editor",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Editor online de tablaturas – Escreva, toque e pratique | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/editor",
+        "es": "https://www.note2tabs.com/es/editor",
+        "ja": "https://www.note2tabs.com/ja/editor",
+        "x-default": "https://www.note2tabs.com/editor"
+      }
+    },
+    {
+      "path": "/es/editor",
+      "status": 200,
+      "lang": "es",
+      "title": "Editor de tablaturas en línea – Escribe, toca y practica | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/editor",
+        "es": "https://www.note2tabs.com/es/editor",
+        "ja": "https://www.note2tabs.com/ja/editor",
+        "x-default": "https://www.note2tabs.com/editor"
+      }
+    },
+    {
+      "path": "/ja/editor",
+      "status": 200,
+      "lang": "ja",
+      "title": "オンラインギターTAB譜エディター — 作成・再生・練習 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/editor",
+        "es": "https://www.note2tabs.com/es/editor",
+        "ja": "https://www.note2tabs.com/ja/editor",
+        "x-default": "https://www.note2tabs.com/editor"
+      }
+    },
+    {
+      "path": "/about",
+      "status": 200,
+      "lang": "en",
+      "title": "About Note2Tabs",
+      "canonical": "https://www.note2tabs.com/about",
+      "alternates": {
+        "en": "https://www.note2tabs.com/about",
+        "pt-BR": "https://www.note2tabs.com/pt-br/about",
+        "es": "https://www.note2tabs.com/es/about",
+        "ja": "https://www.note2tabs.com/ja/about",
+        "x-default": "https://www.note2tabs.com/about"
+      }
+    },
+    {
+      "path": "/pt-br/about",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Sobre o Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/about",
+      "alternates": {
+        "en": "https://www.note2tabs.com/about",
+        "pt-BR": "https://www.note2tabs.com/pt-br/about",
+        "es": "https://www.note2tabs.com/es/about",
+        "ja": "https://www.note2tabs.com/ja/about",
+        "x-default": "https://www.note2tabs.com/about"
+      }
+    },
+    {
+      "path": "/es/about",
+      "status": 200,
+      "lang": "es",
+      "title": "Acerca de Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/about",
+      "alternates": {
+        "en": "https://www.note2tabs.com/about",
+        "pt-BR": "https://www.note2tabs.com/pt-br/about",
+        "es": "https://www.note2tabs.com/es/about",
+        "ja": "https://www.note2tabs.com/ja/about",
+        "x-default": "https://www.note2tabs.com/about"
+      }
+    },
+    {
+      "path": "/ja/about",
+      "status": 200,
+      "lang": "ja",
+      "title": "Note2Tabsについて",
+      "canonical": "https://www.note2tabs.com/ja/about",
+      "alternates": {
+        "en": "https://www.note2tabs.com/about",
+        "pt-BR": "https://www.note2tabs.com/pt-br/about",
+        "es": "https://www.note2tabs.com/es/about",
+        "ja": "https://www.note2tabs.com/ja/about",
+        "x-default": "https://www.note2tabs.com/about"
+      }
+    },
+    {
+      "path": "/contact",
+      "status": 200,
+      "lang": "en",
+      "title": "Contact Note2Tabs",
+      "canonical": "https://www.note2tabs.com/contact",
+      "alternates": {
+        "en": "https://www.note2tabs.com/contact",
+        "pt-BR": "https://www.note2tabs.com/pt-br/contact",
+        "es": "https://www.note2tabs.com/es/contact",
+        "ja": "https://www.note2tabs.com/ja/contact",
+        "x-default": "https://www.note2tabs.com/contact"
+      }
+    },
+    {
+      "path": "/pt-br/contact",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Entre em contato com o Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/contact",
+      "alternates": {
+        "en": "https://www.note2tabs.com/contact",
+        "pt-BR": "https://www.note2tabs.com/pt-br/contact",
+        "es": "https://www.note2tabs.com/es/contact",
+        "ja": "https://www.note2tabs.com/ja/contact",
+        "x-default": "https://www.note2tabs.com/contact"
+      }
+    },
+    {
+      "path": "/es/contact",
+      "status": 200,
+      "lang": "es",
+      "title": "Contactar con Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/contact",
+      "alternates": {
+        "en": "https://www.note2tabs.com/contact",
+        "pt-BR": "https://www.note2tabs.com/pt-br/contact",
+        "es": "https://www.note2tabs.com/es/contact",
+        "ja": "https://www.note2tabs.com/ja/contact",
+        "x-default": "https://www.note2tabs.com/contact"
+      }
+    },
+    {
+      "path": "/ja/contact",
+      "status": 200,
+      "lang": "ja",
+      "title": "Note2Tabsへのお問い合わせ",
+      "canonical": "https://www.note2tabs.com/ja/contact",
+      "alternates": {
+        "en": "https://www.note2tabs.com/contact",
+        "pt-BR": "https://www.note2tabs.com/pt-br/contact",
+        "es": "https://www.note2tabs.com/es/contact",
+        "ja": "https://www.note2tabs.com/ja/contact",
+        "x-default": "https://www.note2tabs.com/contact"
+      }
+    },
+    {
+      "path": "/terms",
+      "status": 200,
+      "lang": "en",
+      "title": "Terms of Service | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/terms",
+      "alternates": {
+        "en": "https://www.note2tabs.com/terms",
+        "pt-BR": "https://www.note2tabs.com/pt-br/terms",
+        "es": "https://www.note2tabs.com/es/terms",
+        "ja": "https://www.note2tabs.com/ja/terms",
+        "x-default": "https://www.note2tabs.com/terms"
+      }
+    },
+    {
+      "path": "/pt-br/terms",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Termos de Serviço | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/terms",
+      "alternates": {
+        "en": "https://www.note2tabs.com/terms",
+        "pt-BR": "https://www.note2tabs.com/pt-br/terms",
+        "es": "https://www.note2tabs.com/es/terms",
+        "ja": "https://www.note2tabs.com/ja/terms",
+        "x-default": "https://www.note2tabs.com/terms"
+      }
+    },
+    {
+      "path": "/es/terms",
+      "status": 200,
+      "lang": "es",
+      "title": "Condiciones del servicio | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/terms",
+      "alternates": {
+        "en": "https://www.note2tabs.com/terms",
+        "pt-BR": "https://www.note2tabs.com/pt-br/terms",
+        "es": "https://www.note2tabs.com/es/terms",
+        "ja": "https://www.note2tabs.com/ja/terms",
+        "x-default": "https://www.note2tabs.com/terms"
+      }
+    },
+    {
+      "path": "/ja/terms",
+      "status": 200,
+      "lang": "ja",
+      "title": "利用規約 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/terms",
+      "alternates": {
+        "en": "https://www.note2tabs.com/terms",
+        "pt-BR": "https://www.note2tabs.com/pt-br/terms",
+        "es": "https://www.note2tabs.com/es/terms",
+        "ja": "https://www.note2tabs.com/ja/terms",
+        "x-default": "https://www.note2tabs.com/terms"
+      }
+    },
+    {
+      "path": "/privacy",
+      "status": 200,
+      "lang": "en",
+      "title": "Privacy Policy | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/privacy",
+      "alternates": {
+        "en": "https://www.note2tabs.com/privacy",
+        "pt-BR": "https://www.note2tabs.com/pt-br/privacy",
+        "es": "https://www.note2tabs.com/es/privacy",
+        "ja": "https://www.note2tabs.com/ja/privacy",
+        "x-default": "https://www.note2tabs.com/privacy"
+      }
+    },
+    {
+      "path": "/pt-br/privacy",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Política de Privacidade | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/privacy",
+      "alternates": {
+        "en": "https://www.note2tabs.com/privacy",
+        "pt-BR": "https://www.note2tabs.com/pt-br/privacy",
+        "es": "https://www.note2tabs.com/es/privacy",
+        "ja": "https://www.note2tabs.com/ja/privacy",
+        "x-default": "https://www.note2tabs.com/privacy"
+      }
+    },
+    {
+      "path": "/es/privacy",
+      "status": 200,
+      "lang": "es",
+      "title": "Política de privacidad | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/privacy",
+      "alternates": {
+        "en": "https://www.note2tabs.com/privacy",
+        "pt-BR": "https://www.note2tabs.com/pt-br/privacy",
+        "es": "https://www.note2tabs.com/es/privacy",
+        "ja": "https://www.note2tabs.com/ja/privacy",
+        "x-default": "https://www.note2tabs.com/privacy"
+      }
+    },
+    {
+      "path": "/ja/privacy",
+      "status": 200,
+      "lang": "ja",
+      "title": "プライバシーポリシー | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/privacy",
+      "alternates": {
+        "en": "https://www.note2tabs.com/privacy",
+        "pt-BR": "https://www.note2tabs.com/pt-br/privacy",
+        "es": "https://www.note2tabs.com/es/privacy",
+        "ja": "https://www.note2tabs.com/ja/privacy",
+        "x-default": "https://www.note2tabs.com/privacy"
+      }
+    },
+    {
+      "path": "/affiliate-program",
+      "status": 200,
+      "lang": "en",
+      "title": "Note2Tabs Affiliate Program",
+      "canonical": "https://www.note2tabs.com/affiliate-program",
+      "alternates": {
+        "en": "https://www.note2tabs.com/affiliate-program",
+        "pt-BR": "https://www.note2tabs.com/pt-br/affiliate-program",
+        "es": "https://www.note2tabs.com/es/affiliate-program",
+        "ja": "https://www.note2tabs.com/ja/affiliate-program",
+        "x-default": "https://www.note2tabs.com/affiliate-program"
+      }
+    },
+    {
+      "path": "/pt-br/affiliate-program",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Programa de afiliados do Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/affiliate-program",
+      "alternates": {
+        "en": "https://www.note2tabs.com/affiliate-program",
+        "pt-BR": "https://www.note2tabs.com/pt-br/affiliate-program",
+        "es": "https://www.note2tabs.com/es/affiliate-program",
+        "ja": "https://www.note2tabs.com/ja/affiliate-program",
+        "x-default": "https://www.note2tabs.com/affiliate-program"
+      }
+    },
+    {
+      "path": "/es/affiliate-program",
+      "status": 200,
+      "lang": "es",
+      "title": "Programa de afiliados de Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/affiliate-program",
+      "alternates": {
+        "en": "https://www.note2tabs.com/affiliate-program",
+        "pt-BR": "https://www.note2tabs.com/pt-br/affiliate-program",
+        "es": "https://www.note2tabs.com/es/affiliate-program",
+        "ja": "https://www.note2tabs.com/ja/affiliate-program",
+        "x-default": "https://www.note2tabs.com/affiliate-program"
+      }
+    },
+    {
+      "path": "/ja/affiliate-program",
+      "status": 200,
+      "lang": "ja",
+      "title": "Note2Tabsアフィリエイトプログラム",
+      "canonical": "https://www.note2tabs.com/ja/affiliate-program",
+      "alternates": {
+        "en": "https://www.note2tabs.com/affiliate-program",
+        "pt-BR": "https://www.note2tabs.com/pt-br/affiliate-program",
+        "es": "https://www.note2tabs.com/es/affiliate-program",
+        "ja": "https://www.note2tabs.com/ja/affiliate-program",
+        "x-default": "https://www.note2tabs.com/affiliate-program"
+      }
+    },
+    {
+      "path": "/features",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Tab Editor Tools & Features | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/features",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features",
+        "es": "https://www.note2tabs.com/es/features",
+        "ja": "https://www.note2tabs.com/ja/features",
+        "x-default": "https://www.note2tabs.com/features"
+      }
+    },
+    {
+      "path": "/pt-br/features",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Ferramentas e recursos do editor de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/features",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features",
+        "es": "https://www.note2tabs.com/es/features",
+        "ja": "https://www.note2tabs.com/ja/features",
+        "x-default": "https://www.note2tabs.com/features"
+      }
+    },
+    {
+      "path": "/es/features",
+      "status": 200,
+      "lang": "es",
+      "title": "Herramientas y funciones del editor | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/features",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features",
+        "es": "https://www.note2tabs.com/es/features",
+        "ja": "https://www.note2tabs.com/ja/features",
+        "x-default": "https://www.note2tabs.com/features"
+      }
+    },
+    {
+      "path": "/ja/features",
+      "status": 200,
+      "lang": "ja",
+      "title": "ギターTAB譜エディターの機能 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/features",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features",
+        "es": "https://www.note2tabs.com/es/features",
+        "ja": "https://www.note2tabs.com/ja/features",
+        "x-default": "https://www.note2tabs.com/features"
+      }
+    },
+    {
+      "path": "/audio-to-guitar-tab-converter",
+      "status": 200,
+      "lang": "en",
+      "title": "Audio to Guitar Tab Converter – MP3, WAV & More",
+      "canonical": "https://www.note2tabs.com/audio-to-guitar-tab-converter",
+      "alternates": {
+        "en": "https://www.note2tabs.com/audio-to-guitar-tab-converter",
+        "pt-BR": "https://www.note2tabs.com/pt-br/audio-to-guitar-tab-converter",
+        "es": "https://www.note2tabs.com/es/audio-to-guitar-tab-converter",
+        "ja": "https://www.note2tabs.com/ja/audio-to-guitar-tab-converter",
+        "x-default": "https://www.note2tabs.com/audio-to-guitar-tab-converter"
+      }
+    },
+    {
+      "path": "/pt-br/audio-to-guitar-tab-converter",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Conversor de áudio em tablatura – MP3, WAV e mais",
+      "canonical": "https://www.note2tabs.com/pt-br/audio-to-guitar-tab-converter",
+      "alternates": {
+        "en": "https://www.note2tabs.com/audio-to-guitar-tab-converter",
+        "pt-BR": "https://www.note2tabs.com/pt-br/audio-to-guitar-tab-converter",
+        "es": "https://www.note2tabs.com/es/audio-to-guitar-tab-converter",
+        "ja": "https://www.note2tabs.com/ja/audio-to-guitar-tab-converter",
+        "x-default": "https://www.note2tabs.com/audio-to-guitar-tab-converter"
+      }
+    },
+    {
+      "path": "/es/audio-to-guitar-tab-converter",
+      "status": 200,
+      "lang": "es",
+      "title": "Conversor de audio a tablaturas – MP3, WAV y más",
+      "canonical": "https://www.note2tabs.com/es/audio-to-guitar-tab-converter",
+      "alternates": {
+        "en": "https://www.note2tabs.com/audio-to-guitar-tab-converter",
+        "pt-BR": "https://www.note2tabs.com/pt-br/audio-to-guitar-tab-converter",
+        "es": "https://www.note2tabs.com/es/audio-to-guitar-tab-converter",
+        "ja": "https://www.note2tabs.com/ja/audio-to-guitar-tab-converter",
+        "x-default": "https://www.note2tabs.com/audio-to-guitar-tab-converter"
+      }
+    },
+    {
+      "path": "/ja/audio-to-guitar-tab-converter",
+      "status": 200,
+      "lang": "ja",
+      "title": "音声からギターTAB譜へ — MP3・WAVなどに対応",
+      "canonical": "https://www.note2tabs.com/ja/audio-to-guitar-tab-converter",
+      "alternates": {
+        "en": "https://www.note2tabs.com/audio-to-guitar-tab-converter",
+        "pt-BR": "https://www.note2tabs.com/pt-br/audio-to-guitar-tab-converter",
+        "es": "https://www.note2tabs.com/es/audio-to-guitar-tab-converter",
+        "ja": "https://www.note2tabs.com/ja/audio-to-guitar-tab-converter",
+        "x-default": "https://www.note2tabs.com/audio-to-guitar-tab-converter"
+      }
+    },
+    {
+      "path": "/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "en",
+      "title": "MP3 to Guitar Tabs Converter – Online & Editable",
+      "canonical": "https://www.note2tabs.com/mp3-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/mp3-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/mp3-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/mp3-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/mp3-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/mp3-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/pt-br/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Conversor de MP3 em tablatura – Online e editável",
+      "canonical": "https://www.note2tabs.com/pt-br/mp3-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/mp3-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/mp3-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/mp3-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/mp3-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/mp3-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/es/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "es",
+      "title": "Conversor de MP3 a tablaturas – En línea y editables",
+      "canonical": "https://www.note2tabs.com/es/mp3-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/mp3-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/mp3-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/mp3-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/mp3-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/mp3-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/ja/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "ja",
+      "title": "MP3からギターTAB譜へ — オンラインで編集可能",
+      "canonical": "https://www.note2tabs.com/ja/mp3-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/mp3-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/mp3-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/mp3-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/mp3-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/mp3-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/youtube-to-guitar-tabs",
+      "status": 200,
+      "lang": "en",
+      "title": "YouTube to Guitar Tabs Converter | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/youtube-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/youtube-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/youtube-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/youtube-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/youtube-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/youtube-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/pt-br/youtube-to-guitar-tabs",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Conversor de YouTube em tablatura | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/youtube-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/youtube-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/youtube-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/youtube-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/youtube-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/youtube-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/es/youtube-to-guitar-tabs",
+      "status": 200,
+      "lang": "es",
+      "title": "Conversor de YouTube a tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/youtube-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/youtube-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/youtube-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/youtube-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/youtube-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/youtube-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/ja/youtube-to-guitar-tabs",
+      "status": 200,
+      "lang": "ja",
+      "title": "YouTubeからギターTAB譜へ | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/youtube-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/youtube-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/youtube-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/youtube-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/youtube-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/youtube-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/ai-guitar-tab-generator",
+      "status": 200,
+      "lang": "en",
+      "title": "Free AI Guitar Tab Generator | Audio & YouTube",
+      "canonical": "https://www.note2tabs.com/ai-guitar-tab-generator",
+      "alternates": {
+        "en": "https://www.note2tabs.com/ai-guitar-tab-generator",
+        "pt-BR": "https://www.note2tabs.com/pt-br/ai-guitar-tab-generator",
+        "es": "https://www.note2tabs.com/es/ai-guitar-tab-generator",
+        "ja": "https://www.note2tabs.com/ja/ai-guitar-tab-generator",
+        "x-default": "https://www.note2tabs.com/ai-guitar-tab-generator"
+      }
+    },
+    {
+      "path": "/pt-br/ai-guitar-tab-generator",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Gerador gratuito de tablaturas com IA | Áudio e YouTube",
+      "canonical": "https://www.note2tabs.com/pt-br/ai-guitar-tab-generator",
+      "alternates": {
+        "en": "https://www.note2tabs.com/ai-guitar-tab-generator",
+        "pt-BR": "https://www.note2tabs.com/pt-br/ai-guitar-tab-generator",
+        "es": "https://www.note2tabs.com/es/ai-guitar-tab-generator",
+        "ja": "https://www.note2tabs.com/ja/ai-guitar-tab-generator",
+        "x-default": "https://www.note2tabs.com/ai-guitar-tab-generator"
+      }
+    },
+    {
+      "path": "/es/ai-guitar-tab-generator",
+      "status": 200,
+      "lang": "es",
+      "title": "Generador gratuito de tablaturas con IA | Audio y YouTube",
+      "canonical": "https://www.note2tabs.com/es/ai-guitar-tab-generator",
+      "alternates": {
+        "en": "https://www.note2tabs.com/ai-guitar-tab-generator",
+        "pt-BR": "https://www.note2tabs.com/pt-br/ai-guitar-tab-generator",
+        "es": "https://www.note2tabs.com/es/ai-guitar-tab-generator",
+        "ja": "https://www.note2tabs.com/ja/ai-guitar-tab-generator",
+        "x-default": "https://www.note2tabs.com/ai-guitar-tab-generator"
+      }
+    },
+    {
+      "path": "/ja/ai-guitar-tab-generator",
+      "status": 200,
+      "lang": "ja",
+      "title": "無料AIギターTAB譜作成 | 音声・YouTube",
+      "canonical": "https://www.note2tabs.com/ja/ai-guitar-tab-generator",
+      "alternates": {
+        "en": "https://www.note2tabs.com/ai-guitar-tab-generator",
+        "pt-BR": "https://www.note2tabs.com/pt-br/ai-guitar-tab-generator",
+        "es": "https://www.note2tabs.com/es/ai-guitar-tab-generator",
+        "ja": "https://www.note2tabs.com/ja/ai-guitar-tab-generator",
+        "x-default": "https://www.note2tabs.com/ai-guitar-tab-generator"
+      }
+    },
+    {
+      "path": "/free-guitar-tab-maker",
+      "status": 200,
+      "lang": "en",
+      "title": "Free Guitar Tab Maker | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/free-guitar-tab-maker",
+      "alternates": {
+        "en": "https://www.note2tabs.com/free-guitar-tab-maker",
+        "pt-BR": "https://www.note2tabs.com/pt-br/free-guitar-tab-maker",
+        "es": "https://www.note2tabs.com/es/free-guitar-tab-maker",
+        "ja": "https://www.note2tabs.com/ja/free-guitar-tab-maker",
+        "x-default": "https://www.note2tabs.com/free-guitar-tab-maker"
+      }
+    },
+    {
+      "path": "/pt-br/free-guitar-tab-maker",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Criador gratuito de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/free-guitar-tab-maker",
+      "alternates": {
+        "en": "https://www.note2tabs.com/free-guitar-tab-maker",
+        "pt-BR": "https://www.note2tabs.com/pt-br/free-guitar-tab-maker",
+        "es": "https://www.note2tabs.com/es/free-guitar-tab-maker",
+        "ja": "https://www.note2tabs.com/ja/free-guitar-tab-maker",
+        "x-default": "https://www.note2tabs.com/free-guitar-tab-maker"
+      }
+    },
+    {
+      "path": "/es/free-guitar-tab-maker",
+      "status": 200,
+      "lang": "es",
+      "title": "Creador gratuito de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/free-guitar-tab-maker",
+      "alternates": {
+        "en": "https://www.note2tabs.com/free-guitar-tab-maker",
+        "pt-BR": "https://www.note2tabs.com/pt-br/free-guitar-tab-maker",
+        "es": "https://www.note2tabs.com/es/free-guitar-tab-maker",
+        "ja": "https://www.note2tabs.com/ja/free-guitar-tab-maker",
+        "x-default": "https://www.note2tabs.com/free-guitar-tab-maker"
+      }
+    },
+    {
+      "path": "/ja/free-guitar-tab-maker",
+      "status": 200,
+      "lang": "ja",
+      "title": "無料ギターTAB譜作成ツール | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/free-guitar-tab-maker",
+      "alternates": {
+        "en": "https://www.note2tabs.com/free-guitar-tab-maker",
+        "pt-BR": "https://www.note2tabs.com/pt-br/free-guitar-tab-maker",
+        "es": "https://www.note2tabs.com/es/free-guitar-tab-maker",
+        "ja": "https://www.note2tabs.com/ja/free-guitar-tab-maker",
+        "x-default": "https://www.note2tabs.com/free-guitar-tab-maker"
+      }
+    },
+    {
+      "path": "/blog",
+      "status": 200,
+      "lang": "en",
+      "title": "Blog | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog",
+        "es": "https://www.note2tabs.com/es/blog",
+        "ja": "https://www.note2tabs.com/ja/blog",
+        "x-default": "https://www.note2tabs.com/blog"
+      }
+    },
+    {
+      "path": "/pt-br/blog",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Blog | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog",
+        "es": "https://www.note2tabs.com/es/blog",
+        "ja": "https://www.note2tabs.com/ja/blog",
+        "x-default": "https://www.note2tabs.com/blog"
+      }
+    },
+    {
+      "path": "/es/blog",
+      "status": 200,
+      "lang": "es",
+      "title": "Blog | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog",
+        "es": "https://www.note2tabs.com/es/blog",
+        "ja": "https://www.note2tabs.com/ja/blog",
+        "x-default": "https://www.note2tabs.com/blog"
+      }
+    },
+    {
+      "path": "/ja/blog",
+      "status": 200,
+      "lang": "ja",
+      "title": "ブログ | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog",
+        "es": "https://www.note2tabs.com/es/blog",
+        "ja": "https://www.note2tabs.com/ja/blog",
+        "x-default": "https://www.note2tabs.com/blog"
+      }
+    },
+    {
+      "path": "/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Tab Fingering Optimizer | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/features/guitar-tab-fingering-optimizer",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-tab-fingering-optimizer",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-tab-fingering-optimizer",
+        "es": "https://www.note2tabs.com/es/features/guitar-tab-fingering-optimizer",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-tab-fingering-optimizer",
+        "x-default": "https://www.note2tabs.com/features/guitar-tab-fingering-optimizer"
+      }
+    },
+    {
+      "path": "/pt-br/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Otimizador de digitação de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/features/guitar-tab-fingering-optimizer",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-tab-fingering-optimizer",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-tab-fingering-optimizer",
+        "es": "https://www.note2tabs.com/es/features/guitar-tab-fingering-optimizer",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-tab-fingering-optimizer",
+        "x-default": "https://www.note2tabs.com/features/guitar-tab-fingering-optimizer"
+      }
+    },
+    {
+      "path": "/es/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "lang": "es",
+      "title": "Optimizador de digitación de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/features/guitar-tab-fingering-optimizer",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-tab-fingering-optimizer",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-tab-fingering-optimizer",
+        "es": "https://www.note2tabs.com/es/features/guitar-tab-fingering-optimizer",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-tab-fingering-optimizer",
+        "x-default": "https://www.note2tabs.com/features/guitar-tab-fingering-optimizer"
+      }
+    },
+    {
+      "path": "/ja/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "lang": "ja",
+      "title": "ギターTAB譜の運指最適化 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/features/guitar-tab-fingering-optimizer",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-tab-fingering-optimizer",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-tab-fingering-optimizer",
+        "es": "https://www.note2tabs.com/es/features/guitar-tab-fingering-optimizer",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-tab-fingering-optimizer",
+        "x-default": "https://www.note2tabs.com/features/guitar-tab-fingering-optimizer"
+      }
+    },
+    {
+      "path": "/features/guitar-tab-key-detector",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Tab Key Detector & Snap-to-Key Tool | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/features/guitar-tab-key-detector",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-tab-key-detector",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-tab-key-detector",
+        "es": "https://www.note2tabs.com/es/features/guitar-tab-key-detector",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-tab-key-detector",
+        "x-default": "https://www.note2tabs.com/features/guitar-tab-key-detector"
+      }
+    },
+    {
+      "path": "/pt-br/features/guitar-tab-key-detector",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Detector de tonalidade e ajuste à escala | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/features/guitar-tab-key-detector",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-tab-key-detector",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-tab-key-detector",
+        "es": "https://www.note2tabs.com/es/features/guitar-tab-key-detector",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-tab-key-detector",
+        "x-default": "https://www.note2tabs.com/features/guitar-tab-key-detector"
+      }
+    },
+    {
+      "path": "/es/features/guitar-tab-key-detector",
+      "status": 200,
+      "lang": "es",
+      "title": "Detector de tonalidad y ajuste a la escala | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/features/guitar-tab-key-detector",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-tab-key-detector",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-tab-key-detector",
+        "es": "https://www.note2tabs.com/es/features/guitar-tab-key-detector",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-tab-key-detector",
+        "x-default": "https://www.note2tabs.com/features/guitar-tab-key-detector"
+      }
+    },
+    {
+      "path": "/ja/features/guitar-tab-key-detector",
+      "status": 200,
+      "lang": "ja",
+      "title": "ギターTAB譜のキー検出・スケール補正 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/features/guitar-tab-key-detector",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-tab-key-detector",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-tab-key-detector",
+        "es": "https://www.note2tabs.com/es/features/guitar-tab-key-detector",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-tab-key-detector",
+        "x-default": "https://www.note2tabs.com/features/guitar-tab-key-detector"
+      }
+    },
+    {
+      "path": "/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Chord & Strumming Editor | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/features/guitar-chord-strumming-editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-chord-strumming-editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-chord-strumming-editor",
+        "es": "https://www.note2tabs.com/es/features/guitar-chord-strumming-editor",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-chord-strumming-editor",
+        "x-default": "https://www.note2tabs.com/features/guitar-chord-strumming-editor"
+      }
+    },
+    {
+      "path": "/pt-br/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Editor de acordes e batidas de guitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/features/guitar-chord-strumming-editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-chord-strumming-editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-chord-strumming-editor",
+        "es": "https://www.note2tabs.com/es/features/guitar-chord-strumming-editor",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-chord-strumming-editor",
+        "x-default": "https://www.note2tabs.com/features/guitar-chord-strumming-editor"
+      }
+    },
+    {
+      "path": "/es/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "lang": "es",
+      "title": "Editor de acordes y rasgueos de guitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/features/guitar-chord-strumming-editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-chord-strumming-editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-chord-strumming-editor",
+        "es": "https://www.note2tabs.com/es/features/guitar-chord-strumming-editor",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-chord-strumming-editor",
+        "x-default": "https://www.note2tabs.com/features/guitar-chord-strumming-editor"
+      }
+    },
+    {
+      "path": "/ja/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "lang": "ja",
+      "title": "ギターのコード・ストロークエディター | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/features/guitar-chord-strumming-editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-chord-strumming-editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-chord-strumming-editor",
+        "es": "https://www.note2tabs.com/es/features/guitar-chord-strumming-editor",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-chord-strumming-editor",
+        "x-default": "https://www.note2tabs.com/features/guitar-chord-strumming-editor"
+      }
+    },
+    {
+      "path": "/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Tab Editor with Shortcuts | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/features/guitar-tab-editor-shortcuts",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-tab-editor-shortcuts",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-tab-editor-shortcuts",
+        "es": "https://www.note2tabs.com/es/features/guitar-tab-editor-shortcuts",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-tab-editor-shortcuts",
+        "x-default": "https://www.note2tabs.com/features/guitar-tab-editor-shortcuts"
+      }
+    },
+    {
+      "path": "/pt-br/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Editor de tablaturas com atalhos | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/features/guitar-tab-editor-shortcuts",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-tab-editor-shortcuts",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-tab-editor-shortcuts",
+        "es": "https://www.note2tabs.com/es/features/guitar-tab-editor-shortcuts",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-tab-editor-shortcuts",
+        "x-default": "https://www.note2tabs.com/features/guitar-tab-editor-shortcuts"
+      }
+    },
+    {
+      "path": "/es/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "lang": "es",
+      "title": "Editor de tablaturas con atajos | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/features/guitar-tab-editor-shortcuts",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-tab-editor-shortcuts",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-tab-editor-shortcuts",
+        "es": "https://www.note2tabs.com/es/features/guitar-tab-editor-shortcuts",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-tab-editor-shortcuts",
+        "x-default": "https://www.note2tabs.com/features/guitar-tab-editor-shortcuts"
+      }
+    },
+    {
+      "path": "/ja/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "lang": "ja",
+      "title": "ショートカット対応ギターTAB譜エディター | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/features/guitar-tab-editor-shortcuts",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-tab-editor-shortcuts",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-tab-editor-shortcuts",
+        "es": "https://www.note2tabs.com/es/features/guitar-tab-editor-shortcuts",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-tab-editor-shortcuts",
+        "x-default": "https://www.note2tabs.com/features/guitar-tab-editor-shortcuts"
+      }
+    },
+    {
+      "path": "/features/guitar-tab-import-export",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Tab Import & Export Tool | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/features/guitar-tab-import-export",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-tab-import-export",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-tab-import-export",
+        "es": "https://www.note2tabs.com/es/features/guitar-tab-import-export",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-tab-import-export",
+        "x-default": "https://www.note2tabs.com/features/guitar-tab-import-export"
+      }
+    },
+    {
+      "path": "/pt-br/features/guitar-tab-import-export",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Importação e exportação de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/features/guitar-tab-import-export",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-tab-import-export",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-tab-import-export",
+        "es": "https://www.note2tabs.com/es/features/guitar-tab-import-export",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-tab-import-export",
+        "x-default": "https://www.note2tabs.com/features/guitar-tab-import-export"
+      }
+    },
+    {
+      "path": "/es/features/guitar-tab-import-export",
+      "status": 200,
+      "lang": "es",
+      "title": "Importación y exportación de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/features/guitar-tab-import-export",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-tab-import-export",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-tab-import-export",
+        "es": "https://www.note2tabs.com/es/features/guitar-tab-import-export",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-tab-import-export",
+        "x-default": "https://www.note2tabs.com/features/guitar-tab-import-export"
+      }
+    },
+    {
+      "path": "/ja/features/guitar-tab-import-export",
+      "status": 200,
+      "lang": "ja",
+      "title": "ギターTAB譜の取り込み・書き出し | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/features/guitar-tab-import-export",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-tab-import-export",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-tab-import-export",
+        "es": "https://www.note2tabs.com/es/features/guitar-tab-import-export",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-tab-import-export",
+        "x-default": "https://www.note2tabs.com/features/guitar-tab-import-export"
+      }
+    },
+    {
+      "path": "/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Tab Practice & Speed Trainer | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/features/guitar-tab-practice-trainer",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-tab-practice-trainer",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-tab-practice-trainer",
+        "es": "https://www.note2tabs.com/es/features/guitar-tab-practice-trainer",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-tab-practice-trainer",
+        "x-default": "https://www.note2tabs.com/features/guitar-tab-practice-trainer"
+      }
+    },
+    {
+      "path": "/pt-br/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Prática de tablaturas e treino de velocidade | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/features/guitar-tab-practice-trainer",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-tab-practice-trainer",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-tab-practice-trainer",
+        "es": "https://www.note2tabs.com/es/features/guitar-tab-practice-trainer",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-tab-practice-trainer",
+        "x-default": "https://www.note2tabs.com/features/guitar-tab-practice-trainer"
+      }
+    },
+    {
+      "path": "/es/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "lang": "es",
+      "title": "Práctica de tablaturas y entrenamiento de velocidad | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/features/guitar-tab-practice-trainer",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-tab-practice-trainer",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-tab-practice-trainer",
+        "es": "https://www.note2tabs.com/es/features/guitar-tab-practice-trainer",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-tab-practice-trainer",
+        "x-default": "https://www.note2tabs.com/features/guitar-tab-practice-trainer"
+      }
+    },
+    {
+      "path": "/ja/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "lang": "ja",
+      "title": "ギターTAB譜の練習・スピードトレーニング | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/features/guitar-tab-practice-trainer",
+      "alternates": {
+        "en": "https://www.note2tabs.com/features/guitar-tab-practice-trainer",
+        "pt-BR": "https://www.note2tabs.com/pt-br/features/guitar-tab-practice-trainer",
+        "es": "https://www.note2tabs.com/es/features/guitar-tab-practice-trainer",
+        "ja": "https://www.note2tabs.com/ja/features/guitar-tab-practice-trainer",
+        "x-default": "https://www.note2tabs.com/features/guitar-tab-practice-trainer"
+      }
+    },
+    {
+      "path": "/blog/wav-to-guitar-tabs",
+      "status": 200,
+      "lang": "en",
+      "title": "WAV to Guitar Tabs | Convert Clean Audio Into Editable Tab | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/wav-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/wav-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/wav-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/blog/wav-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/wav-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/blog/wav-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/pt-br/blog/wav-to-guitar-tabs",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "WAV para tablatura: quando um áudio limpo melhora o resultado | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/wav-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/wav-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/wav-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/blog/wav-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/wav-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/blog/wav-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/es/blog/wav-to-guitar-tabs",
+      "status": 200,
+      "lang": "es",
+      "title": "WAV a tablaturas: cuándo mejora el resultado un audio limpio | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/wav-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/wav-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/wav-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/blog/wav-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/wav-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/blog/wav-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/ja/blog/wav-to-guitar-tabs",
+      "status": 200,
+      "lang": "ja",
+      "title": "WAVからギターTAB譜へ：明瞭な録音を活かす | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/wav-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/wav-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/wav-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/blog/wav-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/wav-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/blog/wav-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/blog/how-to-edit-guitar-tabs-for-practice",
+      "status": 200,
+      "lang": "en",
+      "title": "How to Edit Guitar Tabs for Practice | Playability Checklist | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/how-to-edit-guitar-tabs-for-practice",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-edit-guitar-tabs-for-practice",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-edit-guitar-tabs-for-practice",
+        "es": "https://www.note2tabs.com/es/blog/how-to-edit-guitar-tabs-for-practice",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-edit-guitar-tabs-for-practice",
+        "x-default": "https://www.note2tabs.com/blog/how-to-edit-guitar-tabs-for-practice"
+      }
+    },
+    {
+      "path": "/pt-br/blog/how-to-edit-guitar-tabs-for-practice",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Como editar tablaturas para praticar: uma lista de verificação simples | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/how-to-edit-guitar-tabs-for-practice",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-edit-guitar-tabs-for-practice",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-edit-guitar-tabs-for-practice",
+        "es": "https://www.note2tabs.com/es/blog/how-to-edit-guitar-tabs-for-practice",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-edit-guitar-tabs-for-practice",
+        "x-default": "https://www.note2tabs.com/blog/how-to-edit-guitar-tabs-for-practice"
+      }
+    },
+    {
+      "path": "/es/blog/how-to-edit-guitar-tabs-for-practice",
+      "status": 200,
+      "lang": "es",
+      "title": "Cómo editar tablaturas para practicar: una lista sencilla | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/how-to-edit-guitar-tabs-for-practice",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-edit-guitar-tabs-for-practice",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-edit-guitar-tabs-for-practice",
+        "es": "https://www.note2tabs.com/es/blog/how-to-edit-guitar-tabs-for-practice",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-edit-guitar-tabs-for-practice",
+        "x-default": "https://www.note2tabs.com/blog/how-to-edit-guitar-tabs-for-practice"
+      }
+    },
+    {
+      "path": "/ja/blog/how-to-edit-guitar-tabs-for-practice",
+      "status": 200,
+      "lang": "ja",
+      "title": "練習のためにギターTAB譜を編集する | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/how-to-edit-guitar-tabs-for-practice",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-edit-guitar-tabs-for-practice",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-edit-guitar-tabs-for-practice",
+        "es": "https://www.note2tabs.com/es/blog/how-to-edit-guitar-tabs-for-practice",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-edit-guitar-tabs-for-practice",
+        "x-default": "https://www.note2tabs.com/blog/how-to-edit-guitar-tabs-for-practice"
+      }
+    },
+    {
+      "path": "/blog/guitar-solo-tab-maker",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Solo Tab Maker | Make Lead Guitar Tabs Online | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/guitar-solo-tab-maker",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-solo-tab-maker",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-solo-tab-maker",
+        "es": "https://www.note2tabs.com/es/blog/guitar-solo-tab-maker",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-solo-tab-maker",
+        "x-default": "https://www.note2tabs.com/blog/guitar-solo-tab-maker"
+      }
+    },
+    {
+      "path": "/pt-br/blog/guitar-solo-tab-maker",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Criador de tablaturas de solos: transforme guitarra solo em material tocável | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/guitar-solo-tab-maker",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-solo-tab-maker",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-solo-tab-maker",
+        "es": "https://www.note2tabs.com/es/blog/guitar-solo-tab-maker",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-solo-tab-maker",
+        "x-default": "https://www.note2tabs.com/blog/guitar-solo-tab-maker"
+      }
+    },
+    {
+      "path": "/es/blog/guitar-solo-tab-maker",
+      "status": 200,
+      "lang": "es",
+      "title": "Creador de tablaturas de solos: convierte guitarra solista en material tocable | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/guitar-solo-tab-maker",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-solo-tab-maker",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-solo-tab-maker",
+        "es": "https://www.note2tabs.com/es/blog/guitar-solo-tab-maker",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-solo-tab-maker",
+        "x-default": "https://www.note2tabs.com/blog/guitar-solo-tab-maker"
+      }
+    },
+    {
+      "path": "/ja/blog/guitar-solo-tab-maker",
+      "status": 200,
+      "lang": "ja",
+      "title": "ギターソロのTAB譜作成：弾けるリードパートに | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/guitar-solo-tab-maker",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-solo-tab-maker",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-solo-tab-maker",
+        "es": "https://www.note2tabs.com/es/blog/guitar-solo-tab-maker",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-solo-tab-maker",
+        "x-default": "https://www.note2tabs.com/blog/guitar-solo-tab-maker"
+      }
+    },
+    {
+      "path": "/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "status": 200,
+      "lang": "en",
+      "title": "How to Use an AI Guitar Tab Generator | Step-by-Step Guide | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "es": "https://www.note2tabs.com/es/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "x-default": "https://www.note2tabs.com/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes"
+      }
+    },
+    {
+      "path": "/pt-br/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Como usar um gerador com IA para transcrever músicas em minutos | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "es": "https://www.note2tabs.com/es/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "x-default": "https://www.note2tabs.com/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes"
+      }
+    },
+    {
+      "path": "/es/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "status": 200,
+      "lang": "es",
+      "title": "Cómo usar un generador con IA para transcribir canciones en minutos | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "es": "https://www.note2tabs.com/es/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "x-default": "https://www.note2tabs.com/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes"
+      }
+    },
+    {
+      "path": "/ja/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "status": 200,
+      "lang": "ja",
+      "title": "AIギター採譜ツールの使い方：生成から練習まで | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "es": "https://www.note2tabs.com/es/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "x-default": "https://www.note2tabs.com/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes"
+      }
+    },
+    {
+      "path": "/blog/guitar-tab-creator-with-playback",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Tab Creator With Playback | Check Tabs by Ear | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/guitar-tab-creator-with-playback",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-tab-creator-with-playback",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-tab-creator-with-playback",
+        "es": "https://www.note2tabs.com/es/blog/guitar-tab-creator-with-playback",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-tab-creator-with-playback",
+        "x-default": "https://www.note2tabs.com/blog/guitar-tab-creator-with-playback"
+      }
+    },
+    {
+      "path": "/pt-br/blog/guitar-tab-creator-with-playback",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Criador de tablaturas com reprodução: por que ouvir muda tudo | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/guitar-tab-creator-with-playback",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-tab-creator-with-playback",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-tab-creator-with-playback",
+        "es": "https://www.note2tabs.com/es/blog/guitar-tab-creator-with-playback",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-tab-creator-with-playback",
+        "x-default": "https://www.note2tabs.com/blog/guitar-tab-creator-with-playback"
+      }
+    },
+    {
+      "path": "/es/blog/guitar-tab-creator-with-playback",
+      "status": 200,
+      "lang": "es",
+      "title": "Creador de tablaturas con reproducción: por qué escuchar lo cambia todo | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/guitar-tab-creator-with-playback",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-tab-creator-with-playback",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-tab-creator-with-playback",
+        "es": "https://www.note2tabs.com/es/blog/guitar-tab-creator-with-playback",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-tab-creator-with-playback",
+        "x-default": "https://www.note2tabs.com/blog/guitar-tab-creator-with-playback"
+      }
+    },
+    {
+      "path": "/ja/blog/guitar-tab-creator-with-playback",
+      "status": 200,
+      "lang": "ja",
+      "title": "再生できるTAB譜作成ツール：聴いて確かめる | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/guitar-tab-creator-with-playback",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-tab-creator-with-playback",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-tab-creator-with-playback",
+        "es": "https://www.note2tabs.com/es/blog/guitar-tab-creator-with-playback",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-tab-creator-with-playback",
+        "x-default": "https://www.note2tabs.com/blog/guitar-tab-creator-with-playback"
+      }
+    },
+    {
+      "path": "/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "status": 200,
+      "lang": "en",
+      "title": "How to Use Generate Cuts, Cut Regions, and Optimize | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+        "es": "https://www.note2tabs.com/es/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+        "x-default": "https://www.note2tabs.com/blog/how-to-use-generate-cuts-cut-regions-and-optimize"
+      }
+    },
+    {
+      "path": "/pt-br/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Como usar Generate Cuts, Cut Regions e Optimize no editor | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+        "es": "https://www.note2tabs.com/es/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+        "x-default": "https://www.note2tabs.com/blog/how-to-use-generate-cuts-cut-regions-and-optimize"
+      }
+    },
+    {
+      "path": "/es/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "status": 200,
+      "lang": "es",
+      "title": "Cómo usar Generate Cuts, Cut Regions y Optimize en el editor | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+        "es": "https://www.note2tabs.com/es/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+        "x-default": "https://www.note2tabs.com/blog/how-to-use-generate-cuts-cut-regions-and-optimize"
+      }
+    },
+    {
+      "path": "/ja/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "status": 200,
+      "lang": "ja",
+      "title": "Generate Cuts・Cut Regions・Optimizeの使い方 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+        "es": "https://www.note2tabs.com/es/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+        "x-default": "https://www.note2tabs.com/blog/how-to-use-generate-cuts-cut-regions-and-optimize"
+      }
+    },
+    {
+      "path": "/blog/ascii-guitar-tab-editor",
+      "status": 200,
+      "lang": "en",
+      "title": "ASCII Guitar Tab Editor | Create and Export Plain Text Tabs | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/ascii-guitar-tab-editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/ascii-guitar-tab-editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/ascii-guitar-tab-editor",
+        "es": "https://www.note2tabs.com/es/blog/ascii-guitar-tab-editor",
+        "ja": "https://www.note2tabs.com/ja/blog/ascii-guitar-tab-editor",
+        "x-default": "https://www.note2tabs.com/blog/ascii-guitar-tab-editor"
+      }
+    },
+    {
+      "path": "/pt-br/blog/ascii-guitar-tab-editor",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Editor de tablaturas ASCII: quando o texto simples ainda é útil | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/ascii-guitar-tab-editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/ascii-guitar-tab-editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/ascii-guitar-tab-editor",
+        "es": "https://www.note2tabs.com/es/blog/ascii-guitar-tab-editor",
+        "ja": "https://www.note2tabs.com/ja/blog/ascii-guitar-tab-editor",
+        "x-default": "https://www.note2tabs.com/blog/ascii-guitar-tab-editor"
+      }
+    },
+    {
+      "path": "/es/blog/ascii-guitar-tab-editor",
+      "status": 200,
+      "lang": "es",
+      "title": "Editor de tablaturas ASCII: cuándo sigue siendo útil el texto simple | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/ascii-guitar-tab-editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/ascii-guitar-tab-editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/ascii-guitar-tab-editor",
+        "es": "https://www.note2tabs.com/es/blog/ascii-guitar-tab-editor",
+        "ja": "https://www.note2tabs.com/ja/blog/ascii-guitar-tab-editor",
+        "x-default": "https://www.note2tabs.com/blog/ascii-guitar-tab-editor"
+      }
+    },
+    {
+      "path": "/ja/blog/ascii-guitar-tab-editor",
+      "status": 200,
+      "lang": "ja",
+      "title": "ASCIIギターTAB譜：テキスト形式が役立つ場面 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/ascii-guitar-tab-editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/ascii-guitar-tab-editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/ascii-guitar-tab-editor",
+        "es": "https://www.note2tabs.com/es/blog/ascii-guitar-tab-editor",
+        "ja": "https://www.note2tabs.com/ja/blog/ascii-guitar-tab-editor",
+        "x-default": "https://www.note2tabs.com/blog/ascii-guitar-tab-editor"
+      }
+    },
+    {
+      "path": "/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "status": 200,
+      "lang": "en",
+      "title": "How to Learn Guitar Faster with AI Tools | Note2Tabs Guide",
+      "canonical": "https://www.note2tabs.com/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-learn-guitar-faster-using-ai-tools",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-learn-guitar-faster-using-ai-tools",
+        "es": "https://www.note2tabs.com/es/blog/how-to-learn-guitar-faster-using-ai-tools",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-learn-guitar-faster-using-ai-tools",
+        "x-default": "https://www.note2tabs.com/blog/how-to-learn-guitar-faster-using-ai-tools"
+      }
+    },
+    {
+      "path": "/pt-br/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Como aprender guitarra mais rápido com ferramentas de IA | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-learn-guitar-faster-using-ai-tools",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-learn-guitar-faster-using-ai-tools",
+        "es": "https://www.note2tabs.com/es/blog/how-to-learn-guitar-faster-using-ai-tools",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-learn-guitar-faster-using-ai-tools",
+        "x-default": "https://www.note2tabs.com/blog/how-to-learn-guitar-faster-using-ai-tools"
+      }
+    },
+    {
+      "path": "/es/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "status": 200,
+      "lang": "es",
+      "title": "Cómo aprender guitarra más rápido con herramientas de IA | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-learn-guitar-faster-using-ai-tools",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-learn-guitar-faster-using-ai-tools",
+        "es": "https://www.note2tabs.com/es/blog/how-to-learn-guitar-faster-using-ai-tools",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-learn-guitar-faster-using-ai-tools",
+        "x-default": "https://www.note2tabs.com/blog/how-to-learn-guitar-faster-using-ai-tools"
+      }
+    },
+    {
+      "path": "/ja/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "status": 200,
+      "lang": "ja",
+      "title": "AIツールをギターの練習に活かす | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-learn-guitar-faster-using-ai-tools",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-learn-guitar-faster-using-ai-tools",
+        "es": "https://www.note2tabs.com/es/blog/how-to-learn-guitar-faster-using-ai-tools",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-learn-guitar-faster-using-ai-tools",
+        "x-default": "https://www.note2tabs.com/blog/how-to-learn-guitar-faster-using-ai-tools"
+      }
+    },
+    {
+      "path": "/blog/tab-editor-for-guitar",
+      "status": 200,
+      "lang": "en",
+      "title": "Tab Editor for Guitar: 7 Ways to Make Tabs More Playable | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/tab-editor-for-guitar",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/tab-editor-for-guitar",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/tab-editor-for-guitar",
+        "es": "https://www.note2tabs.com/es/blog/tab-editor-for-guitar",
+        "ja": "https://www.note2tabs.com/ja/blog/tab-editor-for-guitar",
+        "x-default": "https://www.note2tabs.com/blog/tab-editor-for-guitar"
+      }
+    },
+    {
+      "path": "/pt-br/blog/tab-editor-for-guitar",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Editor de tablaturas: 7 formas de melhorar a execução | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/tab-editor-for-guitar",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/tab-editor-for-guitar",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/tab-editor-for-guitar",
+        "es": "https://www.note2tabs.com/es/blog/tab-editor-for-guitar",
+        "ja": "https://www.note2tabs.com/ja/blog/tab-editor-for-guitar",
+        "x-default": "https://www.note2tabs.com/blog/tab-editor-for-guitar"
+      }
+    },
+    {
+      "path": "/es/blog/tab-editor-for-guitar",
+      "status": 200,
+      "lang": "es",
+      "title": "Editor de tablaturas: 7 formas de mejorar cómo se tocan | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/tab-editor-for-guitar",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/tab-editor-for-guitar",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/tab-editor-for-guitar",
+        "es": "https://www.note2tabs.com/es/blog/tab-editor-for-guitar",
+        "ja": "https://www.note2tabs.com/ja/blog/tab-editor-for-guitar",
+        "x-default": "https://www.note2tabs.com/blog/tab-editor-for-guitar"
+      }
+    },
+    {
+      "path": "/ja/blog/tab-editor-for-guitar",
+      "status": 200,
+      "lang": "ja",
+      "title": "ギターTAB譜の編集：弾きやすくする7つの確認 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/tab-editor-for-guitar",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/tab-editor-for-guitar",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/tab-editor-for-guitar",
+        "es": "https://www.note2tabs.com/es/blog/tab-editor-for-guitar",
+        "ja": "https://www.note2tabs.com/ja/blog/tab-editor-for-guitar",
+        "x-default": "https://www.note2tabs.com/blog/tab-editor-for-guitar"
+      }
+    },
+    {
+      "path": "/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "status": 200,
+      "lang": "en",
+      "title": "AI Guitar Tab Generator for Audio and YouTube | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+        "es": "https://www.note2tabs.com/es/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+        "x-default": "https://www.note2tabs.com/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs"
+      }
+    },
+    {
+      "path": "/pt-br/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Gerador de tablaturas com IA: converta músicas, inclusive do YouTube | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+        "es": "https://www.note2tabs.com/es/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+        "x-default": "https://www.note2tabs.com/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs"
+      }
+    },
+    {
+      "path": "/es/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "status": 200,
+      "lang": "es",
+      "title": "Generador de tablaturas con IA: convierte canciones, incluso desde YouTube | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+        "es": "https://www.note2tabs.com/es/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+        "x-default": "https://www.note2tabs.com/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs"
+      }
+    },
+    {
+      "path": "/ja/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "status": 200,
+      "lang": "ja",
+      "title": "AIギター採譜：音声・YouTubeからTAB譜を作る | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+        "es": "https://www.note2tabs.com/es/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+        "x-default": "https://www.note2tabs.com/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs"
+      }
+    },
+    {
+      "path": "/blog/guitar-tab-editor",
+      "status": 200,
+      "lang": "en",
+      "title": "Online Guitar Tab Editor for Writing, Playback and Practice | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/guitar-tab-editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-tab-editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-tab-editor",
+        "es": "https://www.note2tabs.com/es/blog/guitar-tab-editor",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-tab-editor",
+        "x-default": "https://www.note2tabs.com/blog/guitar-tab-editor"
+      }
+    },
+    {
+      "path": "/pt-br/blog/guitar-tab-editor",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Editor de tablaturas online: escreva, arranje e pratique | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/guitar-tab-editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-tab-editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-tab-editor",
+        "es": "https://www.note2tabs.com/es/blog/guitar-tab-editor",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-tab-editor",
+        "x-default": "https://www.note2tabs.com/blog/guitar-tab-editor"
+      }
+    },
+    {
+      "path": "/es/blog/guitar-tab-editor",
+      "status": 200,
+      "lang": "es",
+      "title": "Editor de tablaturas en línea: escribe, organiza y practica | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/guitar-tab-editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-tab-editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-tab-editor",
+        "es": "https://www.note2tabs.com/es/blog/guitar-tab-editor",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-tab-editor",
+        "x-default": "https://www.note2tabs.com/blog/guitar-tab-editor"
+      }
+    },
+    {
+      "path": "/ja/blog/guitar-tab-editor",
+      "status": 200,
+      "lang": "ja",
+      "title": "オンラインギターTAB譜エディター：作成・アレンジ・練習 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/guitar-tab-editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-tab-editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-tab-editor",
+        "es": "https://www.note2tabs.com/es/blog/guitar-tab-editor",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-tab-editor",
+        "x-default": "https://www.note2tabs.com/blog/guitar-tab-editor"
+      }
+    },
+    {
+      "path": "/blog/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "en",
+      "title": "MP3 to Guitar Tabs | Convert MP3 Audio Into Editable Tab | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/mp3-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/mp3-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/mp3-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/blog/mp3-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/mp3-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/blog/mp3-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/pt-br/blog/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "MP3 para tablatura: converta um MP3 em tablatura editável | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/mp3-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/mp3-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/mp3-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/blog/mp3-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/mp3-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/blog/mp3-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/es/blog/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "es",
+      "title": "MP3 a tablaturas: convierte un MP3 en una tablatura editable | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/mp3-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/mp3-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/mp3-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/blog/mp3-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/mp3-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/blog/mp3-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/ja/blog/mp3-to-guitar-tabs",
+      "status": 200,
+      "lang": "ja",
+      "title": "MP3からギターTAB譜へ：音源選びと編集 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/mp3-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/mp3-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/mp3-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/blog/mp3-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/mp3-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/blog/mp3-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/blog/ai-guitar-tab-editor",
+      "status": 200,
+      "lang": "en",
+      "title": "AI Guitar Tab Editor for Creation, Arrangement and Practice | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/ai-guitar-tab-editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/ai-guitar-tab-editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/ai-guitar-tab-editor",
+        "es": "https://www.note2tabs.com/es/blog/ai-guitar-tab-editor",
+        "ja": "https://www.note2tabs.com/ja/blog/ai-guitar-tab-editor",
+        "x-default": "https://www.note2tabs.com/blog/ai-guitar-tab-editor"
+      }
+    },
+    {
+      "path": "/pt-br/blog/ai-guitar-tab-editor",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Editor de tablaturas com IA: crie, arranje e pratique online | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/ai-guitar-tab-editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/ai-guitar-tab-editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/ai-guitar-tab-editor",
+        "es": "https://www.note2tabs.com/es/blog/ai-guitar-tab-editor",
+        "ja": "https://www.note2tabs.com/ja/blog/ai-guitar-tab-editor",
+        "x-default": "https://www.note2tabs.com/blog/ai-guitar-tab-editor"
+      }
+    },
+    {
+      "path": "/es/blog/ai-guitar-tab-editor",
+      "status": 200,
+      "lang": "es",
+      "title": "Editor de tablaturas con IA: crea, organiza y practica en línea | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/ai-guitar-tab-editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/ai-guitar-tab-editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/ai-guitar-tab-editor",
+        "es": "https://www.note2tabs.com/es/blog/ai-guitar-tab-editor",
+        "ja": "https://www.note2tabs.com/ja/blog/ai-guitar-tab-editor",
+        "x-default": "https://www.note2tabs.com/blog/ai-guitar-tab-editor"
+      }
+    },
+    {
+      "path": "/ja/blog/ai-guitar-tab-editor",
+      "status": 200,
+      "lang": "ja",
+      "title": "AIギターTAB譜エディター：オンラインで作成・アレンジ・練習 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/ai-guitar-tab-editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/ai-guitar-tab-editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/ai-guitar-tab-editor",
+        "es": "https://www.note2tabs.com/es/blog/ai-guitar-tab-editor",
+        "ja": "https://www.note2tabs.com/ja/blog/ai-guitar-tab-editor",
+        "x-default": "https://www.note2tabs.com/blog/ai-guitar-tab-editor"
+      }
+    },
+    {
+      "path": "/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "status": 200,
+      "lang": "en",
+      "title": "Best AI Guitar Tab Generator | Editable Tabs with Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "es": "https://www.note2tabs.com/es/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "ja": "https://www.note2tabs.com/ja/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "x-default": "https://www.note2tabs.com/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly"
+      }
+    },
+    {
+      "path": "/pt-br/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "O melhor gerador de tablaturas com IA online: o que realmente importa | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "es": "https://www.note2tabs.com/es/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "ja": "https://www.note2tabs.com/ja/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "x-default": "https://www.note2tabs.com/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly"
+      }
+    },
+    {
+      "path": "/es/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "status": 200,
+      "lang": "es",
+      "title": "El mejor generador de tablaturas con IA: qué importa realmente | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "es": "https://www.note2tabs.com/es/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "ja": "https://www.note2tabs.com/ja/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "x-default": "https://www.note2tabs.com/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly"
+      }
+    },
+    {
+      "path": "/ja/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "status": 200,
+      "lang": "ja",
+      "title": "AIギター採譜ツールの選び方 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "es": "https://www.note2tabs.com/es/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "ja": "https://www.note2tabs.com/ja/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "x-default": "https://www.note2tabs.com/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly"
+      }
+    },
+    {
+      "path": "/blog/free-online-guitar-tab-maker",
+      "status": 200,
+      "lang": "en",
+      "title": "Free Online Guitar Tab Maker | What Features Matter | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/free-online-guitar-tab-maker",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/free-online-guitar-tab-maker",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/free-online-guitar-tab-maker",
+        "es": "https://www.note2tabs.com/es/blog/free-online-guitar-tab-maker",
+        "ja": "https://www.note2tabs.com/ja/blog/free-online-guitar-tab-maker",
+        "x-default": "https://www.note2tabs.com/blog/free-online-guitar-tab-maker"
+      }
+    },
+    {
+      "path": "/pt-br/blog/free-online-guitar-tab-maker",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Criador gratuito de tablaturas online: o que procurar antes de começar | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/free-online-guitar-tab-maker",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/free-online-guitar-tab-maker",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/free-online-guitar-tab-maker",
+        "es": "https://www.note2tabs.com/es/blog/free-online-guitar-tab-maker",
+        "ja": "https://www.note2tabs.com/ja/blog/free-online-guitar-tab-maker",
+        "x-default": "https://www.note2tabs.com/blog/free-online-guitar-tab-maker"
+      }
+    },
+    {
+      "path": "/es/blog/free-online-guitar-tab-maker",
+      "status": 200,
+      "lang": "es",
+      "title": "Creador gratuito de tablaturas en línea: qué buscar antes de empezar | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/free-online-guitar-tab-maker",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/free-online-guitar-tab-maker",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/free-online-guitar-tab-maker",
+        "es": "https://www.note2tabs.com/es/blog/free-online-guitar-tab-maker",
+        "ja": "https://www.note2tabs.com/ja/blog/free-online-guitar-tab-maker",
+        "x-default": "https://www.note2tabs.com/blog/free-online-guitar-tab-maker"
+      }
+    },
+    {
+      "path": "/ja/blog/free-online-guitar-tab-maker",
+      "status": 200,
+      "lang": "ja",
+      "title": "無料オンラインTAB譜作成ツールの選び方 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/free-online-guitar-tab-maker",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/free-online-guitar-tab-maker",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/free-online-guitar-tab-maker",
+        "es": "https://www.note2tabs.com/es/blog/free-online-guitar-tab-maker",
+        "ja": "https://www.note2tabs.com/ja/blog/free-online-guitar-tab-maker",
+        "x-default": "https://www.note2tabs.com/blog/free-online-guitar-tab-maker"
+      }
+    },
+    {
+      "path": "/blog/why-guitar-tabs-can-be-wrong",
+      "status": 200,
+      "lang": "en",
+      "title": "Why Guitar Tabs Can Be Wrong — and Why You Might Not Notice | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/why-guitar-tabs-can-be-wrong",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/why-guitar-tabs-can-be-wrong",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/why-guitar-tabs-can-be-wrong",
+        "es": "https://www.note2tabs.com/es/blog/why-guitar-tabs-can-be-wrong",
+        "ja": "https://www.note2tabs.com/ja/blog/why-guitar-tabs-can-be-wrong",
+        "x-default": "https://www.note2tabs.com/blog/why-guitar-tabs-can-be-wrong"
+      }
+    },
+    {
+      "path": "/pt-br/blog/why-guitar-tabs-can-be-wrong",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Por que tablaturas podem estar erradas — e por que você talvez não perceba | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/why-guitar-tabs-can-be-wrong",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/why-guitar-tabs-can-be-wrong",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/why-guitar-tabs-can-be-wrong",
+        "es": "https://www.note2tabs.com/es/blog/why-guitar-tabs-can-be-wrong",
+        "ja": "https://www.note2tabs.com/ja/blog/why-guitar-tabs-can-be-wrong",
+        "x-default": "https://www.note2tabs.com/blog/why-guitar-tabs-can-be-wrong"
+      }
+    },
+    {
+      "path": "/es/blog/why-guitar-tabs-can-be-wrong",
+      "status": 200,
+      "lang": "es",
+      "title": "Por qué las tablaturas pueden estar mal y quizá no lo notes | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/why-guitar-tabs-can-be-wrong",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/why-guitar-tabs-can-be-wrong",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/why-guitar-tabs-can-be-wrong",
+        "es": "https://www.note2tabs.com/es/blog/why-guitar-tabs-can-be-wrong",
+        "ja": "https://www.note2tabs.com/ja/blog/why-guitar-tabs-can-be-wrong",
+        "x-default": "https://www.note2tabs.com/blog/why-guitar-tabs-can-be-wrong"
+      }
+    },
+    {
+      "path": "/ja/blog/why-guitar-tabs-can-be-wrong",
+      "status": 200,
+      "lang": "ja",
+      "title": "ギターTAB譜はなぜ間違うのか — 気づきにくい理由 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/why-guitar-tabs-can-be-wrong",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/why-guitar-tabs-can-be-wrong",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/why-guitar-tabs-can-be-wrong",
+        "es": "https://www.note2tabs.com/es/blog/why-guitar-tabs-can-be-wrong",
+        "ja": "https://www.note2tabs.com/ja/blog/why-guitar-tabs-can-be-wrong",
+        "x-default": "https://www.note2tabs.com/blog/why-guitar-tabs-can-be-wrong"
+      }
+    },
+    {
+      "path": "/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "status": 200,
+      "lang": "en",
+      "title": "How to Write Guitar Tabs Online | No Download Workflow | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+        "es": "https://www.note2tabs.com/es/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+        "x-default": "https://www.note2tabs.com/blog/how-to-write-guitar-tabs-online-without-downloading-software"
+      }
+    },
+    {
+      "path": "/pt-br/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Como escrever tablaturas online sem baixar programas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+        "es": "https://www.note2tabs.com/es/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+        "x-default": "https://www.note2tabs.com/blog/how-to-write-guitar-tabs-online-without-downloading-software"
+      }
+    },
+    {
+      "path": "/es/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "status": 200,
+      "lang": "es",
+      "title": "Cómo escribir tablaturas en línea sin descargar programas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+        "es": "https://www.note2tabs.com/es/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+        "x-default": "https://www.note2tabs.com/blog/how-to-write-guitar-tabs-online-without-downloading-software"
+      }
+    },
+    {
+      "path": "/ja/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "status": 200,
+      "lang": "ja",
+      "title": "インストールせずにギターTAB譜を書く | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+        "es": "https://www.note2tabs.com/es/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+        "x-default": "https://www.note2tabs.com/blog/how-to-write-guitar-tabs-online-without-downloading-software"
+      }
+    },
+    {
+      "path": "/blog/youtube-to-guitar-tabs-workflow",
+      "status": 200,
+      "lang": "en",
+      "title": "YouTube to Guitar Tabs | Practical Editable Workflow | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/youtube-to-guitar-tabs-workflow",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/youtube-to-guitar-tabs-workflow",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/youtube-to-guitar-tabs-workflow",
+        "es": "https://www.note2tabs.com/es/blog/youtube-to-guitar-tabs-workflow",
+        "ja": "https://www.note2tabs.com/ja/blog/youtube-to-guitar-tabs-workflow",
+        "x-default": "https://www.note2tabs.com/blog/youtube-to-guitar-tabs-workflow"
+      }
+    },
+    {
+      "path": "/pt-br/blog/youtube-to-guitar-tabs-workflow",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "YouTube para tablatura: um processo prático para aprender músicas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/youtube-to-guitar-tabs-workflow",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/youtube-to-guitar-tabs-workflow",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/youtube-to-guitar-tabs-workflow",
+        "es": "https://www.note2tabs.com/es/blog/youtube-to-guitar-tabs-workflow",
+        "ja": "https://www.note2tabs.com/ja/blog/youtube-to-guitar-tabs-workflow",
+        "x-default": "https://www.note2tabs.com/blog/youtube-to-guitar-tabs-workflow"
+      }
+    },
+    {
+      "path": "/es/blog/youtube-to-guitar-tabs-workflow",
+      "status": 200,
+      "lang": "es",
+      "title": "YouTube a tablaturas: un proceso práctico para aprender canciones | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/youtube-to-guitar-tabs-workflow",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/youtube-to-guitar-tabs-workflow",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/youtube-to-guitar-tabs-workflow",
+        "es": "https://www.note2tabs.com/es/blog/youtube-to-guitar-tabs-workflow",
+        "ja": "https://www.note2tabs.com/ja/blog/youtube-to-guitar-tabs-workflow",
+        "x-default": "https://www.note2tabs.com/blog/youtube-to-guitar-tabs-workflow"
+      }
+    },
+    {
+      "path": "/ja/blog/youtube-to-guitar-tabs-workflow",
+      "status": 200,
+      "lang": "ja",
+      "title": "YouTubeからギターTAB譜へ：曲を学ぶための手順 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/youtube-to-guitar-tabs-workflow",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/youtube-to-guitar-tabs-workflow",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/youtube-to-guitar-tabs-workflow",
+        "es": "https://www.note2tabs.com/es/blog/youtube-to-guitar-tabs-workflow",
+        "ja": "https://www.note2tabs.com/ja/blog/youtube-to-guitar-tabs-workflow",
+        "x-default": "https://www.note2tabs.com/blog/youtube-to-guitar-tabs-workflow"
+      }
+    },
+    {
+      "path": "/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "status": 200,
+      "lang": "en",
+      "title": "Note to Tab Converter Online | Turn Guitar Notes into Tabs | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+        "es": "https://www.note2tabs.com/es/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+        "ja": "https://www.note2tabs.com/ja/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+        "x-default": "https://www.note2tabs.com/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online"
+      }
+    },
+    {
+      "path": "/pt-br/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Conversor de notas em tablatura: transforme notas de guitarra online | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+        "es": "https://www.note2tabs.com/es/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+        "ja": "https://www.note2tabs.com/ja/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+        "x-default": "https://www.note2tabs.com/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online"
+      }
+    },
+    {
+      "path": "/es/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "status": 200,
+      "lang": "es",
+      "title": "Conversor de notas a tablaturas: convierte notas de guitarra en línea | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+        "es": "https://www.note2tabs.com/es/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+        "ja": "https://www.note2tabs.com/ja/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+        "x-default": "https://www.note2tabs.com/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online"
+      }
+    },
+    {
+      "path": "/ja/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "status": 200,
+      "lang": "ja",
+      "title": "音符をギターTAB譜にする：運指の選び方 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+        "es": "https://www.note2tabs.com/es/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+        "ja": "https://www.note2tabs.com/ja/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+        "x-default": "https://www.note2tabs.com/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online"
+      }
+    },
+    {
+      "path": "/blog/guitar-fingering-optimizer",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Fingering Optimizer | Make Tabs Easier to Play | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/guitar-fingering-optimizer",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-fingering-optimizer",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-fingering-optimizer",
+        "es": "https://www.note2tabs.com/es/blog/guitar-fingering-optimizer",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-fingering-optimizer",
+        "x-default": "https://www.note2tabs.com/blog/guitar-fingering-optimizer"
+      }
+    },
+    {
+      "path": "/pt-br/blog/guitar-fingering-optimizer",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Otimizador de digitação: como tornar tablaturas mais fáceis de tocar | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/guitar-fingering-optimizer",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-fingering-optimizer",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-fingering-optimizer",
+        "es": "https://www.note2tabs.com/es/blog/guitar-fingering-optimizer",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-fingering-optimizer",
+        "x-default": "https://www.note2tabs.com/blog/guitar-fingering-optimizer"
+      }
+    },
+    {
+      "path": "/es/blog/guitar-fingering-optimizer",
+      "status": 200,
+      "lang": "es",
+      "title": "Optimizador de digitación: cómo hacer tablaturas más fáciles de tocar | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/guitar-fingering-optimizer",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-fingering-optimizer",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-fingering-optimizer",
+        "es": "https://www.note2tabs.com/es/blog/guitar-fingering-optimizer",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-fingering-optimizer",
+        "x-default": "https://www.note2tabs.com/blog/guitar-fingering-optimizer"
+      }
+    },
+    {
+      "path": "/ja/blog/guitar-fingering-optimizer",
+      "status": 200,
+      "lang": "ja",
+      "title": "ギターの運指最適化：TAB譜を弾きやすくする | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/guitar-fingering-optimizer",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-fingering-optimizer",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-fingering-optimizer",
+        "es": "https://www.note2tabs.com/es/blog/guitar-fingering-optimizer",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-fingering-optimizer",
+        "x-default": "https://www.note2tabs.com/blog/guitar-fingering-optimizer"
+      }
+    },
+    {
+      "path": "/blog/song-to-guitar-tabs",
+      "status": 200,
+      "lang": "en",
+      "title": "Song to Guitar Tabs | Turn Recordings Into Playable Tabs | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/song-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/song-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/song-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/blog/song-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/song-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/blog/song-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/pt-br/blog/song-to-guitar-tabs",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Música para tablatura: transforme uma gravação em uma versão tocável | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/song-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/song-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/song-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/blog/song-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/song-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/blog/song-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/es/blog/song-to-guitar-tabs",
+      "status": 200,
+      "lang": "es",
+      "title": "Canciones a tablaturas: convierte una grabación en una versión tocable | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/song-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/song-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/song-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/blog/song-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/song-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/blog/song-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/ja/blog/song-to-guitar-tabs",
+      "status": 200,
+      "lang": "ja",
+      "title": "曲をギターTAB譜にする：生成から練習用資料へ | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/song-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/song-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/song-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/blog/song-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/song-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/blog/song-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Tab Maker vs Guitar Tab Editor | Which Tool to Use | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-tab-maker-vs-guitar-tab-editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-tab-maker-vs-guitar-tab-editor",
+        "es": "https://www.note2tabs.com/es/blog/guitar-tab-maker-vs-guitar-tab-editor",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-tab-maker-vs-guitar-tab-editor",
+        "x-default": "https://www.note2tabs.com/blog/guitar-tab-maker-vs-guitar-tab-editor"
+      }
+    },
+    {
+      "path": "/pt-br/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Criador ou editor de tablaturas: de qual você precisa? | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-tab-maker-vs-guitar-tab-editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-tab-maker-vs-guitar-tab-editor",
+        "es": "https://www.note2tabs.com/es/blog/guitar-tab-maker-vs-guitar-tab-editor",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-tab-maker-vs-guitar-tab-editor",
+        "x-default": "https://www.note2tabs.com/blog/guitar-tab-maker-vs-guitar-tab-editor"
+      }
+    },
+    {
+      "path": "/es/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "status": 200,
+      "lang": "es",
+      "title": "Creador o editor de tablaturas: ¿cuál necesitas? | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-tab-maker-vs-guitar-tab-editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-tab-maker-vs-guitar-tab-editor",
+        "es": "https://www.note2tabs.com/es/blog/guitar-tab-maker-vs-guitar-tab-editor",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-tab-maker-vs-guitar-tab-editor",
+        "x-default": "https://www.note2tabs.com/blog/guitar-tab-maker-vs-guitar-tab-editor"
+      }
+    },
+    {
+      "path": "/ja/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "status": 200,
+      "lang": "ja",
+      "title": "TAB譜の作成と編集：違いと使い分け | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-tab-maker-vs-guitar-tab-editor",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-tab-maker-vs-guitar-tab-editor",
+        "es": "https://www.note2tabs.com/es/blog/guitar-tab-maker-vs-guitar-tab-editor",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-tab-maker-vs-guitar-tab-editor",
+        "x-default": "https://www.note2tabs.com/blog/guitar-tab-maker-vs-guitar-tab-editor"
+      }
+    },
+    {
+      "path": "/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "status": 200,
+      "lang": "en",
+      "title": "Manual vs AI Guitar Transcription | Which Workflow Is Better? | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+        "es": "https://www.note2tabs.com/es/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+        "ja": "https://www.note2tabs.com/ja/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+        "x-default": "https://www.note2tabs.com/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players"
+      }
+    },
+    {
+      "path": "/pt-br/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Transcrição manual ou com IA: qual é melhor para guitarristas? | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+        "es": "https://www.note2tabs.com/es/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+        "ja": "https://www.note2tabs.com/ja/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+        "x-default": "https://www.note2tabs.com/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players"
+      }
+    },
+    {
+      "path": "/es/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "status": 200,
+      "lang": "es",
+      "title": "Transcripción manual o con IA: ¿qué conviene a los guitarristas? | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+        "es": "https://www.note2tabs.com/es/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+        "ja": "https://www.note2tabs.com/ja/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+        "x-default": "https://www.note2tabs.com/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players"
+      }
+    },
+    {
+      "path": "/ja/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "status": 200,
+      "lang": "ja",
+      "title": "耳コピとAI採譜：ギタリストの使い分け | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+        "es": "https://www.note2tabs.com/es/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+        "ja": "https://www.note2tabs.com/ja/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+        "x-default": "https://www.note2tabs.com/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players"
+      }
+    },
+    {
+      "path": "/blog/guitar-pro-alternative-online",
+      "status": 200,
+      "lang": "en",
+      "title": "Guitar Pro Alternative Online | Browser Tab Editor | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/guitar-pro-alternative-online",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-pro-alternative-online",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-pro-alternative-online",
+        "es": "https://www.note2tabs.com/es/blog/guitar-pro-alternative-online",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-pro-alternative-online",
+        "x-default": "https://www.note2tabs.com/blog/guitar-pro-alternative-online"
+      }
+    },
+    {
+      "path": "/pt-br/blog/guitar-pro-alternative-online",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Alternativa online ao Guitar Pro: quando um editor no navegador basta | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/guitar-pro-alternative-online",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-pro-alternative-online",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-pro-alternative-online",
+        "es": "https://www.note2tabs.com/es/blog/guitar-pro-alternative-online",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-pro-alternative-online",
+        "x-default": "https://www.note2tabs.com/blog/guitar-pro-alternative-online"
+      }
+    },
+    {
+      "path": "/es/blog/guitar-pro-alternative-online",
+      "status": 200,
+      "lang": "es",
+      "title": "Alternativa a Guitar Pro en línea: cuándo basta un editor en el navegador | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/guitar-pro-alternative-online",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-pro-alternative-online",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-pro-alternative-online",
+        "es": "https://www.note2tabs.com/es/blog/guitar-pro-alternative-online",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-pro-alternative-online",
+        "x-default": "https://www.note2tabs.com/blog/guitar-pro-alternative-online"
+      }
+    },
+    {
+      "path": "/ja/blog/guitar-pro-alternative-online",
+      "status": 200,
+      "lang": "ja",
+      "title": "Guitar Proのオンライン代替：ブラウザーで十分な場面 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/guitar-pro-alternative-online",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/guitar-pro-alternative-online",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/guitar-pro-alternative-online",
+        "es": "https://www.note2tabs.com/es/blog/guitar-pro-alternative-online",
+        "ja": "https://www.note2tabs.com/ja/blog/guitar-pro-alternative-online",
+        "x-default": "https://www.note2tabs.com/blog/guitar-pro-alternative-online"
+      }
+    },
+    {
+      "path": "/blog/how-to-fix-ai-guitar-tabs",
+      "status": 200,
+      "lang": "en",
+      "title": "How to Personalize AI Guitar Tabs for Your Playing Style | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/how-to-fix-ai-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-fix-ai-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-fix-ai-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/blog/how-to-fix-ai-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-fix-ai-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/blog/how-to-fix-ai-guitar-tabs"
+      }
+    },
+    {
+      "path": "/pt-br/blog/how-to-fix-ai-guitar-tabs",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Como personalizar tablaturas de IA para seu jeito de tocar | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/how-to-fix-ai-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-fix-ai-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-fix-ai-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/blog/how-to-fix-ai-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-fix-ai-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/blog/how-to-fix-ai-guitar-tabs"
+      }
+    },
+    {
+      "path": "/es/blog/how-to-fix-ai-guitar-tabs",
+      "status": 200,
+      "lang": "es",
+      "title": "Cómo personalizar tablaturas de IA para tu forma de tocar | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/how-to-fix-ai-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-fix-ai-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-fix-ai-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/blog/how-to-fix-ai-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-fix-ai-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/blog/how-to-fix-ai-guitar-tabs"
+      }
+    },
+    {
+      "path": "/ja/blog/how-to-fix-ai-guitar-tabs",
+      "status": 200,
+      "lang": "ja",
+      "title": "AIのギターTAB譜を、自分の弾き方に合わせる | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/how-to-fix-ai-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-fix-ai-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-fix-ai-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/blog/how-to-fix-ai-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-fix-ai-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/blog/how-to-fix-ai-guitar-tabs"
+      }
+    },
+    {
+      "path": "/blog/how-to-convert-audio-to-guitar-tabs",
+      "status": 200,
+      "lang": "en",
+      "title": "How to Convert Audio to Guitar Tabs Online | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/blog/how-to-convert-audio-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-convert-audio-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-convert-audio-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/blog/how-to-convert-audio-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-convert-audio-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/blog/how-to-convert-audio-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/pt-br/blog/how-to-convert-audio-to-guitar-tabs",
+      "status": 200,
+      "lang": "pt-BR",
+      "title": "Como converter áudio em tablatura: um processo tocável e editável | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/blog/how-to-convert-audio-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-convert-audio-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-convert-audio-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/blog/how-to-convert-audio-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-convert-audio-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/blog/how-to-convert-audio-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/es/blog/how-to-convert-audio-to-guitar-tabs",
+      "status": 200,
+      "lang": "es",
+      "title": "Cómo convertir audio en tablaturas: un proceso tocable y editable | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/blog/how-to-convert-audio-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-convert-audio-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-convert-audio-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/blog/how-to-convert-audio-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-convert-audio-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/blog/how-to-convert-audio-to-guitar-tabs"
+      }
+    },
+    {
+      "path": "/ja/blog/how-to-convert-audio-to-guitar-tabs",
+      "status": 200,
+      "lang": "ja",
+      "title": "音声からギターTAB譜へ：採譜・編集・練習の手順 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/blog/how-to-convert-audio-to-guitar-tabs",
+      "alternates": {
+        "en": "https://www.note2tabs.com/blog/how-to-convert-audio-to-guitar-tabs",
+        "pt-BR": "https://www.note2tabs.com/pt-br/blog/how-to-convert-audio-to-guitar-tabs",
+        "es": "https://www.note2tabs.com/es/blog/how-to-convert-audio-to-guitar-tabs",
+        "ja": "https://www.note2tabs.com/ja/blog/how-to-convert-audio-to-guitar-tabs",
+        "x-default": "https://www.note2tabs.com/blog/how-to-convert-audio-to-guitar-tabs"
+      }
+    }
+  ]
+}

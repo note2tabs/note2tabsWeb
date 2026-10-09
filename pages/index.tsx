@@ -1645,7 +1645,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
               <div className="hero-title-row">
                 <h1 className="hero-title">{t("Convert Any Song to Guitar Tabs")}</h1>
               </div>
-              <p className="hero-subtitle hero-subtitle--conversion">{t(" Turn recordings into guitar tab you can edit, practice, and export. ")}</p>{locale !== "en" && <p className="locale-scope-note">{t("The tab editor (/gte) is in English.")}</p>}
+              <p className="hero-subtitle hero-subtitle--conversion">{t(" Turn recordings into guitar tab you can edit, practice, and export. ")}</p>
             </div>
             <form
               id="transcriber-start"
@@ -2161,7 +2161,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
             </div>
             {proPlanPresentationEnabled() && <div className="pricing-billing-toggle" role="group" aria-label={t("Billing interval")} data-reveal>
               <button type="button" aria-pressed={pricingBillingInterval === "monthly"} className={pricingBillingInterval === "monthly" ? "is-active" : ""} onClick={() => setPricingBillingInterval("monthly")}>{t("Monthly")}</button>
-              <button type="button" aria-pressed={pricingBillingInterval === "yearly"} className={pricingBillingInterval === "yearly" ? "is-active" : ""} onClick={() => setPricingBillingInterval("yearly")}>{t("Yearly ")}<span>{t("Save ")}{localizedAnnualSaving("PRO", displayCurrency)}!</span></button>
+              <button type="button" aria-pressed={pricingBillingInterval === "yearly"} className={pricingBillingInterval === "yearly" ? "is-active" : ""} onClick={() => setPricingBillingInterval("yearly")}>{t("Yearly ")}<span>{t("Save {amount}!", {amount: localizedAnnualSaving("PRO", displayCurrency)})}</span></button>
             </div>}
             <div className={`pricing-page__plans home-pricing__plans${proPlanPresentationEnabled() ? " pricing-page__plans--three" : ""}`}>
               <article className="pricing-plan pricing-plan--free" data-reveal>
@@ -2211,7 +2211,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 </button>
                 <p className="pricing-plan__reassurance">
                   {pricingBillingInterval === "yearly"
-                    ? <><span>{formatLocalizedPrice("PREMIUM", "yearly", displayCurrency)}{t(" billed today · ")}</span><span className="pricing-plan__saving">{t("Save ")}{localizedAnnualSaving("PREMIUM", displayCurrency)}{t(" per year")}</span><span>{t(" · Cancel anytime")}</span></>
+                    ? <><span>{t("{price} billed today", {price: formatLocalizedPrice("PREMIUM", "yearly", displayCurrency)})} · </span><span className="pricing-plan__saving">{t("Save {amount} per year", {amount: localizedAnnualSaving("PREMIUM", displayCurrency)})}</span><span>{t(" · Cancel anytime")}</span></>
                     : locale !== "en" ? t("{price} billed today · Cancel anytime", {price: formatLocalizedPrice("PREMIUM", "monthly", displayCurrency)}) : premiumOfferReassurance(offerEligibility, "control", formatLocalizedPrice("PREMIUM", "monthly", displayCurrency))}
                 </p>
                 <div className="pricing-plan__divider" />
@@ -2232,7 +2232,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 <button type="button" className="pricing-plan__cta pricing-plan__cta--secondary" onClick={() => void handlePricingClick("home_pricing", "homepage_pro_card", "PRO")} disabled={pricingBusy}>
                   {pricingBusy ? t("Opening…") : currentPlan === "PRO" ? t("Manage current plan") : currentPlan === "PREMIUM" ? t("Upgrade to Pro") : t("Choose Pro")}
                 </button>
-                <p className="pricing-plan__reassurance">{pricingBillingInterval === "yearly" ? <><span>{formatLocalizedPrice("PRO", "yearly", displayCurrency)}{t(" billed today · ")}</span><span className="pricing-plan__saving">{t("Save ")}{localizedAnnualSaving("PRO", displayCurrency)}{t(" per year")}</span></> : t("{price} billed today \u00b7 Cancel anytime", { price: formatLocalizedPrice("PRO", "monthly", displayCurrency) })}</p>
+                <p className="pricing-plan__reassurance">{pricingBillingInterval === "yearly" ? <><span>{t("{price} billed today", {price: formatLocalizedPrice("PRO", "yearly", displayCurrency)})} · </span><span className="pricing-plan__saving">{t("Save {amount} per year", {amount: localizedAnnualSaving("PRO", displayCurrency)})}</span></> : t("{price} billed today \u00b7 Cancel anytime", { price: formatLocalizedPrice("PRO", "monthly", displayCurrency) })}</p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
                   <li>{t("Everything in Premium")}</li>

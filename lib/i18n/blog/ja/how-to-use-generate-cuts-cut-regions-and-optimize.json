@@ -1,0 +1,9 @@
+{
+  "sourceUpdatedAt": "2026-07-28T17:23:26.641Z",
+  "sourceTitle": "How to Use Generate Cuts, Cut Regions, and Optimize in the Guitar Editor",
+  "title": "Generate Cuts・Cut Regions・Optimizeの使い方",
+  "excerpt": "長いTAB譜を区間に分け、必要な部分を取り出し、運指を調整して練習しやすくする方法。",
+  "seoTitle": "Generate Cuts・Cut Regions・Optimizeの使い方 | Note2Tabs",
+  "seoDescription": "長いTAB譜を区間に分け、必要な部分を取り出し、運指を調整して練習しやすくする方法。",
+  "content": "`Generate Cuts`は曲を分け、`Cut Regions`は編集区間を切り出し、`Optimize`はポジションを改善するために使います。[エディター](/editor)の操作名は英語のままです。\n\n## 分割が役立つ理由\n\n曲全体では問題が一度に見えてしまいます。イントロ、Aメロ、サビ、ソロに分けると、必要な部分に集中できます。AIの結果も、区間によって修正量が異なります。\n\n## Generate Cuts\n\nセクションの境界や自然な切れ目を提案します。フレーズの途中にある切れ目は移動し、必要なリフを分けてください。構成の最終判断は耳で行います。自動生成には、アカウントへのプロジェクト保存が必要です。\n\n## Cut Regions\n\nわかりにくいソロや音符の多い小節を切り出して、編集に集中できます。修正した区間はループ練習にも利用できます。\n\n## Optimize\n\nフレーズが指板を大きく移動する場合、より弾きやすい配置を提案できます。再生して弾き、改善したものを残してください。別の問題が生じたら手動で調整します。\n\n## 手順\n\n1. 音声かYouTubeから生成する。\n2. `Generate Cuts`で構成を整理する。\n3. 聴いて境界を調整する。\n4. `Cut Regions`で必要な部分を切り出す。\n5. 弾きにくい部分に`Optimize`を使う。\n6. 区間ごとに再生して確認する。\n\n繰り返す部分、長いソロ、音は近いが弾きにくい結果に役立ちます。全体が大きく違う場合は、先に明瞭な音源を探しましょう。\n\n## よくあるご質問\n\n### Generate Cutsは何をしますか？\n\n小さな区間で作業できるよう、境界を提案します。\n\n### Cut Regionsの用途は？\n\n編集、確認、練習する部分を切り出します。\n\n### Optimizeの用途は？\n\nポジションと運指の改善を助けます。\n\n[Note2Tabs](/auth/signup)で生成したら、[エディター](/editor)で整理・修正してから練習しましょう。\n"
+}

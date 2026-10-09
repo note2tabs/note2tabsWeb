@@ -74,6 +74,13 @@ export async function sendPasswordResetEmail(
 ) {
   const locale = options?.locale || "en";
   const url = buildPasswordResetUrl(token, locale);
+  if (locale === "ja") {
+    const name = options?.name?.trim();
+    const greeting = name ? `${name} 様` : "Note2Tabsからのお知らせです。";
+    return sendTransactionalEmail({to: email, subject: "Note2Tabsのパスワード再設定",
+      text: `${greeting}\n\nパスワード再設定のリクエストを受け付けました。次のリンクを開いてください：\n${url}\n\n再設定コード：${code}\n\nリンクとコードは1時間で無効になります。お心当たりがない場合は、このメールを無視してください。`,
+      html: renderProductEmail({locale, title: "パスワードを再設定", preview: "リンクと6桁のコードでパスワードを再設定できます。", greeting: escapeEmailHtml(greeting), bodyHtml: `<p>パスワード再設定のリクエストを受け付けました。</p><p>再設定コード：<strong>${escapeEmailHtml(code)}</strong></p>`, action: {label: "パスワードを再設定", url}, secondaryHtml: "リンクとコードは1時間で無効になります。お心当たりがない場合は、このメールを無視してください。"})});
+  }
   if (locale === "es") {
     const name = options?.name?.trim() || "";
     const greeting = name ? `¡Hola, ${name}!` : "¡Hola!";

@@ -35,7 +35,8 @@ describe("Portuguese SEO and route regression", () => {
     expect(render("/pt-br/pricing","/pricing")).toContain('content="noindex,follow"');
     expect(render("/editor","/editor")).not.toContain("/pt-br/editor");
   });
-  it("annotates both public language URLs only after review, excluding private flow pages", async () => {
+  it("annotates enabled public language URLs, excluding private flow pages", async () => {
+    vi.stubEnv("NEXT_PUBLIC_ES_REVIEWED","false"); vi.stubEnv("NEXT_PUBLIC_JA_REVIEWED","false");
     vi.stubEnv("NODE_ENV","production"); vi.stubEnv("VERCEL_ENV","production"); vi.stubEnv("NEXT_PUBLIC_PT_BR_REVIEWED","true");
     const write=vi.fn(); const res={setHeader:vi.fn(),write,end:vi.fn()};
     await sitemap({res} as any); const xml=write.mock.calls[0][0] as string;

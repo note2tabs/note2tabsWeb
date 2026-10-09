@@ -2,16 +2,16 @@ import { isLocalizedPublicPath, localeSwitchHref, stripLocale, type AppLocale } 
 import { displayCurrencyForCountry, readDisplayCurrencyCookie } from "../localizedPricing";
 import type { GetServerSideProps, GetServerSidePropsContext, GetStaticProps } from "next";
 
-/** Draft translations are available in development/preview only until native/billing review. */
+/** Completed editions ship by default; setting a locale release switch to false disables it. */
 export function localizedPilotAvailable(locale: AppLocale) {
   if (locale === "en") return true;
   return process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" ||
-    (locale === "pt-BR" ? process.env.NEXT_PUBLIC_PT_BR_REVIEWED : process.env.NEXT_PUBLIC_ES_REVIEWED) === "true";
+    (locale === "pt-BR" ? process.env.NEXT_PUBLIC_PT_BR_REVIEWED : locale === "es" ? process.env.NEXT_PUBLIC_ES_REVIEWED : process.env.NEXT_PUBLIC_JA_REVIEWED) !== "false";
 }
 export function localizedPilotIndexable(locale: AppLocale) {
   if (locale === "en") return true;
   const preview = typeof window === "undefined" ? process.env.VERCEL_ENV === "preview" : process.env.NEXT_PUBLIC_PT_BR_PREVIEW === "true";
-  return process.env.NODE_ENV === "production" && !preview && (locale === "pt-BR" ? process.env.NEXT_PUBLIC_PT_BR_REVIEWED : process.env.NEXT_PUBLIC_ES_REVIEWED) === "true";
+  return process.env.NODE_ENV === "production" && !preview && (locale === "pt-BR" ? process.env.NEXT_PUBLIC_PT_BR_REVIEWED : locale === "es" ? process.env.NEXT_PUBLIC_ES_REVIEWED : process.env.NEXT_PUBLIC_JA_REVIEWED) !== "false";
 }
 export function withLocalizedPilot<P extends Record<string, unknown>>(
   locale: AppLocale, loader?: GetServerSideProps<P>
@@ -45,3 +45,6 @@ export const withPortuguesePilot = <P extends Record<string, unknown>>(loader?: 
 export const withPortugueseStaticPage = <P extends Record<string, unknown>>(loader: GetStaticProps<P>) => withLocalizedStaticPage("pt-BR", loader);
 export const withSpanishPilot = <P extends Record<string, unknown>>(loader?: GetServerSideProps<P>) => withLocalizedPilot("es", loader);
 export const withSpanishStaticPage = <P extends Record<string, unknown>>(loader: GetStaticProps<P>) => withLocalizedStaticPage("es", loader);
+
+export const withJapanesePilot = <P extends Record<string, unknown>>(loader?: GetServerSideProps<P>) => withLocalizedPilot("ja", loader);
+export const withJapaneseStaticPage = <P extends Record<string, unknown>>(loader: GetStaticProps<P>) => withLocalizedStaticPage("ja", loader);

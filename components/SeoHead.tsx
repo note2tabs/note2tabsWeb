@@ -1,6 +1,6 @@
 import type { AppLocale } from "../lib/i18n/locale";
 import { useLocale } from "../lib/i18n/react";
-import { isLocalizedPublicPath, LOCALIZED_PUBLIC_PATHS, localeHref, stripLocale, TRANSLATED_LOCALES } from "../lib/i18n/locale";
+import { isLocalizedPublicPath, localePrefix, localeHref, stripLocale, TRANSLATED_LOCALES } from "../lib/i18n/locale";
 import { localizedPilotIndexable } from "../lib/i18n/pilot";
 import Head from "next/head";
 import { getConfiguredSiteUrl } from "../lib/siteUrl";
@@ -113,7 +113,7 @@ export default function SeoHead({
   const canonical = canonicalizeUrl(canonicalUrl || localeHref(sourcePath, locale));
   title = t(title);
   description = t(description);
-  noindex = noindex || (translated && !indexable);
+  noindex = noindex || (translated && (!indexable || !isLocalizedPublicPath(sourcePath)));
   const image = imageUrl || DEFAULT_OG_IMAGE;
   const localizeSchema = (value: unknown, key = ""): unknown => {
     if (typeof value === "string") {
@@ -140,7 +140,7 @@ export default function SeoHead({
         {releasedLocales.map(target => <link key={`alternate-${target}`} rel="alternate" hrefLang={target} href={absoluteUrl(localeHref(sourcePath, target))} />)}
         <link key="alternate-default" rel="alternate" hrefLang="x-default" href={absoluteUrl(sourcePath)} />
       </>}
-      <meta property="og:locale" content={locale === "pt-BR" ? "pt_BR" : locale === "es" ? "es_ES" : "en_US"} />
+      <meta property="og:locale" content={locale === "pt-BR" ? "pt_BR" : locale === "es" ? "es_ES" : locale === "ja" ? "ja_JP" : "en_US"} />
       <meta key="robots" name="robots" content={noindex ? `noindex,${nofollow ? "nofollow" : "follow"}` : INDEX_ROBOTS_DIRECTIVE} />
       <meta key="googlebot" name="googlebot" content={noindex ? `noindex,${nofollow ? "nofollow" : "follow"}` : INDEX_ROBOTS_DIRECTIVE} />
       <meta key="og:title" property="og:title" content={title} />
@@ -169,7 +169,7 @@ export default function SeoHead({
           rel="alternate"
           type="application/rss+xml"
           title={`${SITE_NAME} Blog RSS`}
-          href={absoluteUrl(rssUrl)}
+          href={rssUrl.startsWith("/") ? absoluteUrl(localePrefix(locale) + stripLocale(rssUrl)) : rssUrl}
         />
       )}
       {structuredData.map((item, index) => (

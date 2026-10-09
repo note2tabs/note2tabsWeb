@@ -1,5 +1,5 @@
 import {articleLocales} from "../lib/i18n/blog/availability";
-import { isLocalizedPublicPath, LOCALIZED_PUBLIC_PATHS, localeHref, stripLocale, TRANSLATED_LOCALES } from "../lib/i18n/locale";
+import { localeFromPath, localeHref, stripLocale, TRANSLATED_LOCALES } from "../lib/i18n/locale";
 import { localizedPilotIndexable } from "../lib/i18n/pilot";
 import type { GetServerSideProps } from "next";
 import { prisma } from "../lib/prisma";
@@ -87,7 +87,9 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   const paths = [...staticPaths, ...releasedLocales.flatMap(locale => staticPaths.map(path => localeHref(path, locale)))];
   const entries: SitemapEntry[] = paths.map((path) => ({
     loc: buildUrl(baseUrl, path),
-    ...(recentlyUpdatedSeoPaths.has(path)
+    ...(localeFromPath(path) !== "en"
+      ? { lastmod: "2026-10-09T00:00:00.000Z" }
+      : recentlyUpdatedSeoPaths.has(path)
       ? {
           lastmod: `${
             refreshedSeoPathDates.get(path) || SEO_OPPORTUNITY_CONTENT_LAST_MODIFIED
@@ -113,7 +115,7 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
     const path = stripLocale(new URL(entry.loc).pathname);
     if (!releasedLocales.length || !(staticPaths.includes(path) || translatedArticles.has(path))) return "";
     return ["en", ...(translatedArticles.get(path) || releasedLocales), "x-default"].map(language => {
-      const href = buildUrl(baseUrl, localeHref(path, language === "pt-BR" ? "pt-BR" : language === "es" ? "es" : "en"));
+      const href = buildUrl(baseUrl, localeHref(path, language === "pt-BR" ? "pt-BR" : language === "es" ? "es" : language === "ja" ? "ja" : "en"));
       return `\n    <xhtml:link rel="alternate" hreflang="${language}" href="${escapeXml(href)}"/>`;
     }).join("");
   };

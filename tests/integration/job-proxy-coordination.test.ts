@@ -251,6 +251,7 @@ describe("job proxy backend coordination", () => {
       userId: "user_1",
       jobId: "job_123",
       tabJobId: "tab_123",
+      locale: "en",
     });
   });
 

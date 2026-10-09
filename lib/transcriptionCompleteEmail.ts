@@ -27,6 +27,13 @@ export function buildTranscriptionCompleteEmail(input: TranscriptionCompleteEmai
   const editorUrl = input.editorId
     ? `${appBaseUrl()}/gte/${encodeURIComponent(input.editorId)}?source=transcription_complete_email`
     : `${appBaseUrl()}${localeHref(`/job/${encodeURIComponent(input.jobId)}?source=transcription_complete_email`, input.locale || "en")}`;
+  if (input.locale === "ja") {
+    const label = input.sourceLabel?.trim() || "採譜結果";
+    const greeting = input.name?.trim() ? `${input.name.trim()} 様` : "Note2Tabsからのお知らせです。";
+    return {subject: "Note2Tabsの採譜が完了しました", editorUrl,
+      text: `${greeting}\n\n「${label}」のTAB譜が完成しました。エディターで開き、再生・編集・練習・書き出しができます。\n\n${editorUrl}`,
+      html: renderProductEmail({locale: "ja", title: "TAB譜が完成しました", preview: "エディターでTAB譜を開けます。", greeting: escapeEmailHtml(greeting), bodyHtml: `<p>「<strong>${escapeEmailHtml(label)}</strong>」のTAB譜が完成しました。エディターで開き、再生・編集・練習・書き出しができます。</p>`, action: {label: "エディターで開く", url: editorUrl}})};
+  }
   if (input.locale === "es") {
     const label = input.sourceLabel?.trim() || "Tu transcripción";
     const greeting = input.name?.trim() ? `¡Hola, ${input.name.trim().split(/\s+/)[0]}!` : "¡Hola!";

@@ -11,7 +11,7 @@ export function deviceLocale(acceptLanguage: string, enabled: (locale: AppLocale
     .sort((a, b) => b.weight - a.weight || a.index - b.index);
   for (const { tag } of preferences) {
     const language = tag.split("-")[0];
-    const locale = language === "pt" ? "pt-BR" : language === "es" ? "es" : language === "en" ? "en" : null;
+    const locale = language === "pt" ? "pt-BR" : language === "es" ? "es" : language === "ja" ? "ja" : language === "en" ? "en" : null;
     if (locale && enabled(locale)) return locale;
   }
   return "en";
@@ -23,7 +23,7 @@ export function detectedLocaleDestination(
   enabled: (locale: AppLocale) => boolean,
 ) {
   if (localeFromPath(path) !== "en" || !isLocalizedPublicPath(path) || /bot|crawler|spider|slurp/i.test(userAgent)) return null;
-  const saved = typeof savedLocale === "string" && ["en", "pt-br", "es"].includes(savedLocale.toLowerCase())
+  const saved = typeof savedLocale === "string" && ["en", "pt-br", "es", "ja"].includes(savedLocale.toLowerCase())
     ? normalizeLocale(savedLocale) : null;
   const locale = saved !== null ? (enabled(saved) ? saved : "en") : deviceLocale(acceptLanguage, enabled);
   return locale === "en" ? null : localeSwitchHref(path, locale);

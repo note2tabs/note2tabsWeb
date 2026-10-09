@@ -22,7 +22,7 @@ type PostPageProps = {
     excerpt: string;
     contentMode: "PLAIN" | "LATEX";
     contentHtml: string;
-    contentLanguage?: "en" | "pt-BR" | "es";
+    contentLanguage?: "en" | "pt-BR" | "es" | "ja";
     coverImageUrl: string | null;
     publishedAt: string | null;
     publishAt: string | null;

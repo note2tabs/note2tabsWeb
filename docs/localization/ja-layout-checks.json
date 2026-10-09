@@ -1,0 +1,2070 @@
+{
+  "japanese": [
+    {
+      "path": "/ja",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "好きな曲をギターのTAB譜に",
+      "url": "/ja"
+    },
+    {
+      "path": "/ja/transcribe",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "好きな曲をギターのTAB譜に",
+      "url": "/ja/transcribe"
+    },
+    {
+      "path": "/ja/pricing",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "もっと音楽を。もっと採譜を。",
+      "url": "/ja/pricing"
+    },
+    {
+      "path": "/ja/editor",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜をオンラインで作成・再生・練習。",
+      "url": "/ja/editor"
+    },
+    {
+      "path": "/ja/about",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "Note2Tabsについて",
+      "url": "/ja/about"
+    },
+    {
+      "path": "/ja/contact",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "Note2Tabsに問い合わせる",
+      "url": "/ja/contact"
+    },
+    {
+      "path": "/ja/terms",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "利用規約",
+      "url": "/ja/terms"
+    },
+    {
+      "path": "/ja/privacy",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "プライバシーポリシー",
+      "url": "/ja/privacy"
+    },
+    {
+      "path": "/ja/affiliate-program",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギタリストにTAB譜作成を紹介し、登録につながると報酬を獲得できます。",
+      "url": "/ja/affiliate-program"
+    },
+    {
+      "path": "/ja/internship-application",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "インターンシップ応募",
+      "url": "/ja/internship-application"
+    },
+    {
+      "path": "/ja/features",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜に必要な選択を支えるツール。",
+      "url": "/ja/features"
+    },
+    {
+      "path": "/ja/audio-to-guitar-tab-converter",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "音声からギターTAB譜へ",
+      "url": "/ja/audio-to-guitar-tab-converter"
+    },
+    {
+      "path": "/ja/mp3-to-guitar-tabs",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "MP3からギターTAB譜への変換ツール",
+      "url": "/ja/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/youtube-to-guitar-tabs",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "YouTubeからギターTAB譜への変換ツール",
+      "url": "/ja/youtube-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/ai-guitar-tab-generator",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "音声・YouTubeからAIでギターTAB譜を作成",
+      "url": "/ja/ai-guitar-tab-generator"
+    },
+    {
+      "path": "/ja/free-guitar-tab-maker",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "無料ギターTAB譜作成ツール",
+      "url": "/ja/free-guitar-tab-maker"
+    },
+    {
+      "path": "/ja/blog",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギタリストのためのアイデアと実践ガイド",
+      "url": "/ja/blog"
+    },
+    {
+      "path": "/ja/auth/login",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ログイン",
+      "url": "/ja/auth/login"
+    },
+    {
+      "path": "/ja/auth/signup",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "アカウントを作成",
+      "url": "/ja/auth/signup"
+    },
+    {
+      "path": "/ja/auth/verify-email",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "メールアドレスを確認",
+      "url": "/ja/auth/verify-email"
+    },
+    {
+      "path": "/ja/reset-password",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "パスワードを再設定",
+      "url": "/ja/reset-password"
+    },
+    {
+      "path": "/ja/reset-password/preview",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "新しいパスワードを設定",
+      "url": "/ja/reset-password/preview"
+    },
+    {
+      "path": "/ja/email/unsubscribe",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "メールの設定",
+      "url": "/ja/email/unsubscribe"
+    },
+    {
+      "path": "/ja/email/share-preferences",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "共有メールの設定",
+      "url": "/ja/email/share-preferences"
+    },
+    {
+      "path": "/ja/features/guitar-tab-fingering-optimizer",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜の運指最適化ツール",
+      "url": "/ja/features/guitar-tab-fingering-optimizer"
+    },
+    {
+      "path": "/ja/features/guitar-tab-key-detector",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜のキー検出・スケール補正",
+      "url": "/ja/features/guitar-tab-key-detector"
+    },
+    {
+      "path": "/ja/features/guitar-chord-strumming-editor",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターのコード・ストロークエディター",
+      "url": "/ja/features/guitar-chord-strumming-editor"
+    },
+    {
+      "path": "/ja/features/guitar-tab-editor-shortcuts",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ショートカットで編集できるギターTAB譜エディター",
+      "url": "/ja/features/guitar-tab-editor-shortcuts"
+    },
+    {
+      "path": "/ja/features/guitar-tab-import-export",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜の取り込み・書き出しツール",
+      "url": "/ja/features/guitar-tab-import-export"
+    },
+    {
+      "path": "/ja/features/guitar-tab-practice-trainer",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜の練習・スピードトレーニング",
+      "url": "/ja/features/guitar-tab-practice-trainer"
+    },
+    {
+      "path": "/ja/blog/guitar-tab-editor",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "オンラインギターTAB譜エディター：作成・アレンジ・練習",
+      "url": "/ja/blog/guitar-tab-editor"
+    },
+    {
+      "path": "/ja/blog/category/guitar-tabs",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜",
+      "url": "/ja/blog/category/guitar-tabs"
+    },
+    {
+      "path": "/ja/blog/why-guitar-tabs-can-be-wrong",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜はなぜ間違うのか — 気づきにくい理由",
+      "url": "/ja/blog/why-guitar-tabs-can-be-wrong"
+    },
+    {
+      "path": "/ja/blog/guitar-solo-tab-maker",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターソロのTAB譜作成：弾けるリードパートに",
+      "url": "/ja/blog/guitar-solo-tab-maker"
+    },
+    {
+      "path": "/ja/blog/ai-guitar-tab-editor",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "AIギターTAB譜エディター：オンラインで作成・アレンジ・練習",
+      "url": "/ja/blog/ai-guitar-tab-editor"
+    },
+    {
+      "path": "/ja/blog/guitar-pro-alternative-online",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "Guitar Proのオンライン代替：ブラウザーで十分な場面",
+      "url": "/ja/blog/guitar-pro-alternative-online"
+    },
+    {
+      "path": "/ja/blog/ascii-guitar-tab-editor",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ASCIIギターTAB譜：テキスト形式が役立つ場面",
+      "url": "/ja/blog/ascii-guitar-tab-editor"
+    },
+    {
+      "path": "/ja/blog/guitar-fingering-optimizer",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターの運指最適化：TAB譜を弾きやすくする",
+      "url": "/ja/blog/guitar-fingering-optimizer"
+    },
+    {
+      "path": "/ja/blog/guitar-tab-creator-with-playback",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "再生できるTAB譜作成ツール：聴いて確かめる",
+      "url": "/ja/blog/guitar-tab-creator-with-playback"
+    },
+    {
+      "path": "/ja/blog/free-online-guitar-tab-maker",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "無料オンラインTAB譜作成ツールの選び方",
+      "url": "/ja/blog/free-online-guitar-tab-maker"
+    },
+    {
+      "path": "/ja",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "好きな曲をギターのTAB譜に",
+      "url": "/ja"
+    },
+    {
+      "path": "/ja/transcribe",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "好きな曲をギターのTAB譜に",
+      "url": "/ja/transcribe"
+    },
+    {
+      "path": "/ja/pricing",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "もっと音楽を。もっと採譜を。",
+      "url": "/ja/pricing"
+    },
+    {
+      "path": "/ja/editor",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜をオンラインで作成・再生・練習。",
+      "url": "/ja/editor"
+    },
+    {
+      "path": "/ja/about",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "Note2Tabsについて",
+      "url": "/ja/about"
+    },
+    {
+      "path": "/ja/contact",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "Note2Tabsに問い合わせる",
+      "url": "/ja/contact"
+    },
+    {
+      "path": "/ja/terms",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "利用規約",
+      "url": "/ja/terms"
+    },
+    {
+      "path": "/ja/privacy",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "プライバシーポリシー",
+      "url": "/ja/privacy"
+    },
+    {
+      "path": "/ja/affiliate-program",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギタリストにTAB譜作成を紹介し、登録につながると報酬を獲得できます。",
+      "url": "/ja/affiliate-program"
+    },
+    {
+      "path": "/ja/internship-application",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "インターンシップ応募",
+      "url": "/ja/internship-application"
+    },
+    {
+      "path": "/ja/features",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜に必要な選択を支えるツール。",
+      "url": "/ja/features"
+    },
+    {
+      "path": "/ja/audio-to-guitar-tab-converter",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "音声からギターTAB譜へ",
+      "url": "/ja/audio-to-guitar-tab-converter"
+    },
+    {
+      "path": "/ja/mp3-to-guitar-tabs",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "MP3からギターTAB譜への変換ツール",
+      "url": "/ja/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/youtube-to-guitar-tabs",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "YouTubeからギターTAB譜への変換ツール",
+      "url": "/ja/youtube-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/ai-guitar-tab-generator",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "音声・YouTubeからAIでギターTAB譜を作成",
+      "url": "/ja/ai-guitar-tab-generator"
+    },
+    {
+      "path": "/ja/free-guitar-tab-maker",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "無料ギターTAB譜作成ツール",
+      "url": "/ja/free-guitar-tab-maker"
+    },
+    {
+      "path": "/ja/blog",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギタリストのためのアイデアと実践ガイド",
+      "url": "/ja/blog"
+    },
+    {
+      "path": "/ja/auth/login",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ログイン",
+      "url": "/ja/auth/login"
+    },
+    {
+      "path": "/ja/auth/signup",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "アカウントを作成",
+      "url": "/ja/auth/signup"
+    },
+    {
+      "path": "/ja/auth/verify-email",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "メールアドレスを確認",
+      "url": "/ja/auth/verify-email"
+    },
+    {
+      "path": "/ja/reset-password",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "パスワードを再設定",
+      "url": "/ja/reset-password"
+    },
+    {
+      "path": "/ja/reset-password/preview",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "新しいパスワードを設定",
+      "url": "/ja/reset-password/preview"
+    },
+    {
+      "path": "/ja/email/unsubscribe",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "メールの設定",
+      "url": "/ja/email/unsubscribe"
+    },
+    {
+      "path": "/ja/email/share-preferences",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "共有メールの設定",
+      "url": "/ja/email/share-preferences"
+    },
+    {
+      "path": "/ja/features/guitar-tab-fingering-optimizer",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜の運指最適化ツール",
+      "url": "/ja/features/guitar-tab-fingering-optimizer"
+    },
+    {
+      "path": "/ja/features/guitar-tab-key-detector",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜のキー検出・スケール補正",
+      "url": "/ja/features/guitar-tab-key-detector"
+    },
+    {
+      "path": "/ja/features/guitar-chord-strumming-editor",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターのコード・ストロークエディター",
+      "url": "/ja/features/guitar-chord-strumming-editor"
+    },
+    {
+      "path": "/ja/features/guitar-tab-editor-shortcuts",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ショートカットで編集できるギターTAB譜エディター",
+      "url": "/ja/features/guitar-tab-editor-shortcuts"
+    },
+    {
+      "path": "/ja/features/guitar-tab-import-export",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜の取り込み・書き出しツール",
+      "url": "/ja/features/guitar-tab-import-export"
+    },
+    {
+      "path": "/ja/features/guitar-tab-practice-trainer",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜の練習・スピードトレーニング",
+      "url": "/ja/features/guitar-tab-practice-trainer"
+    },
+    {
+      "path": "/ja",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "好きな曲をギターのTAB譜に",
+      "url": "/ja"
+    },
+    {
+      "path": "/ja/transcribe",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "好きな曲をギターのTAB譜に",
+      "url": "/ja/transcribe"
+    },
+    {
+      "path": "/ja/pricing",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "もっと音楽を。もっと採譜を。",
+      "url": "/ja/pricing"
+    },
+    {
+      "path": "/ja/editor",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜をオンラインで作成・再生・練習。",
+      "url": "/ja/editor"
+    },
+    {
+      "path": "/ja/about",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "Note2Tabsについて",
+      "url": "/ja/about"
+    },
+    {
+      "path": "/ja/contact",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "Note2Tabsに問い合わせる",
+      "url": "/ja/contact"
+    },
+    {
+      "path": "/ja/terms",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "利用規約",
+      "url": "/ja/terms"
+    },
+    {
+      "path": "/ja/privacy",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "プライバシーポリシー",
+      "url": "/ja/privacy"
+    },
+    {
+      "path": "/ja/affiliate-program",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギタリストにTAB譜作成を紹介し、登録につながると報酬を獲得できます。",
+      "url": "/ja/affiliate-program"
+    },
+    {
+      "path": "/ja/internship-application",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "インターンシップ応募",
+      "url": "/ja/internship-application"
+    },
+    {
+      "path": "/ja/features",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜に必要な選択を支えるツール。",
+      "url": "/ja/features"
+    },
+    {
+      "path": "/ja/audio-to-guitar-tab-converter",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "音声からギターTAB譜へ",
+      "url": "/ja/audio-to-guitar-tab-converter"
+    },
+    {
+      "path": "/ja/mp3-to-guitar-tabs",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "MP3からギターTAB譜への変換ツール",
+      "url": "/ja/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/youtube-to-guitar-tabs",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "YouTubeからギターTAB譜への変換ツール",
+      "url": "/ja/youtube-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/ai-guitar-tab-generator",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "音声・YouTubeからAIでギターTAB譜を作成",
+      "url": "/ja/ai-guitar-tab-generator"
+    },
+    {
+      "path": "/ja/free-guitar-tab-maker",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "無料ギターTAB譜作成ツール",
+      "url": "/ja/free-guitar-tab-maker"
+    },
+    {
+      "path": "/ja/blog",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギタリストのためのアイデアと実践ガイド",
+      "url": "/ja/blog"
+    },
+    {
+      "path": "/ja/auth/login",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ログイン",
+      "url": "/ja/auth/login"
+    },
+    {
+      "path": "/ja/auth/signup",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "アカウントを作成",
+      "url": "/ja/auth/signup"
+    },
+    {
+      "path": "/ja/auth/verify-email",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "メールアドレスを確認",
+      "url": "/ja/auth/verify-email"
+    },
+    {
+      "path": "/ja/reset-password",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "パスワードを再設定",
+      "url": "/ja/reset-password"
+    },
+    {
+      "path": "/ja/reset-password/preview",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "新しいパスワードを設定",
+      "url": "/ja/reset-password/preview"
+    },
+    {
+      "path": "/ja/email/unsubscribe",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "メールの設定",
+      "url": "/ja/email/unsubscribe"
+    },
+    {
+      "path": "/ja/email/share-preferences",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "共有メールの設定",
+      "url": "/ja/email/share-preferences"
+    },
+    {
+      "path": "/ja/features/guitar-tab-fingering-optimizer",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜の運指最適化ツール",
+      "url": "/ja/features/guitar-tab-fingering-optimizer"
+    },
+    {
+      "path": "/ja/features/guitar-tab-key-detector",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜のキー検出・スケール補正",
+      "url": "/ja/features/guitar-tab-key-detector"
+    },
+    {
+      "path": "/ja/features/guitar-chord-strumming-editor",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターのコード・ストロークエディター",
+      "url": "/ja/features/guitar-chord-strumming-editor"
+    },
+    {
+      "path": "/ja/features/guitar-tab-editor-shortcuts",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ショートカットで編集できるギターTAB譜エディター",
+      "url": "/ja/features/guitar-tab-editor-shortcuts"
+    },
+    {
+      "path": "/ja/features/guitar-tab-import-export",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜の取り込み・書き出しツール",
+      "url": "/ja/features/guitar-tab-import-export"
+    },
+    {
+      "path": "/ja/features/guitar-tab-practice-trainer",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜の練習・スピードトレーニング",
+      "url": "/ja/features/guitar-tab-practice-trainer"
+    },
+    {
+      "path": "/ja/blog/ai-guitar-tab-editor",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "AIギターTAB譜エディター：オンラインで作成・アレンジ・練習",
+      "url": "/ja/blog/ai-guitar-tab-editor"
+    },
+    {
+      "path": "/ja/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "AIギター採譜：音声・YouTubeからTAB譜を作る",
+      "url": "/ja/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs"
+    },
+    {
+      "path": "/ja/blog/ascii-guitar-tab-editor",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ASCIIギターTAB譜：テキスト形式が役立つ場面",
+      "url": "/ja/blog/ascii-guitar-tab-editor"
+    },
+    {
+      "path": "/ja/blog/free-online-guitar-tab-maker",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "無料オンラインTAB譜作成ツールの選び方",
+      "url": "/ja/blog/free-online-guitar-tab-maker"
+    },
+    {
+      "path": "/ja/blog/guitar-fingering-optimizer",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターの運指最適化：TAB譜を弾きやすくする",
+      "url": "/ja/blog/guitar-fingering-optimizer"
+    },
+    {
+      "path": "/ja/blog/guitar-pro-alternative-online",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "Guitar Proのオンライン代替：ブラウザーで十分な場面",
+      "url": "/ja/blog/guitar-pro-alternative-online"
+    },
+    {
+      "path": "/ja/blog/guitar-solo-tab-maker",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターソロのTAB譜作成：弾けるリードパートに",
+      "url": "/ja/blog/guitar-solo-tab-maker"
+    },
+    {
+      "path": "/ja/blog/guitar-tab-creator-with-playback",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "再生できるTAB譜作成ツール：聴いて確かめる",
+      "url": "/ja/blog/guitar-tab-creator-with-playback"
+    },
+    {
+      "path": "/ja/blog/guitar-tab-editor",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "オンラインギターTAB譜エディター：作成・アレンジ・練習",
+      "url": "/ja/blog/guitar-tab-editor"
+    },
+    {
+      "path": "/ja/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "TAB譜の作成と編集：違いと使い分け",
+      "url": "/ja/blog/guitar-tab-maker-vs-guitar-tab-editor"
+    },
+    {
+      "path": "/ja/blog/how-to-convert-audio-to-guitar-tabs",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "音声からギターTAB譜へ：採譜・編集・練習の手順",
+      "url": "/ja/blog/how-to-convert-audio-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/blog/how-to-edit-guitar-tabs-for-practice",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "練習のためにギターTAB譜を編集する",
+      "url": "/ja/blog/how-to-edit-guitar-tabs-for-practice"
+    },
+    {
+      "path": "/ja/blog/how-to-fix-ai-guitar-tabs",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "AIのギターTAB譜を、自分の弾き方に合わせる",
+      "url": "/ja/blog/how-to-fix-ai-guitar-tabs"
+    },
+    {
+      "path": "/ja/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "AIツールをギターの練習に活かす",
+      "url": "/ja/blog/how-to-learn-guitar-faster-using-ai-tools"
+    },
+    {
+      "path": "/ja/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "AIギター採譜ツールの使い方：生成から練習まで",
+      "url": "/ja/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes"
+    },
+    {
+      "path": "/ja/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "Generate Cuts・Cut Regions・Optimizeの使い方",
+      "url": "/ja/blog/how-to-use-generate-cuts-cut-regions-and-optimize"
+    },
+    {
+      "path": "/ja/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "インストールせずにギターTAB譜を書く",
+      "url": "/ja/blog/how-to-write-guitar-tabs-online-without-downloading-software"
+    },
+    {
+      "path": "/ja/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "耳コピとAI採譜：ギタリストの使い分け",
+      "url": "/ja/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players"
+    },
+    {
+      "path": "/ja/blog/mp3-to-guitar-tabs",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "MP3からギターTAB譜へ：音源選びと編集",
+      "url": "/ja/blog/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "音符をギターTAB譜にする：運指の選び方",
+      "url": "/ja/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online"
+    },
+    {
+      "path": "/ja/blog/song-to-guitar-tabs",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "曲をギターTAB譜にする：生成から練習用資料へ",
+      "url": "/ja/blog/song-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/blog/tab-editor-for-guitar",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜の編集：弾きやすくする7つの確認",
+      "url": "/ja/blog/tab-editor-for-guitar"
+    },
+    {
+      "path": "/ja/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "AIギター採譜ツールの選び方",
+      "url": "/ja/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly"
+    },
+    {
+      "path": "/ja/blog/wav-to-guitar-tabs",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "WAVからギターTAB譜へ：明瞭な録音を活かす",
+      "url": "/ja/blog/wav-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/blog/why-guitar-tabs-can-be-wrong",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜はなぜ間違うのか — 気づきにくい理由",
+      "url": "/ja/blog/why-guitar-tabs-can-be-wrong"
+    },
+    {
+      "path": "/ja/blog/youtube-to-guitar-tabs-workflow",
+      "width": 1440,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "YouTubeからギターTAB譜へ：曲を学ぶための手順",
+      "url": "/ja/blog/youtube-to-guitar-tabs-workflow"
+    },
+    {
+      "path": "/ja/blog/ai-guitar-tab-editor",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "AIギターTAB譜エディター：オンラインで作成・アレンジ・練習",
+      "url": "/ja/blog/ai-guitar-tab-editor"
+    },
+    {
+      "path": "/ja/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "AIギター採譜：音声・YouTubeからTAB譜を作る",
+      "url": "/ja/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs"
+    },
+    {
+      "path": "/ja/blog/ascii-guitar-tab-editor",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ASCIIギターTAB譜：テキスト形式が役立つ場面",
+      "url": "/ja/blog/ascii-guitar-tab-editor"
+    },
+    {
+      "path": "/ja/blog/free-online-guitar-tab-maker",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "無料オンラインTAB譜作成ツールの選び方",
+      "url": "/ja/blog/free-online-guitar-tab-maker"
+    },
+    {
+      "path": "/ja/blog/guitar-fingering-optimizer",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターの運指最適化：TAB譜を弾きやすくする",
+      "url": "/ja/blog/guitar-fingering-optimizer"
+    },
+    {
+      "path": "/ja/blog/guitar-pro-alternative-online",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "Guitar Proのオンライン代替：ブラウザーで十分な場面",
+      "url": "/ja/blog/guitar-pro-alternative-online"
+    },
+    {
+      "path": "/ja/blog/guitar-solo-tab-maker",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターソロのTAB譜作成：弾けるリードパートに",
+      "url": "/ja/blog/guitar-solo-tab-maker"
+    },
+    {
+      "path": "/ja/blog/guitar-tab-creator-with-playback",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "再生できるTAB譜作成ツール：聴いて確かめる",
+      "url": "/ja/blog/guitar-tab-creator-with-playback"
+    },
+    {
+      "path": "/ja/blog/guitar-tab-editor",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "オンラインギターTAB譜エディター：作成・アレンジ・練習",
+      "url": "/ja/blog/guitar-tab-editor"
+    },
+    {
+      "path": "/ja/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "TAB譜の作成と編集：違いと使い分け",
+      "url": "/ja/blog/guitar-tab-maker-vs-guitar-tab-editor"
+    },
+    {
+      "path": "/ja/blog/how-to-convert-audio-to-guitar-tabs",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "音声からギターTAB譜へ：採譜・編集・練習の手順",
+      "url": "/ja/blog/how-to-convert-audio-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/blog/how-to-edit-guitar-tabs-for-practice",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "練習のためにギターTAB譜を編集する",
+      "url": "/ja/blog/how-to-edit-guitar-tabs-for-practice"
+    },
+    {
+      "path": "/ja/blog/how-to-fix-ai-guitar-tabs",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "AIのギターTAB譜を、自分の弾き方に合わせる",
+      "url": "/ja/blog/how-to-fix-ai-guitar-tabs"
+    },
+    {
+      "path": "/ja/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "AIツールをギターの練習に活かす",
+      "url": "/ja/blog/how-to-learn-guitar-faster-using-ai-tools"
+    },
+    {
+      "path": "/ja/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "AIギター採譜ツールの使い方：生成から練習まで",
+      "url": "/ja/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes"
+    },
+    {
+      "path": "/ja/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "Generate Cuts・Cut Regions・Optimizeの使い方",
+      "url": "/ja/blog/how-to-use-generate-cuts-cut-regions-and-optimize"
+    },
+    {
+      "path": "/ja/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "インストールせずにギターTAB譜を書く",
+      "url": "/ja/blog/how-to-write-guitar-tabs-online-without-downloading-software"
+    },
+    {
+      "path": "/ja/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "耳コピとAI採譜：ギタリストの使い分け",
+      "url": "/ja/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players"
+    },
+    {
+      "path": "/ja/blog/mp3-to-guitar-tabs",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "MP3からギターTAB譜へ：音源選びと編集",
+      "url": "/ja/blog/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "音符をギターTAB譜にする：運指の選び方",
+      "url": "/ja/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online"
+    },
+    {
+      "path": "/ja/blog/song-to-guitar-tabs",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "曲をギターTAB譜にする：生成から練習用資料へ",
+      "url": "/ja/blog/song-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/blog/tab-editor-for-guitar",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜の編集：弾きやすくする7つの確認",
+      "url": "/ja/blog/tab-editor-for-guitar"
+    },
+    {
+      "path": "/ja/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "AIギター採譜ツールの選び方",
+      "url": "/ja/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly"
+    },
+    {
+      "path": "/ja/blog/wav-to-guitar-tabs",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "WAVからギターTAB譜へ：明瞭な録音を活かす",
+      "url": "/ja/blog/wav-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/blog/why-guitar-tabs-can-be-wrong",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜はなぜ間違うのか — 気づきにくい理由",
+      "url": "/ja/blog/why-guitar-tabs-can-be-wrong"
+    },
+    {
+      "path": "/ja/blog/youtube-to-guitar-tabs-workflow",
+      "width": 390,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "YouTubeからギターTAB譜へ：曲を学ぶための手順",
+      "url": "/ja/blog/youtube-to-guitar-tabs-workflow"
+    },
+    {
+      "path": "/ja/blog/ai-guitar-tab-editor",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "AIギターTAB譜エディター：オンラインで作成・アレンジ・練習",
+      "url": "/ja/blog/ai-guitar-tab-editor"
+    },
+    {
+      "path": "/ja/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "AIギター採譜：音声・YouTubeからTAB譜を作る",
+      "url": "/ja/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs"
+    },
+    {
+      "path": "/ja/blog/ascii-guitar-tab-editor",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ASCIIギターTAB譜：テキスト形式が役立つ場面",
+      "url": "/ja/blog/ascii-guitar-tab-editor"
+    },
+    {
+      "path": "/ja/blog/free-online-guitar-tab-maker",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "無料オンラインTAB譜作成ツールの選び方",
+      "url": "/ja/blog/free-online-guitar-tab-maker"
+    },
+    {
+      "path": "/ja/blog/guitar-fingering-optimizer",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターの運指最適化：TAB譜を弾きやすくする",
+      "url": "/ja/blog/guitar-fingering-optimizer"
+    },
+    {
+      "path": "/ja/blog/guitar-pro-alternative-online",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "Guitar Proのオンライン代替：ブラウザーで十分な場面",
+      "url": "/ja/blog/guitar-pro-alternative-online"
+    },
+    {
+      "path": "/ja/blog/guitar-solo-tab-maker",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターソロのTAB譜作成：弾けるリードパートに",
+      "url": "/ja/blog/guitar-solo-tab-maker"
+    },
+    {
+      "path": "/ja/blog/guitar-tab-creator-with-playback",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "再生できるTAB譜作成ツール：聴いて確かめる",
+      "url": "/ja/blog/guitar-tab-creator-with-playback"
+    },
+    {
+      "path": "/ja/blog/guitar-tab-editor",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "オンラインギターTAB譜エディター：作成・アレンジ・練習",
+      "url": "/ja/blog/guitar-tab-editor"
+    },
+    {
+      "path": "/ja/blog/guitar-tab-maker-vs-guitar-tab-editor",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "TAB譜の作成と編集：違いと使い分け",
+      "url": "/ja/blog/guitar-tab-maker-vs-guitar-tab-editor"
+    },
+    {
+      "path": "/ja/blog/how-to-convert-audio-to-guitar-tabs",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "音声からギターTAB譜へ：採譜・編集・練習の手順",
+      "url": "/ja/blog/how-to-convert-audio-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/blog/how-to-edit-guitar-tabs-for-practice",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "練習のためにギターTAB譜を編集する",
+      "url": "/ja/blog/how-to-edit-guitar-tabs-for-practice"
+    },
+    {
+      "path": "/ja/blog/how-to-fix-ai-guitar-tabs",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "AIのギターTAB譜を、自分の弾き方に合わせる",
+      "url": "/ja/blog/how-to-fix-ai-guitar-tabs"
+    },
+    {
+      "path": "/ja/blog/how-to-learn-guitar-faster-using-ai-tools",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "AIツールをギターの練習に活かす",
+      "url": "/ja/blog/how-to-learn-guitar-faster-using-ai-tools"
+    },
+    {
+      "path": "/ja/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "AIギター採譜ツールの使い方：生成から練習まで",
+      "url": "/ja/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes"
+    },
+    {
+      "path": "/ja/blog/how-to-use-generate-cuts-cut-regions-and-optimize",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "Generate Cuts・Cut Regions・Optimizeの使い方",
+      "url": "/ja/blog/how-to-use-generate-cuts-cut-regions-and-optimize"
+    },
+    {
+      "path": "/ja/blog/how-to-write-guitar-tabs-online-without-downloading-software",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "インストールせずにギターTAB譜を書く",
+      "url": "/ja/blog/how-to-write-guitar-tabs-online-without-downloading-software"
+    },
+    {
+      "path": "/ja/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "耳コピとAI採譜：ギタリストの使い分け",
+      "url": "/ja/blog/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players"
+    },
+    {
+      "path": "/ja/blog/mp3-to-guitar-tabs",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "MP3からギターTAB譜へ：音源選びと編集",
+      "url": "/ja/blog/mp3-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "音符をギターTAB譜にする：運指の選び方",
+      "url": "/ja/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online"
+    },
+    {
+      "path": "/ja/blog/song-to-guitar-tabs",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "曲をギターTAB譜にする：生成から練習用資料へ",
+      "url": "/ja/blog/song-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/blog/tab-editor-for-guitar",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜の編集：弾きやすくする7つの確認",
+      "url": "/ja/blog/tab-editor-for-guitar"
+    },
+    {
+      "path": "/ja/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "AIギター採譜ツールの選び方",
+      "url": "/ja/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly"
+    },
+    {
+      "path": "/ja/blog/wav-to-guitar-tabs",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "WAVからギターTAB譜へ：明瞭な録音を活かす",
+      "url": "/ja/blog/wav-to-guitar-tabs"
+    },
+    {
+      "path": "/ja/blog/why-guitar-tabs-can-be-wrong",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜はなぜ間違うのか — 気づきにくい理由",
+      "url": "/ja/blog/why-guitar-tabs-can-be-wrong"
+    },
+    {
+      "path": "/ja/blog/youtube-to-guitar-tabs-workflow",
+      "width": 768,
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "YouTubeからギターTAB譜へ：曲を学ぶための手順",
+      "url": "/ja/blog/youtube-to-guitar-tabs-workflow"
+    }
+  ],
+  "regression": [
+    {
+      "width": 390,
+      "path": "/",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "好きな曲をギターのTAB譜に",
+      "url": "/ja"
+    },
+    {
+      "width": 390,
+      "path": "/pricing",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "もっと音楽を。もっと採譜を。",
+      "url": "/ja/pricing"
+    },
+    {
+      "width": 390,
+      "path": "/editor",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜をオンラインで作成・再生・練習。",
+      "url": "/ja/editor"
+    },
+    {
+      "width": 390,
+      "path": "/transcribe",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "好きな曲をギターのTAB譜に",
+      "url": "/ja/transcribe"
+    },
+    {
+      "width": 390,
+      "path": "/pt-br",
+      "clipped": [],
+      "lang": "pt-BR",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "Transforme áudio em tablatura de guitarra",
+      "url": "/pt-br"
+    },
+    {
+      "width": 390,
+      "path": "/pt-br/pricing",
+      "clipped": [],
+      "lang": "pt-BR",
+      "overflow": 0,
+      "title": "Mais música. Mais liberdade para transcrever.",
+      "url": "/pt-br/pricing"
+    },
+    {
+      "width": 390,
+      "path": "/pt-br/editor",
+      "clipped": [],
+      "lang": "pt-BR",
+      "overflow": 0,
+      "title": "Escreva, ouça e pratique tablaturas de guitarra online.",
+      "url": "/pt-br/editor"
+    },
+    {
+      "width": 390,
+      "path": "/pt-br/transcribe",
+      "clipped": [],
+      "lang": "pt-BR",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "Transforme áudio em tablatura de guitarra",
+      "url": "/pt-br/transcribe"
+    },
+    {
+      "width": 390,
+      "path": "/es",
+      "clipped": [],
+      "lang": "es",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "Convierte cualquier canción en tablaturas de guitarra",
+      "url": "/es"
+    },
+    {
+      "width": 390,
+      "path": "/es/pricing",
+      "clipped": [],
+      "lang": "es",
+      "overflow": 0,
+      "title": "Más música. Más espacio para transcribir.",
+      "url": "/es/pricing"
+    },
+    {
+      "width": 390,
+      "path": "/es/editor",
+      "clipped": [],
+      "lang": "es",
+      "overflow": 0,
+      "title": "Escribe, toca y practica tablaturas de guitarra en línea.",
+      "url": "/es/editor"
+    },
+    {
+      "width": 390,
+      "path": "/es/transcribe",
+      "clipped": [],
+      "lang": "es",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "Convierte cualquier canción en tablaturas de guitarra",
+      "url": "/es/transcribe"
+    },
+    {
+      "width": 390,
+      "path": "/ja",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "好きな曲をギターのTAB譜に",
+      "url": "/ja"
+    },
+    {
+      "width": 390,
+      "path": "/ja/pricing",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "もっと音楽を。もっと採譜を。",
+      "url": "/ja/pricing"
+    },
+    {
+      "width": 390,
+      "path": "/ja/editor",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜をオンラインで作成・再生・練習。",
+      "url": "/ja/editor"
+    },
+    {
+      "width": 390,
+      "path": "/ja/transcribe",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "好きな曲をギターのTAB譜に",
+      "url": "/ja/transcribe"
+    },
+    {
+      "width": 768,
+      "path": "/",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "好きな曲をギターのTAB譜に",
+      "url": "/ja"
+    },
+    {
+      "width": 768,
+      "path": "/pricing",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "もっと音楽を。もっと採譜を。",
+      "url": "/ja/pricing"
+    },
+    {
+      "width": 768,
+      "path": "/editor",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜をオンラインで作成・再生・練習。",
+      "url": "/ja/editor"
+    },
+    {
+      "width": 768,
+      "path": "/transcribe",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "好きな曲をギターのTAB譜に",
+      "url": "/ja/transcribe"
+    },
+    {
+      "width": 768,
+      "path": "/pt-br",
+      "clipped": [],
+      "lang": "pt-BR",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "Transforme áudio em tablatura de guitarra",
+      "url": "/pt-br"
+    },
+    {
+      "width": 768,
+      "path": "/pt-br/pricing",
+      "clipped": [],
+      "lang": "pt-BR",
+      "overflow": 0,
+      "title": "Mais música. Mais liberdade para transcrever.",
+      "url": "/pt-br/pricing"
+    },
+    {
+      "width": 768,
+      "path": "/pt-br/editor",
+      "clipped": [],
+      "lang": "pt-BR",
+      "overflow": 0,
+      "title": "Escreva, ouça e pratique tablaturas de guitarra online.",
+      "url": "/pt-br/editor"
+    },
+    {
+      "width": 768,
+      "path": "/pt-br/transcribe",
+      "clipped": [],
+      "lang": "pt-BR",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "Transforme áudio em tablatura de guitarra",
+      "url": "/pt-br/transcribe"
+    },
+    {
+      "width": 768,
+      "path": "/es",
+      "clipped": [],
+      "lang": "es",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "Convierte cualquier canción en tablaturas de guitarra",
+      "url": "/es"
+    },
+    {
+      "width": 768,
+      "path": "/es/pricing",
+      "clipped": [],
+      "lang": "es",
+      "overflow": 0,
+      "title": "Más música. Más espacio para transcribir.",
+      "url": "/es/pricing"
+    },
+    {
+      "width": 768,
+      "path": "/es/editor",
+      "clipped": [],
+      "lang": "es",
+      "overflow": 0,
+      "title": "Escribe, toca y practica tablaturas de guitarra en línea.",
+      "url": "/es/editor"
+    },
+    {
+      "width": 768,
+      "path": "/es/transcribe",
+      "clipped": [],
+      "lang": "es",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "Convierte cualquier canción en tablaturas de guitarra",
+      "url": "/es/transcribe"
+    },
+    {
+      "width": 768,
+      "path": "/ja",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "好きな曲をギターのTAB譜に",
+      "url": "/ja"
+    },
+    {
+      "width": 768,
+      "path": "/ja/pricing",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "もっと音楽を。もっと採譜を。",
+      "url": "/ja/pricing"
+    },
+    {
+      "width": 768,
+      "path": "/ja/editor",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜をオンラインで作成・再生・練習。",
+      "url": "/ja/editor"
+    },
+    {
+      "width": 768,
+      "path": "/ja/transcribe",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "好きな曲をギターのTAB譜に",
+      "url": "/ja/transcribe"
+    },
+    {
+      "width": 1440,
+      "path": "/",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "好きな曲をギターのTAB譜に",
+      "url": "/ja"
+    },
+    {
+      "width": 1440,
+      "path": "/pricing",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "もっと音楽を。もっと採譜を。",
+      "url": "/ja/pricing"
+    },
+    {
+      "width": 1440,
+      "path": "/editor",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜をオンラインで作成・再生・練習。",
+      "url": "/ja/editor"
+    },
+    {
+      "width": 1440,
+      "path": "/transcribe",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "好きな曲をギターのTAB譜に",
+      "url": "/ja/transcribe"
+    },
+    {
+      "width": 1440,
+      "path": "/pt-br",
+      "clipped": [],
+      "lang": "pt-BR",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "Transforme áudio em tablatura de guitarra",
+      "url": "/pt-br"
+    },
+    {
+      "width": 1440,
+      "path": "/pt-br/pricing",
+      "clipped": [],
+      "lang": "pt-BR",
+      "overflow": 0,
+      "title": "Mais música. Mais liberdade para transcrever.",
+      "url": "/pt-br/pricing"
+    },
+    {
+      "width": 1440,
+      "path": "/pt-br/editor",
+      "clipped": [],
+      "lang": "pt-BR",
+      "overflow": 0,
+      "title": "Escreva, ouça e pratique tablaturas de guitarra online.",
+      "url": "/pt-br/editor"
+    },
+    {
+      "width": 1440,
+      "path": "/pt-br/transcribe",
+      "clipped": [],
+      "lang": "pt-BR",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "Transforme áudio em tablatura de guitarra",
+      "url": "/pt-br/transcribe"
+    },
+    {
+      "width": 1440,
+      "path": "/es",
+      "clipped": [],
+      "lang": "es",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "Convierte cualquier canción en tablaturas de guitarra",
+      "url": "/es"
+    },
+    {
+      "width": 1440,
+      "path": "/es/pricing",
+      "clipped": [],
+      "lang": "es",
+      "overflow": 0,
+      "title": "Más música. Más espacio para transcribir.",
+      "url": "/es/pricing"
+    },
+    {
+      "width": 1440,
+      "path": "/es/editor",
+      "clipped": [],
+      "lang": "es",
+      "overflow": 0,
+      "title": "Escribe, toca y practica tablaturas de guitarra en línea.",
+      "url": "/es/editor"
+    },
+    {
+      "width": 1440,
+      "path": "/es/transcribe",
+      "clipped": [],
+      "lang": "es",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "Convierte cualquier canción en tablaturas de guitarra",
+      "url": "/es/transcribe"
+    },
+    {
+      "width": 1440,
+      "path": "/ja",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "好きな曲をギターのTAB譜に",
+      "url": "/ja"
+    },
+    {
+      "width": 1440,
+      "path": "/ja/pricing",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "もっと音楽を。もっと採譜を。",
+      "url": "/ja/pricing"
+    },
+    {
+      "width": 1440,
+      "path": "/ja/editor",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "title": "ギターTAB譜をオンラインで作成・再生・練習。",
+      "url": "/ja/editor"
+    },
+    {
+      "width": 1440,
+      "path": "/ja/transcribe",
+      "clipped": [],
+      "lang": "ja",
+      "overflow": 0,
+      "switchHeight": 48,
+      "title": "好きな曲をギターのTAB譜に",
+      "url": "/ja/transcribe"
+    }
+  ]
+}

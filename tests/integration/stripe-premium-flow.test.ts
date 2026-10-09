@@ -1775,6 +1775,20 @@ describe("stripe premium flow", () => {
       expect(posthogMock.capture).not.toHaveBeenCalledWith(expect.objectContaining({event:"subscription_payment_succeeded"}));
     });
 
+    it("attributes positive paid invoices to the Japanese country cohort rather than trial activation", async () => {
+      stripeMock.subscriptions.retrieve.mockResolvedValue(premiumSubscription({metadata:{userId:"user_1",note2tabsLocale:"ja",note2tabsVisitorCountry:"JP"}}));
+      prismaMock.user.findUnique.mockResolvedValue({id:"user_1",role:"PREMIUM",tokensRemaining:100});
+      stripeMock.webhooks.constructEvent.mockReturnValue({id:"evt_paid_ja",type:"invoice.payment_succeeded",data:{object:premiumInvoice({billing_reason:"subscription_create",amount_paid:999,currency:"jpy"})}});
+      const handler = (await import("../../pages/api/stripe/webhook")).default;
+      const res=createResponse(); await handler(buildWebhookReq() as any,res as any);
+      expect(res._getStatusCode()).toBe(200);
+      expect(posthogMock.capture).toHaveBeenCalledWith(expect.objectContaining({event:"subscription_payment_succeeded",properties:expect.objectContaining({content_locale:"ja",visitor_country:"JP",visitor_market:"japan",localization_cohort:"ja:JP",amount_paid_minor:999,currency:"jpy",is_renewal:false})}));
+      posthogMock.capture.mockClear();
+      stripeMock.webhooks.constructEvent.mockReturnValue({id:"evt_zero_ja",type:"invoice.payment_succeeded",data:{object:premiumInvoice({billing_reason:"subscription_create",amount_paid:0,currency:"jpy"})}});
+      await handler(buildWebhookReq() as any,createResponse() as any);
+      expect(posthogMock.capture).not.toHaveBeenCalledWith(expect.objectContaining({event:"subscription_payment_succeeded"}));
+    });
+
     it("adds monthly credits on renewal invoices without exceeding the rollover cap", async () => {
       stripeMock.webhooks.constructEvent.mockReturnValue({
         type: "invoice.payment_succeeded",
