@@ -1,3 +1,4 @@
+import { stripeLocale } from "../../../lib/i18n/checkout";
 import { requestLocale } from "../../../lib/i18n/request";
 import { localeHref, stripLocale } from "../../../lib/i18n/locale";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -56,7 +57,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const returnPath = localeHref(typeof req.body?.returnTo === "string" && stripLocale(req.body.returnTo) === "/home" ? "/home" : "/settings", locale);
     const portal = await stripeClient.billingPortal.sessions.create({
       customer: customer.id,
-      ...(locale !== "en" ? {locale: locale} : {}),
+      ...(locale !== "en" ? {locale: stripeLocale(locale)} : {}),
       return_url: `${baseUrl}${returnPath}`,
     });
 

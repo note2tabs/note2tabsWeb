@@ -1,3 +1,4 @@
+import type { AppLocale } from "../../lib/i18n/locale";
 import {articleLocales} from "../../lib/i18n/blog/availability";
 import { localeHref } from "../../lib/i18n/locale";
 import { useLocale } from "../../lib/i18n/react";
@@ -22,7 +23,7 @@ type PostPageProps = {
     excerpt: string;
     contentMode: "PLAIN" | "LATEX";
     contentHtml: string;
-    contentLanguage?: "en" | "pt-BR" | "es" | "ja";
+    contentLanguage?: AppLocale;
     coverImageUrl: string | null;
     publishedAt: string | null;
     publishAt: string | null;
@@ -160,7 +161,7 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
         <div className="post-reader-layout">
           <article className="post-content">
             {locale !== "en" && post.contentLanguage === "en" && <p className="locale-scope-note">{t("This article has been updated. Its Portuguese translation is being reviewed.")}</p>}
-            <div lang={post.contentLanguage || "en"} className="post-prose" dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
+            <div lang={post.contentLanguage || "en"} dir={post.contentLanguage === "ar" ? "rtl" : "ltr"} className="post-prose" dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
             <nav className="post-tool-paths" aria-label={t("Related Note2Tabs tools")}>
               <span className="post-product-eyebrow">{t("Use the right tool")}</span>
               <div>

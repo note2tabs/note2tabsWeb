@@ -1,3 +1,4 @@
+import { localizedEmailCopy } from "./i18n/emails";
 import { localeHref, type AppLocale } from "./i18n/locale";
 import crypto from "crypto";
 import { prisma } from "./prisma";
@@ -74,6 +75,17 @@ export async function sendPasswordResetEmail(
 ) {
   const locale = options?.locale || "en";
   const url = buildPasswordResetUrl(token, locale);
+  const copy = localizedEmailCopy(locale);
+  if (copy) {
+    const message = copy.reset;
+    const name = options?.name?.trim();
+    const greeting = `${copy.greeting}${name ? ` ${name}` : ""}`;
+    const details = `${message.code}: ${code}\n\n`;
+    return sendTransactionalEmail({to: email, subject: message.subject,
+      text: `${greeting}\n\n${message.body}\n${url}\n\n${details}${message.expiry}`,
+      html: renderProductEmail({locale, title: message.title, preview: message.body, greeting: escapeEmailHtml(greeting),
+        bodyHtml: `<p>${escapeEmailHtml(message.body)}</p><p>${escapeEmailHtml(message.code)}: <strong dir="ltr">${escapeEmailHtml(code)}</strong></p>`, action: {label: message.title, url}, secondaryHtml: escapeEmailHtml(message.expiry)})});
+  }
   if (locale === "ja") {
     const name = options?.name?.trim();
     const greeting = name ? `${name} 様` : "Note2Tabsからのお知らせです。";

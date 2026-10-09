@@ -1,3 +1,4 @@
+import { localizedEmailCopy } from "./i18n/emails";
 import { localeHref, type AppLocale } from "./i18n/locale";
 import crypto from "crypto";
 import { sendTransactionalEmail } from "./email";
@@ -27,6 +28,17 @@ export function buildTranscriptionCompleteEmail(input: TranscriptionCompleteEmai
   const editorUrl = input.editorId
     ? `${appBaseUrl()}/gte/${encodeURIComponent(input.editorId)}?source=transcription_complete_email`
     : `${appBaseUrl()}${localeHref(`/job/${encodeURIComponent(input.jobId)}?source=transcription_complete_email`, input.locale || "en")}`;
+  const locale = input.locale || "en";
+  const copy = localizedEmailCopy(locale);
+  if (copy) {
+    const message = copy.completion;
+    const label = input.sourceLabel?.trim() || message.fallbackLabel;
+    const greeting = `${copy.greeting}${input.name?.trim() ? ` ${input.name.trim()}` : ""}`;
+    const body = message.body.replace("{label}", label);
+    return {subject: message.subject, editorUrl, text: `${greeting}\n\n${body}\n\n${editorUrl}`,
+      html: renderProductEmail({locale, title: message.title, preview: message.title, greeting: escapeEmailHtml(greeting),
+        bodyHtml: `<p>${escapeEmailHtml(body)}</p>`, action: {label: message.action, url: editorUrl}})};
+  }
   if (input.locale === "ja") {
     const label = input.sourceLabel?.trim() || "採譜結果";
     const greeting = input.name?.trim() ? `${input.name.trim()} 様` : "Note2Tabsからのお知らせです。";

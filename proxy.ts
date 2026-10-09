@@ -1,6 +1,7 @@
 import { getToken } from "next-auth/jwt";
 import { NextResponse, type NextRequest } from "next/server";
 import { DISPLAY_CURRENCY_COOKIE, displayCurrencyForCountry } from "./lib/localizedPricing";
+import { localeFromPath } from "./lib/i18n/locale";
 import { detectedLocaleDestination } from "./lib/i18n/detection";
 import { localizedPilotAvailable } from "./lib/i18n/pilot";
 
@@ -34,7 +35,7 @@ export default async function proxy(request: NextRequest) {
     response.headers.set("Cache-Control", "private, no-store");
     return withCurrencyPreference(request, response);
   }
-  if ((request.nextUrl.pathname.startsWith("/pt-br") || request.nextUrl.pathname === "/es" || request.nextUrl.pathname.startsWith("/es/") || request.nextUrl.pathname === "/ja" || request.nextUrl.pathname.startsWith("/ja/")) || request.nextUrl.pathname === "/pricing") {
+  if (localeFromPath(request.nextUrl.pathname) !== "en" || request.nextUrl.pathname === "/pricing") {
     return withCurrencyPreference(request, NextResponse.next());
   }
   if (request.nextUrl.pathname !== "/") return withCurrencyPreference(request, NextResponse.next());
@@ -61,6 +62,6 @@ export const config = {
     "/", "/pricing", "/transcribe", "/editor", "/online-guitar-tab-editor", "/about", "/contact", "/terms", "/privacy",
     "/affiliate-program", "/internship-application", "/features/:path*", "/blog/:path*",
     "/audio-to-guitar-tab-converter", "/mp3-to-guitar-tabs", "/youtube-to-guitar-tabs", "/ai-guitar-tab-generator", "/free-guitar-tab-maker",
-    "/pt-br", "/pt-br/pricing", "/es", "/es/pricing", "/ja", "/ja/pricing",
+    "/pt-br", "/pt-br/pricing", "/es", "/es/pricing", "/ja", "/ja/pricing", "/ko/:path*", "/pl/:path*", "/ar/:path*", "/zh-hans/:path*",
   ],
 };

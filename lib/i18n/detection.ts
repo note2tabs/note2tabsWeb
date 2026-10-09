@@ -1,4 +1,4 @@
-import { isLocalizedPublicPath, localeFromPath, localeSwitchHref, normalizeLocale, type AppLocale } from "./locale";
+import { isLocalizedPublicPath, localeFromPath, localeSwitchHref, normalizeLocale, ALL_LOCALES, type AppLocale } from "./locale";
 
 /** Browsers send device language preferences in Accept-Language, in priority order. */
 export function deviceLocale(acceptLanguage: string, enabled: (locale: AppLocale) => boolean): AppLocale {
@@ -11,7 +11,10 @@ export function deviceLocale(acceptLanguage: string, enabled: (locale: AppLocale
     .sort((a, b) => b.weight - a.weight || a.index - b.index);
   for (const { tag } of preferences) {
     const language = tag.split("-")[0];
-    const locale = language === "pt" ? "pt-BR" : language === "es" ? "es" : language === "ja" ? "ja" : language === "en" ? "en" : null;
+    // Traditional Chinese must not be redirected to a Simplified Chinese edition.
+    const traditionalChinese = /(?:^zh-hant(?:-|$)|^zh-(?:tw|hk|mo)(?:-|$))/.test(tag);
+    const locale = language === "zh" ? (traditionalChinese ? null : "zh-Hans")
+      : language === "pt" ? "pt-BR" : ALL_LOCALES.find(value => value === language) || null;
     if (locale && enabled(locale)) return locale;
   }
   return "en";
@@ -23,7 +26,7 @@ export function detectedLocaleDestination(
   enabled: (locale: AppLocale) => boolean,
 ) {
   if (localeFromPath(path) !== "en" || !isLocalizedPublicPath(path) || /bot|crawler|spider|slurp/i.test(userAgent)) return null;
-  const saved = typeof savedLocale === "string" && ["en", "pt-br", "es", "ja"].includes(savedLocale.toLowerCase())
+  const saved = typeof savedLocale === "string" && ALL_LOCALES.some(locale => locale.toLowerCase() === savedLocale.toLowerCase())
     ? normalizeLocale(savedLocale) : null;
   const locale = saved !== null ? (enabled(saved) ? saved : "en") : deviceLocale(acceptLanguage, enabled);
   return locale === "en" ? null : localeSwitchHref(path, locale);

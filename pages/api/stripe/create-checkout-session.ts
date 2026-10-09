@@ -1,3 +1,4 @@
+import { stripeLocale } from "../../../lib/i18n/checkout";
 import {localeCohort} from "../../../lib/i18n/locale";
 import { localizeCheckoutReturnPaths } from "../../../lib/i18n/checkout";
 import { requestLocale } from "../../../lib/i18n/request";
@@ -277,7 +278,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ? { customer: existingCustomer.id }
           : { customer_email: session.user.email }),
         mode: "subscription",
-        ...(contentLocale !== "en" ? {locale: contentLocale} : {}),
+        ...(contentLocale !== "en" ? {locale: stripeLocale(contentLocale)} : {}),
         payment_method_collection: "always",
         line_items: [{ price: selectedConfig.priceId, quantity: 1 }],
         client_reference_id: funnelId,

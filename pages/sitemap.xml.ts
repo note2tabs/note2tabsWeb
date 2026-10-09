@@ -1,5 +1,5 @@
 import {articleLocales} from "../lib/i18n/blog/availability";
-import { localeFromPath, localeHref, stripLocale, TRANSLATED_LOCALES } from "../lib/i18n/locale";
+import { localeFromPath, localeHref, stripLocale, TRANSLATED_LOCALES, normalizeLocale } from "../lib/i18n/locale";
 import { localizedPilotIndexable } from "../lib/i18n/pilot";
 import type { GetServerSideProps } from "next";
 import { prisma } from "../lib/prisma";
@@ -115,7 +115,7 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
     const path = stripLocale(new URL(entry.loc).pathname);
     if (!releasedLocales.length || !(staticPaths.includes(path) || translatedArticles.has(path))) return "";
     return ["en", ...(translatedArticles.get(path) || releasedLocales), "x-default"].map(language => {
-      const href = buildUrl(baseUrl, localeHref(path, language === "pt-BR" ? "pt-BR" : language === "es" ? "es" : language === "ja" ? "ja" : "en"));
+      const href = buildUrl(baseUrl, localeHref(path, normalizeLocale(language)));
       return `\n    <xhtml:link rel="alternate" hreflang="${language}" href="${escapeXml(href)}"/>`;
     }).join("");
   };

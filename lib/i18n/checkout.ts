@@ -8,3 +8,8 @@ export function localizeCheckoutReturnPaths(paths: {success: string; cancel: str
     manage: localeHref(paths.manage, locale),
   };
 }
+
+/** Stripe's supported locale codes differ from the website's script code. */
+export function stripeLocale(locale: AppLocale) {
+  return locale === "zh-Hans" ? "zh" : locale === "ar" ? "auto" : locale;
+}

@@ -4,6 +4,11 @@ const nextConfig = {
   // Feature branches must be reviewable without exposing unfinished plans on
   // the production deployment. Vercel replaces this at build time.
   env: {
+    NEXT_PUBLIC_KO_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_KO_REVIEWED !== "false" ? "true" : "false",
+    NEXT_PUBLIC_PL_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_PL_REVIEWED !== "false" ? "true" : "false",
+    NEXT_PUBLIC_AR_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_AR_REVIEWED !== "false" ? "true" : "false",
+    NEXT_PUBLIC_ZH_HANS_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_ZH_HANS_REVIEWED !== "false" ? "true" : "false",
+
     NEXT_PUBLIC_JA_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_JA_REVIEWED !== "false" ? "true" : "false",
     NEXT_PUBLIC_ES_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_ES_REVIEWED !== "false" ? "true" : "false",
     NEXT_PUBLIC_PT_BR_PREVIEW: process.env.VERCEL_ENV === "preview" ? "true" : "false",
@@ -13,6 +18,14 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      {source: "/ko/online-guitar-tab-editor", destination: "/ko/editor", permanent: true},
+      {source: "/ko/transcriber", destination: "/ko/transcribe", permanent: true},
+      {source: "/pl/online-guitar-tab-editor", destination: "/pl/editor", permanent: true},
+      {source: "/pl/transcriber", destination: "/pl/transcribe", permanent: true},
+      {source: "/ar/online-guitar-tab-editor", destination: "/ar/editor", permanent: true},
+      {source: "/ar/transcriber", destination: "/ar/transcribe", permanent: true},
+      {source: "/zh-hans/online-guitar-tab-editor", destination: "/zh-hans/editor", permanent: true},
+      {source: "/zh-hans/transcriber", destination: "/zh-hans/transcribe", permanent: true},
       {source: "/ja/online-guitar-tab-editor", destination: "/ja/editor", permanent: true},
       {source: "/ja/transcriber", destination: "/ja/transcribe", permanent: true},
       {source: "/es/online-guitar-tab-editor", destination: "/es/editor", permanent: true},
