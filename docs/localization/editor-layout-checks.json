@@ -1,0 +1,1244 @@
+{
+  "environment": "local preview and production",
+  "language_switches": [
+    {
+      "lang": "pt-BR",
+      "open": false,
+      "url": "/gte/local"
+    },
+    {
+      "lang": "es",
+      "open": false,
+      "url": "/gte/local"
+    },
+    {
+      "lang": "ja",
+      "open": false,
+      "url": "/gte/local"
+    },
+    {
+      "lang": "ko",
+      "open": false,
+      "url": "/gte/local"
+    },
+    {
+      "lang": "pl",
+      "open": false,
+      "url": "/gte/local"
+    },
+    {
+      "lang": "ar",
+      "open": false,
+      "url": "/gte/local"
+    },
+    {
+      "lang": "zh-Hans",
+      "open": false,
+      "url": "/gte/local"
+    },
+    {
+      "lang": "en",
+      "open": false,
+      "url": "/gte/local"
+    }
+  ],
+  "layout_checks": [
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "lang": "ar",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "lang": "ar",
+      "scoreDir": "ltr",
+      "scrollWidth": 768,
+      "url": "/gte/local",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "lang": "ar",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pt-BR",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pt-BR",
+      "scoreDir": "ltr",
+      "scrollWidth": 768,
+      "url": "/gte/local",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pt-BR",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "es",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "es",
+      "scoreDir": "ltr",
+      "scrollWidth": 768,
+      "url": "/gte/local",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "es",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ja",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ja",
+      "scoreDir": "ltr",
+      "scrollWidth": 768,
+      "url": "/gte/local",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ja",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ko",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ko",
+      "scoreDir": "ltr",
+      "scrollWidth": 768,
+      "url": "/gte/local",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ko",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pl",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pl",
+      "scoreDir": "ltr",
+      "scrollWidth": 768,
+      "url": "/gte/local",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pl",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "lang": "ar",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "lang": "ar",
+      "scoreDir": "ltr",
+      "scrollWidth": 768,
+      "url": "/gte/local",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "lang": "ar",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "zh-Hans",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "zh-Hans",
+      "scoreDir": "ltr",
+      "scrollWidth": 768,
+      "url": "/gte/local",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "zh-Hans",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "en",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "en",
+      "scoreDir": "ltr",
+      "scrollWidth": 768,
+      "url": "/gte/local",
+      "width": 768
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "en",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "panel": "tools",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pt-BR",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "panel": "practice",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pt-BR",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "panel": "tools",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "es",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "panel": "practice",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "es",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "panel": "tools",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ja",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "panel": "practice",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ja",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "panel": "tools",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ko",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "panel": "practice",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ko",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "panel": "tools",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pl",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "panel": "practice",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pl",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "panel": "tools",
+      "clipped": [],
+      "dir": "rtl",
+      "lang": "ar",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "panel": "practice",
+      "clipped": [],
+      "dir": "rtl",
+      "lang": "ar",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "panel": "tools",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "zh-Hans",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "panel": "practice",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "zh-Hans",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "panel": "tools",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "en",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "panel": "practice",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "en",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "panel": "tools",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pt-BR",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "practice",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pt-BR",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tutorial",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pt-BR",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tools",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "es",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "practice",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "es",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tutorial",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "es",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tools",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ja",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "practice",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ja",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tutorial",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ja",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tools",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ko",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "practice",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ko",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tutorial",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ko",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tools",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pl",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "practice",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pl",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tutorial",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pl",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tools",
+      "clipped": [],
+      "dir": "rtl",
+      "lang": "ar",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "practice",
+      "clipped": [],
+      "dir": "rtl",
+      "lang": "ar",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tutorial",
+      "clipped": [],
+      "dir": "rtl",
+      "lang": "ar",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tools",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "zh-Hans",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "practice",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "zh-Hans",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tutorial",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "zh-Hans",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tools",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "en",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "practice",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "en",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "panel": "tutorial",
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "en",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 1,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pt-BR",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 2,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pt-BR",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 3,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pt-BR",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 4,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pt-BR",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 5,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pt-BR",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 1,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "es",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 2,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "es",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 3,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "es",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 4,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "es",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 5,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "es",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 1,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ja",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 2,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ja",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 3,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ja",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 4,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ja",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 5,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ja",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 1,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ko",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 2,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ko",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 3,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ko",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 4,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ko",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 5,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ko",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 1,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pl",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 2,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pl",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 3,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pl",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 4,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pl",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 5,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pl",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 1,
+      "clipped": [],
+      "dir": "rtl",
+      "lang": "ar",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 2,
+      "clipped": [],
+      "dir": "rtl",
+      "lang": "ar",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 3,
+      "clipped": [],
+      "dir": "rtl",
+      "lang": "ar",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 4,
+      "clipped": [],
+      "dir": "rtl",
+      "lang": "ar",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 5,
+      "clipped": [],
+      "dir": "rtl",
+      "lang": "ar",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 1,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "zh-Hans",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 2,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "zh-Hans",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 3,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "zh-Hans",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 4,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "zh-Hans",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 5,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "zh-Hans",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 1,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "en",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 2,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "en",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 3,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "en",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 4,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "en",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "step": 5,
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "en",
+      "scoreDir": "ltr",
+      "scrollWidth": 390,
+      "url": "/gte/local",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pt-BR",
+      "scoreDir": "",
+      "scrollWidth": 390,
+      "url": "/gte/local/tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "es",
+      "scoreDir": "",
+      "scrollWidth": 390,
+      "url": "/gte/local/tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ja",
+      "scoreDir": "",
+      "scrollWidth": 390,
+      "url": "/gte/local/tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ko",
+      "scoreDir": "",
+      "scrollWidth": 390,
+      "url": "/gte/local/tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pl",
+      "scoreDir": "",
+      "scrollWidth": 390,
+      "url": "/gte/local/tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "lang": "ar",
+      "scoreDir": "",
+      "scrollWidth": 390,
+      "url": "/gte/local/tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "zh-Hans",
+      "scoreDir": "",
+      "scrollWidth": 390,
+      "url": "/gte/local/tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "en",
+      "scoreDir": "",
+      "scrollWidth": 390,
+      "url": "/gte/local/tabs",
+      "width": 390
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pt-BR",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "es",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ja",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "ko",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "pl",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "rtl",
+      "lang": "ar",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "zh-Hans",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "dir": "ltr",
+      "lang": "en",
+      "scoreDir": "ltr",
+      "scrollWidth": 1440,
+      "url": "/gte/local",
+      "width": 1440
+    }
+  ],
+  "sample_instruments_verified": [
+    "Acoustic Guitar",
+    "Jazz Guitar",
+    "Electric Guitar",
+    "Electric Guitar (Overdrive)",
+    "Electric Guitar (Distortion)",
+    "Bass (Overdrive)",
+    "String ensemble"
+  ],
+  "console_errors": []
+}

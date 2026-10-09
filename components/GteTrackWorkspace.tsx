@@ -1,12 +1,11 @@
+import { EditorLoadingState } from "./EditorLoadingState";
 import type { ComponentProps } from "react";
 import dynamic from "next/dynamic";
 import GteWorkspace from "./GteWorkspace";
 import { isDrumTrackType } from "../lib/gteDrums";
 
 const GteDrumWorkspace = dynamic(() => import("./GteDrumWorkspace"), {
-  loading: () => (
-    <div className="gte-workspace-loading" role="status" aria-label="Loading drum editor" />
-  ),
+  loading: () => <EditorLoadingState />,
 });
 
 type Props = ComponentProps<typeof GteWorkspace>;

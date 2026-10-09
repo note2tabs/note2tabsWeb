@@ -1,3 +1,4 @@
+import { useLocale } from "../lib/i18n/react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { gteApi, optimizeImportedTrackFingerings } from "../lib/gteApi";
@@ -138,6 +139,7 @@ export default function GteFileImportButton({
   busyLabel = "Importing...",
   title,
 }: Props) {
+  const { t } = useLocale();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadingLabel, setLoadingLabel] = useState("Importing tab file");
@@ -427,9 +429,9 @@ export default function GteFileImportButton({
         onClick={() => inputRef.current?.click()}
         className={className}
         disabled={disabled || busy}
-        title={title}
+        title={title ? t(title) : undefined}
       >
-        {busy ? <span className="import-thinking-text">{busyLabel}</span> : children}
+        {busy ? <span className="import-thinking-text">{typeof busyLabel === "string" ? t(busyLabel) : busyLabel}</span> : children}
       </button>
       {busy && typeof document !== "undefined" && createPortal(
         <div
@@ -437,14 +439,14 @@ export default function GteFileImportButton({
           className="fixed inset-0 z-[11000] flex items-center justify-center bg-white/45 backdrop-blur-sm"
           role="status"
           aria-live="polite"
-          aria-label={loadingLabel}
+          aria-label={t(loadingLabel)}
         >
           <div className="flex min-w-52 flex-col items-center gap-3 rounded-xl border border-slate-200 bg-white px-7 py-6 shadow-xl">
             <span
               className="h-7 w-7 animate-spin rounded-full border-[3px] border-slate-200 border-t-slate-800"
               aria-hidden="true"
             />
-            <span className="text-sm font-semibold text-slate-800">{loadingLabel}</span>
+            <span className="text-sm font-semibold text-slate-800">{t(loadingLabel)}</span>
           </div>
         </div>,
         document.body
@@ -464,9 +466,7 @@ export default function GteFileImportButton({
             aria-labelledby="gte-import-track-title"
             className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-xl"
           >
-            <h2 id="gte-import-track-title" className="text-base font-semibold text-slate-900">
-              Select tracks to import
-            </h2>
+            <h2 id="gte-import-track-title" className="text-base font-semibold text-slate-900">{t("Select tracks to import")}</h2>
             <p className="mt-1 text-sm text-slate-500">{pendingTrackSelection.parsed.fileName}</p>
             <div className="mt-4 max-h-72 space-y-1 overflow-y-auto pr-1">
               {pendingTrackSelection.tracks.map((track, index) => (
@@ -482,11 +482,11 @@ export default function GteFileImportButton({
                       className="h-4 w-4 accent-slate-900"
                     />
                     <span className="min-w-0 flex-1 truncate text-sm text-slate-800">
-                      {track.name || `Track ${index + 1}`}
+                      {track.name || t("Track {value1}", {value1: index + 1})}
                     </span>
                   </label>
                   <span className="shrink-0 text-xs text-slate-400">
-                    {track.stamps.length} {track.stamps.length === 1 ? "note" : "notes"}
+                    {track.stamps.length} {track.stamps.length === 1 ? t("note") : t("notes")}
                   </span>
                   <button
                     type="button"
@@ -496,8 +496,8 @@ export default function GteFileImportButton({
                         ? "border-slate-900 bg-slate-900 text-white"
                         : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
                     }`}
-                    aria-label={previewTrackIndex === index ? `Stop ${track.name || `track ${index + 1}`}` : `Preview ${track.name || `track ${index + 1}`}`}
-                    title={previewTrackIndex === index ? "Stop preview" : "Preview track from its first note"}
+                    aria-label={previewTrackIndex === index ? t("Stop {value1}", {value1: track.name || t("track {value1}", {value1: index + 1})}) : t("Preview {value1}", {value1: track.name || t("track {value1}", {value1: index + 1})})}
+                    title={previewTrackIndex === index ? t("Stop preview") : t("Preview track from its first note")}
                   >
                     {previewLoadingIndex === index ? (
                       <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700" aria-hidden="true" />
@@ -529,26 +529,20 @@ export default function GteFileImportButton({
                 }
                 className="text-sm font-medium text-slate-600 hover:text-slate-900"
               >
-                {pendingTrackSelection.selectedIndexes.size === pendingTrackSelection.tracks.length
-                  ? "Clear all"
-                  : "Select all"}
+                {pendingTrackSelection.selectedIndexes.size === pendingTrackSelection.tracks.length ? t("Clear all") : t("Select all")}
               </button>
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={cancelTrackSelection}
                   className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
+                >{t("Cancel")}</button>
                 <button
                   type="button"
                   onClick={confirmTrackSelection}
                   disabled={pendingTrackSelection.selectedIndexes.size === 0}
                   className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Import selected
-                </button>
+                >{t("Import selected")}</button>
               </div>
             </div>
           </div>

@@ -7,7 +7,7 @@ const styles = readFileSync("styles/globals.css", "utf8");
 describe("editor library row interaction", () => {
   it("makes the complete editor row a labelled link", () => {
     expect(source).toContain('className="gte-library-row-link"');
-    expect(source).toContain('aria-label={`Open ${editor.name || "Untitled tab"}`}');
+    expect(source).toContain('aria-label={t("Open {value1}", {value1: editorName(editor.name, t) || t("Untitled tab")})}');
     expect(styles).toMatch(/\.gte-library-row-link \{[\s\S]*position: absolute;[\s\S]*inset: 0;/);
   });
 

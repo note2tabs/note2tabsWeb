@@ -19,7 +19,7 @@ describe("editor tutorial", () => {
     const component = fs.readFileSync(path.join(process.cwd(), "components/EditorTutorial.tsx"), "utf8");
     expect(component).toContain("if (!passedTutorial && !guestAlreadyInteracted) setOpen(true)");
     expect(component).toContain('fetch("/api/account/tutorial"');
-    expect(component).toContain('aria-label="Open editor tutorial"');
+    expect(component).toContain('aria-label={t("Open editor tutorial")}');
     expect(component).toContain("recordInteraction();");
     expect(component).toContain("cards.map");
   });

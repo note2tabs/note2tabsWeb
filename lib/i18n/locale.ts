@@ -1,4 +1,4 @@
-/** User-facing routes. The interactive /gte editor remains in English. */
+/** User-facing languages; editor project URLs are shared across languages. */
 export type AppLocale = "en" | "pt-BR" | "es" | "ja" | "ko" | "pl" | "ar" | "zh-Hans";
 export const LOCALE_VERSION = "multilingual-site-8";
 export const LOCALIZED_PUBLIC_PATHS = ["/","/transcribe","/pricing","/editor","/about","/contact","/terms","/privacy","/affiliate-program","/internship-application","/features","/audio-to-guitar-tab-converter","/mp3-to-guitar-tabs","/youtube-to-guitar-tabs","/ai-guitar-tab-generator","/free-guitar-tab-maker","/online-guitar-tab-editor","/blog"] as const;
@@ -18,15 +18,16 @@ export function stripLocale(path: string) {
   const result = path.replace(/^\/(?:pt-br|es|ja|ko|pl|ar|zh-hans)(?=\/|[?#]|$)/i, "") || "/";
   return /^[?#]/.test(result) ? `/${result}` : result;
 }
+export function isEditorPath(path = "/") { return /^\/gte(?:[/?#]|$)/.test(stripLocale(path)); }
 export function supportsLocalizedPath(path: string) {
   const pathname = stripLocale(path).split(/[?#]/)[0].replace(/\/$/, "") || "/";
-  return LOCALIZED_FLOW_PATHS.includes(pathname as typeof LOCALIZED_FLOW_PATHS[number]) ||
+  return isEditorPath(pathname) || LOCALIZED_FLOW_PATHS.includes(pathname as typeof LOCALIZED_FLOW_PATHS[number]) ||
     /^\/reset-password\/[^/]+$/.test(pathname) || /^\/job\/[^/]+$/.test(pathname) || /^\/features\/[^/]+$/.test(pathname) ||
     /^\/blog\/(?:[^/]+|(?:category|tag|cluster)\/[^/]+)$/.test(pathname) || /^\/tabs\/[^/]+(?:\/edit)?$/.test(pathname);
 }
 /** English-only destinations must not erase the language chosen for navigation. */
 export function navigationLocaleForPath(path: string, preferredLocale: AppLocale): AppLocale {
-  return supportsLocalizedPath(path) ? localeFromPath(path) : preferredLocale;
+  return supportsLocalizedPath(path) && !isEditorPath(path) ? localeFromPath(path) : preferredLocale;
 }
 export function preferredLocaleFromCookie(cookie: string): AppLocale {
   const value = cookie.split(";").map(part => part.trim()).find(part => part.startsWith("n2t_locale="))?.slice("n2t_locale=".length);
@@ -35,7 +36,7 @@ export function preferredLocaleFromCookie(cookie: string): AppLocale {
 export function localeHref(path: string, locale: AppLocale): string {
   if (!path.startsWith("/") || path.startsWith("//")) return path;
   const english = stripLocale(path).replace(/^\/transcriber(?=[?#]|$)/, "/transcribe");
-  if (locale === "en" || !supportsLocalizedPath(english)) return english;
+  if (locale === "en" || isEditorPath(english) || !supportsLocalizedPath(english)) return english;
   // A single canonical root for each language, without a trailing-slash variant.
   return `${localePrefix(locale)}${english.replace(/^\/(?=[?#]|$)/, "")}`;
 }
