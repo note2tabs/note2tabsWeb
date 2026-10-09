@@ -14474,3 +14474,8 @@ html[lang="ar"] [data-editor-locale="ar"] :is(p, h1, h2, h3, label) {
 html[lang="ar"] [data-editor-locale="ar"] :is(input[type="text"], textarea) {
   unicode-bidi: plaintext;
 }
+
+/* Mode labels must stay on one line inside the original compact switch. */
+.gte-view-mode-switch button,
+[data-editor-locale] button:is(.h-7, .h-8, .h-9),
+[data-gte-floating-ui="true"] button:is(.h-7, .h-8, .h-9) { white-space: nowrap; }
