@@ -1,0 +1,320 @@
+[
+  {
+    "buttons": [
+      {
+        "height": 34,
+        "scrollHeight": 34,
+        "scrollWidth": 118,
+        "text": "Save language",
+        "width": 118
+      }
+    ],
+    "contentWidth": 390,
+    "lang": "en",
+    "options": [
+      "English"
+    ],
+    "overflow": [],
+    "viewport": 390,
+    "width": 390
+  },
+  {
+    "buttons": [
+      {
+        "height": 34,
+        "scrollHeight": 34,
+        "scrollWidth": 111,
+        "text": "Salvar idioma",
+        "width": 111
+      }
+    ],
+    "contentWidth": 390,
+    "lang": "pt-BR",
+    "options": [
+      "English",
+      "Idioma salvo: Português (Brasil)"
+    ],
+    "overflow": [],
+    "viewport": 390,
+    "width": 390
+  },
+  {
+    "buttons": [
+      {
+        "height": 34,
+        "scrollHeight": 34,
+        "scrollWidth": 123,
+        "text": "Guardar idioma",
+        "width": 123
+      }
+    ],
+    "contentWidth": 390,
+    "lang": "es",
+    "options": [
+      "English",
+      "Idioma guardado: Español"
+    ],
+    "overflow": [],
+    "viewport": 390,
+    "width": 390
+  },
+  {
+    "buttons": [
+      {
+        "height": 34,
+        "scrollHeight": 34,
+        "scrollWidth": 91,
+        "text": "言語を保存",
+        "width": 91
+      }
+    ],
+    "contentWidth": 390,
+    "lang": "ja",
+    "options": [
+      "English",
+      "保存した言語：日本語"
+    ],
+    "overflow": [],
+    "viewport": 390,
+    "width": 390
+  },
+  {
+    "buttons": [
+      {
+        "height": 34,
+        "scrollHeight": 34,
+        "scrollWidth": 74,
+        "text": "언어 저장",
+        "width": 74
+      }
+    ],
+    "contentWidth": 390,
+    "lang": "ko",
+    "options": [
+      "English",
+      "저장한 언어: 한국어"
+    ],
+    "overflow": [],
+    "viewport": 390,
+    "width": 390
+  },
+  {
+    "buttons": [
+      {
+        "height": 34,
+        "scrollHeight": 34,
+        "scrollWidth": 104,
+        "text": "Zapisz język",
+        "width": 104
+      }
+    ],
+    "contentWidth": 390,
+    "lang": "pl",
+    "options": [
+      "English",
+      "Zapisany język: Polski"
+    ],
+    "overflow": [],
+    "viewport": 390,
+    "width": 390
+  },
+  {
+    "buttons": [
+      {
+        "height": 34,
+        "scrollHeight": 34,
+        "scrollWidth": 68,
+        "text": "احفظ اللغة",
+        "width": 68
+      }
+    ],
+    "contentWidth": 390,
+    "lang": "ar",
+    "options": [
+      "English",
+      "اللغة المحفوظة: العربية"
+    ],
+    "overflow": [],
+    "viewport": 390,
+    "width": 390
+  },
+  {
+    "buttons": [
+      {
+        "height": 34,
+        "scrollHeight": 34,
+        "scrollWidth": 79,
+        "text": "保存语言",
+        "width": 79
+      }
+    ],
+    "contentWidth": 390,
+    "lang": "zh-Hans",
+    "options": [
+      "English",
+      "已保存的语言：简体中文"
+    ],
+    "overflow": [],
+    "viewport": 390,
+    "width": 390
+  },
+  {
+    "buttons": [
+      {
+        "height": 34,
+        "scrollHeight": 34,
+        "scrollWidth": 118,
+        "text": "Save language",
+        "width": 118
+      }
+    ],
+    "contentWidth": 768,
+    "lang": "en",
+    "options": [
+      "English"
+    ],
+    "overflow": [],
+    "viewport": 1440,
+    "width": 1440
+  },
+  {
+    "buttons": [
+      {
+        "height": 34,
+        "scrollHeight": 34,
+        "scrollWidth": 111,
+        "text": "Salvar idioma",
+        "width": 111
+      }
+    ],
+    "contentWidth": 768,
+    "lang": "pt-BR",
+    "options": [
+      "English",
+      "Idioma salvo: Português (Brasil)"
+    ],
+    "overflow": [],
+    "viewport": 1440,
+    "width": 1440
+  },
+  {
+    "buttons": [
+      {
+        "height": 34,
+        "scrollHeight": 34,
+        "scrollWidth": 123,
+        "text": "Guardar idioma",
+        "width": 123
+      }
+    ],
+    "contentWidth": 768,
+    "lang": "es",
+    "options": [
+      "English",
+      "Idioma guardado: Español"
+    ],
+    "overflow": [],
+    "viewport": 1440,
+    "width": 1440
+  },
+  {
+    "buttons": [
+      {
+        "height": 34,
+        "scrollHeight": 34,
+        "scrollWidth": 91,
+        "text": "言語を保存",
+        "width": 91
+      }
+    ],
+    "contentWidth": 768,
+    "lang": "ja",
+    "options": [
+      "English",
+      "保存した言語：日本語"
+    ],
+    "overflow": [],
+    "viewport": 1440,
+    "width": 1440
+  },
+  {
+    "buttons": [
+      {
+        "height": 34,
+        "scrollHeight": 34,
+        "scrollWidth": 74,
+        "text": "언어 저장",
+        "width": 74
+      }
+    ],
+    "contentWidth": 768,
+    "lang": "ko",
+    "options": [
+      "English",
+      "저장한 언어: 한국어"
+    ],
+    "overflow": [],
+    "viewport": 1440,
+    "width": 1440
+  },
+  {
+    "buttons": [
+      {
+        "height": 34,
+        "scrollHeight": 34,
+        "scrollWidth": 104,
+        "text": "Zapisz język",
+        "width": 104
+      }
+    ],
+    "contentWidth": 768,
+    "lang": "pl",
+    "options": [
+      "English",
+      "Zapisany język: Polski"
+    ],
+    "overflow": [],
+    "viewport": 1440,
+    "width": 1440
+  },
+  {
+    "buttons": [
+      {
+        "height": 34,
+        "scrollHeight": 34,
+        "scrollWidth": 68,
+        "text": "احفظ اللغة",
+        "width": 68
+      }
+    ],
+    "contentWidth": 768,
+    "lang": "ar",
+    "options": [
+      "English",
+      "اللغة المحفوظة: العربية"
+    ],
+    "overflow": [],
+    "viewport": 1440,
+    "width": 1440
+  },
+  {
+    "buttons": [
+      {
+        "height": 34,
+        "scrollHeight": 34,
+        "scrollWidth": 79,
+        "text": "保存语言",
+        "width": 79
+      }
+    ],
+    "contentWidth": 768,
+    "lang": "zh-Hans",
+    "options": [
+      "English",
+      "已保存的语言：简体中文"
+    ],
+    "overflow": [],
+    "viewport": 1440,
+    "width": 1440
+  }
+]

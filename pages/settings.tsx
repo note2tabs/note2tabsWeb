@@ -1,3 +1,4 @@
+import LanguagePreference from "../components/LanguagePreference";
 import { translatedError } from "../lib/i18n/translate";
 import { useLocale } from "../lib/i18n/react";
 import { GetServerSideProps } from "next";
@@ -61,7 +62,7 @@ type Props = {
   };
 };
 
-type SettingsSection = "account" | "plan" | "security" | "privacy" | "danger";
+type SettingsSection = "account" | "plan" | "security" | "privacy" | "language" | "danger";
 type DeleteGoal = "transcribe_songs" | "edit_tabs" | "practice" | "save_export" | "explore" | "skip";
 type DeleteAlternative = { href: string; label: string; detail: string; section?: SettingsSection };
 
@@ -79,6 +80,7 @@ const settingsSections: Array<{ id: SettingsSection; label: string }> = [
   { id: "plan", label: "Plan and credits" },
   { id: "security", label: "Security" },
   { id: "privacy", label: "Privacy" },
+  { id: "language", label: "Language" },
   { id: "danger", label: "Danger zone" },
 ];
 
@@ -128,7 +130,7 @@ function SettingRow({ label, description, value, children }: SettingRowProps) {
   );
 }
 
-export default function SettingsPage({ user, stripeReady, credits }: Props) {
+function AccountSettingsPage({ user, stripeReady, credits }: Props) {
   const { t, locale, href: localePath } = useLocale();
   const router = useRouter();
   const { update: updateSession } = useSession();
@@ -275,6 +277,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
     if (typeof window === "undefined") return;
 
     const applyHashSection = () => {
+      if (window.location.hash === "#language")setSelectedSection("language");
       if (window.location.hash === "#privacy-controls") {
         setSelectedSection("privacy");
       }
@@ -288,11 +291,11 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   const handleSelectSection = (section: SettingsSection) => {
     setSelectedSection(section);
     if (typeof window === "undefined") return;
-    if (section === "privacy") {
-      history.replaceState(null, "", `${window.location.pathname}#privacy-controls`);
+    if (section === "privacy" || section === "language") {
+      history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${section === "privacy" ? "privacy-controls" : "language"}`);
       return;
     }
-    if (window.location.hash === "#privacy-controls") {
+    if (["#privacy-controls", "#language"].includes(window.location.hash)) {
       history.replaceState(null, "", window.location.pathname + window.location.search);
     }
   };
@@ -896,6 +899,7 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
             {selectedSection === "plan" && renderPlanSection()}
             {selectedSection === "security" && renderSecuritySection()}
             {selectedSection === "privacy" && renderPrivacySection()}
+            {selectedSection === "language" && <LanguagePreference />}
             {selectedSection === "danger" && renderDangerSection()}
             {error && <div className="error" role="alert">{translatedError(error, locale)}</div>}
           </div>
@@ -907,15 +911,26 @@ export default function SettingsPage({ user, stripeReady, credits }: Props) {
   );
 }
 
-export const getServerSideProps: GetServerSideProps = async (ctx) => {
+type GuestSettingsProps={guest:true};
+export default function SettingsPage(props:Props|GuestSettingsProps) {
+ return "guest" in props ? <GuestLanguageSettings /> : <AccountSettingsPage {...props} />;
+}
+function GuestLanguageSettings() {
+ const {t}=useLocale();
+ return <><NoIndexHead title={t("Settings | Note2Tabs")} canonicalPath="/settings" />
+  <main className="content py-8"><div className="mx-auto max-w-3xl">
+   <h1 className="text-3xl font-semibold">{t("Settings")}</h1>
+   <div className="settingsPanel settingsPanel--guest"><div className="settingsContent"><LanguagePreference />
+    <p className="settingsSectionIntro">{t("Sign in to manage your account.")}</p>
+    <Link href="/auth/login?next=%2Fsettings" className="settingsButton settingsButtonSecondary settingsGuestLogin">{t("Log in")}</Link>
+   </div></div>
+  </div></main></>;
+}
+
+export const getServerSideProps: GetServerSideProps<Props|GuestSettingsProps> = async (ctx) => {
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
   if (!session?.user?.email || !session.user.id) {
-    return {
-      redirect: {
-        destination: `/auth/login?next=${encodeURIComponent(ctx.resolvedUrl || "/settings")}`,
-        permanent: false,
-      },
-    };
+    return {props:{guest:true}};
   }
 
   const user = await prisma.user.findUnique({

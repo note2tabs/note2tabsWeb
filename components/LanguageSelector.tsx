@@ -1,15 +1,17 @@
+import {quickLanguageOptions,saveLanguageChoice} from "../lib/i18n/preference";
 import {getEditorCatalog} from "../lib/i18n/editor/catalogs";
 import {registerEditorCatalog} from "../lib/i18n/translate";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useRef } from "react";
 import { sendEvent } from "../lib/analytics";
-import { LOCALE_VERSION, localeSwitchHref, supportsLocalizedPath, localeEnabled, ALL_LOCALES, LOCALE_NAMES, LOCALE_LANGUAGE_LABELS, isEditorPath, type AppLocale } from "../lib/i18n/locale";
+import { LOCALE_VERSION, localeSwitchHref, supportsLocalizedPath, localeEnabled, LOCALE_NAMES, LOCALE_LANGUAGE_LABELS, isEditorPath, type AppLocale } from "../lib/i18n/locale";
 import { useLocale } from "../lib/i18n/react";
 
 export default function LanguageSelector() {
   const router = useRouter();
-  const { locale } = useLocale();
+  const { locale,deviceLanguage,languageChosen,languageReady } = useLocale();
+  const options=quickLanguageOptions(deviceLanguage,localeEnabled);
   const menuRef = useRef<HTMLDetailsElement>(null);
   const selectionSequence=useRef(0);
   const label = LOCALE_NAMES[locale];
@@ -26,7 +28,7 @@ export default function LanguageSelector() {
     return () => document.removeEventListener("pointerdown", closeOutside);
   }, []);
 
-  if (!ALL_LOCALES.some(target => target !== "en" && localeEnabled(target)) || !supportsLocalizedPath(router.asPath)) return null;
+  if(!languageReady || languageChosen || !supportsLocalizedPath(router.asPath) || options.every(target=>target===locale))return null;
   const select = async (target: AppLocale) => {
     const sequence=++selectionSequence.current;
     if (menuRef.current) menuRef.current.open = false;
@@ -40,9 +42,7 @@ export default function LanguageSelector() {
         return;
       }
     }
-    document.cookie = `n2t_locale=${target}; Path=/; Max-Age=2592000; SameSite=Lax`;
-    window.dispatchEvent(new Event("note2tabs:locale-changed"));
-    try { window.localStorage.setItem("n2t:preferred-locale", target); } catch { /* choice still works without storage */ }
+    saveLanguageChoice(target);
     sendEvent("language_selected", { previous_locale: locale, selected_locale: target, locale_source: "selector", locale_version: LOCALE_VERSION });
   };
 
@@ -61,7 +61,7 @@ export default function LanguageSelector() {
       <svg className="language-selector__chevron" viewBox="0 0 12 12" aria-hidden="true"><path d="m3 4.5 3 3 3-3" /></svg>
     </summary>
     <nav className="language-selector__options" aria-label={LOCALE_LANGUAGE_LABELS[locale]}>
-      {ALL_LOCALES.filter(localeEnabled).map(target =>
+      {options.map(target =>
         <Link key={target} href={localeSwitchHref(router.asPath, target)} prefetch={isEditorPath(router.asPath) ? false : undefined} hrefLang={target} lang={target}
           aria-current={locale === target ? "true" : undefined} onClick={(event) => {
             if (isEditorPath(router.asPath)) event.preventDefault();

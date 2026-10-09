@@ -1,0 +1,153 @@
+[
+  {
+    "locale": "pt-BR",
+    "case": "device-default",
+    "status": 307,
+    "destination": "/pt-br/pricing"
+  },
+  {
+    "locale": "pt-BR",
+    "case": "saved-English",
+    "status": 307
+  },
+  {
+    "locale": "pt-BR",
+    "case": "crawlable-native",
+    "status": 200
+  },
+  {
+    "locale": "pt-BR",
+    "case": "saved-editor",
+    "status": 200
+  },
+  {
+    "locale": "es",
+    "case": "device-default",
+    "status": 307,
+    "destination": "/es/pricing"
+  },
+  {
+    "locale": "es",
+    "case": "saved-English",
+    "status": 307
+  },
+  {
+    "locale": "es",
+    "case": "crawlable-native",
+    "status": 200
+  },
+  {
+    "locale": "es",
+    "case": "saved-editor",
+    "status": 200
+  },
+  {
+    "locale": "ja",
+    "case": "device-default",
+    "status": 307,
+    "destination": "/ja/pricing"
+  },
+  {
+    "locale": "ja",
+    "case": "saved-English",
+    "status": 307
+  },
+  {
+    "locale": "ja",
+    "case": "crawlable-native",
+    "status": 200
+  },
+  {
+    "locale": "ja",
+    "case": "saved-editor",
+    "status": 200
+  },
+  {
+    "locale": "ko",
+    "case": "device-default",
+    "status": 307,
+    "destination": "/ko/pricing"
+  },
+  {
+    "locale": "ko",
+    "case": "saved-English",
+    "status": 307
+  },
+  {
+    "locale": "ko",
+    "case": "crawlable-native",
+    "status": 200
+  },
+  {
+    "locale": "ko",
+    "case": "saved-editor",
+    "status": 200
+  },
+  {
+    "locale": "pl",
+    "case": "device-default",
+    "status": 307,
+    "destination": "/pl/pricing"
+  },
+  {
+    "locale": "pl",
+    "case": "saved-English",
+    "status": 307
+  },
+  {
+    "locale": "pl",
+    "case": "crawlable-native",
+    "status": 200
+  },
+  {
+    "locale": "pl",
+    "case": "saved-editor",
+    "status": 200
+  },
+  {
+    "locale": "ar",
+    "case": "device-default",
+    "status": 307,
+    "destination": "/ar/pricing"
+  },
+  {
+    "locale": "ar",
+    "case": "saved-English",
+    "status": 307
+  },
+  {
+    "locale": "ar",
+    "case": "crawlable-native",
+    "status": 200
+  },
+  {
+    "locale": "ar",
+    "case": "saved-editor",
+    "status": 200
+  },
+  {
+    "locale": "zh-Hans",
+    "case": "device-default",
+    "status": 307,
+    "destination": "/zh-hans/pricing"
+  },
+  {
+    "locale": "zh-Hans",
+    "case": "saved-English",
+    "status": 307
+  },
+  {
+    "locale": "zh-Hans",
+    "case": "crawlable-native",
+    "status": 200
+  },
+  {
+    "locale": "zh-Hans",
+    "case": "saved-editor",
+    "status": 200
+  },
+  {
+    "case": "guest-settings-noindex",
+    "status": 200
+  }
+]

@@ -63,6 +63,7 @@ export default function FooterBar() {
             <div className="footer-section-links">
               <Link href="/terms">{t("Terms")}</Link>
               <Link href="/privacy">{t("Privacy")}</Link>
+              <Link href="/settings#language">{t("Language")}</Link>
               <Link href="/settings#privacy-controls">{t("Analytics settings")}</Link>
             </div>
           </section>

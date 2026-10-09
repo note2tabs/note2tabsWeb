@@ -45,9 +45,9 @@ describe("editor localization",()=>{
   expect(html).toContain(translate("Open editor tutorial",locale));
  });
  it.each(TRANSLATED_LOCALES)("uses %s preferences without modifying editor IDs",async locale=>{
-  const req={cookies:{n2t_locale:locale},headers:{"accept-language":"en"}};
+  const req={cookies:{n2t_locale:locale,n2t_locale_choice:"1"},headers:{"accept-language":"en"}};
   expect(editorRequestLocale(req)).toBe(locale);
-  expect(editorRequestLocale({headers:{cookie:`n2t_locale=${locale}`,"accept-language":"en"}})).toBe(locale);
+  expect(editorRequestLocale({headers:{cookie:`n2t_locale=${locale}; n2t_locale_choice=1`,"accept-language":"en"}})).toBe(locale);
   const path="/gte/project__ed__track?mode=practice";
   expect(localeHref(path,locale)).toBe(path);
   expect(localeSwitchHref(path,locale)).toBe(path);
@@ -62,9 +62,9 @@ describe("editor localization",()=>{
  it("honors device preferences, explicit English and disabled releases",()=>{
   expect(editorRequestLocale({headers:{"accept-language":"ko-KR,en;q=0.8"}})).toBe("ko");
   expect(editorRequestLocale({headers:{"accept-language":"zh-Hant,en;q=0.8"}})).toBe("en");
-  expect(editorRequestLocale({cookies:{n2t_locale:"en"},headers:{"accept-language":"ar"}})).toBe("en");
+  expect(editorRequestLocale({cookies:{n2t_locale:"en",n2t_locale_choice:"1"},headers:{"accept-language":"ar"}})).toBe("en");
   vi.stubEnv("NODE_ENV","production");vi.stubEnv("VERCEL_ENV","production");vi.stubEnv("NEXT_PUBLIC_AR_REVIEWED","false");
-  expect(editorRequestLocale({cookies:{n2t_locale:"ar"},headers:{"accept-language":"en"}})).toBe("en");
+  expect(editorRequestLocale({cookies:{n2t_locale:"ar",n2t_locale_choice:"1"},headers:{"accept-language":"en"}})).toBe("en");
  });
  it.each(TRANSLATED_LOCALES)("translates generated %s statuses and validation without changing values",locale=>{
   expect(translate("Saved 12:34",locale)).toBe(translate("Saved {value1}",locale,{value1:"12:34"}));
