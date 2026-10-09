@@ -13,6 +13,8 @@ describe("tab share email preferences", () => {
 
   it("rejects tampered tokens", () => {
     const token = createTabShareBlockToken("player@example.com")!;
-    expect(readTabShareBlockToken(`${token.slice(0, -2)}aa`)).toBeNull();
+    const tampered = Buffer.from(token, "base64url");
+    tampered[tampered.length - 1] ^= 1;
+    expect(readTabShareBlockToken(tampered.toString("base64url"))).toBeNull();
   });
 });
