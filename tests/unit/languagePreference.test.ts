@@ -19,10 +19,11 @@ function browser(cookie="",stored:string|null=null){
 describe("one-time device language preference",()=>{
  it.each(ALL_LOCALES)("offers only English and device language %s",locale=>{
   expect(quickLanguageOptions(locale,available)).toEqual(locale==="en" ? ["en"] : ["en",locale]);
-  expect(settingsLanguageOptions(locale,locale,available)).toEqual(quickLanguageOptions(locale,available));
+  expect(settingsLanguageOptions(available)).toEqual([...ALL_LOCALES]);
  });
- it("keeps a previously selected language available without showing the full roster",()=>{
-  expect(settingsLanguageOptions("es","ja",available)).toEqual(["en","es","ja"]);
+ it("offers every enabled language in Settings while keeping the quick switch limited",()=>{
+  expect(settingsLanguageOptions(available)).toEqual([...ALL_LOCALES]);
+  expect(settingsLanguageOptions(locale=>locale!=="ar")).toEqual(ALL_LOCALES.filter(locale=>locale!=="ar"));
   expect(quickLanguageOptions("ar",locale=>locale==="en")).toEqual(["en"]);
  });
  it("ignores an automatic route cookie when detecting an explicit choice",()=>{

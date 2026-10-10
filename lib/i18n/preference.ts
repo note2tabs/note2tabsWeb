@@ -14,9 +14,8 @@ export function savedLanguageChoice(cookie:string):AppLocale|null {
 export function quickLanguageOptions(device:AppLocale,enabled:(locale:AppLocale)=>boolean):AppLocale[] {
  return device!=="en" && enabled(device) ? ["en",device] : ["en"];
 }
-export function settingsLanguageOptions(device:AppLocale,current:AppLocale,enabled:(locale:AppLocale)=>boolean):AppLocale[] {
- const options=quickLanguageOptions(device,enabled);
- return enabled(current) && !options.includes(current) ? [...options,current] : options;
+export function settingsLanguageOptions(enabled:(locale:AppLocale)=>boolean):AppLocale[] {
+ return ALL_LOCALES.filter(enabled);
 }
 export function saveLanguageChoice(locale:AppLocale) {
  document.cookie=`n2t_locale=${locale}; Path=/; Max-Age=${YEAR}; SameSite=Lax`;
