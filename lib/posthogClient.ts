@@ -190,7 +190,10 @@ export async function initPostHog(options: { ignoreDeniedConsent?: boolean } = {
 }
 
 function sessionReplayIsEnabled() {
-  return process.env.NEXT_PUBLIC_POSTHOG_SESSION_RECORDING === "true";
+  // Session replay is deliberately paused across the product. Keep the explicit
+  // false here (rather than relying on a deployment environment variable) so a
+  // stale Vercel setting cannot resume recordings unexpectedly.
+  return false;
 }
 
 export function sessionReplayIsBlocked(url: string) {

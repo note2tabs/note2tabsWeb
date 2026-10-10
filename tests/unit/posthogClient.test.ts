@@ -289,18 +289,20 @@ describe("PostHog client identity lifecycle", () => {
     );
   });
 
-  it("starts replay in an editor and stops it before a sensitive route", async () => {
+  it("keeps replay stopped even if a stale deployment setting enables it", async () => {
     installBrowserGlobals("granted");
     process.env.NEXT_PUBLIC_POSTHOG_SESSION_RECORDING = "true";
     const posthog = createPostHogMock();
     vi.doMock("posthog-js", () => ({ default: posthog }));
     const analytics = await import("../../lib/posthogClient");
+    await analytics.initPostHog();
 
     await analytics.syncPostHogSessionRecording("/gte/editor-1");
-    expect(posthog.startSessionRecording).toHaveBeenCalledOnce();
+    expect(posthog.startSessionRecording).not.toHaveBeenCalled();
+    expect(posthog.stopSessionRecording).toHaveBeenCalledOnce();
 
     await analytics.syncPostHogSessionRecording("/settings");
-    expect(posthog.stopSessionRecording).toHaveBeenCalledOnce();
+    expect(posthog.stopSessionRecording).toHaveBeenCalledTimes(2);
 
     delete process.env.NEXT_PUBLIC_POSTHOG_SESSION_RECORDING;
   });
