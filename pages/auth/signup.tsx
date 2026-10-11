@@ -8,7 +8,8 @@ import { signIn } from "next-auth/react";
 import { generateFingerprint } from "../../lib/fingerprint";
 import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../../lib/analytics";
 import NoIndexHead from "../../components/NoIndexHead";
-import { clearOAuthIntent, saveOAuthIntent } from "../../lib/oauthAnalytics";
+import { clearOAuthIntent } from "../../lib/oauthAnalytics";
+import { startGoogleSignIn } from "../../lib/oauthSignIn";
 import { categorizeAnalyticsDestination } from "../../lib/analyticsPrivacy";
 import { categorizeAnalyticsError } from "../../lib/analyticsErrors";
 import { premiumFunnelProperties, readPremiumFunnelContext } from "../../lib/premiumFunnel";
@@ -131,6 +132,24 @@ export default function SignupPage() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    if (loading) return;
+    setError(null);
+    setLoading(true);
+    const premiumFunnel = readPremiumFunnelContext();
+    sendEvent(ANALYTICS_EVENTS.signupStarted, {
+      method: "google", destination: categorizeAnalyticsDestination(nextHref),
+      ...(fromTabShareEmail ? { signup_source: TAB_SHARE_EMAIL_SOURCE } : {}),
+      ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
+    });
+    trackCtaClick("signup_google", { surface: "signup_page" });
+    if (!await startGoogleSignIn("signup", nextHref)) {
+      setError(t("Google sign up could not finish. Please try again."));
+      sendEvent(ANALYTICS_EVENTS.signupFailed, { method: "google", error_code: "oauth_start_failed" });
+    }
+    setLoading(false);
+  };
+
   return (
     <>
       <NoIndexHead title={t("Create your account | Note2Tabs")} canonicalPath="/auth/signup" />
@@ -190,18 +209,8 @@ export default function SignupPage() {
           </div>
           <button
             type="button"
-            onClick={() => {
-              const premiumFunnel = readPremiumFunnelContext();
-              sendEvent(ANALYTICS_EVENTS.signupStarted, {
-                method: "google",
-                destination: categorizeAnalyticsDestination(nextHref),
-                ...(fromTabShareEmail ? { signup_source: TAB_SHARE_EMAIL_SOURCE } : {}),
-                ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
-              });
-              trackCtaClick("signup_google", { surface: "signup_page" });
-              saveOAuthIntent("signup", nextHref);
-              signIn("google", { callbackUrl: nextHref });
-            }}
+            onClick={() => void handleGoogleSignIn()}
+            disabled={loading}
             className="button-secondary"
           >
             <img src="/icons/google.svg" alt="" width={17} height={16} aria-hidden="true" />{t(" Continue with Google ")}</button>

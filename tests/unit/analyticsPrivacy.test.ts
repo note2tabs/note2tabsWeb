@@ -89,20 +89,17 @@ describe("analytics privacy sanitization", () => {
     });
   });
 
-  it("keeps expected user and validation states out of operational alerts", () => {
+  it("keeps unhandled validation, cancellation and observer errors alertable", () => {
     for (const message of [
       "File is too large",
       "Fret number is required",
       "Insufficient credits",
       "AbortError: user cancelled",
-      "Failed to fetch while offline",
-      "Load failed",
-      "TypeError: Load failed",
       "ResizeObserver loop limit exceeded",
     ]) {
       expect(classifyPostHogException([{ type: "Error", value: message }])).toEqual({
-        alertEligible: false,
-        classification: "expected_product_state",
+        alertEligible: true,
+        classification: "unexpected_application_error",
       });
     }
     expect(classifyPostHogException([{ type: "TypeError", value: "Cannot read properties of undefined" }])).toEqual({
@@ -111,7 +108,7 @@ describe("analytics privacy sanitization", () => {
     });
   });
 
-  it("retains opaque cross-origin script errors without paging operators", () => {
+  it("keeps opaque script errors alertable without assuming they are harmless", () => {
     for (const exception of [
       { type: "Error", value: "Script error." },
       {
@@ -126,17 +123,17 @@ describe("analytics privacy sanitization", () => {
       },
     ]) {
       expect(classifyPostHogException([exception])).toEqual({
-        alertEligible: false,
-        classification: "non_actionable_browser_error",
+        alertEligible: true,
+        classification: "unexpected_application_error",
       });
     }
   });
 
-  it("retains opaque short embedded-browser errors without paging operators", () => {
+  it("keeps short error messages alertable without assuming browser ownership", () => {
     for (const value of ["L", "La", "  La  "]) {
       expect(classifyPostHogException([{ type: "Error", value }])).toEqual({
-        alertEligible: false,
-        classification: "non_actionable_browser_error",
+        alertEligible: true,
+        classification: "unexpected_application_error",
       });
     }
 
@@ -148,6 +145,36 @@ describe("analytics privacy sanitization", () => {
       alertEligible: true,
       classification: "unexpected_application_error",
     });
+  });
+
+  it("does not hide app failures because of stack filenames or a benign chained exception", () => {
+    const failure = { type: "TypeError", value: "Cannot read properties of undefined",
+      stacktrace: { frames: [{ in_app: true, source: "/app/quota.ts" }] } };
+    const unexpected = { alertEligible: true, classification: "unexpected_application_error" };
+    expect(classifyPostHogException([failure])).toEqual(unexpected);
+    expect(classifyPostHogException([{ type: "Error", value: "File is too large" }, failure])).toEqual(unexpected);
+    expect(classifyPostHogException([failure, { type: "ChunkLoadError", value: "Loading chunk a failed" }])).toEqual(unexpected);
+    expect(classifyPostHogException([{ type: "Error", value: "DB", stacktrace: { frames: [{ in_app: true, source: "/app/save.ts", line: 42 }] } }])).toEqual(unexpected);
+  });
+
+  it("keeps unknown unhandled network failures alertable", () => {
+    for (const value of ["Failed to fetch", "Load failed", "TypeError: Load failed", "NetworkError", "Failed to fetch while offline"]) {
+      expect(classifyPostHogException([{ type: "TypeError", value }])).toEqual({
+        alertEligible: true, classification: "unexpected_application_error",
+      });
+    }
+  });
+
+  it("does not treat a script error with source context as opaque", () => {
+    expect(classifyPostHogException([{type: "Error", value: "Script error.", stacktrace: {frames: [{source: "/_next/static/chunks/app.js", line: 10}]}}])).toEqual({
+      alertEligible: true, classification: "unexpected_application_error",
+    });
+  });
+
+  it("fails open for missing or malformed exception entries", () => {
+    for (const list of [null, [], [{}], [null], [{type:"Error",value:"File is too large"}, null]]) {
+      expect(classifyPostHogException(list).alertEligible).toBe(true);
+    }
   });
 
   it("keeps real script failures alertable", () => {
@@ -174,15 +201,53 @@ describe("analytics privacy sanitization", () => {
     });
   });
 
-  it("classifies stale deployment chunks as automatically recoverable", () => {
+  it("keeps chunk failures alertable even when recovery will be attempted", () => {
     expect(
       classifyPostHogException([
         { type: "ChunkLoadError", value: "Loading chunk 123 failed" },
       ])
     ).toEqual({
-      alertEligible: false,
-      classification: "recoverable_stale_chunk",
+      alertEligible: true,
+      classification: "unexpected_application_error",
     });
+  });
+
+  it("requires exact extension signatures, types and absent source context", () => {
+    const value = "Non-Error promise rejection captured with value: Object Not Found Matching Id:1, MethodName:update, ParamCount:4";
+    const noise = { type: "UnhandledRejection", value };
+    for (const exception of [
+      { ...noise, type: "Error" },
+      { ...noise, value: `App failed: ${value}` },
+      { ...noise, value: `${value}\n` },
+      { ...noise, value: value.replace("ParamCount:4", "ParamCount:5") },
+      { ...noise, source: "/app/save.ts" },
+      { ...noise, stacktrace: { frames: [{ in_app: true }] } },
+      { ...noise, stacktrace: { frames: [{ in_app: false }] } },
+      { ...noise, stacktrace: { raw: "unknown source" } },
+      { ...noise, stacktrace: "unknown format" },
+      { type: "TypeError", value: 'sendExtensionMessage("getUrlAutofillTargetingRules") failed' },
+    ]) {
+      expect(classifyPostHogException([exception]).alertEligible).toBe(true);
+    }
+    expect(classifyPostHogException([noise, { type: "Error", value: "File is too large" }]).alertEligible).toBe(true);
+    expect(classifyPostHogException([noise, undefined]).alertEligible).toBe(true);
+    expect(classifyPostHogException(new Array(1)).alertEligible).toBe(true);
+    expect(classifyPostHogException([{ ...noise, stacktrace: { frames: [] } }]).alertEligible).toBe(false);
+  });
+
+  it("assigns alert eligibility to exceptions with missing or malformed payloads", () => {
+    for (const properties of [{}, { $exception_list: null }, { $exception_list: [] }, { alert_eligible: false }]) {
+      expect(sanitizePostHogCapture({ uuid: "unknown-error", event: "$exception", properties })?.properties).toMatchObject({
+        alert_eligible: true,
+        error_classification: "unexpected_application_error",
+      });
+    }
+  });
+
+  it("keeps errors mentioning product states or loader words alertable", () => {
+    for (const value of ["quota database failed", "Unauthorized save", "403", "429", "AbortError", "failed to load chunk while saving", "invalid format", "sign in renderer crashed"]) {
+      expect(classifyPostHogException([{ type: "Error", value }]).alertEligible).toBe(true);
+    }
   });
 
   it("preserves deeply nested session replay snapshots", () => {

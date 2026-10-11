@@ -58,6 +58,7 @@ export const ANALYTICS_EVENTS = {
   signupStarted: "signup_started",
   signupCompleted: "signup_completed",
   signupFailed: "signup_failed",
+  loginFailed: "login_failed",
   emailVerified: "email_verified",
   tabShareEmailClicked: "tab_share_email_clicked",
   tabShareEmailSignupCompleted: "tab_share_email_signup_completed",

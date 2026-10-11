@@ -8,7 +8,8 @@ import { useLocaleRouter as useRouter } from "../../lib/i18n/react";
 import { generateFingerprint } from "../../lib/fingerprint";
 import NoIndexHead from "../../components/NoIndexHead";
 import { ANALYTICS_EVENTS, sendEvent } from "../../lib/analytics";
-import { clearOAuthIntent, saveOAuthIntent } from "../../lib/oauthAnalytics";
+import { clearOAuthIntent } from "../../lib/oauthAnalytics";
+import { startGoogleSignIn } from "../../lib/oauthSignIn";
 import { categorizeAnalyticsDestination } from "../../lib/analyticsPrivacy";
 import { premiumFunnelProperties, readPremiumFunnelContext } from "../../lib/premiumFunnel";
 
@@ -94,6 +95,23 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    if (loading) return;
+    setError(null);
+    setLoading(true);
+    const premiumFunnel = readPremiumFunnelContext();
+    sendEvent(ANALYTICS_EVENTS.ctaClicked, {
+      cta: "login_google", method: "google",
+      destination: categorizeAnalyticsDestination(nextHref), initiatedAs: "login",
+      ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
+    });
+    if (!await startGoogleSignIn("login", nextHref)) {
+      setError(t("Google sign in could not finish. Please try again."));
+      sendEvent(ANALYTICS_EVENTS.loginFailed, { method: "google", error_code: "oauth_start_failed" });
+    }
+    setLoading(false);
+  };
+
   return (
     <>
       <NoIndexHead title={t("Log in | Note2Tabs")} canonicalPath="/auth/login" />
@@ -141,18 +159,8 @@ export default function LoginPage() {
           </div>
           <button
             type="button"
-            onClick={() => {
-              const premiumFunnel = readPremiumFunnelContext();
-              sendEvent(ANALYTICS_EVENTS.ctaClicked, {
-                cta: "login_google",
-                method: "google",
-                destination: categorizeAnalyticsDestination(nextHref),
-                initiatedAs: "login",
-                ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
-              });
-              saveOAuthIntent("login", nextHref);
-              void signIn("google", { callbackUrl: nextHref });
-            }}
+            onClick={() => void handleGoogleSignIn()}
+            disabled={loading}
             className="button-secondary"
           >
             <img src="/icons/google.svg" alt="" width={17} height={16} aria-hidden="true" />{t(" Continue with Google ")}</button>

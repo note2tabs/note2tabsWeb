@@ -1,13 +1,11 @@
 import {useEffect,useState} from "react";
-import {useRouter} from "next/router";
 import {useLocale} from "../lib/i18n/react";
-import {localeEnabled,localeSwitchHref,LOCALE_NAMES,LOCALE_LANGUAGE_LABELS,type AppLocale} from "../lib/i18n/locale";
+import {localeEnabled,LOCALE_NAMES,LOCALE_LANGUAGE_LABELS,type AppLocale} from "../lib/i18n/locale";
 import {browserLanguageChoice,saveLanguageChoice,settingsLanguageOptions} from "../lib/i18n/preference";
 import {sendEvent} from "../lib/analytics";
 
 export default function LanguagePreference() {
  const {locale,languageReady,t}=useLocale();
- const router=useRouter();
  const [selected,setSelected]=useState<AppLocale>(locale);
  const [saved,setSaved]=useState(false);
  useEffect(()=>{
@@ -15,12 +13,11 @@ export default function LanguagePreference() {
   setSelected(localeEnabled(choice) ? choice : "en");
  },[locale]);
  const options=settingsLanguageOptions(localeEnabled);
- const save=async()=>{
+ const save=()=>{
   saveLanguageChoice(selected);
   setSaved(true);
   sendEvent("language_selected",{previous_locale:locale,selected_locale:selected,locale_source:"settings"});
-  const target=localeSwitchHref(router.asPath,selected);
-  if(target!==router.asPath)await router.replace(target);
+  // LocaleProvider follows the saved choice; a second navigation races that redirect.
  };
  return <section className="settingsSection" id="language" aria-labelledby="settings-language-title">
   <h2 className="settingsSectionTitle" id="settings-language-title">{t("Language")}</h2>

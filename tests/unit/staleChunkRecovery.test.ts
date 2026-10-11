@@ -53,7 +53,7 @@ describe("stale chunk recovery", () => {
     expect(reportFailure).toHaveBeenCalledOnce();
   });
 
-  it("allows a new recovery after the reloaded app remains stable", () => {
+  it("does not reset the five-minute guard after ten seconds of boot time", () => {
     vi.useFakeTimers();
     const storage = new Map<string, string>([["note2tabs:stale-chunk-recovery", "10000"]]);
     vi.stubGlobal("window", {
@@ -69,11 +69,61 @@ describe("stale chunk recovery", () => {
     });
     const events = routerEvents();
     const reload = vi.fn();
+    const reportFailure = vi.fn();
 
-    installStaleChunkRecovery(events, { now: () => 30_000, reload });
+    installStaleChunkRecovery(events, { now: () => 30_000, reload, reportFailure });
     vi.advanceTimersByTime(10_000);
 
     events.handlers.get("routeChangeError")?.(new Error("ChunkLoadError: Loading chunk c failed"));
+    expect(reload).not.toHaveBeenCalled();
+    expect(reportFailure).toHaveBeenCalledOnce();
+  });
+
+  it("allows an independent recovery after the five-minute window expires", () => {
+    const storage = new Map([["note2tabs:stale-chunk-recovery", "10000"]]);
+    vi.stubGlobal("window", {
+      sessionStorage: {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => storage.set(key, value),
+      },
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    });
+    const events = routerEvents();
+    const reload = vi.fn();
+    const reportFailure = vi.fn();
+    installStaleChunkRecovery(events, { now: () => 310_000, reload, reportFailure });
+    events.handlers.get("routeChangeError")?.(new Error("ChunkLoadError: Loading chunk c failed"));
     expect(reload).toHaveBeenCalledOnce();
+    expect(reportFailure).not.toHaveBeenCalled();
+    expect(storage.get("note2tabs:stale-chunk-recovery")).toBe("310000");
+  });
+
+  it.each(["read", "write"])("does not start an unguarded reload when storage %s fails", operation => {
+    vi.stubGlobal("window", {
+      sessionStorage: {
+        getItem: () => { if (operation === "read") throw new Error("Storage blocked"); return null; },
+        setItem: () => { throw new Error("Storage blocked"); },
+      },
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    });
+    const events = routerEvents();
+    const reload = vi.fn();
+    const reportFailure = vi.fn();
+    installStaleChunkRecovery(events, {now: () => 10_000, reload, reportFailure});
+    events.handlers.get("routeChangeError")?.(new Error("ChunkLoadError: Loading chunk a failed"));
+    events.handlers.get("routeChangeError")?.(new Error("ChunkLoadError: Loading chunk b failed"));
+    expect(reload).not.toHaveBeenCalled();
+    expect(reportFailure).toHaveBeenCalledOnce();
+  });
+
+  it("unsubscribes router and browser listeners when unmounted", () => {
+    const addEventListener = vi.fn();
+    const removeEventListener = vi.fn();
+    vi.stubGlobal("window", { addEventListener, removeEventListener });
+    const events = routerEvents();
+    const cleanup = installStaleChunkRecovery(events);
+    cleanup();
+    expect(events.off).toHaveBeenCalledWith("routeChangeError", events.on.mock.calls[0][1]);
+    expect(removeEventListener.mock.calls).toEqual(addEventListener.mock.calls);
   });
 });
