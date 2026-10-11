@@ -6,7 +6,7 @@ import type { UrlObject } from "url";
 import { localeFromPath, localeHref, navigationLocaleForPath, localeEnabled, localeDirection, isEditorPath, type AppLocale } from "./locale";
 import {deviceLocale} from "./detection";
 import {restoreLanguageChoice, browserLanguageChoice, LANGUAGE_STORAGE_KEY} from "./preference";
-import {localeSwitchHref, supportsLocalizedPath} from "./locale";
+import {localeSwitchDestination, supportsLocalizedPath} from "./locale";
 import { translate, registerEditorCatalog } from "./translate";
 const LocaleContext = createContext<{ locale: AppLocale; navigationLocale: AppLocale; deviceLanguage:AppLocale; languageChosen:boolean; languageReady:boolean }>({ locale: "en", navigationLocale: "en", deviceLanguage:"en", languageChosen:false, languageReady:false });
 export function LocaleProvider({ children, path, initialEditorLocale = "en", initialEditorMessages }: { children: ReactNode; path: string; initialEditorLocale?: AppLocale; initialEditorMessages?: Record<string,string> }) {
@@ -72,9 +72,9 @@ export function LocaleProvider({ children, path, initialEditorLocale = "en", ini
     };
   }, []);
   useEffect(()=>{
-    if(!languageReady || !languageChosen || editor || !supportsLocalizedPath(path))return;
-    const target=localeSwitchHref(path,localeEnabled(preferredLocale) ? preferredLocale : "en");
-    if(target!==path)void router?.replace(target);
+    if(!router?.isReady || !languageReady || !languageChosen || editor || !supportsLocalizedPath(path))return;
+    const target=localeSwitchDestination(path,localeEnabled(preferredLocale) ? preferredLocale : "en");
+    if(target)void router.replace(target);
   }, [languageReady,languageChosen,editor,path,preferredLocale,router]);
   const navigationLocale = localeEnabled(preferredLocale)
     ? languageChosen ? preferredLocale : navigationLocaleForPath(path, preferredLocale) : "en";

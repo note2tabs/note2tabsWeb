@@ -1,6 +1,5 @@
 const RECOVERY_KEY = "note2tabs:stale-chunk-recovery";
 const RECOVERY_WINDOW_MS = 5 * 60 * 1000;
-const RECOVERY_STABLE_MS = 10 * 1000;
 
 const STALE_CHUNK_PATTERNS = [
   /chunkloaderror/i,
@@ -45,16 +44,9 @@ export function installStaleChunkRecovery(
   const reload = dependencies.reload ?? (() => window.location.reload());
   let reloadStarted = false;
 
-  // A successful boot means the previous hard reload recovered the app. Keep
-  // the marker briefly so simultaneous chunk failures cannot create a reload
-  // loop, then clear it so a later, independent network failure can recover.
-  const stableTimer = window.setTimeout(() => {
-    try {
-      window.sessionStorage.removeItem(RECOVERY_KEY);
-    } catch {
-      // Storage can be unavailable in privacy-restricted browsers.
-    }
-  }, RECOVERY_STABLE_MS);
+  // Booting does not prove the failed route's chunks loaded. Keep the timestamp
+  // across reloads for the entire guard window; an expired attempt is replaced
+  // when a later, independent failure needs recovery.
 
   const recover = (error: unknown) => {
     if (!isStaleChunkError(error) || reloadStarted) return;
@@ -63,8 +55,11 @@ export function installStaleChunkRecovery(
     try {
       lastAttempt = Number(window.sessionStorage.getItem(RECOVERY_KEY)) || 0;
     } catch {
-      // Storage can be unavailable in privacy-restricted browsers. A single
-      // in-memory attempt is still safer than leaving the route unusable.
+      // Without persistent storage, each new page would lose the retry guard.
+      // Report the failure instead of risking an unbounded hard-reload loop.
+      reloadStarted = true;
+      dependencies.reportFailure?.();
+      return;
     }
 
     if (lastAttempt > 0 && now() - lastAttempt < RECOVERY_WINDOW_MS) {
@@ -79,7 +74,8 @@ export function installStaleChunkRecovery(
     try {
       window.sessionStorage.setItem(RECOVERY_KEY, String(now()));
     } catch {
-      // See storage note above.
+      dependencies.reportFailure?.();
+      return;
     }
     reload();
   };
@@ -92,7 +88,6 @@ export function installStaleChunkRecovery(
   window.addEventListener("unhandledrejection", onUnhandledRejection);
 
   return () => {
-    window.clearTimeout(stableTimer);
     routerEvents.off("routeChangeError", recover);
     window.removeEventListener("error", onWindowError);
     window.removeEventListener("unhandledrejection", onUnhandledRejection);

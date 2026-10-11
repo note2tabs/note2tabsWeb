@@ -56,6 +56,16 @@ export function localeSwitchHref(path: string, locale: AppLocale) {
   return localeHref(`${url.pathname}${url.search}${url.hash}`, locale);
 }
 
+/** Next treats trailing-slash variants as one route. Never replace that route with itself. */
+export function localeSwitchDestination(path: string, locale: AppLocale): string | null {
+  const destination = localeSwitchHref(path, locale);
+  const routeKey = (value: string) => {
+    const url = new URL(value, "https://note2tabs.invalid");
+    return `${url.origin}${url.pathname.replace(/\/$/, "") || "/"}${url.search}${url.hash}`;
+  };
+  return routeKey(destination) === routeKey(path) ? null : destination;
+}
+
 export function isLocalizedPublicPath(path: string) {
   const pathname = stripLocale(path).split(/[?#]/)[0].replace(/\/$/, "") || "/";
   return LOCALIZED_PUBLIC_PATHS.includes(pathname as typeof LOCALIZED_PUBLIC_PATHS[number]) || /^\/features\/[^/]+$/.test(pathname) || /^\/blog\/(?:[^/]+|(?:category|tag|cluster)\/[^/]+)$/.test(pathname);

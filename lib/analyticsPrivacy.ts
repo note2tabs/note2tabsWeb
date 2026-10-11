@@ -244,92 +244,45 @@ function sanitizeExceptionValue(value: unknown, depth = 0): unknown {
   return value;
 }
 
-const EXPECTED_EXCEPTION_PATTERNS = [
-  /file (?:is )?too large|payload too large|maximum file size|\b413\b/i,
-  /fret (?:number )?(?:is )?(?:missing|required|invalid)/i,
-  /invalid (?:input|email|password|format|time|range|url)|(?:field|value) is required/i,
-  /not authenticated|unauthori[sz]ed|forbidden|sign in|required.*account|\b40[13]\b/i,
-  /insufficient credits|quota|limit (?:reached|exceeded)|rate limit|too many requests|\b429\b/i,
-  /aborterror|operation was aborted|user cancelled|user canceled/i,
-  /failed to fetch|\bload failed\b|networkerror|network request failed|internet connection|offline/i,
-  /resizeobserver loop/i,
-];
+// Suppress only observed extension bridge signatures without source context.
+// Generic browser messages, validation words, cancellation and chunk failures
+// cannot establish that an unhandled exception is harmless.
+const EXTENSION_BRIDGE_MESSAGE =
+  /^Non-Error promise rejection captured with value: Object Not Found Matching Id:[0-9]+, MethodName:update, ParamCount:4$(?![\s\S])/;
+const SAFARI_AUTOFILL_MESSAGE =
+  `undefined is not an object (evaluating '(yield this.sendExtensionMessage("getUrlAutofillTargetingRules")).result')`;
 
-// Browsers intentionally hide the details of some cross-origin script errors.
-// The resulting generic message has no source, stack, or actionable application
-// context, so retain it in Error Tracking without waking the operational alert.
-const NON_ACTIONABLE_BROWSER_EXCEPTION_PATTERNS = [
-  // Chromium extension/message-bridge failures are emitted as non-Error promise
-  // rejections without an application stack. They can fire several times in the
-  // same millisecond but do not originate in Note2Tabs code.
-  /object not found matching id:\d+.*methodname:update.*paramcount:\d+/i,
-  // Safari password/autofill extensions ask their injected content script for
-  // targeting rules. Failures in that bridge have no Note2Tabs stack frame.
-  /sendExtensionMessage[\s\S]*getUrlAutofillTargetingRules/i,
-];
-
-function isOpaqueCrossOriginScriptError(exceptionList: unknown) {
-  if (!Array.isArray(exceptionList) || exceptionList.length === 0) return false;
-  return exceptionList.every((exception) => {
-    if (!exception || typeof exception !== "object") return false;
-    const item = exception as Record<string, unknown>;
-    return item.type === "Error" && /^script error\.?$/i.test(String(item.value ?? "").trim());
-  });
+function hasExceptionSource(item: Record<string, unknown>) {
+  const trace = item.stacktrace as { frames?: unknown[]; raw?: unknown } | undefined;
+  // Unknown or malformed stack formats also stay alertable.
+  const hasTrace = trace != null && (
+    typeof trace !== "object" ||
+    !Array.isArray(trace.frames) ||
+    trace.frames.length > 0 ||
+    Object.keys(trace).some(key => key !== "frames")
+  );
+  return Boolean(hasTrace || item.stack || item.stack_trace || item.source || item.filename);
 }
 
-// Some iOS embedded browsers occasionally reject an internal promise with a
-// minified one- or two-character `Error` value while the page is unloading.
-// There is no diagnostic message to act on, and these events can otherwise
-// create high-severity issues such as `Error: La`. Keep the event for replay
-// correlation, but do not wake operators for an opaque browser token.
-function isOpaqueShortBrowserError(exceptionList: unknown) {
-  if (!Array.isArray(exceptionList) || exceptionList.length === 0) return false;
-  return exceptionList.every((exception) => {
-    if (!exception || typeof exception !== "object") return false;
-    const item = exception as Record<string, unknown>;
-    const value = String(item.value ?? "").trim();
-    return item.type === "Error" && value.length > 0 && value.length <= 2;
-  });
-}
-
-// A browser can retain an old Next.js route manifest briefly after a deploy and
-// request a chunk Vercel has already retired. The app reloads once to obtain the
-// current manifest; only a failed recovery is operationally actionable.
-const RECOVERABLE_STALE_CHUNK_PATTERNS = [
-  /chunkloaderror/i,
-  /loading chunk [^ ]+ failed/i,
-  /failed to load chunk/i,
-  /failed to fetch dynamically imported module/i,
-  /importing a module script failed/i,
-];
-
-function exceptionText(value: unknown, depth = 0): string {
-  if (depth > 8) return "";
-  if (typeof value === "string") return value;
-  if (Array.isArray(value)) return value.map((item) => exceptionText(item, depth + 1)).join(" ");
-  if (value && typeof value === "object") {
-    return Object.values(value as Record<string, unknown>)
-      .map((item) => exceptionText(item, depth + 1))
-      .join(" ");
-  }
-  return "";
+function isKnownExtensionNoise(exception: unknown) {
+  if (!exception || typeof exception !== "object") return false;
+  const item = exception as Record<string, unknown>;
+  if (hasExceptionSource(item)) return false;
+  return (
+    (item.type === "UnhandledRejection" && typeof item.value === "string" &&
+      EXTENSION_BRIDGE_MESSAGE.test(item.value)) ||
+    (item.type === "TypeError" && item.value === SAFARI_AUTOFILL_MESSAGE)
+  );
 }
 
 export function classifyPostHogException(exceptionList: unknown) {
-  const text = exceptionText(exceptionList);
-  if (isOpaqueCrossOriginScriptError(exceptionList) || isOpaqueShortBrowserError(exceptionList)) {
-    return { alertEligible: false, classification: "non_actionable_browser_error" } as const;
-  }
-  if (RECOVERABLE_STALE_CHUNK_PATTERNS.some((pattern) => pattern.test(text))) {
-    return { alertEligible: false, classification: "recoverable_stale_chunk" } as const;
-  }
-  if (EXPECTED_EXCEPTION_PATTERNS.some((pattern) => pattern.test(text))) {
-    return { alertEligible: false, classification: "expected_product_state" } as const;
-  }
-  if (NON_ACTIONABLE_BROWSER_EXCEPTION_PATTERNS.some((pattern) => pattern.test(text.trim()))) {
-    return { alertEligible: false, classification: "non_actionable_browser_error" } as const;
-  }
-  return { alertEligible: true, classification: "unexpected_application_error" } as const;
+  // Every entry must match the allowlist. Unknown entries and mixed chains
+  // stay alertable, including sparse arrays and missing exception payloads.
+  const exceptions = Array.isArray(exceptionList) ? Array.from(exceptionList) : [];
+  const knownNoise = exceptions.length > 0 && exceptions.every(isKnownExtensionNoise);
+  return knownNoise
+    ? { alertEligible: false, classification: "non_actionable_browser_error" } as const
+    : { alertEligible: true, classification: "unexpected_application_error" } as const;
 }
 
 export function sanitizePostHogCapture(result: CaptureResult | null): CaptureResult | null {
@@ -340,9 +293,12 @@ export function sanitizePostHogCapture(result: CaptureResult | null): CaptureRes
   // session_recording.maskCapturedNetworkRequestFn configuration instead.
   if (result.event === "$snapshot") return result;
   const properties = sanitizeAnalyticsProperties(result.properties);
-  if (result.event === "$exception" && result.properties?.$exception_list) {
-    properties.$exception_list = sanitizeExceptionValue(result.properties.$exception_list);
-    const classification = classifyPostHogException(result.properties.$exception_list);
+  if (result.event === "$exception") {
+    const exceptionList = result.properties?.$exception_list;
+    if (exceptionList !== undefined) {
+      properties.$exception_list = sanitizeExceptionValue(exceptionList);
+    }
+    const classification = classifyPostHogException(exceptionList);
     properties.alert_eligible = classification.alertEligible;
     properties.error_classification = classification.classification;
   }

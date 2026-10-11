@@ -1,0 +1,26 @@
+{
+  "before": {
+    "id": "YIsrN83Y",
+    "query": {
+      "kind": "DataVisualizationNode",
+      "source": {
+        "kind": "HogQLQuery",
+        "query": "SELECT sum(issue_count) AS issue_count\nFROM (\n  SELECT count() AS issue_count\n  FROM events\n  WHERE timestamp >= now() - INTERVAL 1 HOUR\n    AND (\n      (\n        event = '$exception'\n        AND properties.alert_eligible = true\n        AND NOT (\n          lower(toString(properties['$exception_list'])) LIKE '%\"value\":\"script error.%'\n          OR (\n            lower(toString(properties['$exception_list'])) LIKE '%object not found matching id:%'\n            AND lower(toString(properties['$exception_list'])) LIKE '%methodname:update%'\n          )\n          OR lower(toString(properties['$exception_list'])) LIKE '%chunkloaderror%'\n          OR lower(toString(properties['$exception_list'])) LIKE '%failed to load chunk%'\n          OR (\n            lower(toString(properties['$exception_list'])) LIKE '%loading chunk%'\n            AND lower(toString(properties['$exception_list'])) LIKE '%failed%'\n          )\n          OR lower(toString(properties['$exception_list'])) LIKE '%failed to fetch dynamically imported module%'\n          OR lower(toString(properties['$exception_list'])) LIKE '%importing a module script failed%'\n        )\n      )\n      OR event IN (\n        'stale_chunk_recovery_failed',\n        'reminder_scheduler_backlog_detected',\n        'reminder_email_delivery_failed',\n        'reminder_email_complaint_received'\n      )\n    )\n\n  UNION ALL\n\n  SELECT count() AS issue_count\n  FROM (\n    SELECT\n      properties.scheduler AS scheduler,\n      maxIf(timestamp, event = 'reminder_scheduler_failed') AS last_failure,\n      maxIf(\n        timestamp,\n        event = 'reminder_scheduler_run_completed'\n          AND properties.status = 'healthy'\n      ) AS last_healthy\n    FROM events\n    WHERE timestamp >= now() - INTERVAL 1 HOUR\n      AND event IN (\n        'reminder_scheduler_failed',\n        'reminder_scheduler_run_completed'\n      )\n    GROUP BY scheduler\n    HAVING last_failure > last_healthy\n  )\n)"
+      },
+      "display": "BoldNumber"
+    },
+    "description": "Actionable application and email problems in the trailing hour. Generic cross-origin, browser-extension bridge, and stale Next.js chunk failures are excluded; repeated stale-chunk recovery failures still alert. Scheduler failures count only while unresolved by a later healthy run."
+  },
+  "after": {
+    "id": "YIsrN83Y",
+    "query": {
+      "kind": "DataVisualizationNode",
+      "source": {
+        "kind": "HogQLQuery",
+        "query": "SELECT sum(issue_count) AS issue_count\nFROM (\n  SELECT count() AS issue_count\n  FROM events\n  WHERE timestamp >= now() - INTERVAL 1 HOUR\n    AND (\n      (\n        event = '$exception'\n        AND properties.alert_eligible = true\n      )\n      OR event IN (\n        'stale_chunk_recovery_failed',\n        'reminder_scheduler_backlog_detected',\n        'reminder_email_delivery_failed',\n        'reminder_email_complaint_received'\n      )\n    )\n\n  UNION ALL\n\n  SELECT count() AS issue_count\n  FROM (\n    SELECT\n      properties.scheduler AS scheduler,\n      maxIf(timestamp, event = 'reminder_scheduler_failed') AS last_failure,\n      maxIf(\n        timestamp,\n        event = 'reminder_scheduler_run_completed'\n          AND properties.status = 'healthy'\n      ) AS last_healthy\n    FROM events\n    WHERE timestamp >= now() - INTERVAL 1 HOUR\n      AND event IN (\n        'reminder_scheduler_failed',\n        'reminder_scheduler_run_completed'\n      )\n    GROUP BY scheduler\n    HAVING last_failure > last_healthy\n  )\n)"
+      },
+      "display": "BoldNumber"
+    },
+    "description": "Actionable browser exceptions classified alert_eligible=true, failed chunk recovery, and email delivery/backlog problems in the trailing hour. Classification owns exception exclusions; message/stack substring filters must not override it. Scheduler failures count until a later healthy run."
+  }
+}

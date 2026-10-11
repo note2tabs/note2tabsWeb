@@ -1,6 +1,7 @@
 import { useLocale } from "../lib/i18n/react";
 import Image from "next/image";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createMediaElementRef } from "../lib/mediaElementRef";
 import {
   EDITOR_TUTORIAL_CARDS,
   EDITOR_TUTORIAL_GUEST_STORAGE_KEY,
@@ -143,6 +144,7 @@ export default function EditorTutorial({ hasAccount, passedTutorial, cards = EDI
   const [index, setIndex] = useState(0);
   const interactionRecorded = useRef(passedTutorial);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const tutorialVideoRef = useMemo(() => createMediaElementRef<HTMLVideoElement>(), []);
 
   const recordInteraction = useCallback(() => {
     if (interactionRecorded.current) return;
@@ -236,6 +238,7 @@ export default function EditorTutorial({ hasAccount, passedTutorial, cards = EDI
               {activeCard.mediaType === "video" ? (
                 <video
                   key={activeCard.id}
+                  ref={tutorialVideoRef}
                   src={activeCard.mediaSrc}
                   aria-label={t(activeCard.mediaAlt)}
                   autoPlay

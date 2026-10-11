@@ -64,7 +64,9 @@ export default function LanguageSelector() {
       {options.map(target =>
         <Link key={target} href={localeSwitchHref(router.asPath, target)} prefetch={isEditorPath(router.asPath) ? false : undefined} hrefLang={target} lang={target}
           aria-current={locale === target ? "true" : undefined} onClick={(event) => {
-            if (isEditorPath(router.asPath)) event.preventDefault();
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+            // LocaleProvider navigates after saving. Let modified clicks use the link normally.
+            event.preventDefault();
             void select(target);
           }} dir={target === "ar" ? "rtl" : "ltr"}>{LOCALE_NAMES[target]}</Link>)}
     </nav>

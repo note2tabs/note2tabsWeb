@@ -1,6 +1,6 @@
 import {afterEach,describe,it,expect,vi} from "vitest";
 import {NextRequest} from "next/server";
-import {ALL_LOCALES,localeSwitchHref} from "../../lib/i18n/locale";
+import {ALL_LOCALES,localeSwitchHref,localeSwitchDestination} from "../../lib/i18n/locale";
 import {deviceLocale,detectedLocaleDestination} from "../../lib/i18n/detection";
 import {quickLanguageOptions,settingsLanguageOptions,savedLanguageChoice,saveLanguageChoice,restoreLanguageChoice,browserLanguageChoice,LANGUAGE_STORAGE_KEY} from "../../lib/i18n/preference";
 import {editorRequestLocale} from "../../lib/i18n/editor/detection";
@@ -61,6 +61,19 @@ describe("one-time device language preference",()=>{
  });
  it("keeps every translated page crawlable even with a preference",()=>{
   for(const locale of ALL_LOCALES)expect(detectedLocaleDestination(localeSwitchHref("/pricing",locale),"es","en","Googlebot",available,true)).toBeNull();
+ });
+ it.each(ALL_LOCALES)("does not redirect the trailing-slash root for the saved %s language",locale=>{
+  const root=localeSwitchHref("/",locale);
+  const path=root==="/" ? root : `${root}/`;
+  expect(detectedLocaleDestination(path,"en",locale,"Browser",available,true)).toBeNull();
+  expect(detectedLocaleDestination(`${path}?utm_source=music#plans`,"en",locale,"Browser",available,true)).toBeNull();
+  expect(localeSwitchDestination(`${path}?utm_source=music#plans`,locale)).toBeNull();
+ });
+ it("preserves real locale changes, query parameters and fragments",()=>{
+  expect(localeSwitchDestination("/zh-hans/?utm_source=music#plans","en")).toBe("/?utm_source=music#plans");
+  const path="/zh-hans/auth/login/?next=%2Fes%2Fpricing#form";
+  expect(localeSwitchDestination(path,"zh-Hans")).toBe("/zh-hans/auth/login/?next=%2Fzh-hans%2Fpricing#form");
+  expect(localeSwitchDestination("/zh-hans/?next=%2Fzh-hans%2Fpricing","zh-Hans")).toBeNull();
  });
  it("does not misidentify Traditional Chinese as Simplified",()=>{
   expect(deviceLocale("zh-Hant-TW,en;q=0.7",available)).toBe("en");
