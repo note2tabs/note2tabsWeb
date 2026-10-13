@@ -1751,5 +1751,6 @@
   "Save {amount} per year": "Oszczędź {amount} rocznie",
   "{price}/{period} billed today. Cancel anytime.": "{price}/{period} płatne dziś. Anuluj w każdej chwili.",
   "Credits refresh monthly.": "Kredyty odnawiają się co miesiąc.",
-  "{price} billed today": "{price} płatne dziś"
+  "{price} billed today": "{price} płatne dziś",
+  "{count} monthly credits—10× more": "{count} kredytów miesięcznie — 10× więcej"
 }

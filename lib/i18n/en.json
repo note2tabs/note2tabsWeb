@@ -1751,5 +1751,6 @@
   "Save {amount} per year": "Save {amount} per year",
   "{price}/{period} billed today. Cancel anytime.": "{price}/{period} billed today. Cancel anytime.",
   "Credits refresh monthly.": "Credits refresh monthly.",
-  "{price} billed today": "{price} billed today"
+  "{price} billed today": "{price} billed today",
+  "{count} monthly credits—10× more": "{count} monthly credits—10× more"
 }

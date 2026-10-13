@@ -1751,5 +1751,6 @@
   "Save {amount} per year": "Ahorra {amount} al año",
   "{price}/{period} billed today. Cancel anytime.": "{price}/{period} se cobra hoy. Cancela cuando quieras.",
   "Credits refresh monthly.": "Los créditos se renuevan cada mes.",
-  "{price} billed today": "{price} se cobra hoy"
+  "{price} billed today": "{price} se cobra hoy",
+  "{count} monthly credits—10× more": "{count} créditos al mes — 10× más"
 }
