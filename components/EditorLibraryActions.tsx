@@ -73,7 +73,7 @@ export default function EditorLibraryActions({ editor, open, onOpenChange, onUpd
   };
   return <>
     <div ref={menu} className="gte-library-row-menu" data-editor-row-menu="true">
-      <button ref={trigger} type="button" className="button-secondary button-small" aria-label={t("Options for {value1}", { value1: editor.name || t("Untitled tab") })} aria-expanded={open} aria-haspopup="menu" onClick={() => onOpenChange(!open)}><span aria-hidden="true">⋯</span></button>
+      <button ref={trigger} type="button" className="button-secondary button-small editor-actions-trigger" aria-label={t("Options for {value1}", { value1: editor.name || t("Untitled tab") })} aria-expanded={open} aria-haspopup="menu" onClick={() => onOpenChange(!open)}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="currentColor"><circle cx="4" cy="9" r="1.25" /><circle cx="9" cy="9" r="1.25" /><circle cx="14" cy="9" r="1.25" /></svg></button>
       {open && <div className="editor-actions-menu" role="menu" onKeyDown={event => {
         if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
         event.preventDefault();
