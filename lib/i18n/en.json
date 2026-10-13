@@ -1752,5 +1752,18 @@
   "{price}/{period} billed today. Cancel anytime.": "{price}/{period} billed today. Cancel anytime.",
   "Credits refresh monthly.": "Credits refresh monthly.",
   "{price} billed today": "{price} billed today",
-  "{count} monthly credits—10× more": "{count} monthly credits—10× more"
+  "{count} monthly credits—10× more": "{count} monthly credits—10× more",
+  "Options for {value1}": "Options for {value1}",
+  "Rename": "Rename",
+  "Delete": "Delete",
+  "Export": "Export",
+  "Rename tab": "Rename tab",
+  "Delete tab?": "Delete tab?",
+  "Tab name": "Tab name",
+  "Track": "Track",
+  "Loading…": "Loading…",
+  "Delete \"": "Delete \"",
+  "\"? This cannot be undone.": "\"? This cannot be undone.",
+  "Save tab name": "Save",
+  "Cancel": "Cancel"
 }

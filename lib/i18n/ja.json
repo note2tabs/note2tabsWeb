@@ -1752,5 +1752,18 @@
   "{price}/{period} billed today. Cancel anytime.": "{price}／{period}を本日請求。いつでも解約できます。",
   "Credits refresh monthly.": "クレジットは毎月更新されます。",
   "{price} billed today": "本日{price}を請求",
-  "{count} monthly credits—10× more": "毎月{count}クレジット — 10倍"
+  "{count} monthly credits—10× more": "毎月{count}クレジット — 10倍",
+  "Options for {value1}": "{value1}のオプション",
+  "Rename": "名前を変更",
+  "Delete": "削除",
+  "Export": "書き出し",
+  "Rename tab": "TAB譜名を変更",
+  "Delete tab?": "TAB譜を削除しますか？",
+  "Tab name": "TAB譜名",
+  "Track": "トラック",
+  "Loading…": "読み込み中…",
+  "Delete \"": "削除：「",
+  "\"? This cannot be undone.": "」を削除しますか？元に戻せません。",
+  "Save tab name": "保存",
+  "Cancel": "キャンセル"
 }

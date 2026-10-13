@@ -12,7 +12,9 @@ describe("editor library row interaction", () => {
   });
 
   it("keeps the row menu above the full-row link", () => {
-    expect(source).toContain('data-editor-row-menu="true"');
+    expect(source).toContain("<EditorLibraryActions");
+    expect(readFileSync("components/EditorLibraryActions.tsx", "utf8")).toContain('data-editor-row-menu="true"');
+    expect(styles).toContain(".gte-library-row:has(.editor-actions-menu)");
     expect(styles).toMatch(/\.gte-library-row-menu \{[\s\S]*z-index: 2;/);
   });
 });

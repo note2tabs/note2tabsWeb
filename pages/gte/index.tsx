@@ -1,3 +1,4 @@
+import EditorLibraryActions from "../../components/EditorLibraryActions";
 import { editorName } from "../../lib/i18n/editor/names";
 import { withEditorLocale } from "../../lib/i18n/editor/request";
 import { translatedError } from "../../lib/i18n/translate";
@@ -30,11 +31,7 @@ export default function GteIndexPage({ userId }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [renamingId, setRenamingId] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [renameDialog, setRenameDialog] = useState<{ id: string; name: string } | null>(null);
-  const [deleteDialog, setDeleteDialog] = useState<EditorListItem | null>(null);
   const [guestDraft, setGuestDraft] = useState<EditorSnapshot | null>(null);
   const [guestImporting, setGuestImporting] = useState(false);
   const router = useRouter();
@@ -149,68 +146,6 @@ export default function GteIndexPage({ userId }: Props) {
     } catch (err: any) {
       setError(err?.message || "We could not create a new tab. Check your connection and try again.");
       setCreating(false);
-    }
-  };
-
-  const handleDelete = async (editor: EditorListItem) => {
-    if (deletingId) return;
-    setDeletingId(editor.id);
-    setOpenMenuId(null);
-    setError(null);
-    try {
-      await gteApi.deleteEditor(editor.id);
-      setEditors((prev) => {
-        const next = prev.filter((item) => item.id !== editor.id);
-        writeEditorListCache(next);
-        return next;
-      });
-      setDeleteDialog((prev) => (prev?.id === editor.id ? null : prev));
-    } catch (err: any) {
-      setError(err?.message || "We could not delete this tab. It is still in your library; please try again.");
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  const handleRename = async (editorId: string, rawName: string) => {
-    if (renamingId) return;
-    const currentEditor = editors.find((item) => item.id === editorId);
-    const currentName = currentEditor?.name || "Untitled";
-    const trimmed = rawName.trim();
-    const normalizedName = trimmed || "Untitled";
-    if (normalizedName === currentName) {
-      setRenameDialog(null);
-      setOpenMenuId(null);
-      return;
-    }
-    setRenamingId(editorId);
-    setOpenMenuId(null);
-    setError(null);
-    try {
-      const res = await gteApi.setEditorName(editorId, normalizedName);
-      const committed = await gteApi.commitEditor(editorId);
-      const updatedName =
-        committed.snapshot?.name ||
-        (res as any)?.canvas?.name ||
-        (res as any)?.snapshot?.name ||
-        normalizedName;
-      setEditors((prev) => {
-        const next = prev.map((item) =>
-          item.id === editorId
-            ? {
-                ...item,
-                name: updatedName,
-              }
-            : item
-        );
-        writeEditorListCache(next);
-        return next;
-      });
-      setRenameDialog(null);
-    } catch (err: any) {
-      setError(err?.message || "We could not rename this tab. Its previous name is unchanged; please try again.");
-    } finally {
-      setRenamingId(null);
     }
   };
 
@@ -372,122 +307,18 @@ export default function GteIndexPage({ userId }: Props) {
                   <p>{editor.noteCount ?? 0}{t(" notes · ")}{editor.chordCount ?? 0}{t(" chords")}</p>
                   {editor.updatedAt && <p><time dateTime={editor.updatedAt}>{t("Updated ")}{new Date(editor.updatedAt).toLocaleString(locale)}</time></p>}
                 </div>
-                <div className="gte-library-row-menu" data-editor-row-menu="true">
-                  <div style={{ position: "relative" }}>
-                    <button
-                      type="button"
-                      className="button-secondary button-small"
-                      onClick={() => setOpenMenuId((prev) => (prev === editor.id ? null : editor.id))}
-                      aria-label={t("Options for {value1}", {value1: editorName(editor.name, t) || t("Untitled tab")})}
-                      aria-expanded={openMenuId === editor.id}
-                      aria-haspopup="menu"
-                      title={t("Tab options")}
-                    >
-                      <span aria-hidden="true">⋯</span>
-                    </button>
-                    {openMenuId === editor.id && (
-                      <div className="editor-actions-menu" role="menu">
-                        <button
-                          type="button"
-                          className="editor-actions-menu-item"
-                          role="menuitem"
-                          onClick={() => {
-                            setOpenMenuId(null);
-                            setRenameDialog({ id: editor.id, name: editor.name || "Untitled" });
-                          }}
-                          disabled={renamingId === editor.id || deletingId === editor.id}
-                        >{t("Rename")}</button>
-                        <button
-                          type="button"
-                          className="editor-actions-menu-item editor-actions-menu-item--danger"
-                          role="menuitem"
-                          onClick={() => {
-                            setOpenMenuId(null);
-                            setDeleteDialog(editor);
-                          }}
-                          disabled={deletingId === editor.id || renamingId === editor.id}
-                        >{t("Delete")}</button>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <EditorLibraryActions editor={editor} open={openMenuId === editor.id} onOpenChange={open => setOpenMenuId(open ? editor.id : null)} onUpdated={updated => {
+                  setEditors(prev => {
+                    const next = updated ? prev.map(item => item.id === editor.id ? updated : item) : prev.filter(item => item.id !== editor.id);
+                    writeEditorListCache(next);
+                    return next;
+                  });
+                }} />
               </div>
             ))}
           </div>
         </section>
       </div>
-      {renameDialog && (
-        <div className="dialog-scrim" onMouseDown={() => !renamingId && setRenameDialog(null)}>
-          <div className="dialog-card" role="dialog" aria-modal="true" aria-labelledby="rename-tab-title" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="stack-tight">
-              <h2 id="rename-tab-title" className="page-title" style={{ fontSize: "1.25rem" }}>{t("Rename tab")}</h2>
-              <p className="muted text-small">{t("Choose a new name for this editor.")}</p>
-            </div>
-            <div className="stack-tight">
-              <input
-                type="text"
-                aria-label={t("Tab name")}
-                value={renameDialog.name}
-                onChange={(event) =>
-                  setRenameDialog((prev) => (prev ? { ...prev, name: event.target.value } : prev))
-                }
-                className="form-input"
-                autoFocus
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    void handleRename(renameDialog.id, renameDialog.name);
-                  } else if (event.key === "Escape" && !renamingId) {
-                    setRenameDialog(null);
-                  }
-                }}
-              />
-            </div>
-            <div className="button-row" style={{ justifyContent: "flex-end" }}>
-              <button
-                type="button"
-                className="button-secondary button-small"
-                onClick={() => setRenameDialog(null)}
-                disabled={Boolean(renamingId)}
-              >{t("Cancel")}</button>
-              <button
-                type="button"
-                className="button-primary button-small"
-                onClick={() => void handleRename(renameDialog.id, renameDialog.name)}
-                disabled={Boolean(renamingId)}
-              >
-                {renamingId ? t("Renaming...") : t("Save")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {deleteDialog && (
-        <div className="dialog-scrim" onMouseDown={() => !deletingId && setDeleteDialog(null)}>
-          <div className="dialog-card" role="alertdialog" aria-modal="true" aria-labelledby="delete-tab-title" aria-describedby="delete-tab-description" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="stack-tight">
-              <h2 id="delete-tab-title" className="page-title" style={{ fontSize: "1.25rem" }}>{t("Delete tab?")}</h2>
-              <p id="delete-tab-description" className="muted text-small">{t("Delete \"")}{deleteDialog.name || t("Untitled")}{t("\"? This cannot be undone.")}</p>
-            </div>
-            <div className="button-row" style={{ justifyContent: "flex-end" }}>
-              <button
-                type="button"
-                className="button-secondary button-small"
-                onClick={() => setDeleteDialog(null)}
-                disabled={Boolean(deletingId)}
-              >{t("Cancel")}</button>
-              <button
-                type="button"
-                className="button-secondary button-small button-delete-final"
-                onClick={() => void handleDelete(deleteDialog)}
-                disabled={Boolean(deletingId)}
-              >
-                {deletingId ? t("Deleting...") : t("Delete")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
     </>
   );

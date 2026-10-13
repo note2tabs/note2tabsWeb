@@ -1752,5 +1752,18 @@
   "{price}/{period} billed today. Cancel anytime.": "每{period} {price}，今日收取，随时可取消。",
   "Credits refresh monthly.": "积分每月刷新。",
   "{price} billed today": "今日收取 {price}",
-  "{count} monthly credits—10× more": "每月 {count} 积分 — 免费套餐的 10 倍"
+  "{count} monthly credits—10× more": "每月 {count} 积分 — 免费套餐的 10 倍",
+  "Options for {value1}": "{value1} 的选项",
+  "Rename": "重命名",
+  "Delete": "删除",
+  "Export": "导出",
+  "Rename tab": "重命名六线谱",
+  "Delete tab?": "删除六线谱？",
+  "Tab name": "六线谱名称",
+  "Track": "音轨",
+  "Loading…": "正在加载…",
+  "Delete \"": "删除“",
+  "\"? This cannot be undone.": "”？此操作无法撤销。",
+  "Save tab name": "保存",
+  "Cancel": "取消"
 }

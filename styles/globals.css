@@ -14486,3 +14486,13 @@ html[lang="ar"] [data-editor-locale="ar"] :is(input[type="text"], textarea) {
 .settingsPanel--guest { grid-template-columns: minmax(0, 1fr); min-height: 0; }
 .settingsGuestLogin { justify-self: start; }
 .settingsLanguageActions .settingsButton { white-space: nowrap; }
+
+/* Keep every row's controls inside its own stack; raise only the open menu. */
+.gte-library-row, .product-studio__item { isolation: isolate; z-index: 0; }
+.gte-library-row:has(.editor-actions-menu), .product-studio__item:has(.editor-actions-menu) { z-index: 5; }
+.product-studio__item { position: relative; min-width: 0; }
+.product-studio__item > .gte-library-row-menu { position: absolute; top: 143px; right: auto; inset-inline-end: 10px; }
+.product-studio__item .product-studio__tab > span:last-child { padding-right: 15px; padding-inline-end: 62px; }
+.product-studio__item .editor-actions-menu { top: auto; bottom: calc(100% + 6px); }
+
+.gte-library-row-menu .editor-actions-menu { right: auto; inset-inline-end: 0; }
