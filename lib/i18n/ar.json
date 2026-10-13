@@ -1751,5 +1751,6 @@
   "Save {amount} per year": "وفّر {amount} سنويًا",
   "{price}/{period} billed today. Cancel anytime.": "تُدفع {price}/{period} اليوم. يمكنك الإلغاء متى شئت.",
   "Credits refresh monthly.": "يتجدّد الرصيد شهريًا.",
-  "{price} billed today": "تُدفع {price} اليوم"
+  "{price} billed today": "تُدفع {price} اليوم",
+  "{count} monthly credits—10× more": "{count} رصيد شهريًا — أكثر بعشر مرات"
 }

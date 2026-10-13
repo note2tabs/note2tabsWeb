@@ -1,3 +1,4 @@
+import MonthlyCredits from "../components/MonthlyCredits";
 import { localizedSignIn as signIn } from "../lib/i18n/auth";
 import { translatedError } from "../lib/i18n/translate";
 import { useLocale } from "../lib/i18n/react";
@@ -2176,7 +2177,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 <p className="pricing-plan__reassurance">{t("No credit card required")}</p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
-                  <li><strong>10</strong>{t(" credits each month")}</li>
+                  <li><MonthlyCredits count={10} /></li>
                   <li>{t("Light transcription model")}</li>
                   <li>{t("Audio clips up to 60 seconds")}</li>
                   <li>{t("Uploads up to 50 MB")}</li>
@@ -2216,7 +2217,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 </p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
-                  <li><strong>100</strong>{t(" credits each month—10× more")}</li>
+                  <li><MonthlyCredits count={100} tenTimesMore /></li>
                   <li>{t("Heavy model for complex recordings")}</li>
                   <li>{t("Unused credits roll over, up to 200")}</li>
                   <li>{t("Full-length audio-file transcription")}</li>
@@ -2236,7 +2237,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
                   <li>{t("Everything in Premium")}</li>
-                  <li><strong>250</strong>{t(" credits each month")}</li>
+                  <li><MonthlyCredits count={250} /></li>
                   <li>{t("Unused credits roll over, up to 500")}</li>
                   <li>{t("Uploads up to 500 MB")}</li>
                   <li>{t("YouTube selections within the first 20 minutes")}</li>

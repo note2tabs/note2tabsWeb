@@ -1,3 +1,4 @@
+import MonthlyCredits from "../components/MonthlyCredits";
 import { localizedSignIn as signIn } from "../lib/i18n/auth";
 import { translatedError } from "../lib/i18n/translate";
 import { useLocale } from "../lib/i18n/react";
@@ -297,7 +298,7 @@ export default function PricingPage() {
             </div>
             <div className="pricing-plan__divider" />
             <ul className="pricing-plan__features">
-              <li><strong>{plan.monthlyCredits}</strong>{t(" credits every month")}</li>
+              <li><MonthlyCredits count={plan.monthlyCredits} /></li>
               <li>{paid ? t("Full-length audio-file transcription") : t("Audio clips up to {seconds} seconds", { seconds: MAX_FREE_FILE_SNIPPET_SEC })}</li>
               <li>{paid ? t("Credits roll over, up to {cap}", { cap: plan.rolloverCap }) : t("No credit rollover")}</li>
               <li>{plan.id === "PRO" ? t("Everything in Premium + priority email support") : paid ? t("Light and Heavy models") : t("Light model, tab editor and practice tools")}</li>
