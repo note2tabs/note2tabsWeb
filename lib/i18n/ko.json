@@ -1752,5 +1752,18 @@
   "{price}/{period} billed today. Cancel anytime.": "오늘 {price}/{period} 결제. 언제든 해지.",
   "Credits refresh monthly.": "크레딧은 매월 갱신됩니다.",
   "{price} billed today": "오늘 {price} 결제",
-  "{count} monthly credits—10× more": "매월 {count} 크레딧 — 10배 더 많이"
+  "{count} monthly credits—10× more": "매월 {count} 크레딧 — 10배 더 많이",
+  "Options for {value1}": "{value1} 옵션",
+  "Rename": "이름 변경",
+  "Delete": "삭제",
+  "Export": "내보내기",
+  "Rename tab": "타브 이름 변경",
+  "Delete tab?": "타브를 삭제할까요?",
+  "Tab name": "타브 이름",
+  "Track": "트랙",
+  "Loading…": "불러오는 중…",
+  "Delete \"": "삭제: “",
+  "\"? This cannot be undone.": "”을 삭제할까요? 되돌릴 수 없습니다.",
+  "Save tab name": "저장",
+  "Cancel": "취소"
 }

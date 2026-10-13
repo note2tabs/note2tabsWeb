@@ -1752,5 +1752,18 @@
   "{price}/{period} billed today. Cancel anytime.": "{price}/{period} płatne dziś. Anuluj w każdej chwili.",
   "Credits refresh monthly.": "Kredyty odnawiają się co miesiąc.",
   "{price} billed today": "{price} płatne dziś",
-  "{count} monthly credits—10× more": "{count} kredytów miesięcznie — 10× więcej"
+  "{count} monthly credits—10× more": "{count} kredytów miesięcznie — 10× więcej",
+  "Options for {value1}": "Opcje: {value1}",
+  "Rename": "Zmień nazwę",
+  "Delete": "Usuń",
+  "Export": "Eksportuj",
+  "Rename tab": "Zmień nazwę tabulatury",
+  "Delete tab?": "Usunąć tabulaturę?",
+  "Tab name": "Nazwa tabulatury",
+  "Track": "Ścieżka",
+  "Loading…": "Ładowanie…",
+  "Delete \"": "Usuń „",
+  "\"? This cannot be undone.": "„? Tej operacji nie można cofnąć.",
+  "Save tab name": "Zapisz",
+  "Cancel": "Anuluj"
 }

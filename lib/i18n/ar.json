@@ -1752,5 +1752,18 @@
   "{price}/{period} billed today. Cancel anytime.": "تُدفع {price}/{period} اليوم. يمكنك الإلغاء متى شئت.",
   "Credits refresh monthly.": "يتجدّد الرصيد شهريًا.",
   "{price} billed today": "تُدفع {price} اليوم",
-  "{count} monthly credits—10× more": "{count} رصيد شهريًا — أكثر بعشر مرات"
+  "{count} monthly credits—10× more": "{count} رصيد شهريًا — أكثر بعشر مرات",
+  "Options for {value1}": "خيارات {value1}",
+  "Rename": "أعد التسمية",
+  "Delete": "احذف",
+  "Export": "صدّر",
+  "Rename tab": "أعد تسمية التابلاتشر",
+  "Delete tab?": "حذف التابلاتشر؟",
+  "Tab name": "اسم التابلاتشر",
+  "Track": "المسار",
+  "Loading…": "جارٍ التحميل…",
+  "Delete \"": "احذف \"",
+  "\"? This cannot be undone.": "\"؟ لا يمكن التراجع عن ذلك.",
+  "Save tab name": "احفظ",
+  "Cancel": "ألغِ"
 }

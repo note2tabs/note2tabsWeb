@@ -1752,5 +1752,18 @@
   "{price}/{period} billed today. Cancel anytime.": "{price}/{period} cobrados hoje. Cancele quando quiser.",
   "Credits refresh monthly.": "Os créditos são renovados mensalmente.",
   "{price} billed today": "{price} cobrados hoje",
-  "{count} monthly credits—10× more": "{count} créditos por mês — 10× mais"
+  "{count} monthly credits—10× more": "{count} créditos por mês — 10× mais",
+  "Options for {value1}": "Opções de {value1}",
+  "Rename": "Renomear",
+  "Delete": "Excluir",
+  "Export": "Exportar",
+  "Rename tab": "Renomear tablatura",
+  "Delete tab?": "Excluir tablatura?",
+  "Tab name": "Nome da tablatura",
+  "Track": "Faixa",
+  "Loading…": "Carregando…",
+  "Delete \"": "Excluir “",
+  "\"? This cannot be undone.": "”? Esta ação não pode ser desfeita.",
+  "Save tab name": "Salvar",
+  "Cancel": "Cancelar"
 }

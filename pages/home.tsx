@@ -1,3 +1,4 @@
+import EditorLibraryActions from "../components/EditorLibraryActions";
 import { translatedError } from "../lib/i18n/translate";
 import { relativeUpdatedAt } from "../lib/i18n/dates";
 import { useLocale } from "../lib/i18n/react";
@@ -160,6 +161,7 @@ export default function ProductHome({
   const [loading, setLoading] = useState(!localPreview);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [subscription, setSubscription] = useState<PremiumSubscriptionStatus | null>(null);
   const [billingPortalBusy, setBillingPortalBusy] = useState(false);
   const [billingRecoveryError, setBillingRecoveryError] = useState<string | null>(null);
@@ -572,10 +574,19 @@ export default function ProductHome({
             ) : recentEditors.length > 0 ? (
               <div className="product-studio__grid">
                 {recentEditors.map((editor) => (
-                  <Link key={editor.id} href={`/gte/${editor.id}`} className="product-studio__tab" onPointerDown={() => void gteApi.prefetchEditor(editor.id).catch(() => {})} onClick={() => trackHomeCta("product_home_recent_editor")}>
+                  <div key={editor.id} className="product-studio__item">
+                  <Link href={`/gte/${editor.id}`} className="product-studio__tab" onPointerDown={() => void gteApi.prefetchEditor(editor.id).catch(() => {})} onClick={() => trackHomeCta("product_home_recent_editor")}>
                     <CurrentTabArtwork editor={editor} />
                     <span><strong>{(editor.name?.trim() || t("Untitled tab"))}</strong><small>{t(editorActivity(editor, t))}</small><em>{relativeUpdatedAt(editor.updatedAt, locale)}</em></span>
                   </Link>
+                  <EditorLibraryActions editor={editor} open={openMenuId === editor.id} onOpenChange={open => setOpenMenuId(open ? editor.id : null)} onUpdated={updated => {
+                    setEditors(prev => {
+                      const next = updated ? prev.map(item => item.id === editor.id ? updated : item) : prev.filter(item => item.id !== editor.id);
+                      writeEditorListCache(window.sessionStorage, userId, next);
+                      return next;
+                    });
+                  }} />
+                  </div>
                 ))}
                 <button className="product-studio__new" type="button" onClick={handleCreate} disabled={creating}><i aria-hidden="true">{t("+")}</i><span><strong>{t("New tab")}</strong><small>{t("Start with a clean canvas")}</small></span></button>
               </div>
