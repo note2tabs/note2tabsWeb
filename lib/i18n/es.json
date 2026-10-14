@@ -1765,5 +1765,8 @@
   "Delete \"": "Eliminar “",
   "\"? This cannot be undone.": "”? Esta acción no se puede deshacer.",
   "Save tab name": "Guardar",
-  "Cancel": "Cancelar"
+  "Cancel": "Cancelar",
+  "Applicable sales tax is added at checkout.": "Los impuestos sobre las ventas aplicables se añaden al pagar.",
+  "Price includes applicable taxes.": "El precio incluye los impuestos aplicables.",
+  "Tax treatment is confirmed at checkout.": "Los impuestos se confirman al pagar."
 }

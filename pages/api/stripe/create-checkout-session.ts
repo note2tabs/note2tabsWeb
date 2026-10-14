@@ -1,3 +1,4 @@
+import { regionalTaxEnabled, regionalCheckoutPrice } from "../../../lib/regionalTax";
 import { stripeLocale } from "../../../lib/i18n/checkout";
 import {localeCohort} from "../../../lib/i18n/locale";
 import { localizeCheckoutReturnPaths } from "../../../lib/i18n/checkout";
@@ -240,11 +241,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const activeAttribution = attribution?.affiliate.status === "ACTIVE" ? attribution : null;
 
     const existingCustomer = customerState.premiumCustomer || customerState.fallbackCustomer;
+    const taxPricing = regionalTaxEnabled()
+      ? regionalCheckoutPrice({ ...selectedConfig, plan: requestedPlan }, billingInterval, visitorCountry)
+      : null;
     const checkoutStateHash = createHash("sha256")
       .update(
       `${session.user.id}|${requestedPlan}|${billingInterval}|${returnPaths.success}|${funnelId}|${
           customerState.subscriptionState.sort().join("|") || "new"
-        }|${trialIncluded ? "seven_day_trial" : "immediate_charge"}`
+        }|${trialIncluded ? "seven_day_trial" : "immediate_charge"}|${taxPricing?.priceId || "legacy"}|${taxPricing?.currency || "auto"}`
       )
       .digest("hex")
       .slice(0, 24);
@@ -255,7 +259,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       note2tabsVisitorCountry: visitorCountry,
       note2tabsDeviceType: deviceType,
       note2tabsBillingInterval: billingInterval,
-      note2tabsPriceId: selectedConfig.priceId,
+      note2tabsPriceId: taxPricing?.priceId || selectedConfig.priceId,
+      ...(taxPricing ? { note2tabsTaxBehavior: taxPricing.behavior, note2tabsTaxCountry: visitorCountry } : {}),
       premiumFunnelId: funnelId,
       premiumFunnelSource: source,
       premiumFunnelReason: reason,
@@ -280,7 +285,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         mode: "subscription",
         ...(contentLocale !== "en" ? {locale: stripeLocale(contentLocale)} : {}),
         payment_method_collection: "always",
-        line_items: [{ price: selectedConfig.priceId, quantity: 1 }],
+        line_items: [{ price: taxPricing?.priceId || selectedConfig.priceId, quantity: 1 }],
+        ...(taxPricing ? {
+          currency: taxPricing.currency,
+          automatic_tax: { enabled: true },
+          billing_address_collection: "required" as const,
+          ...(existingCustomer ? { customer_update: { address: "auto" as const } } : {}),
+        } : {}),
         client_reference_id: funnelId,
         subscription_data: {
           ...(trialIncluded

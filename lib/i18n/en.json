@@ -1765,5 +1765,8 @@
   "Delete \"": "Delete \"",
   "\"? This cannot be undone.": "\"? This cannot be undone.",
   "Save tab name": "Save",
-  "Cancel": "Cancel"
+  "Cancel": "Cancel",
+  "Applicable sales tax is added at checkout.": "Applicable sales tax is added at checkout.",
+  "Price includes applicable taxes.": "Price includes applicable taxes.",
+  "Tax treatment is confirmed at checkout.": "Tax treatment is confirmed at checkout."
 }

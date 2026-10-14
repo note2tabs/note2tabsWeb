@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DISPLAY_CURRENCIES, formatLocalizedAmount, formatLocalizedPrice, localizedAnnualSaving, type DisplayCurrency } from "../../lib/localizedPricing";
 
-const state = vi.hoisted(() => ({ currency: "USD" as string, billing: "monthly" as string }));
+const state = vi.hoisted(() => ({ currency: "USD" as string, billing: "monthly" as string, tax: null as null | "inclusive" | "exclusive" }));
 vi.mock("react", async () => {
   const actual = await vi.importActual<typeof import("react")>("react");
   return { ...actual, useState: (initial: unknown) => actual.useState(initial === "monthly" ? state.billing : initial) };
@@ -11,7 +11,7 @@ vi.mock("react", async () => {
 vi.mock("next/router", () => ({ useRouter: () => ({ query: {}, isReady: false }) }));
 vi.mock("next-auth/react", () => ({ useSession: () => ({ data: null, status: "unauthenticated" }), signIn: vi.fn() }));
 vi.mock("next/link", () => ({ default: ({ children, href, ...props }: any) => createElement("a", { href, ...props }, children) }));
-vi.mock("../../lib/useDisplayCurrency", () => ({ useDisplayCurrency: () => state.currency }));
+vi.mock("../../lib/useDisplayCurrency", () => ({ useDisplayCurrency: () => state.currency, usePriceTaxBehavior: () => state.tax }));
 vi.mock("../../lib/usePremiumOfferExperiment", () => ({ usePremiumOfferExperiment: () => ({ variant: "control", resolved: true }) }));
 vi.mock("../../lib/usePremiumOfferEligibility", () => ({ usePremiumOfferEligibility: () => "ineligible" }));
 vi.mock("../../lib/analytics", () => ({ ANALYTICS_EVENTS: {}, sendEvent: vi.fn(), trackCtaClick: vi.fn() }));
@@ -20,7 +20,7 @@ import PricingPage from "../../pages/pricing";
 
 const escape = (value: string) => value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("'", "&#x27;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 describe("pricing design uses current offers and localized pricing", () => {
-  beforeEach(() => vi.stubEnv("NEXT_PUBLIC_PRO_PLAN_ENABLED", "true"));
+  beforeEach(() => { state.tax = null; vi.stubEnv("NEXT_PUBLIC_PRO_PLAN_ENABLED", "true"); });
   afterEach(() => vi.unstubAllEnvs());
   it.each(DISPLAY_CURRENCIES)("renders %s prices and annual savings through the current currency system", (currency: DisplayCurrency) => {
     state.currency = currency;
@@ -37,6 +37,11 @@ describe("pricing design uses current offers and localized pricing", () => {
       }
       expect(html).not.toMatch(/7.day|free trial|Payment method required|Choose the room/);
     }
+  });
+  it.each(["inclusive", "exclusive"] as const)("explains %s tax pricing beside paid prices", behavior => {
+    state.tax = behavior;
+    const html = renderToStaticMarkup(createElement(PricingPage));
+    expect(html).toContain(behavior === "exclusive" ? "Applicable sales tax is added at checkout." : "Price includes applicable taxes.");
   });
   it("hides Pro while preserving yearly selection when Pro is disabled", () => {
     vi.stubEnv("NEXT_PUBLIC_PRO_PLAN_ENABLED", "false");

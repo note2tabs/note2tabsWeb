@@ -1,3 +1,4 @@
+import PriceTaxNote from "../components/PriceTaxNote";
 import MonthlyCredits from "../components/MonthlyCredits";
 import { localizedSignIn as signIn } from "../lib/i18n/auth";
 import { translatedError } from "../lib/i18n/translate";
@@ -296,6 +297,7 @@ export default function PricingPage() {
               {!paid ? t("No credit card required") : included || current ? t("Manage your subscription in your account.") : <>
                 {t("{price}/{period} billed today. Cancel anytime.", {price: formatLocalizedPrice(paidId, billingInterval, displayCurrency), period: billingInterval === "yearly" ? t("year") : t("month")})}</>}
             </div>
+            {paid && <PriceTaxNote />}
             <div className="pricing-plan__divider" />
             <ul className="pricing-plan__features">
               <li><MonthlyCredits count={plan.monthlyCredits} /></li>

@@ -1765,5 +1765,8 @@
   "Delete \"": "Usuń „",
   "\"? This cannot be undone.": "„? Tej operacji nie można cofnąć.",
   "Save tab name": "Zapisz",
-  "Cancel": "Anuluj"
+  "Cancel": "Anuluj",
+  "Applicable sales tax is added at checkout.": "Obowiązujący podatek od sprzedaży zostanie doliczony przy płatności.",
+  "Price includes applicable taxes.": "Cena zawiera obowiązujące podatki.",
+  "Tax treatment is confirmed at checkout.": "Sposób naliczenia podatku zostanie potwierdzony przy płatności."
 }

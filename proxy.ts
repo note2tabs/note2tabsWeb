@@ -1,3 +1,4 @@
+import { PRICE_TAX_COOKIE, priceTaxBehavior, regionalTaxEnabled } from "./lib/regionalTax";
 import { diagnosticEndpoint } from "./lib/diagnosticEndpoint";
 import {LANGUAGE_CHOICE_COOKIE} from "./lib/i18n/preference";
 import { getToken } from "next-auth/jwt";
@@ -19,6 +20,9 @@ const withCurrencyPreference = (request: NextRequest, response: NextResponse) =>
     maxAge: 30 * 24 * 60 * 60,
     path: "/",
   });
+  response.cookies.set({ name: PRICE_TAX_COOKIE, value: regionalTaxEnabled() ? priceTaxBehavior(country) : "unknown",
+    httpOnly: false, sameSite: "lax", secure: process.env.NODE_ENV === "production",
+    maxAge: 30 * 24 * 60 * 60, path: "/" });
   return response;
 };
 

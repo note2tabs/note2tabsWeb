@@ -1765,5 +1765,8 @@
   "Delete \"": "احذف \"",
   "\"? This cannot be undone.": "\"؟ لا يمكن التراجع عن ذلك.",
   "Save tab name": "احفظ",
-  "Cancel": "ألغِ"
+  "Cancel": "ألغِ",
+  "Applicable sales tax is added at checkout.": "تُضاف ضريبة المبيعات المطبّقة عند الدفع.",
+  "Price includes applicable taxes.": "يشمل السعر الضرائب المطبّقة.",
+  "Tax treatment is confirmed at checkout.": "تُحدّد المعاملة الضريبية عند الدفع."
 }

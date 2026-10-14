@@ -1765,5 +1765,8 @@
   "Delete \"": "삭제: “",
   "\"? This cannot be undone.": "”을 삭제할까요? 되돌릴 수 없습니다.",
   "Save tab name": "저장",
-  "Cancel": "취소"
+  "Cancel": "취소",
+  "Applicable sales tax is added at checkout.": "해당 판매세는 결제 시 추가됩니다.",
+  "Price includes applicable taxes.": "가격에는 해당 세금이 포함되어 있습니다.",
+  "Tax treatment is confirmed at checkout.": "세금 적용 여부는 결제 시 확인할 수 있습니다."
 }
