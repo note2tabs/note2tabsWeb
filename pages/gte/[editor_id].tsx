@@ -7445,12 +7445,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         >
           <div style={{ flex: "1 1 0", minWidth: 0 }}>
             <div
-              className="page-title"
-              style={{ display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap" }}
+              style={{ position: "relative", display: "flex", alignItems: "center", gap: "14px", flexWrap: "nowrap", minHeight: 36, fontSize: "1rem", lineHeight: 1.25 }}
             >
               <span
+                className="page-title"
                 style={{
                   display: "inline-flex",
+                  fontSize: "1rem",
                   alignItems: "center",
                   gap: "8px",
                   minWidth: 0,
@@ -7475,7 +7476,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         setNameEditing(false);
                       }
                     }}
-                    className="min-w-0 max-w-full bg-transparent p-0 text-[1.15rem] font-medium text-slate-700 outline-none"
+                    className="min-w-0 max-w-full bg-transparent p-0 text-base font-medium text-slate-700 outline-none"
                     style={{ border: "none", boxShadow: "none" }}
                     placeholder={t("Untitled")}
                   />
@@ -7490,20 +7491,82 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       paddingLeft: isMobileViewport ? 0 : 4,
                       paddingRight: 0,
                       border: "none",
-                      fontSize: isMobileViewport ? "1.35rem" : "1.45rem",
+                      fontSize: "1rem",
                       lineHeight: 1.15,
                       fontWeight: 500,
                       color: "#334155",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
-                      maxWidth: isMobileViewport ? "100%" : "min(32rem, 100%)",
+                      maxWidth: "min(20rem, 100%)",
                     }}
                   >
                     {editorName(canvas?.name, t) || t("Untitled")}
                   </button>
                 )}
               </span>
+                  <div className="shrink-0 xl:absolute xl:left-1/2 xl:top-1/2 xl:-translate-x-1/2 xl:-translate-y-1/2">
+                    {renderViewModeSwitch()}
+                  </div>
+                  <div className={`ml-auto shrink-0 items-center gap-2 ${
+                    practiceModeEnabled ? "hidden" : "flex"
+                  }`}>
+                    <EditorTutorialTrigger className="shrink-0" />
+                    <button
+                      type="button"
+                      onClick={handleCanvasUndo}
+                      disabled={canvasUndoCount === 0 || mobileHistoryBusy}
+                      className="flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                      title={t("Undo")}
+                      aria-label={t("Undo")}
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                        <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCanvasRedo}
+                      disabled={canvasRedoCount === 0 || mobileHistoryBusy}
+                      className="flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                      title={t("Redo")}
+                      aria-label={t("Redo")}
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                        <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
+                      </svg>
+                    </button>
+                    <span className="text-xs text-slate-600" role="status" aria-live="polite">
+                      {t(saveStatus)}
+                    </span>
+                    {!isGuestMode && (
+                      <button
+                        type="button"
+                        onClick={() => openShareDialog("editor_toolbar")}
+                        className="inline-flex h-8 min-w-[8rem] w-max max-w-full whitespace-nowrap items-center justify-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-700 focus-visible:ring-offset-2"
+                        title={t("Share this tab")}
+                      >
+                        <svg viewBox="0 0 20 20" className="h-4 w-4 fill-none stroke-current" aria-hidden="true">
+                          <circle cx="5" cy="10" r="2" />
+                          <circle cx="15" cy="5" r="2" />
+                          <circle cx="15" cy="15" r="2" />
+                          <path d="m6.8 9.1 6.4-3.2M6.8 10.9l6.4 3.2" strokeLinecap="round" />
+                        </svg>{t("Share tab")}</button>
+                    )}
+                    {isGuestMode ? (
+                      <div className="flex shrink-0 items-center">
+                        <Link href="/" className="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{t("Back home")}</Link>
+                      </div>
+                    ) : (
+                      <div className="flex shrink-0 items-center">
+                        <button
+                          type="button"
+                          onClick={() => router.push("/gte")}
+                          className="inline-flex h-8 min-w-[8rem] w-max max-w-full whitespace-nowrap items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
+                        >{t("Back to editors")}</button>
+                      </div>
+                    )}
+                  </div>
             </div>
             {!isMobileViewport && (
               <div className="mt-1 space-y-1">
@@ -7807,9 +7870,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     </div>
                   </details>
 
-                  <div className="order-7 ml-auto mr-2 shrink-0 xl:absolute xl:left-1/2 xl:top-1/2 xl:z-10 xl:m-0 xl:-translate-x-1/2 xl:-translate-y-1/2">
-                    {renderViewModeSwitch()}
-                  </div>
+
 
                   <details
                     className="hidden"
@@ -8070,65 +8131,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     </div>
                   </details>
 
-                  <div className={`order-7 shrink-0 items-center gap-2 xl:ml-auto ${
-                    practiceModeEnabled ? "hidden" : "flex"
-                  }`}>
-                    <EditorTutorialTrigger className="shrink-0" />
-                    <button
-                      type="button"
-                      onClick={handleCanvasUndo}
-                      disabled={canvasUndoCount === 0 || mobileHistoryBusy}
-                      className="flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                      title={t("Undo")}
-                      aria-label={t("Undo")}
-                    >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                        <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCanvasRedo}
-                      disabled={canvasRedoCount === 0 || mobileHistoryBusy}
-                      className="flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                      title={t("Redo")}
-                      aria-label={t("Redo")}
-                    >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                        <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
-                      </svg>
-                    </button>
-                    <span className="text-xs text-slate-600" role="status" aria-live="polite">
-                      {t(saveStatus)}
-                    </span>
-                    {!isGuestMode && (
-                      <button
-                        type="button"
-                        onClick={() => openShareDialog("editor_toolbar")}
-                        className="inline-flex h-8 min-w-[8rem] w-max max-w-full whitespace-nowrap items-center justify-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-700 focus-visible:ring-offset-2"
-                        title={t("Share this tab")}
-                      >
-                        <svg viewBox="0 0 20 20" className="h-4 w-4 fill-none stroke-current" aria-hidden="true">
-                          <circle cx="5" cy="10" r="2" />
-                          <circle cx="15" cy="5" r="2" />
-                          <circle cx="15" cy="15" r="2" />
-                          <path d="m6.8 9.1 6.4-3.2M6.8 10.9l6.4 3.2" strokeLinecap="round" />
-                        </svg>{t("Share tab")}</button>
-                    )}
-                    {isGuestMode ? (
-                      <div>
-                        <Link href="/" className="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{t("Back home")}</Link>
-                      </div>
-                    ) : (
-                      <div>
-                        <button
-                          type="button"
-                          onClick={() => router.push("/gte")}
-                          className="inline-flex h-8 min-w-[8rem] w-max max-w-full whitespace-nowrap items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
-                        >{t("Back to editors")}</button>
-                      </div>
-                    )}
-                  </div>
+
                 </div>
 
                 {!practiceModeEnabled && (
