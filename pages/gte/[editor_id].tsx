@@ -8139,7 +8139,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       {KEY_BASE_OPTIONS[normalizeKeyBase(canvas?.keyBase)]} {t(KEY_TYPE_OPTIONS[normalizeKeyType(canvas?.keyType)])}
                       {" · "}{bpmDraft}{t(" BPM")}{" · "}{normalizeTimeSignature(timeSignatureDraft) ?? 8}/{normalizeTimeSignatureBottom(timeSignatureBottomDraft) ?? 4}
                     </span>
-                    <span className="transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
+                    <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 self-center transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="m4 6 4 4 4-4" />
+                    </svg>
                   </summary>
                   <div className="flex flex-wrap items-end gap-3 border-t border-slate-200 p-3">
                     <label className="text-xs font-medium text-slate-600">
@@ -8254,7 +8256,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     <span className="truncate">{t("Note ")}{formatNoteLengthOption(chordOnlyDefaultNoteLengthDenominator)}
                       {" · "}{t("Cursor 1/")}{chordOnlyCursorSizeDenominator}
                     </span>
-                    <span className="transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
+                    <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 self-center transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="m4 6 4 4 4-4" />
+                    </svg>
                   </summary>
                   <div className="flex flex-wrap items-end gap-3 border-t border-slate-200 p-3">
                     <label className="grid gap-1 text-xs font-medium text-slate-600">{t("Add note size")}<select
