@@ -9,4 +9,3 @@ export function diagnosticEndpoint(raw: string, origin: string): string | undefi
     return "/" + segments.slice(0, 12).map(segment => publicSegments.has(segment) ? segment : "[id]").join("/");
   } catch { return; }
 }
-
