@@ -317,6 +317,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const url = buildUrl(req);
   const headers: Record<string, string> = {
+    ...(typeof req.headers["x-request-id"] === "string" ? { "X-Request-ID": req.headers["x-request-id"] } : {}),
     "X-User-Id": session.user.id,
   };
   if (BACKEND_SECRET) {

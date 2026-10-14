@@ -1,3 +1,4 @@
+import { diagnosticEndpoint } from "./lib/diagnosticEndpoint";
 import {LANGUAGE_CHOICE_COOKIE} from "./lib/i18n/preference";
 import { getToken } from "next-auth/jwt";
 import { NextResponse, type NextRequest } from "next/server";
@@ -22,6 +23,18 @@ const withCurrencyPreference = (request: NextRequest, response: NextResponse) =>
 };
 
 export default async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    const endpoint = diagnosticEndpoint(request.url, request.nextUrl.origin);
+    if (!endpoint) return NextResponse.next();
+    // Generate at the trusted edge, never accept a caller-supplied correlation ID.
+    const requestId = crypto.randomUUID();
+    const headers = new Headers(request.headers);
+    headers.set("x-request-id", requestId);
+    const response = NextResponse.next({ request: { headers } });
+    response.headers.set("x-request-id", requestId);
+    console.info("note2tabs.api_request", { request_id: requestId, endpoint, method: request.method });
+    return response;
+  }
   const localizedPath = ["GET", "HEAD"].includes(request.method) ? detectedLocaleDestination(
     `${request.nextUrl.pathname}${request.nextUrl.search}`,
     request.headers.get("accept-language") || "",
@@ -60,6 +73,7 @@ export default async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/api/:path*",
     "/", "/pricing", "/transcribe", "/editor", "/online-guitar-tab-editor", "/about", "/contact", "/terms", "/privacy",
     "/settings", "/home", "/shared", "/tabs/:path*", "/account", "/history", "/affiliate", "/auth/:path*", "/reset-password/:path*", "/job/:path*", "/premium/welcome", "/email/:path*",
     "/affiliate-program", "/internship-application", "/features/:path*", "/blog/:path*",

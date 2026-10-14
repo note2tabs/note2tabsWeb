@@ -44,6 +44,7 @@ const URL_PROPERTY_KEYS = new Set([
   "href",
   "attr_href",
   "request_url",
+  "browser_error_source_url",
   "url_full",
   "next",
 ]);
@@ -299,8 +300,9 @@ export function sanitizePostHogCapture(result: CaptureResult | null): CaptureRes
       properties.$exception_list = sanitizeExceptionValue(exceptionList);
     }
     const classification = classifyPostHogException(exceptionList);
-    properties.alert_eligible = classification.alertEligible;
-    properties.error_classification = classification.classification;
+    const nativeSource = properties.browser_error_source_url || properties.browser_error_line || properties.browser_error_column;
+    properties.alert_eligible = classification.alertEligible || Boolean(nativeSource);
+    properties.error_classification = nativeSource ? "unexpected_application_error" : classification.classification;
   }
   return {
     ...result,

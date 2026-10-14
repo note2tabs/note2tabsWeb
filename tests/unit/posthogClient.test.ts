@@ -77,6 +77,7 @@ describe("PostHog client identity lifecycle", () => {
   afterEach(() => {
     delete process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
     delete process.env.NEXT_PUBLIC_POSTHOG_SESSION_RECORDING;
+    delete process.env.NEXT_PUBLIC_APP_VERSION;
     vi.unstubAllGlobals();
     vi.doUnmock("posthog-js");
   });
@@ -236,6 +237,51 @@ describe("PostHog client identity lifecycle", () => {
     expect(sanitized.properties.$exception_list).toEqual([
       { type: "TypeError", value: "Cannot read property", stacktrace: { frames: [] } },
     ]);
+  });
+
+  it("preserves native context and deployment identity without suppressing synthetic errors", async () => {
+    const { windowMock } = installBrowserGlobals();
+    process.env.NEXT_PUBLIC_APP_VERSION = "release-123";
+    const posthog = createPostHogMock();
+    vi.doMock("posthog-js", () => ({ default: posthog }));
+    const analytics = await import("../../lib/posthogClient");
+    await analytics.initPostHog();
+    const observe = windowMock.addEventListener.mock.calls.filter(call => call[0] === "error").at(-1)?.[1] as unknown as (event: unknown) => void;
+    const beforeSend = posthog.init.mock.calls[0][1].before_send;
+    observe({ message: "Script error.", filename: "https://note2tabs.com/gte/private?token=secret", lineno: 3, colno: 0, error: null });
+    const result = beforeSend({ event: "$exception", properties: { $exception_list: [{ type: "Error", value: "Script error." }] } });
+    expect(result.properties).toMatchObject({
+      $app_version: "release-123", browser_error_has_object: false,
+      browser_error_source_url: "https://note2tabs.com/gte/[editor_id]",
+      browser_error_line: 3, alert_eligible: true,
+    });
+    expect(beforeSend({ event: "$exception", properties: { $exception_list: [{ type: "Error", value: "Script error." }] } }).properties).not.toHaveProperty("browser_error_line");
+    observe({ message: "Script error.", filename: "", lineno: 0, colno: 0, error: null });
+    await analytics.setPostHogConsent("denied");
+    expect(windowMock.removeEventListener).toHaveBeenCalledWith("error", observe, true);
+    expect(beforeSend({ event: "$exception", properties: { $exception_list: [{ type: "Error", value: "Script error." }] } }).properties).not.toHaveProperty("browser_error_has_object");
+  });
+
+  it("enriches SDK chunk exceptions with privacy-safe network diagnostics", async () => {
+    const { windowMock } = installBrowserGlobals();
+    Object.assign(windowMock, {
+      location: { origin: "https://note2tabs.com", pathname: "/zh-hans/blog/article" },
+      performance: { now: () => 200, getEntriesByType: () => [] },
+    });
+    vi.stubGlobal("navigator", { onLine: false });
+    const posthog = createPostHogMock();
+    vi.doMock("posthog-js", () => ({ default: posthog }));
+    const analytics = await import("../../lib/posthogClient");
+    await analytics.initPostHog();
+    const observe = windowMock.addEventListener.mock.calls.filter(call => call[0] === "error").at(-1)?.[1] as unknown as (event: unknown) => void;
+    observe({ target: { tagName: "SCRIPT", src: "https://note2tabs.com/_next/static/chunks/fail.js?secret=token" } });
+    const beforeSend = posthog.init.mock.calls[0][1].before_send;
+    const input = { event: "$exception", properties: { $exception_list: [{ type: "ChunkLoadError", value: "Failed to load chunk /_next/static/chunks/fail.js" }] } };
+    const result = beforeSend(input);
+    expect(result.properties).toMatchObject({browser_online: false, alert_eligible: true, failed_build_assets: [{path: "/_next/static/chunks/fail.js", resource_error_observed: true, timing_available: false}]});
+    expect(JSON.stringify(result)).not.toContain("secret");
+    await analytics.setPostHogConsent("denied");
+    expect(beforeSend(input).properties.failed_build_assets).toEqual([expect.objectContaining({resource_error_observed: false})]);
   });
 
   it("blocks sensitive replay routes while allowing complete editor routes", async () => {

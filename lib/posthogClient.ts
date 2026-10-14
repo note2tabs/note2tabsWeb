@@ -9,6 +9,53 @@ import {
   sanitizeAnalyticsUrl,
   sanitizePostHogCapture,
 } from "./analyticsPrivacy";
+import { createBrowserExceptionContext } from "./browserExceptionContext";
+import { browserLoadDiagnostics, clearBrowserLoadDiagnostics, observeResourceFailure } from "./browserLoadDiagnostics";
+
+import { forgetChunkRecoveryOutcome, reportChunkRecoveryOutcome } from "./chunkRecoveryOutcome";
+import { getErrorBreadcrumbs, installDiagnosticFetch, observeDiagnosticAction, setErrorBreadcrumbsEnabled } from "./errorBreadcrumbs";
+
+const browserExceptionContext = createBrowserExceptionContext();
+const requestFailures = new Map<string, number>();
+let removeBrowserExceptionListener: (() => void) | null = null;
+
+function syncBrowserExceptionListener(enabled: boolean) {
+  if (!enabled) {
+    removeBrowserExceptionListener?.();
+    removeBrowserExceptionListener = null;
+    browserExceptionContext.clear();
+    clearBrowserLoadDiagnostics();
+    setErrorBreadcrumbsEnabled(false);
+    forgetChunkRecoveryOutcome();
+    return;
+  }
+  if (removeBrowserExceptionListener) return;
+  setErrorBreadcrumbsEnabled(true);
+  const removeOutcome = reportChunkRecoveryOutcome(details => capturePostHogEvent("chunk_recovery_outcome", { ...details, $app_version: process.env.NEXT_PUBLIC_APP_VERSION }));
+  const removeFetch = installDiagnosticFetch((details) => {
+    // One small event per endpoint/method/failure category per minute.
+    const key = `${details.endpoint}:${details.method}:${details.http_status ?? details.failure_type}`;
+    const now = Date.now();
+    if (now - (requestFailures.get(key) ?? 0) < 60_000) return;
+    requestFailures.set(key, now);
+    if (requestFailures.size > 30) requestFailures.delete(requestFailures.keys().next().value!);
+    capturePostHogEvent("browser_request_failed", { ...details, error_breadcrumbs: getErrorBreadcrumbs(), $app_version: process.env.NEXT_PUBLIC_APP_VERSION });
+  });
+  const observe = (event: ErrorEvent) => {
+    browserExceptionContext.observe(event);
+    observeResourceFailure(event);
+  };
+  // Capture phase runs before the SDK's normal window error listener.
+  window.addEventListener("error", observe, true);
+  window.addEventListener("click", observeDiagnosticAction, true);
+  removeBrowserExceptionListener = () => {
+    window.removeEventListener("error", observe, true);
+    window.removeEventListener("click", observeDiagnosticAction, true);
+    removeFetch();
+    removeOutcome();
+    requestFailures.clear();
+  };
+}
 
 const CONSENT_COOKIE = "analytics_consent";
 const MAX_PENDING_OPERATIONS = 100;
@@ -107,6 +154,7 @@ function flushPendingOperations(posthog: PostHogClient) {
 export async function initPostHog(options: { ignoreDeniedConsent?: boolean } = {}) {
   if (typeof window === "undefined") return client;
   if (client) {
+    syncBrowserExceptionListener(!trackingIsDisabled());
     if (trackingIsDisabled() && !options.ignoreDeniedConsent) {
       client.opt_out_capturing();
       return null;
@@ -118,6 +166,7 @@ export async function initPostHog(options: { ignoreDeniedConsent?: boolean } = {
   const token = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
   if (!token || (trackingIsDisabled() && !options.ignoreDeniedConsent)) return null;
   if (initPromise) return initPromise;
+  syncBrowserExceptionListener(!trackingIsDisabled());
   clearLegacyAnalyticsPersistence();
   const anonymousDistinctId = getCookie("analytics_anon");
 
@@ -136,7 +185,20 @@ export async function initPostHog(options: { ignoreDeniedConsent?: boolean } = {
         disable_persistence: true,
         disable_capture_url_hashes: true,
         save_referrer: false,
-        before_send: sanitizePostHogCapture,
+        before_send: (event) => {
+          if (event?.event !== "$exception") return sanitizePostHogCapture(event);
+          const context = browserExceptionContext.consume(event.properties?.$exception_list);
+          return sanitizePostHogCapture({
+            ...event,
+            properties: {
+              ...event.properties,
+              ...browserLoadDiagnostics(event.properties?.$exception_list),
+              error_breadcrumbs: getErrorBreadcrumbs(),
+              ...context,
+              ...(process.env.NEXT_PUBLIC_APP_VERSION ? { $app_version: process.env.NEXT_PUBLIC_APP_VERSION } : {}),
+            },
+          });
+        },
         session_recording: {
           // Editor content and controls are intentionally replayed in full. Sensitive
           // non-editor surfaces opt out with this selector or route-level recording stops.
@@ -315,6 +377,7 @@ export function schedulePostHogInit() {
 export async function setPostHogConsent(state: "granted" | "denied") {
   if (!process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN) return;
   trackingDisabledOverride = state === "denied";
+  syncBrowserExceptionListener(state === "granted");
 
   if (state === "granted") {
     const posthog = await initPostHog({ ignoreDeniedConsent: true });

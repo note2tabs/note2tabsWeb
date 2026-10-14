@@ -18,6 +18,8 @@ import AffiliateAttributionCapture from "../components/AffiliateAttributionCaptu
 import CheckoutCancellationTracker from "../components/CheckoutCancellationTracker";
 import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
 import { sanitizeAnalyticsPathname } from "../lib/analyticsPrivacy";
+import { recordDiagnosticNavigation } from "../lib/errorBreadcrumbs";
+import { browserLoadDiagnostics } from "../lib/browserLoadDiagnostics";
 import { installStaleChunkRecovery } from "../lib/staleChunkRecovery";
 import {
   sessionReplayIsBlocked,
@@ -37,9 +39,24 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
   useEffect(() => {
     return installStaleChunkRecovery(router.events, {
       reportFailure: () => sendEvent(ANALYTICS_EVENTS.staleChunkRecoveryFailed, {
+        ...browserLoadDiagnostics(undefined),
         path: window.location.pathname,
       }),
     });
+  }, [router.events]);
+
+  useEffect(() => {
+    const start = (url: string) => recordDiagnosticNavigation(url, "start");
+    const complete = (url: string) => recordDiagnosticNavigation(url, "complete");
+    const failure = (_error: unknown, url: string) => recordDiagnosticNavigation(url, "error");
+    router.events.on("routeChangeStart", start);
+    router.events.on("routeChangeComplete", complete);
+    router.events.on("routeChangeError", failure);
+    return () => {
+      router.events.off("routeChangeStart", start);
+      router.events.off("routeChangeComplete", complete);
+      router.events.off("routeChangeError", failure);
+    };
   }, [router.events]);
 
   useEffect(() => {

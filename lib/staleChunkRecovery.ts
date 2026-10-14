@@ -1,3 +1,6 @@
+import { rememberChunkRecovery } from "./chunkRecoveryOutcome";
+import { recordChunkRecoveryDecision } from "./browserLoadDiagnostics";
+
 const RECOVERY_KEY = "note2tabs:stale-chunk-recovery";
 const RECOVERY_WINDOW_MS = 5 * 60 * 1000;
 
@@ -48,7 +51,7 @@ export function installStaleChunkRecovery(
   // across reloads for the entire guard window; an expired attempt is replaced
   // when a later, independent failure needs recovery.
 
-  const recover = (error: unknown) => {
+  const recover = (error: unknown, targetPath?: string) => {
     if (!isStaleChunkError(error) || reloadStarted) return;
 
     let lastAttempt = 0;
@@ -58,6 +61,7 @@ export function installStaleChunkRecovery(
       // Without persistent storage, each new page would lose the retry guard.
       // Report the failure instead of risking an unbounded hard-reload loop.
       reloadStarted = true;
+      recordChunkRecoveryDecision("storage_unavailable");
       dependencies.reportFailure?.();
       return;
     }
@@ -66,6 +70,7 @@ export function installStaleChunkRecovery(
       // A failed page can reject several chunk promises at once. Report that
       // recovery failure once instead of turning one incident into many alerts.
       reloadStarted = true;
+      recordChunkRecoveryDecision("retry_guard_blocked");
       dependencies.reportFailure?.();
       return;
     }
@@ -74,9 +79,12 @@ export function installStaleChunkRecovery(
     try {
       window.sessionStorage.setItem(RECOVERY_KEY, String(now()));
     } catch {
+      recordChunkRecoveryDecision("storage_write_failed");
       dependencies.reportFailure?.();
       return;
     }
+    const attemptId = rememberChunkRecovery(error, targetPath);
+    recordChunkRecoveryDecision("reload_started", attemptId);
     reload();
   };
 
@@ -84,12 +92,12 @@ export function installStaleChunkRecovery(
   const onUnhandledRejection = (event: PromiseRejectionEvent) => recover(event.reason);
 
   routerEvents.on("routeChangeError", recover);
-  window.addEventListener("error", onWindowError);
-  window.addEventListener("unhandledrejection", onUnhandledRejection);
+  window.addEventListener("error", onWindowError, true);
+  window.addEventListener("unhandledrejection", onUnhandledRejection, true);
 
   return () => {
     routerEvents.off("routeChangeError", recover);
-    window.removeEventListener("error", onWindowError);
-    window.removeEventListener("unhandledrejection", onUnhandledRejection);
+    window.removeEventListener("error", onWindowError, true);
+    window.removeEventListener("unhandledrejection", onUnhandledRejection, true);
   };
 }
