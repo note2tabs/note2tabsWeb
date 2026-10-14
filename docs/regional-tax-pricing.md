@@ -11,8 +11,9 @@ Eight new live Stripe Prices were created on the existing products. All original
 Prices, subscriptions, product defaults, coupons and tax settings remain untouched.
 The inclusive Prices retain all 23 fixed currency amounts; exclusive Prices have
 USD and CAD. Production and preview environment variables below are configured,
-with `STRIPE_REGIONAL_TAX_ENABLED=true`. They take effect when this code deploys;
-existing deployed code ignores them.
+with `STRIPE_REGIONAL_TAX_ENABLED=true` for preview and `false` for production.
+Enable production only after confirming registrations and product classification.
+Existing deployed code ignores the new Price variables.
 
 **Collection is not fully configured:** Stripe Tax settings are active, but the
 live account has zero tax registrations. No registrations were invented or added.
