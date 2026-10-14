@@ -18300,7 +18300,7 @@ export default function GteWorkspace({
                           if (selectedNoteIds.length > 1) return;
                           openNoteMenu(note.id, note.tab[1], note.length, event);
                         }}
-                        className={`absolute rounded-md px-1 text-[11px] font-semibold text-slate-900 ${
+                        className={`absolute flex items-center justify-center rounded-md px-1 text-[11px] font-semibold leading-none text-slate-900 ${
                           scaleToolActive ? "cursor-ew-resize" : "cursor-grab"
                         } ${
                           selectedNoteIds.includes(note.id)
@@ -18321,6 +18321,10 @@ export default function GteWorkspace({
                           width: Math.max(10, segment.length * scale),
                           height: mobileViewport ? ROW_HEIGHT - 2 : ROW_HEIGHT - 8,
                           touchAction: mobileViewport ? "none" : undefined,
+                          outline: selectedNoteIds.includes(note.id)
+                            ? "1px solid rgba(15, 23, 42, 0.35)"
+                            : undefined,
+                          outlineOffset: -1,
                           opacity: conflictInfo.noteConflicts.has(note.id)
                             ? 0.6
                             : undefined,
@@ -18481,7 +18485,7 @@ export default function GteWorkspace({
                             }
                             openChordMenu(chord.id, chord.length, event);
                           }}
-                          className={`absolute rounded-md px-1 text-[11px] font-semibold text-slate-900 ${
+                          className={`absolute flex items-center justify-center rounded-md px-1 text-[11px] font-semibold leading-none text-slate-900 ${
                             scaleToolActive ? "cursor-ew-resize" : "cursor-grab"
                           } ${
                             selectedChordIds.includes(chord.id) ? "bg-[#BAE6FD]" : "bg-[#38BDF8]"
@@ -18496,6 +18500,10 @@ export default function GteWorkspace({
                             width: Math.max(10, segment.length * scale),
                             height: mobileViewport ? ROW_HEIGHT - 2 : ROW_HEIGHT - 8,
                             touchAction: mobileViewport ? "none" : undefined,
+                            outline: selectedChordIds.includes(chord.id)
+                              ? "1px solid rgba(15, 23, 42, 0.35)"
+                              : undefined,
+                            outlineOffset: -1,
                             opacity: conflictInfo.conflictKeys.has(`chord-${chord.id}-${idx}`)
                               ? 0.6
                               : undefined,
