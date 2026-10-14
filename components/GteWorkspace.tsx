@@ -13770,13 +13770,6 @@ export default function GteWorkspace({
           }
 
           const cursor = resolveKeyboardCursor();
-          const step = getKeyboardGridCellWidthFrames(cursor.time);
-          const targetsOnGrid = getCursorGridTargets(cursor, step);
-          if (targetsOnGrid.length > 0) {
-            noteFretTypingBufferRef.current = "";
-            noteFretTypingAtRef.current = 0;
-            return;
-          }
           noteFretTypingBufferRef.current = event.key;
           noteFretTypingAtRef.current = Date.now();
           createKeyboardNoteAtCursor(cursor, event.key);
@@ -18147,7 +18140,7 @@ export default function GteWorkspace({
 
                 {renderableNoteEffects.flatMap(({ effect, startNote, connectorSegments }) => {
                   const effectColorClass =
-                    selectedNoteEffectId === effect.id ? "bg-amber-400" : "bg-emerald-400";
+                    selectedNoteEffectId === effect.id ? "bg-[#6EE7B7]" : "bg-[#34D399]";
                   return connectorSegments.map((segment, idx) => {
                     const left = segment.inRowStart * scale;
                     const top =
@@ -18311,10 +18304,8 @@ export default function GteWorkspace({
                           scaleToolActive ? "cursor-ew-resize" : "cursor-grab"
                         } ${
                           selectedNoteIds.includes(note.id)
-                            ? "bg-amber-400"
-                            : conflictInfo.noteConflicts.has(note.id)
-                            ? "bg-red-400/80"
-                            : "bg-emerald-400"
+                            ? "bg-[#6EE7B7]"
+                            : "bg-[#34D399]"
                         } ${
                           editingChordId !== null
                             ? "opacity-30 pointer-events-none"
@@ -18330,6 +18321,9 @@ export default function GteWorkspace({
                           width: Math.max(10, segment.length * scale),
                           height: mobileViewport ? ROW_HEIGHT - 2 : ROW_HEIGHT - 8,
                           touchAction: mobileViewport ? "none" : undefined,
+                          opacity: conflictInfo.noteConflicts.has(note.id)
+                            ? 0.6
+                            : undefined,
                         }}
                       >
                         {idx === 0 ? note.tab[1] : null}
@@ -18490,7 +18484,7 @@ export default function GteWorkspace({
                           className={`absolute rounded-md px-1 text-[11px] font-semibold text-slate-900 ${
                             scaleToolActive ? "cursor-ew-resize" : "cursor-grab"
                           } ${
-                            selectedChordIds.includes(chord.id) ? "bg-blue-400" : "bg-blue-300"
+                            selectedChordIds.includes(chord.id) ? "bg-[#BAE6FD]" : "bg-[#38BDF8]"
                           } ${
                             isDimmed
                               ? "opacity-30 pointer-events-none"
@@ -18502,6 +18496,9 @@ export default function GteWorkspace({
                             width: Math.max(10, segment.length * scale),
                             height: mobileViewport ? ROW_HEIGHT - 2 : ROW_HEIGHT - 8,
                             touchAction: mobileViewport ? "none" : undefined,
+                            opacity: conflictInfo.conflictKeys.has(`chord-${chord.id}-${idx}`)
+                              ? 0.6
+                              : undefined,
                           }}
                         >
                           {tab[1]}

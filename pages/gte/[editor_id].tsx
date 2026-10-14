@@ -1596,11 +1596,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const practiceRootRef = useRef<HTMLElement | null>(null);
   const practiceSettingsHydratedRef = useRef(false);
   const globalPlaybackFrameRef = useRef(0);
-  // Where the next explicit "start playback" begins from. Mirrors
-  // globalPlaybackFrameRef everywhere that ref is updated (so pausing and
-  // pressing play again still resumes normally), but additionally resets to 0
-  // on track switch, reload, and "go to start" — globalPlaybackFrameRef alone
-  // does not reset on track switch, since it also drives the shared playhead.
+  // Where the next Play begins: updated on explicit seeks and pauses.
+  // Resets on track switch and "go to start", independently of the shared playhead.
   const startFrameAnchorRef = useRef(0);
   const globalPlaybackCounterTickRef = useRef(0);
   const bpmCommitTimerRef = useRef<number | null>(null);
@@ -4610,6 +4607,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   );
 
   const stopGlobalPlayback = useCallback((options?: { preserveSpeedTrainerSession?: boolean }) => {
+    // Resume from the latest playback position after pausing through any control.
+    startFrameAnchorRef.current = Math.max(0, Math.round(globalPlaybackFrameRef.current));
     globalPlaybackStartRequestRef.current += 1;
     globalPlaybackStartPendingRef.current = false;
     setGlobalPlaybackIsPreparing(false);
@@ -5617,10 +5616,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       if (globalPlaybackIsPlaying || globalPlaybackStartPendingRef.current) {
         stopGlobalPlayback();
       }
-      // Every explicit seek (cursor/note click, skip bar, go to start) is
-      // exactly what should anchor the next "Play" — unlike the continuous
-      // frame updates during playback, which must not move the anchor, or
-      // pausing and resuming would resume from the pause point instead of it.
+      // Explicit seeks set the next Play position; pausing captures the current
+      // position separately in stopGlobalPlayback.
       startFrameAnchorRef.current = clamped;
       syncGlobalPlaybackFrame(clamped, { forceReact: true });
     },
@@ -5992,9 +5989,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         title={t("Undo")}
         aria-label={t("Undo")}
       >
-        <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-          <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
-        </svg>
+        <span className="h-4 w-4 shrink-0 bg-current" aria-hidden="true" style={{ maskImage: "url(/icons/undo-transparent.png)", WebkitMaskImage: "url(/icons/undo-transparent.png)", maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} />
       </button>
       <div className="h-6 w-px bg-slate-200" />
       <button
@@ -6005,9 +6000,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         title={t("Redo")}
         aria-label={t("Redo")}
       >
-        <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-          <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
-        </svg>
+        <span className="h-4 w-4 shrink-0 bg-current" aria-hidden="true" style={{ maskImage: "url(/icons/redo-transparent.png)", WebkitMaskImage: "url(/icons/redo-transparent.png)", maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} />
       </button>
     </div>
   );
@@ -7512,30 +7505,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     practiceModeEnabled ? "hidden" : "flex"
                   }`}>
                     <EditorTutorialTrigger className="shrink-0" />
-                    <button
-                      type="button"
-                      onClick={handleCanvasUndo}
-                      disabled={canvasUndoCount === 0 || mobileHistoryBusy}
-                      className="flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                      title={t("Undo")}
-                      aria-label={t("Undo")}
-                    >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                        <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCanvasRedo}
-                      disabled={canvasRedoCount === 0 || mobileHistoryBusy}
-                      className="flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                      title={t("Redo")}
-                      aria-label={t("Redo")}
-                    >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                        <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
-                      </svg>
-                    </button>
                     <span className="text-xs text-slate-600" role="status" aria-live="polite">
                       {t(saveStatus)}
                     </span>
@@ -10646,18 +10615,39 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           data-gte-floating-ui="true"
           className="pointer-events-none fixed bottom-10 left-1/2 z-[9997] w-[min(calc(100vw-2rem),64rem)] -translate-x-1/2 px-2"
         >
-          <div className="relative flex flex-col items-center gap-3 md:min-h-[3.5rem] md:justify-center">
+          <div className="flex justify-center">
+            <div className="pointer-events-auto grid grid-cols-[8rem_2rem_2.25rem_2rem_8rem] items-center gap-x-1 gap-y-1 rounded-2xl border border-slate-200 bg-white/95 px-2 py-2 text-slate-700 shadow-sm backdrop-blur">
             {displayPreferences.showPlaybackCounter && (
               <span
-                className="pointer-events-auto absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-slate-200 bg-white/95 px-2 py-1 text-[10px] font-semibold tabular-nums text-slate-600 shadow-sm"
+                className="col-start-3 row-start-1 justify-self-center whitespace-nowrap text-[10px] font-semibold tabular-nums text-slate-600"
                 role="timer"
                 aria-label={t("Playback time")}
               >
                 {formatPlaybackTime(globalPlaybackCounterFrame / globalPlaybackFps)} / {formatPlaybackTime(canvasTimelineEnd / globalPlaybackFps)}
               </span>
             )}
-            <div className="pointer-events-auto flex items-center gap-2">
-              <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur">
+              <div className="col-start-1 row-start-2 flex items-center justify-end gap-1">
+                    <button
+                      type="button"
+                      onClick={handleCanvasUndo}
+                      disabled={canvasUndoCount === 0 || mobileHistoryBusy}
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                      title={t("Undo")}
+                      aria-label={t("Undo")}
+                    >
+                      <span className="h-4 w-4 shrink-0 bg-current" aria-hidden="true" style={{ maskImage: "url(/icons/undo-transparent.png)", WebkitMaskImage: "url(/icons/undo-transparent.png)", maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCanvasRedo}
+                      disabled={canvasRedoCount === 0 || mobileHistoryBusy}
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                      title={t("Redo")}
+                      aria-label={t("Redo")}
+                    >
+                      <span className="h-4 w-4 shrink-0 bg-current" aria-hidden="true" style={{ maskImage: "url(/icons/redo-transparent.png)", WebkitMaskImage: "url(/icons/redo-transparent.png)", maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} />
+                    </button>
+                <span className="mx-2 h-5 border-l border-slate-200" aria-hidden="true" />
                 <button
                   type="button"
                   onClick={skipGlobalPlaybackToStart}
@@ -10669,10 +10659,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     <polygon points="18,5 8,12 18,19" />
                   </svg>
                 </button>
+              </div>
                 <button
                   type="button"
                   onClick={skipGlobalPlaybackBackwardBar}
-                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                  className="col-start-2 row-start-2 flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
                   title={t("Previous bar")}
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
@@ -10682,7 +10673,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 <button
                   type="button"
                   onClick={toggleGlobalPlayback}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700"
+                  className="col-start-3 row-start-2 flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700"
                   title={globalPlaybackIsPlaying ? t("Pause") : t("Play")}
                 >
                   {globalPlaybackIsPlaying ? (
@@ -10699,15 +10690,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 <button
                   type="button"
                   onClick={skipGlobalPlaybackForwardBar}
-                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                  className="col-start-4 row-start-2 flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
                   title={t("Next bar")}
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <polygon points="7,5 17,12 7,19" />
                   </svg>
                 </button>
-              </div>
-              <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-3 py-1.5 text-slate-700 shadow-sm backdrop-blur">
+              <div className="col-start-5 row-start-2 ml-2 flex items-center justify-start gap-2 border-l border-slate-200 pl-3">
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current text-slate-500" aria-hidden="true">
                     <path d="M4 10v4h4l5 4V6L8 10H4z" />
                     <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
