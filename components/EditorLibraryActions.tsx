@@ -82,9 +82,9 @@ export default function EditorLibraryActions({ editor, open, onOpenChange, onUpd
         const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
         items[next]?.focus();
       }}>
-        <button type="button" role="menuitem" className="editor-actions-menu-item" onClick={() => void begin("rename")}>{t("Rename")}</button>
-        <button type="button" role="menuitem" className="editor-actions-menu-item" onClick={() => void begin("export")}>{t("Export")}</button>
-        <button type="button" role="menuitem" className="editor-actions-menu-item editor-actions-menu-item--danger" onClick={() => void begin("delete")}>{t("Delete")}</button>
+        <button type="button" role="menuitem" className="editor-actions-menu-item" data-diagnostic-action="rename" onClick={() => void begin("rename")}>{t("Rename")}</button>
+        <button type="button" role="menuitem" className="editor-actions-menu-item" data-diagnostic-action="export" onClick={() => void begin("export")}>{t("Export")}</button>
+        <button type="button" role="menuitem" className="editor-actions-menu-item editor-actions-menu-item--danger" data-diagnostic-action="delete" onClick={() => void begin("delete")}>{t("Delete")}</button>
       </div>}
     </div>
     {action && createPortal(<div className="dialog-scrim" onMouseDown={() => { if (!busy) { setAction(null); trigger.current?.focus(); } }}>
@@ -99,7 +99,7 @@ export default function EditorLibraryActions({ editor, open, onOpenChange, onUpd
         {error && <p role="alert">{translatedError(error, locale)}</p>}
         <div className="button-row">
           <button type="button" className="button-secondary button-small" disabled={busy} onClick={() => { setAction(null); trigger.current?.focus(); }}>{t("Cancel")}</button>
-          <button type="button" className={action === "delete" ? "button-secondary button-small button-delete-final" : "button-primary button-small"} disabled={busy || (action === "export" && !tracks.length)} onClick={() => void submit()}>{busy ? t("Loading…") : t(action === "rename" ? "Save tab name" : action === "delete" ? "Delete" : "Export")}</button>
+          <button type="button" className={action === "delete" ? "button-secondary button-small button-delete-final" : "button-primary button-small"} disabled={busy || (action === "export" && !tracks.length)} data-diagnostic-action={action || undefined} onClick={() => void submit()}>{busy ? t("Loading…") : t(action === "rename" ? "Save tab name" : action === "delete" ? "Delete" : "Export")}</button>
         </div>
       </div>
     </div>, document.body)}

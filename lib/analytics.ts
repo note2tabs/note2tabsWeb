@@ -1,3 +1,4 @@
+import { recordDiagnosticProductEvent } from "./errorBreadcrumbs";
 import { localeAnalytics, normalizeLocale, isEditorPath } from "./i18n/locale";
 import { publishTranscriptionCompletedForPremiumPrompt } from "./premiumPromptSignals";
 import { track as trackAnalyticsV2 } from "./analyticsV2";
@@ -141,6 +142,7 @@ const LEGACY_EVENT_NAMES: Record<string, string> = {
 export function sendEvent(event: string, payload?: EventPayload) {
   if (typeof window === "undefined") return;
   const normalizedEvent = LEGACY_EVENT_NAMES[event] || event;
+  recordDiagnosticProductEvent(normalizedEvent, payload);
   if (normalizedEvent === ANALYTICS_EVENTS.tabGenerationSucceeded || normalizedEvent === "transcription_result_viewed") {
     publishTranscriptionCompletedForPremiumPrompt();
   }

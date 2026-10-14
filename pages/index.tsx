@@ -1814,6 +1814,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                     <button
                       type="submit"
                       className="button-primary funnel-submit"
+                      data-diagnostic-action={mode === "FILE" && !selectedFile ? "choose_audio" : "submit_transcription"}
                       disabled={
                         loading ||
                         authHandoffBusy ||

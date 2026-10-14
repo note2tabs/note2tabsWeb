@@ -4,6 +4,7 @@ const nextConfig = {
   // Feature branches must be reviewable without exposing unfinished plans on
   // the production deployment. Vercel replaces this at build time.
   env: {
+    NEXT_PUBLIC_APP_VERSION: process.env.VERCEL_GIT_COMMIT_SHA || "development",
     NEXT_PUBLIC_KO_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_KO_REVIEWED !== "false" ? "true" : "false",
     NEXT_PUBLIC_PL_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_PL_REVIEWED !== "false" ? "true" : "false",
     NEXT_PUBLIC_AR_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_AR_REVIEWED !== "false" ? "true" : "false",
@@ -167,4 +168,21 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+// Build-only credential. Never use NEXT_PUBLIC_ for a personal API key.
+const uploadSourceMaps = process.env.POSTHOG_SOURCEMAPS === "true";
+if (uploadSourceMaps && !process.env.POSTHOG_PERSONAL_API_KEY) {
+  throw new Error("POSTHOG_SOURCEMAPS requires POSTHOG_PERSONAL_API_KEY in the build environment");
+}
+module.exports = uploadSourceMaps
+  ? require("@posthog/nextjs-config").withPostHogConfig(nextConfig, {
+      personalApiKey: process.env.POSTHOG_PERSONAL_API_KEY,
+      projectId: process.env.POSTHOG_PROJECT_ID || "208789",
+      host: "https://eu.posthog.com",
+      sourcemaps: {
+        enabled: true,
+        releaseName: "note2tabs-frontend",
+        releaseVersion: process.env.VERCEL_GIT_COMMIT_SHA || process.env.NEXT_PUBLIC_APP_VERSION,
+        deleteAfterUpload: true,
+      },
+    })
+  : nextConfig;

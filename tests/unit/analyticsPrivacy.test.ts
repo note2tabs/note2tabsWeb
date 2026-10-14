@@ -250,6 +250,15 @@ describe("analytics privacy sanitization", () => {
     }
   });
 
+  it("native source context prevents a known extension message from hiding an app error", () => {
+    const result = sanitizePostHogCapture({ uuid: "native-context", event: "$exception", properties: {
+      $exception_list: [{ type: "UnhandledRejection", value: "Non-Error promise rejection captured with value: Object Not Found Matching Id:1, MethodName:update, ParamCount:4" }],
+      browser_error_source_url: "https://note2tabs.com/_next/static/chunks/app.js",
+      browser_error_line: 42,
+    } });
+    expect(result?.properties.alert_eligible).toBe(true);
+  });
+
   it("preserves deeply nested session replay snapshots", () => {
     const snapshot = {
       uuid: "snapshot-id",
