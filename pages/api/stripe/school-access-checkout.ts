@@ -1,3 +1,4 @@
+import { regionalTaxEnabled, regionalCheckoutPrice } from "../../../lib/regionalTax";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
@@ -46,11 +47,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (customerState.manageableCustomer) return redirect(res, 302, "/settings");
 
     const existingCustomer = customerState.premiumCustomer || customerState.fallbackCustomer;
+    const rawCountry = req.headers["x-vercel-ip-country"];
+    const country = typeof rawCountry === "string" && /^[A-Z]{2}$/.test(rawCountry) ? rawCountry : "unknown";
+    const taxPricing = regionalTaxEnabled() ? regionalCheckoutPrice(config, "monthly", country) : null;
     const metadata = {
       userId: session.user.id,
       note2tabsPlan: "premium",
       note2tabsBillingInterval: "monthly",
-      note2tabsPriceId: config.priceId,
+      note2tabsPriceId: taxPricing?.priceId || config.priceId,
+      ...(taxPricing ? { note2tabsTaxBehavior: taxPricing.behavior, note2tabsTaxCountry: country } : {}),
       premiumTrialIncluded: "false",
       note2tabsSchoolCheckout: "true",
     };
@@ -58,7 +63,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ...(existingCustomer ? { customer: existingCustomer.id } : { customer_email: session.user.email }),
       mode: "subscription",
       payment_method_collection: "if_required",
-      line_items: [{ price: config.priceId, quantity: 1 }],
+      line_items: [{ price: taxPricing?.priceId || config.priceId, quantity: 1 }],
+      ...(taxPricing ? {
+        currency: taxPricing.currency, automatic_tax: { enabled: true },
+        billing_address_collection: "required" as const,
+        ...(existingCustomer ? { customer_update: { address: "auto" as const } } : {}),
+      } : {}),
       allow_promotion_codes: true,
       subscription_data: { metadata },
       metadata,

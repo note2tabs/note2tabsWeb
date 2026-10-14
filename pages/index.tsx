@@ -1,3 +1,4 @@
+import PriceTaxNote from "../components/PriceTaxNote";
 import MonthlyCredits from "../components/MonthlyCredits";
 import { localizedSignIn as signIn } from "../lib/i18n/auth";
 import { translatedError } from "../lib/i18n/translate";
@@ -2196,6 +2197,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                     <strong>{formatLocalizedPrice("PREMIUM", pricingBillingInterval, displayCurrency)}</strong>
                     <span>/ {pricingBillingInterval === "yearly" ? t("year") : t("month")}</span>
                   </div>
+                  <PriceTaxNote />
                 </div>
                 <button
                   type="button"
@@ -2230,6 +2232,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 <div className="pricing-plan__top">
                   <h3>Pro</h3>
                   <div className="pricing-plan__price"><strong>{formatLocalizedPrice("PRO", pricingBillingInterval, displayCurrency)}</strong><span>/ {pricingBillingInterval === "yearly" ? t("year") : t("month")}</span></div>
+                  <PriceTaxNote />
                 </div>
                 <button type="button" className="pricing-plan__cta pricing-plan__cta--secondary" onClick={() => void handlePricingClick("home_pricing", "homepage_pro_card", "PRO")} disabled={pricingBusy}>
                   {pricingBusy ? t("Opening…") : currentPlan === "PRO" ? t("Manage current plan") : currentPlan === "PREMIUM" ? t("Upgrade to Pro") : t("Choose Pro")}

@@ -24,13 +24,18 @@ const referenceId = (reference: StripeIdReference) => {
   return typeof reference?.id === "string" ? reference.id : null;
 };
 
+function regionalPriceIds(plan: PaidSubscriptionPlan) {
+  return ["INCLUSIVE", "EXCLUSIVE"].flatMap(behavior => ["MONTHLY", "YEARLY"].map(interval =>
+    process.env[`STRIPE_TAX_${behavior}_${plan}_${interval}`]?.trim()));
+}
+
 export function getStripePremiumConfig(): StripePremiumConfig | null {
   const priceId = process.env.STRIPE_PRICE_PREMIUM_MONTHLY?.trim();
   if (!priceId) return null;
   const annualPriceId = process.env.STRIPE_PRICE_PREMIUM_YEARLY?.trim();
   return {
     priceId,
-    priceIds: [priceId, annualPriceId].filter((value): value is string => Boolean(value)),
+    priceIds: [priceId, annualPriceId, ...regionalPriceIds("PREMIUM")].filter((value): value is string => Boolean(value)),
     productId: process.env.STRIPE_PRODUCT_PREMIUM?.trim() || null,
   };
 }
@@ -44,7 +49,7 @@ export function getStripePaidPlanConfigs(): Record<PaidSubscriptionPlan, StripeP
     PRO: proPriceId ? {
       plan: "PRO",
       priceId: proPriceId,
-      priceIds: [proPriceId, proAnnualPriceId].filter((value): value is string => Boolean(value)),
+      priceIds: [proPriceId, proAnnualPriceId, ...regionalPriceIds("PRO")].filter((value): value is string => Boolean(value)),
       productId: process.env.STRIPE_PRODUCT_PRO?.trim() || null,
     } : null,
   };

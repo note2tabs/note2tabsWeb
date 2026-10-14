@@ -1765,5 +1765,8 @@
   "Delete \"": "删除“",
   "\"? This cannot be undone.": "”？此操作无法撤销。",
   "Save tab name": "保存",
-  "Cancel": "取消"
+  "Cancel": "取消",
+  "Applicable sales tax is added at checkout.": "适用的销售税将在结账时另行收取。",
+  "Price includes applicable taxes.": "价格已包含适用税费。",
+  "Tax treatment is confirmed at checkout.": "税费处理方式将在结账时确认。"
 }

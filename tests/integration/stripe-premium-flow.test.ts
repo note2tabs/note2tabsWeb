@@ -167,6 +167,7 @@ const premiumInvoice = (overrides: Record<string, unknown> = {}) => ({
 
 describe("stripe premium flow", () => {
   beforeEach(() => {
+    delete process.env.STRIPE_REGIONAL_TAX_ENABLED;
     vi.clearAllMocks();
     process.env.STRIPE_PRICE_PREMIUM_MONTHLY = "price_test_premium";
     delete process.env.STRIPE_PRICE_PREMIUM_YEARLY;
@@ -266,6 +267,24 @@ describe("stripe premium flow", () => {
   });
 
   describe("create-checkout-session", () => {
+    it.each([
+      ["US", "exclusive", "usd"], ["CA", "exclusive", "cad"],
+      ["FR", "inclusive", "eur"], ["AE", "inclusive", "usd"],
+      [undefined, "inclusive", "usd"],
+    ])("uses regional tax prices for %s without trusting browser currency", async (country, behavior, currency) => {
+      process.env.STRIPE_REGIONAL_TAX_ENABLED = "true";
+      process.env[`STRIPE_TAX_${behavior.toUpperCase()}_PREMIUM_MONTHLY`] = `price_${behavior}`;
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const { req, res } = createMocks({ method: "POST", headers: country ? { "x-vercel-ip-country": country } : {}, body: { plan: "premium", displayCurrency: "JPY" } });
+      await handler(req as any, res as any);
+      expect(res._getStatusCode()).toBe(200);
+      expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(expect.objectContaining({
+        line_items: [{ price: `price_${behavior}`, quantity: 1 }], currency,
+        automatic_tax: { enabled: true }, billing_address_collection: "required",
+        metadata: expect.objectContaining({ note2tabsTaxBehavior: behavior, note2tabsPriceId: `price_${behavior}` }),
+      }), expect.anything());
+    });
+
     it("charges Premium immediately while the 30-day no-trial test is active", async () => {
       delete process.env.PREMIUM_TRIAL_ENABLED;
       const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
@@ -865,13 +884,15 @@ describe("stripe premium flow", () => {
   });
 
   describe("change-plan", () => {
-    it("upgrades Premium to Pro immediately with proration", async () => {
+    it.each([null, "inclusive", "exclusive"])("upgrades Premium to Pro preserving %s tax pricing", async (behavior) => {
+      process.env.STRIPE_TAX_INCLUSIVE_PRO_MONTHLY = "price_pro_tax_inclusive";
+      process.env.STRIPE_TAX_EXCLUSIVE_PRO_MONTHLY = "price_pro_tax_exclusive";
       process.env.STRIPE_PRICE_PRO_MONTHLY = "price_test_pro";
       process.env.STRIPE_PRODUCT_PRO = "prod_test_pro";
       process.env.PRO_PLAN_ENABLED = "true";
       prismaMock.user.findUnique.mockResolvedValue({ role: "PREMIUM", subscriptionPlan: "PREMIUM" });
       stripeMock.customers.list.mockResolvedValue({ data: [{ id: "cus_1", email: "user@example.com" }] });
-      stripeMock.subscriptions.list.mockResolvedValue({ data: [premiumSubscription()] });
+      stripeMock.subscriptions.list.mockResolvedValue({ data: [premiumSubscription({ metadata: behavior ? { note2tabsTaxBehavior: behavior, note2tabsTaxCountry: "US" } : {} })] });
       stripeMock.subscriptions.update.mockResolvedValue({});
       const handler = (await import("../../pages/api/stripe/change-plan")).default;
       const { req, res } = createMocks({ method: "POST", body: { plan: "pro" } });
@@ -883,7 +904,7 @@ describe("stripe premium flow", () => {
       expect(stripeMock.subscriptions.update).toHaveBeenCalledWith(
         "sub_premium",
         expect.objectContaining({
-          items: [{ id: "si_premium", price: "price_test_pro" }],
+          items: [{ id: "si_premium", price: behavior ? `price_pro_tax_${behavior}` : "price_test_pro" }],
           proration_behavior: "always_invoice",
         })
       );

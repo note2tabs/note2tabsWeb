@@ -1765,5 +1765,8 @@
   "Delete \"": "削除：「",
   "\"? This cannot be undone.": "」を削除しますか？元に戻せません。",
   "Save tab name": "保存",
-  "Cancel": "キャンセル"
+  "Cancel": "キャンセル",
+  "Applicable sales tax is added at checkout.": "適用される売上税は決済時に加算されます。",
+  "Price includes applicable taxes.": "価格には適用される税金が含まれています。",
+  "Tax treatment is confirmed at checkout.": "税金の取り扱いは決済時に確認できます。"
 }
