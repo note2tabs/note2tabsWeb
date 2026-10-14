@@ -1,6 +1,8 @@
 import type { AppLocale } from "../locale";
 type CountUnit="bars"|"notes"|"chords"|"hits";
-const forms: Record<"en"|"pt-BR"|"es"|"pl",Record<CountUnit,readonly string[]>>={
+const forms: Record<"en"|"pt-BR"|"es"|"pl"|"fr"|"it",Record<CountUnit,readonly string[]>>={
+ fr:{bars:["mesure","mesures"],notes:["note","notes"],chords:["accord","accords"],hits:["frappe","frappes"]},
+ it:{bars:["battuta","battute"],notes:["nota","note"],chords:["accordo","accordi"],hits:["colpo","colpi"]},
  en:{bars:["bar","bars"],notes:["note","notes"],chords:["chord","chords"],hits:["hit","hits"]},
  "pt-BR":{bars:["compasso","compassos"],notes:["nota","notas"],chords:["acorde","acordes"],hits:["batida","batidas"]},
  es:{bars:["compás","compases"],notes:["nota","notas"],chords:["acorde","acordes"],hits:["golpe","golpes"]},

@@ -160,7 +160,7 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
 
         <div className="post-reader-layout">
           <article className="post-content">
-            {locale !== "en" && post.contentLanguage === "en" && <p className="locale-scope-note">{t("This article has been updated. Its Portuguese translation is being reviewed.")}</p>}
+            {locale !== "en" && post.contentLanguage === "en" && <p className="locale-scope-note">{t("This article is currently available in English.")}</p>}
             <div lang={post.contentLanguage || "en"} dir={post.contentLanguage === "ar" ? "rtl" : "ltr"} className="post-prose" dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
             <nav className="post-tool-paths" aria-label={t("Related Note2Tabs tools")}>
               <span className="post-product-eyebrow">{t("Use the right tool")}</span>

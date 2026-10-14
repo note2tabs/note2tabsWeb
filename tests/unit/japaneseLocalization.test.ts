@@ -76,7 +76,7 @@ describe("Japanese localization",()=>{
  it("ships completed editions as indexable production pages by default",()=>{
   vi.stubEnv("NODE_ENV","production");vi.stubEnv("VERCEL_ENV","production");
   for(const key of ["NEXT_PUBLIC_JA_REVIEWED","NEXT_PUBLIC_ES_REVIEWED","NEXT_PUBLIC_PT_BR_REVIEWED"])vi.stubEnv(key,undefined);
-  for(const locale of TRANSLATED_LOCALES){expect(localizedPilotAvailable(locale)).toBe(true);expect(localizedPilotIndexable(locale)).toBe(true);}
+  for(const locale of TRANSLATED_LOCALES.filter(locale=>locale!=="fr"&&locale!=="it")){expect(localizedPilotAvailable(locale)).toBe(true);expect(localizedPilotIndexable(locale)).toBe(true);}
   vi.stubEnv("VERCEL_ENV","preview");for(const locale of TRANSLATED_LOCALES)expect(localizedPilotIndexable(locale)).toBe(false);
  });
  it("gates Japanese independently and keeps previews noindex",async()=>{
@@ -113,7 +113,7 @@ describe("Japanese localization",()=>{
  });
  it("emits reciprocal Japanese canonicals and hreflang only after release",async()=>{
   vi.stubEnv("NODE_ENV","production");vi.stubEnv("VERCEL_ENV","production");
-  for(const key of ["NEXT_PUBLIC_JA_REVIEWED","NEXT_PUBLIC_ES_REVIEWED","NEXT_PUBLIC_PT_BR_REVIEWED"])vi.stubEnv(key,"true");
+  for(const key of ["NEXT_PUBLIC_JA_REVIEWED","NEXT_PUBLIC_ES_REVIEWED","NEXT_PUBLIC_PT_BR_REVIEWED","NEXT_PUBLIC_FR_REVIEWED","NEXT_PUBLIC_IT_REVIEWED"])vi.stubEnv(key,"true");
   for(const locale of (["en",...TRANSLATED_LOCALES] as const)){
    const html=renderToStaticMarkup(React.createElement(LocaleProvider,{path:localeHref("/pricing",locale),children:React.createElement(SeoHead,{title:"Pricing",canonicalPath:"/pricing"})}));
    for(const alternate of (["en",...TRANSLATED_LOCALES] as const))expect(html).toContain(`hrefLang="${alternate}" href="https://www.note2tabs.com${localeHref("/pricing",alternate)}"`);
