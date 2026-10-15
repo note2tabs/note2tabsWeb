@@ -23,6 +23,7 @@ import { useSession } from "next-auth/react";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { useLocaleRouter as useRouter, useLocale } from "../../lib/i18n/react";
 import dynamic from "next/dynamic";
+import HoverSettingsDropdown from "../../components/HoverSettingsDropdown";
 import { createPortal } from "react-dom";
 import { ANALYTICS_EVENTS, sendEvent } from "../../lib/analytics";
 import { buildLaneEditorRef, gteApi, normalizeEditorName } from "../../lib/gteApi";
@@ -207,7 +208,7 @@ const CONTROL_COMMIT_DEBOUNCE_MS = 350;
 const TIME_SIGNATURE_TOP_OPTIONS = Array.from({ length: 64 }, (_, index) => index + 1);
 const TIME_SIGNATURE_BOTTOM_OPTIONS = [1, 2, 4, 8, 16, 32, 64];
 const NOTE_LENGTH_FRACTION_DENOMINATORS = [0.5, 1, 2, 3, 4, 8, 16, 32, 64];
-const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 4, 8, 16, 32, 64];
+const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 4, 8, 16, 32];
 const SNAP_SUBDIVISION_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8];
 const TOOL_SHORTCUT_HELP = [
   ["Scale", "S"],
@@ -1188,7 +1189,7 @@ const normalizeEditorInputSettings = (value: unknown) => {
     defaultNoteLengthDenominator: NOTE_LENGTH_FRACTION_DENOMINATORS.includes(noteSize)
       ? noteSize
       : 4,
-    cursorSizeDenominator: CURSOR_SIZE_FRACTION_DENOMINATORS.includes(cursorSize) ? cursorSize : 4,
+    cursorSizeDenominator: cursorSize === 64 ? 32 : CURSOR_SIZE_FRACTION_DENOMINATORS.includes(cursorSize) ? cursorSize : 4,
   };
 };
 
@@ -8099,13 +8100,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       )}
                     </div>
                   </details>
-
-
-                </div>
-
                 {!practiceModeEnabled && (
-                <details className="group w-fit max-w-full rounded-lg border border-slate-200 bg-white shadow-sm">
-                  <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-1.5 text-xs text-slate-600">
+                <HoverSettingsDropdown summary={<>
                     <span className="font-semibold text-slate-700">{t("Song settings")}</span>
                     <span className="truncate">
                       {KEY_BASE_OPTIONS[normalizeKeyBase(canvas?.keyBase)]} {t(KEY_TYPE_OPTIONS[normalizeKeyType(canvas?.keyType)])}
@@ -8114,8 +8110,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 self-center transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <path d="m4 6 4 4 4-4" />
                     </svg>
-                  </summary>
-                  <div className="flex flex-wrap items-end gap-3 border-t border-slate-200 p-3">
+                  </>}>
                     <label className="text-xs font-medium text-slate-600">
                       <span className="mb-1 block">{t("Key")}</span>
                       <span className="flex items-center gap-1">
@@ -8218,9 +8213,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       className="h-8 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                       title={t("Detect the most likely key from all notes and chords")}
                     >{t("Detect key…")}</button>
-                  </div>
-                </details>
+                </HoverSettingsDropdown>
                 )}
+                </div>
+
                 {!practiceModeEnabled && (
                 <details className="group w-fit max-w-full rounded-lg border border-slate-200 bg-white shadow-sm">
                   <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-1.5 text-xs text-slate-600">
