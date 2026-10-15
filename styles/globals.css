@@ -13837,6 +13837,11 @@ input[type="number"] {
   .premium-welcome-primary { transition: none; }
 }
 
+/* Hide coordinate chrome without changing its data, layout, or fingering logic. */
+[data-gte-playing-coordinate="true"] {
+  visibility: hidden;
+}
+
 /* Desktop score editor: restrained application chrome around a paper-like score. */
 @media (min-width: 781px) {
   main.page-tight {

@@ -17676,7 +17676,7 @@ export default function GteWorkspace({
                       {[...Array(6)].map((_, idx) => (
                         <div
                           key={`row-${rowIdx}-line-${idx}`}
-                          className="absolute left-0 border-t border-slate-300"
+                          className="absolute left-0 border-t border-slate-400"
                           style={{ top: idx * ROW_HEIGHT, width: rowWidth }}
                         />
                       ))}
@@ -17749,7 +17749,7 @@ export default function GteWorkspace({
                           />
                         ))}
                       <div
-                        className="absolute left-0 border-b border-slate-300"
+                        className="absolute left-0 border-b border-slate-400"
                         style={{ top: rowHeight, width: rowWidth }}
                       />
                     </div>
@@ -18301,7 +18301,7 @@ export default function GteWorkspace({
                           if (selectedNoteIds.length > 1) return;
                           openNoteMenu(note.id, note.tab[1], note.length, event);
                         }}
-                        className={`absolute flex items-center justify-center rounded-md px-1 text-[11px] font-semibold leading-none text-slate-900 ${
+                        className={`absolute flex items-center justify-center rounded-[3px] px-1 text-xs font-bold leading-none text-slate-950 ${
                           scaleToolActive ? "cursor-ew-resize" : "cursor-grab"
                         } ${
                           selectedNoteIds.includes(note.id)
@@ -18317,10 +18317,10 @@ export default function GteWorkspace({
                           noteEffectEdges.right && isLast ? "rounded-r-none" : ""
                         }`}
                         style={{
-                          top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + (mobileViewport ? 1 : 4),
-                          left: segment.inRowStart * scale,
-                          width: Math.max(10, segment.length * scale),
-                          height: mobileViewport ? ROW_HEIGHT - 2 : ROW_HEIGHT - 8,
+                          top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + (mobileViewport ? 1 : 2),
+                          left: segment.inRowStart * scale + 1,
+                          width: Math.max(10, segment.length * scale) - 2,
+                          height: mobileViewport ? ROW_HEIGHT - 2 : ROW_HEIGHT - 4,
                           touchAction: mobileViewport ? "none" : undefined,
                           outline: selectedNoteIds.includes(note.id)
                             ? "1px solid rgba(15, 23, 42, 0.35)"
@@ -18486,7 +18486,7 @@ export default function GteWorkspace({
                             }
                             openChordMenu(chord.id, chord.length, event);
                           }}
-                          className={`absolute flex items-center justify-center rounded-md px-1 text-[11px] font-semibold leading-none text-slate-900 ${
+                          className={`absolute flex items-center justify-center rounded-[3px] px-1 text-xs font-bold leading-none text-slate-950 ${
                             scaleToolActive ? "cursor-ew-resize" : "cursor-grab"
                           } ${
                             selectedChordIds.includes(chord.id) ? "bg-[#BAE6FD]" : "bg-[#38BDF8]"
@@ -18496,10 +18496,10 @@ export default function GteWorkspace({
                             : ""
                           }`}
                           style={{
-                            top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + (mobileViewport ? 1 : 4),
-                            left: segment.inRowStart * scale,
-                            width: Math.max(10, segment.length * scale),
-                            height: mobileViewport ? ROW_HEIGHT - 2 : ROW_HEIGHT - 8,
+                            top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + (mobileViewport ? 1 : 2),
+                            left: segment.inRowStart * scale + 1,
+                            width: Math.max(10, segment.length * scale) - 2,
+                            height: mobileViewport ? ROW_HEIGHT - 2 : ROW_HEIGHT - 4,
                             touchAction: mobileViewport ? "none" : undefined,
                             outline: selectedChordIds.includes(chord.id)
                               ? "1px solid rgba(15, 23, 42, 0.35)"
