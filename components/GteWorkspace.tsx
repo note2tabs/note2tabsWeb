@@ -320,7 +320,7 @@ type ContextMenuState =
     };
 
 const DEFAULT_STRING_LABELS = ["E", "B", "G", "D", "A", "E"];
-const ROW_HEIGHT = 24;
+const ROW_HEIGHT = 22;
 const ROW_GAP = 32;
 const ADD_BAR_BUTTON_SIZE = 40;
 const ADD_BAR_BUTTON_HALF_SIZE = ADD_BAR_BUTTON_SIZE / 2;
@@ -17673,6 +17673,21 @@ export default function GteWorkspace({
                   const beatWidth = framesPerMeasure > 0 ? (framesPerMeasure / beatsPerBar) * scale : 0;
                   return (
                     <div key={`row-${rowIdx}`} className="absolute left-0" style={{ top: rowTop, width: rowWidth }}>
+                      {Array.from({ length: rowBarCount }, (_, barOffset) => (
+                        <div
+                          key={`bar-background-${rowIdx}-${barOffset}`}
+                          aria-hidden="true"
+                          className="pointer-events-none absolute top-0"
+                          style={{
+                            left: barOffset * framesPerMeasure * scale,
+                            width: framesPerMeasure * scale,
+                            height: rowHeight,
+                            backgroundColor: (rowIdx * barsPerRow + barOffset) % 2 === 0
+                              ? "rgba(32, 42, 39, 0.055)"
+                              : "rgba(32, 42, 39, 0.025)",
+                          }}
+                        />
+                      ))}
                       {[...Array(6)].map((_, idx) => (
                         <div
                           key={`row-${rowIdx}-line-${idx}`}
