@@ -5143,6 +5143,7 @@ export default function GteWorkspace({
         onCursorSizeDenominatorChange(next);
       } else {
         setLocalCursorSizeDenominator(next);
+        setLocalDefaultNoteLengthDenominator((current) => Math.min(current, next));
       }
     },
     [cursorSizeDenominator, onCursorSizeDenominatorChange]

@@ -1499,14 +1499,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const handleCursorSizeDenominatorChange = useCallback(
     (value: number) => {
       const nextCursorSize = getNearestCursorSizeDenominator(value);
+      // Sizes are fractions: a larger denominator means a shorter note.
+      const nextNoteSize = noteCursorSizesLinked
+        ? nextCursorSize
+        : Math.min(chordOnlyDefaultNoteLengthDenominator, nextCursorSize);
       setChordOnlyCursorSizeDenominator(nextCursorSize);
-      if (noteCursorSizesLinked) {
-        setChordOnlyDefaultNoteLengthDenominator(nextCursorSize);
-      }
+      setChordOnlyDefaultNoteLengthDenominator(nextNoteSize);
       queueEditorInputSettingsSave({
-        defaultNoteLengthDenominator: noteCursorSizesLinked
-          ? nextCursorSize
-          : chordOnlyDefaultNoteLengthDenominator,
+        defaultNoteLengthDenominator: nextNoteSize,
         cursorSizeDenominator: nextCursorSize,
       });
     },
