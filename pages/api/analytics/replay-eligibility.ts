@@ -1,8 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
-// Oct 15 localization activation audit: Japan and China are the two clear
-// low-activation markets. Keep this explicit; never widen via a stale env flag.
-const REPLAY_COUNTRIES = new Set(["JP", "CN"]);
+// Activation investigation: Japan and China show the clearest gaps; Poland
+// and Spain are exploratory markets. Never widen via a stale env flag.
+const REPLAY_COUNTRIES = new Set(["JP", "CN", "PL", "ES"]);
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   res.setHeader("Cache-Control", "private, no-store");

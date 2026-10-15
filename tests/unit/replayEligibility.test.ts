@@ -11,7 +11,7 @@ describe("country-scoped replay eligibility", () => {
       vi.stubEnv("VERCEL_ENV", "production");
       const { req, res } = createMocks({ method: "GET", headers: { "x-vercel-ip-country": country } });
       handler(req as any, res as any);
-      expect(res._getJSONData()).toEqual({ eligible: country === "JP" || country === "CN" });
+      expect(res._getJSONData()).toEqual({ eligible: ["JP", "CN", "PL", "ES"].includes(country as string) });
       expect(res.getHeader("Cache-Control")).toBe("private, no-store");
     }
   );
