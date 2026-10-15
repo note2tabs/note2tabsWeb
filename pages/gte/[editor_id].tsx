@@ -8101,7 +8101,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     </div>
                   </details>
                 {!practiceModeEnabled && (
-                <HoverSettingsDropdown panelTitle={t("Song settings")} closeLabel={t("Close")} summary={<>
+                <HoverSettingsDropdown pushRight panelTitle={t("Song settings")} closeLabel={t("Close")} summary={<>
                     <span className="font-semibold text-slate-700">{t("Song settings")}</span>
                     <span className="truncate">
                       {KEY_BASE_OPTIONS[normalizeKeyBase(canvas?.keyBase)]} {t(KEY_TYPE_OPTIONS[normalizeKeyType(canvas?.keyType)])}
@@ -8219,7 +8219,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 </HoverSettingsDropdown>
                 )}
                 {!practiceModeEnabled && (
-                <HoverSettingsDropdown summary={<>
+                <HoverSettingsDropdown panelTitle={t("Editing settings")} closeLabel={t("Close")} panelIcon="editing" summary={<>
                     <span className="font-semibold text-slate-700">{t("Editing settings")}</span>
                     <span className="truncate">{t("Note ")}{formatNoteLengthOption(chordOnlyDefaultNoteLengthDenominator)}
                       {" · "}{t("Cursor 1/")}{chordOnlyCursorSizeDenominator}
@@ -8228,14 +8228,15 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       <path d="m4 6 4 4 4-4" />
                     </svg>
                   </>}>
-                    <label className="grid gap-1 text-xs font-medium text-slate-600">{t("Add note size")}<select
+                    <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_2.25rem_minmax(0,1fr)] items-start gap-2">
+                    <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-600">{t("Add note size")}<select
                         value={chordOnlyDefaultNoteLengthDenominator}
                         name="editor-add-note-size"
                         onKeyDown={blockSizeSelectKeyboardChange}
                         onChange={(event) =>
                           handleDefaultNoteLengthDenominatorChange(Number(event.target.value))
                         }
-                        className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700"
+                        className="h-9 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm text-slate-700"
                       >
                         {(noteCursorSizesLinked
                           ? CURSOR_SIZE_FRACTION_DENOMINATORS
@@ -8246,22 +8247,29 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           </option>
                         ))}
                       </select>
-                      <span className="text-[10px] font-normal text-slate-400">
-                        <kbd>,</kbd>{t(" smaller / ")}<kbd>.</kbd>{t(" larger")}</span>
+                      <span className="flex flex-nowrap items-center gap-0.5 whitespace-nowrap text-[10px] font-medium leading-4 text-slate-600">
+                        <kbd className="inline-flex h-4 min-w-3 shrink-0 items-center justify-center rounded-sm border border-slate-300 bg-slate-50 px-0.5 font-sans text-[10px] font-semibold leading-none text-slate-700 shadow-[0_1px_0_#cbd5e1]">,</kbd>
+                        <span>{t("smaller")}</span>
+                        <span className="text-slate-400">/</span>
+                        <kbd className="inline-flex h-4 min-w-3 shrink-0 items-center justify-center rounded-sm border border-slate-300 bg-slate-50 px-0.5 font-sans text-[10px] font-semibold leading-none text-slate-700 shadow-[0_1px_0_#cbd5e1]">.</kbd>
+                        <span>{t("larger")}</span>
+                      </span>
                     </label>
-                    <SizeLinkToggle
+                    <div className="mt-5 flex h-9 items-center justify-center">
+                      <SizeLinkToggle
                       linked={noteCursorSizesLinked}
                       onToggle={toggleNoteCursorSizeLink}
-                      className="self-center"
-                    />
-                    <label className="grid gap-1 text-xs font-medium text-slate-600">{t("Cursor size")}<select
+                      className="!h-9 !w-9 self-center !border-transparent !bg-transparent hover:!bg-slate-100"
+                      />
+                    </div>
+                    <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-600">{t("Cursor size")}<select
                         value={chordOnlyCursorSizeDenominator}
                         name="editor-cursor-size"
                         onKeyDown={blockSizeSelectKeyboardChange}
                         onChange={(event) =>
                           handleCursorSizeDenominatorChange(Number(event.target.value))
                         }
-                        className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700"
+                        className="h-9 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm text-slate-700"
                       >
                         {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
                           <option key={`desktop-cursor-size-${denominator}`} value={denominator}>
@@ -8269,27 +8277,45 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           </option>
                         ))}
                       </select>
-                      <span className="text-[10px] font-normal text-slate-400">
-                        <kbd>{t("N")}</kbd>{t(" larger / ")}<kbd>{t("M")}</kbd>{t(" smaller")}</span>
+                      <span className="flex flex-nowrap items-center gap-0.5 whitespace-nowrap text-[10px] font-medium leading-4 text-slate-600">
+                        <kbd className="inline-flex h-4 min-w-3 shrink-0 items-center justify-center rounded-sm border border-slate-300 bg-slate-50 px-0.5 font-sans text-[10px] font-semibold leading-none text-slate-700 shadow-[0_1px_0_#cbd5e1]">N</kbd>
+                        <span>{t("smaller")}</span>
+                        <span className="text-slate-400">/</span>
+                        <kbd className="inline-flex h-4 min-w-3 shrink-0 items-center justify-center rounded-sm border border-slate-300 bg-slate-50 px-0.5 font-sans text-[10px] font-semibold leading-none text-slate-700 shadow-[0_1px_0_#cbd5e1]">M</kbd>
+                        <span>{t("larger")}</span>
+                      </span>
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
-                      aria-pressed={globalSnapToGridEnabled}
-                      className="mt-[18px] flex h-8 min-w-28 self-start items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 hover:bg-slate-50"
-                    >
-                      <span>{t("Grid")}</span>
-                      <span>{globalSnapToGridEnabled ? t("On") : t("Off")}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
-                      aria-pressed={globalSnapToKeyEnabled}
-                      className="mt-[18px] flex h-8 min-w-28 self-start items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 hover:bg-slate-50"
-                    >
-                      <span>{t("Key")}</span>
-                      <span>{globalSnapToKeyEnabled ? t("On") : t("Off")}</span>
-                    </button>
+                    </div>
+                    <div className="order-4 grid min-w-0 gap-1 text-xs font-medium text-slate-600">
+                      <span>{t("Snap to grid")}</span>
+                      <button
+                        type="button"
+                        onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
+                        aria-label={t("Snap to grid")}
+                        aria-pressed={globalSnapToGridEnabled}
+                        className={`flex h-9 w-full items-center justify-center rounded-md border transition-colors ${globalSnapToGridEnabled ? "border-sky-600 bg-sky-600 text-white hover:bg-sky-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                      >
+                        <svg viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <rect x="3" y="3" width="18" height="18" rx="2" />
+                          <path d="M9 3v18M15 3v18M3 9h18M3 15h18" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div className="order-5 grid min-w-0 gap-1 text-xs font-medium text-slate-600">
+                      <span>{t("Snap to key")}</span>
+                      <button
+                        type="button"
+                        onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
+                        aria-label={t("Snap to key")}
+                        aria-pressed={globalSnapToKeyEnabled}
+                        className={`flex h-9 w-full items-center justify-center gap-1.5 rounded-md border transition-colors ${globalSnapToKeyEnabled ? "border-sky-600 bg-sky-600 text-white hover:bg-sky-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                      >
+                        <span className="text-sm font-semibold" aria-hidden="true">{KEY_BASE_OPTIONS[normalizeKeyBase(canvas?.keyBase)]}</span>
+                        <svg viewBox="0 0 16 20" className="h-5 w-4 fill-current" aria-hidden="true">
+                          <path d="M11 2h1.75v12.5c0 1.8-1.9 3.25-4.25 3.25S4.25 16.7 4.25 15 6.15 11.75 8.5 11.75c.92 0 1.78.22 2.5.59V2Z" />
+                        </svg>
+                      </button>
+                    </div>
                 </HoverSettingsDropdown>
                 )}
                 </div>

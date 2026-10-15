@@ -387,7 +387,7 @@ const SCALE_TOOL_MODE_STORAGE_KEY = "gte-scale-tool-mode-v2";
 const SCALE_TOOL_MODE_RESET_MS = 60_000;
 const SCALE_FACTOR_MIN = 0.1;
 const SCALE_FACTOR_MAX = 8;
-const SCALE_FACTOR_DRAG_PIXELS = 240;
+const SCALE_FACTOR_DRAG_PIXELS = 120;
 const QUANTIZE_SUBDIVISION_MIN = 1;
 const QUANTIZE_SUBDIVISION_MAX = 64;
 const SINGLE_DRAG_ACTIVATION_DISTANCE_PX = 3;
@@ -7564,15 +7564,22 @@ export default function GteWorkspace({
       };
 
       const scaleItemLength = (value: number) => {
-        if (snapToGridEnabled) {
-          return getBeatSubdivisionGridLength(
-            value * normalizedFactor,
-            timeSignature,
-            normalizedSnapSubdivisionsPerBeat,
-            "round"
-          );
+        // Short notes use a sixteenth note as their 1x length baseline.
+        const baseLength = Math.max(value, noteFractionDenominatorToFrames(16));
+        const scaledLength = clampEventLength(Math.trunc(baseLength * normalizedFactor));
+        if (!snapToGridEnabled) return scaledLength;
+
+        // Length scaling has its own musical snap sizes, independent of the
+        // cursor/grid subdivision. Above an eighth note, use eighth-note steps.
+        const eighthNoteLength = noteFractionDenominatorToFrames(8);
+        if (scaledLength > eighthNoteLength) {
+          return clampEventLength(Math.round(scaledLength / eighthNoteLength) * eighthNoteLength);
         }
-        return clampEventLength(Math.trunc(value * normalizedFactor));
+        return [8, 16, 32, 64]
+          .map(noteFractionDenominatorToFrames)
+          .reduce((nearest, candidate) =>
+            Math.abs(candidate - scaledLength) < Math.abs(nearest - scaledLength) ? candidate : nearest
+          );
       };
 
       session.notes.forEach((note) => {
@@ -7591,7 +7598,7 @@ export default function GteWorkspace({
 
       return { notes, chords, maxEnd, factor: normalizedFactor };
     },
-    [clamp, framesPerMeasure, normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature]
+    [clamp, framesPerMeasure, normalizedSnapSubdivisionsPerBeat, noteFractionDenominatorToFrames, snapToGridEnabled, timeSignature]
   );
 
   const applyScalePreview = useCallback(
@@ -7772,7 +7779,7 @@ export default function GteWorkspace({
             );
           }
           if (update.changedLength) {
-            last = await gteApi.setNoteLength(editorId, noteId, update.length, snapToGridEnabled);
+            last = await gteApi.setNoteLength(editorId, noteId, update.length, false);
           }
         }
         for (const update of chordUpdates) {
@@ -7786,7 +7793,7 @@ export default function GteWorkspace({
             );
           }
           if (update.changedLength) {
-            last = await gteApi.setChordLength(editorId, chordId, update.length, snapToGridEnabled);
+            last = await gteApi.setChordLength(editorId, chordId, update.length, false);
           }
         }
         return last ?? {};
@@ -8331,7 +8338,10 @@ export default function GteWorkspace({
       const session = scaleSessionRef.current;
       if (!session) return;
       const deltaX = event.clientX - session.anchorX;
-      const nextFactor = 1 + deltaX / SCALE_FACTOR_DRAG_PIXELS;
+      // Linear enlargement with reciprocal shrinking: smooth around 1x,
+      // proportional in both directions, and without exponential acceleration.
+      const dragAmount = deltaX / SCALE_FACTOR_DRAG_PIXELS;
+      const nextFactor = dragAmount >= 0 ? 1 + dragAmount : 1 / (1 - dragAmount);
       applyScalePreview(nextFactor, {
         mode: scaleToolMode,
         syncInput: true,
@@ -17885,7 +17895,7 @@ export default function GteWorkspace({
                         const target = getPointerFrame(event.clientX, event.clientY);
                         if (target) setEffectivePlayheadFrame(target.time);
                       }}
-                      className={`absolute z-30 cursor-col-resize`}
+                      className="absolute z-30 cursor-col-resize border-0 bg-transparent p-0 shadow-none focus-visible:outline-none"
                       style={{
                         left: 0,
                         top: 0,
@@ -17901,11 +17911,20 @@ export default function GteWorkspace({
                         willChange: effectiveIsPlaying ? "transform" : undefined,
                       }}
                     >
+                      <span aria-hidden="true" className="absolute -left-[5px] top-0 h-full w-3" />
                       <span
-                        className={`absolute left-0 top-0 h-full w-[2px] rounded-full ${
-                          effectiveIsPlaying ? "bg-rose-500" : "bg-rose-400/70"
+                        aria-hidden="true"
+                        className={`pointer-events-none absolute left-0 top-0 h-full w-[2px] rounded-full ring-1 ring-white/75 ${
+                          effectiveIsPlaying || playheadDragging ? "bg-[#CF5261]" : "bg-[#CF5261]/80"
                         }`}
                       />
+                      <span
+                        aria-hidden="true"
+                        className="absolute -left-[5px] -top-[7px] flex h-[9px] w-3 items-start justify-center rounded-t-[3px] bg-[#CF5261] shadow-sm"
+                        style={{ clipPath: "polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%)" }}
+                      >
+                        <span className="mt-[2px] h-px w-1 rounded-full bg-white/80" />
+                      </span>
                     </button>
                   );
                 })()}

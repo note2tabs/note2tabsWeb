@@ -29,11 +29,13 @@ function insideReturnCorridor(point: Point, origin: Point, bounds: DOMRect) {
     { x: edge, y: bounds.top - margin }, { x: edge, y: bounds.bottom + margin });
 }
 
-export default function HoverSettingsDropdown({ summary, children, panelTitle, closeLabel }: {
+export default function HoverSettingsDropdown({ summary, children, panelTitle, closeLabel, pushRight = false, panelIcon = "music" }: {
   summary: ReactNode;
   children: ReactNode;
   panelTitle?: string;
   closeLabel?: string;
+  pushRight?: boolean;
+  panelIcon?: "music" | "editing";
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDetailsElement>(null);
@@ -145,19 +147,20 @@ export default function HoverSettingsDropdown({ summary, children, panelTitle, c
         if (event.relatedTarget === null && event.target instanceof HTMLSelectElement) return;
         if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
       }}
-      className="group relative order-[7] ml-2 w-fit max-w-full rounded-lg border border-slate-200 bg-white shadow-sm"
+      className={`group relative order-[7] w-fit max-w-full rounded-lg border border-slate-200 bg-white shadow-sm ${pushRight ? "ml-auto" : "ml-2"}`}
     >
       <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-1.5 text-xs text-slate-600">
         {summary}
       </summary>
-      <div ref={panelRef} className={`absolute left-0 top-full z-[10000] mt-1 max-w-[calc(100vw-3rem)] rounded-lg border border-slate-200 bg-white shadow-xl ${panelTitle ? "w-[18rem] p-3" : "flex w-max flex-wrap items-end gap-3 p-3"}`}>
+      <div ref={panelRef} className={`absolute right-0 top-full z-[10000] mt-1 max-w-[calc(100vw-3rem)] rounded-lg border border-slate-200 bg-white shadow-xl ${panelTitle ? "w-[18rem] p-3" : "flex w-max flex-wrap items-end gap-3 p-3"}`}>
         {panelTitle ? (
           <>
             <div className="mb-4 flex h-11 items-center justify-between border-b border-slate-100 pb-3">
               <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
                 <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current text-slate-500" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M9 18V4l10 3v11M9 8l10 3" />
-                  <ellipse cx="6" cy="18" rx="3" ry="2" /><ellipse cx="16" cy="18" rx="3" ry="2" />
+                  {panelIcon === "editing" ? (
+                    <path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14z" />
+                  ) : <><path d="M9 18V4l10 3v11M9 8l10 3" /><ellipse cx="6" cy="18" rx="3" ry="2" /><ellipse cx="16" cy="18" rx="3" ry="2" /></>}
                 </svg>
                 {panelTitle}
               </span>
