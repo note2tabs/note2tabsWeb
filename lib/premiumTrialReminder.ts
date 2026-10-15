@@ -47,7 +47,7 @@ export function buildPremiumTrialStartedEmail(input: PremiumTrialStartedInput) {
   const destination = destinationFor(input, "trial_welcome");
   const settingsUrl = `${appBaseUrl()}/settings`;
   const subject = "Your Note2Tabs Premium trial has started";
-  const terms = `Your 7-day trial started on ${startDate}. On ${endDate}, your subscription renews at $5.99 per month unless you cancel before then.`;
+  const terms = `Your 7-day trial started on ${startDate}. On ${endDate}, your subscription renews at the price and billing interval confirmed at checkout unless you cancel before then.`;
   const text = `Hi ${firstName},
 
 ${terms}
@@ -81,7 +81,7 @@ export function buildPremiumTrialReminderEmail(input: PremiumTrialReminderInput)
 
   const text = `Hi ${firstName},
 
-Your Note2Tabs Premium trial ends on ${endDate}. After the trial, Premium renews at $5.99 per month unless you cancel before then.
+Your Note2Tabs Premium trial ends on ${endDate}. After the trial, Premium renews at the price and billing interval confirmed at checkout unless you cancel before then.
 
 ${action}: ${continueUrl}
 
@@ -93,7 +93,7 @@ Note2Tabs`;
     title: `Your Premium trial ends ${endDate}`,
     preview: `Your Premium trial ends on ${endDate}.`,
     greeting: `Hi ${escapeEmailHtml(firstName)},`,
-    bodyHtml: '<p style="margin:0;">After the trial, Premium renews at $5.99 per month unless you cancel before then.</p>',
+    bodyHtml: '<p style="margin:0;">After the trial, Premium renews at the price and billing interval confirmed at checkout unless you cancel before then.</p>',
     action: { label: action, url: continueUrl },
     secondaryHtml: `You can <a href="${settingsUrl}" style="color:#4f5a56;text-decoration:underline;">review or cancel your subscription</a> at any time.`,
   });

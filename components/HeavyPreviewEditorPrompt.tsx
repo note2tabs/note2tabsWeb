@@ -31,7 +31,7 @@ export default function HeavyPreviewEditorPrompt({
           Continue editing
         </button>
       </div>
-      <small className="heavy-preview-editor-prompt__reassurance">Plans from $5.99/month · Cancel anytime</small>
+      <small className="heavy-preview-editor-prompt__reassurance">Choose a plan. Cancel anytime.</small>
     </aside>
   );
 }

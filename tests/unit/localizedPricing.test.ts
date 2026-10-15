@@ -46,12 +46,12 @@ describe("localized pricing", () => {
     expect(formatLocalizedPrice("PREMIUM", "monthly", "DKK")).toBe("39 kr");
     expect(formatLocalizedPrice("PREMIUM", "monthly", "JPY")).toBe("¥999");
     expect(formatLocalizedPrice("PRO", "monthly", "SGD")).toBe("S$20.99");
-    expect(formatLocalizedPrice("PREMIUM", "monthly", "BRL")).toBe("R$21.90");
+    expect(formatLocalizedPrice("PREMIUM", "monthly", "BRL")).toBe("R$14.99");
     expect(formatLocalizedPrice("PREMIUM", "monthly", "INR")).toBe("₹299");
-    expect(formatLocalizedPrice("PREMIUM", "monthly", "IDR")).toBe("Rp64,900");
-    expect(formatLocalizedPrice("PRO", "monthly", "BRL")).toBe("R$54.90");
+    expect(formatLocalizedPrice("PREMIUM", "monthly", "IDR")).toBe("Rp48,999");
+    expect(formatLocalizedPrice("PRO", "monthly", "BRL")).toBe("R$37.99");
     expect(formatLocalizedPrice("PRO", "monthly", "INR")).toBe("₹749");
-    expect(formatLocalizedPrice("PRO", "monthly", "IDR")).toBe("Rp162,900");
+    expect(formatLocalizedPrice("PRO", "monthly", "IDR")).toBe("Rp119,999");
     expect(formatLocalizedPrice("PREMIUM", "monthly", "CNY")).toBe("¥30");
     expect(formatLocalizedPrice("PRO", "monthly", "MXN")).toBe("MX$219");
     expect(formatLocalizedPrice("PREMIUM", "monthly", "PHP")).toBe("₱199");

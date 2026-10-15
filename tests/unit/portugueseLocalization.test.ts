@@ -80,10 +80,10 @@ describe("Portuguese acquisition pilot", () => {
     expect(portuguesePilotIndexable()).toBe(false);
   });
   it("uses Brazilian formatting without changing prices or forcing currency from language", () => {
-    expect(formatLocalizedPrice("PREMIUM", "monthly", "BRL", "pt-BR").replace(/\s/g, " ")).toBe("R$ 21,90");
+    expect(formatLocalizedPrice("PREMIUM", "monthly", "BRL", "pt-BR").replace(/\s/g, " ")).toBe("R$ 14,99");
     expect(formatLocalizedPrice("PREMIUM", "monthly", "USD")).toBe("$5.99");
     expect(formatLocalizedPrice("PREMIUM", "monthly", "USD", "pt-BR")).toContain("5,99");
-    expect(buildPricingProductStructuredData(true, "BRL").offers).toMatchObject({highPrice: "549.00", priceCurrency: "BRL"});
+    expect(buildPricingProductStructuredData(true, "BRL").offers).toMatchObject({highPrice: "379.99", priceCurrency: "BRL"});
   });
   it("retains upload-resume intent through checkout success and cancellation", () => {
     const paths = {success: "/premium/welcome?next=%2Ftranscribe%3FresumeTranscription%3D1",cancel: "/transcribe?resumeTranscription=1&upgrade=cancel",manage: "/settings?upgrade=manage"};
