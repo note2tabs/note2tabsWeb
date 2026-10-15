@@ -5398,6 +5398,8 @@ export default function GteWorkspace({
   const lastAddedNoteLengthRef = useRef(DEFAULT_NOTE_LENGTH);
   const applyingSharedScrollRef = useRef(false);
   const scaleSessionRef = useRef<ScaleSession | null>(null);
+  const scaleDragDistanceRef = useRef(0);
+  const scaleDragPointerRef = useRef({ x: 0, y: 0 });
   const quantizeSessionRef = useRef<QuantizeSession | null>(null);
   const moveSessionRef = useRef<MoveSession | null>(null);
   const movePreviewRef = useRef<{
@@ -7655,6 +7657,8 @@ export default function GteWorkspace({
         ...chords.map((item) => item.startTime)
       );
       const nextAnchor = anchor ?? mousePosRef.current;
+      scaleDragDistanceRef.current = 0;
+      scaleDragPointerRef.current = { ...nextAnchor };
       scaleSessionRef.current = {
         anchorX: nextAnchor.x,
         notes,
@@ -8334,10 +8338,12 @@ export default function GteWorkspace({
 
   useEffect(() => {
     if (!scaleToolActive) return;
-    const handleMove = (event: globalThis.MouseEvent) => {
-      const session = scaleSessionRef.current;
-      if (!session) return;
-      const deltaX = event.clientX - session.anchorX;
+    let animationFrame = 0;
+    let previousTime: number | null = null;
+    let edgeEnabled = false;
+    const updatePreview = () => {
+      if (!scaleSessionRef.current) return;
+      const deltaX = scaleDragDistanceRef.current;
       // Linear enlargement with reciprocal shrinking: smooth around 1x,
       // proportional in both directions, and without exponential acceleration.
       const dragAmount = deltaX / SCALE_FACTOR_DRAG_PIXELS;
@@ -8345,14 +8351,49 @@ export default function GteWorkspace({
       applyScalePreview(nextFactor, {
         mode: scaleToolMode,
         syncInput: true,
-        cursor: { x: event.clientX, y: event.clientY },
+        cursor: scaleDragPointerRef.current,
       });
     };
+    const handleMove = (event: globalThis.MouseEvent) => {
+      scaleDragDistanceRef.current += event.clientX - scaleDragPointerRef.current.x;
+      scaleDragPointerRef.current = { x: event.clientX, y: event.clientY };
+      edgeEnabled = true;
+      updatePreview();
+    };
+    const pauseEdgeScaling = () => {
+      edgeEnabled = false;
+      previousTime = null;
+    };
+    const tick = (time: number) => {
+      const elapsed = previousTime === null ? 0 : Math.min(time - previousTime, 50);
+      previousTime = time;
+      if (edgeEnabled && !mobileViewport && document.hasFocus() && !document.hidden && scaleSessionRef.current) {
+        const edgeWidth = 32;
+        const x = scaleDragPointerRef.current.x;
+        const direction = x < edgeWidth
+          ? -Math.min(1, (edgeWidth - x) / edgeWidth)
+          : x > window.innerWidth - edgeWidth
+            ? Math.min(1, (x - window.innerWidth + edgeWidth) / edgeWidth)
+            : 0;
+        if (direction !== 0) {
+          // Continue at up to 240 virtual drag pixels/second without hiding the cursor.
+          scaleDragDistanceRef.current += direction * 240 * elapsed / 1000;
+          updatePreview();
+        }
+      }
+      animationFrame = window.requestAnimationFrame(tick);
+    };
     window.addEventListener("mousemove", handleMove);
+    window.addEventListener("blur", pauseEdgeScaling);
+    document.addEventListener("visibilitychange", pauseEdgeScaling);
+    animationFrame = window.requestAnimationFrame(tick);
     return () => {
       window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("blur", pauseEdgeScaling);
+      document.removeEventListener("visibilitychange", pauseEdgeScaling);
+      window.cancelAnimationFrame(animationFrame);
     };
-  }, [applyScalePreview, scaleToolActive, scaleToolMode]);
+  }, [applyScalePreview, mobileViewport, scaleToolActive, scaleToolMode]);
 
   useEffect(() => {
     if (!moveToolActive) return;
@@ -18366,6 +18407,7 @@ export default function GteWorkspace({
                         }`}
                         style={{
                           top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + canvasNoteTopInset,
+                          zIndex: 1,
                           left: segment.inRowStart * scale + 1,
                           width: Math.max(10, segment.length * scale) - 2,
                           height: canvasNoteHeight,
@@ -18435,7 +18477,30 @@ export default function GteWorkspace({
                     : chord.length;
                   const segments = getSpanSegments(displayStart, displayLength);
                   const endTime = displayStart + Math.max(1, Math.round(displayLength));
-                  return chord.currentTabs.flatMap((tab, idx) =>
+                  const chordStrings = chord.currentTabs.map((tab, idx) =>
+                    editingChordId === chord.id && draggingChordNote?.tabIndex === idx
+                      ? dragChordNotePreview?.stringIndex ?? tab[0]
+                      : tab[0]
+                  );
+                  const firstString = Math.min(...chordStrings);
+                  const lastString = Math.max(...chordStrings);
+                  const backings = chordStrings.length > 1 ? segments.map((segment, segIdx) => (
+                    <div
+                      key={`chord-backing-${chord.id}-${segment.rowIndex}-${segIdx}`}
+                      aria-hidden="true"
+                      className="pointer-events-none absolute rounded-[3px]"
+                      style={{
+                        top: segment.rowIndex * rowStride + firstString * ROW_HEIGHT + canvasNoteTopInset,
+                        left: segment.inRowStart * scale + 1 + (Math.max(10, segment.length * scale) - 2) * 0.05,
+                        width: (Math.max(10, segment.length * scale) - 2) * 0.90,
+                        height: (lastString - firstString) * ROW_HEIGHT + canvasNoteHeight,
+                        backgroundColor: "rgba(56, 189, 248, 0.35)",
+                        opacity: editingChordId !== null && editingChordId !== chord.id ? 0.3 : 1,
+                        zIndex: 0,
+                      }}
+                    />
+                  )) : [];
+                  return [...backings, ...chord.currentTabs.flatMap((tab, idx) =>
                     segments.map((segment, segIdx) => {
                       const isLast = segment.segEnd >= endTime;
                       const isEditingThisChord = editingChordId === chord.id;
@@ -18545,6 +18610,7 @@ export default function GteWorkspace({
                           }`}
                           style={{
                             top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + canvasNoteTopInset,
+                            zIndex: 1,
                             left: segment.inRowStart * scale + 1,
                             width: Math.max(10, segment.length * scale) - 2,
                             height: canvasNoteHeight,
@@ -18583,7 +18649,7 @@ export default function GteWorkspace({
                         </button>
                       );
                     })
-                  );
+                  )];
                 })}
 
                 {selectedNote &&
