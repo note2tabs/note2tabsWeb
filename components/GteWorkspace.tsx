@@ -321,7 +321,7 @@ type ContextMenuState =
 
 const DEFAULT_STRING_LABELS = ["E", "B", "G", "D", "A", "E"];
 const ROW_HEIGHT = 22;
-const ROW_GAP = 32;
+const ROW_GAP = 16;
 const ADD_BAR_BUTTON_SIZE = 40;
 const ADD_BAR_BUTTON_HALF_SIZE = ADD_BAR_BUTTON_SIZE / 2;
 const AddBarIcon = () => (
