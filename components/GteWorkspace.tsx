@@ -17407,7 +17407,7 @@ export default function GteWorkspace({
           )
         )}
         <div
-          className={`flex min-w-0 ${tabViewEnabled ? "hidden" : ""} ${
+          className={`relative flex min-w-0 ${tabViewEnabled ? "hidden" : ""} ${
             isMobileEditMode ? "min-h-0 flex-1 items-center" : "items-start"
           }`}
           style={{
@@ -17422,6 +17422,11 @@ export default function GteWorkspace({
             style={{
               width: GTE_TIMELINE_LABEL_COLUMN_WIDTH,
               flex: `0 0 ${GTE_TIMELINE_LABEL_COLUMN_WIDTH}px`,
+              ...(!mobileViewport ? {
+                position: "absolute" as const,
+                left: `calc(50% - ${timelineWidth / 2 + GTE_TIMELINE_LABEL_COLUMN_WIDTH + GTE_TIMELINE_COLUMN_GAP}px)`,
+                top: 0,
+              } : {}),
             }}
           >
             <div ref={mobileLabelColumnRef} style={{ paddingTop: TIMELINE_BAR_HEADER_HEIGHT }}>
@@ -17446,6 +17451,9 @@ export default function GteWorkspace({
           </div>
           <div
             ref={mobileTimelineScrollRef}
+            style={!mobileViewport ? {
+              marginInline: GTE_TIMELINE_LABEL_COLUMN_WIDTH + GTE_TIMELINE_COLUMN_GAP,
+            } : undefined}
             className={`min-w-0 flex-1 ${
               isMobileEditMode
                 ? "w-0 min-h-0 max-h-full overflow-y-auto overflow-x-hidden overscroll-contain"
@@ -17459,6 +17467,7 @@ export default function GteWorkspace({
             <div
               ref={timelineOuterRef}
               data-gte-shared-timeline="true"
+              data-gte-canvas-timeline="true"
               // No overflow is set on either axis here on purpose: declaring
               // one axis hidden while leaving the other "visible" makes the
               // browser silently compute the visible axis as "auto" (per the
@@ -17472,6 +17481,7 @@ export default function GteWorkspace({
                 className="relative"
                 style={{
                   width: timelineChromeWidth,
+                  marginLeft: !mobileViewport ? `calc((100% - ${timelineWidth}px) / 2)` : undefined,
                   paddingTop: TIMELINE_BAR_HEADER_HEIGHT,
                   paddingBottom: isMobileEditMode ? 56 : addBarStartsNewRow ? 40 : 0,
                 }}
@@ -17583,7 +17593,7 @@ export default function GteWorkspace({
                 <div
                   ref={timelineRef}
                   data-track-reorder-block="true"
-                  className={`relative rounded-xl border border-slate-200 bg-white ${
+                  className={`relative ${mobileViewport ? "rounded-xl border border-slate-200 bg-white" : "bg-transparent"} ${
                     cutToolActive || sliceToolActive
                       ? "cursor-crosshair"
                     : scaleToolActive
@@ -17682,9 +17692,10 @@ export default function GteWorkspace({
                             left: barOffset * framesPerMeasure * scale,
                             width: framesPerMeasure * scale,
                             height: rowHeight,
-                            backgroundColor: (rowIdx * barsPerRow + barOffset) % 2 === 0
-                              ? "rgba(32, 42, 39, 0.055)"
-                              : "rgba(32, 42, 39, 0.025)",
+                            backgroundImage: (rowIdx * barsPerRow + barOffset) % 2 === 0
+                              ? "linear-gradient(rgba(32, 42, 39, 0.055), rgba(32, 42, 39, 0.055))"
+                              : "linear-gradient(rgba(32, 42, 39, 0.025), rgba(32, 42, 39, 0.025))",
+                            backgroundColor: "#fff",
                           }}
                         />
                       ))}

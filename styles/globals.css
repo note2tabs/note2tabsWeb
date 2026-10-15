@@ -13900,6 +13900,13 @@ input[type="number"] {
     background: var(--gte-paper) !important;
   }
 
+  [data-gte-canvas-timeline="true"] {
+    background: transparent !important;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
   [data-desktop-track-selector="true"] {
     left: auto !important;
     right: 1.25rem;
