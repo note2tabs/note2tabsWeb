@@ -320,7 +320,7 @@ type ContextMenuState =
     };
 
 const DEFAULT_STRING_LABELS = ["E", "B", "G", "D", "A", "E"];
-const ROW_HEIGHT = 22;
+const ROW_HEIGHT = 20;
 const ROW_GAP = 16;
 const ADD_BAR_BUTTON_SIZE = 40;
 const ADD_BAR_BUTTON_HALF_SIZE = ADD_BAR_BUTTON_SIZE / 2;
@@ -17439,7 +17439,7 @@ export default function GteWorkspace({
                 {stringLabels.map((label, stringIndex) => (
                   <div
                     key={`label-${rowIdx}-${stringIndex}`}
-                    className="flex items-center justify-end pr-2"
+                    className="flex items-center justify-end pr-2 font-bold"
                     style={{ height: ROW_HEIGHT }}
                   >
                     {t(String(label))}
@@ -17866,7 +17866,7 @@ export default function GteWorkspace({
                   const rowStart = rowIndex * rowFrames;
                   const left = (safeFrame - rowStart) * scale;
                   const top = rowIndex * rowStride;
-                  const height = rowBlockHeight;
+                  const height = rowHeight;
                   return (
                     <button
                       ref={timelinePlayheadRef}
