@@ -15496,6 +15496,10 @@ export default function GteWorkspace({
             />
           </div>
           <div className="mt-0.5 text-[9px] text-slate-500">{t("Enter or click to apply")}</div>
+          <div className="mt-0.5 flex items-center gap-1 text-[9px] text-slate-500">
+            <kbd className="inline-flex h-4 min-w-4 items-center justify-center rounded border border-slate-300 bg-slate-50 px-1 font-sans text-[10px] font-semibold text-slate-700">−</kbd>
+            <span>{t("- to scale down")}</span>
+          </div>
         </div>
       )}
       {quantizeDialogOpen && (
@@ -18230,7 +18234,7 @@ export default function GteWorkspace({
 
                 {renderableNoteEffects.flatMap(({ effect, startNote, connectorSegments }) => {
                   const effectColorClass =
-                    selectedNoteEffectId === effect.id ? "bg-[#6EE7B7]" : "bg-[#34D399]";
+                    selectedNoteEffectId === effect.id ? "bg-[#8AECC8]" : "bg-[#34D399]";
                   return connectorSegments.map((segment, idx) => {
                     const left = segment.inRowStart * scale;
                     const top =
@@ -18394,7 +18398,7 @@ export default function GteWorkspace({
                           scaleToolActive ? "cursor-ew-resize" : "cursor-grab"
                         } ${
                           selectedNoteIds.includes(note.id)
-                            ? "bg-[#6EE7B7]"
+                            ? "bg-[#8AECC8]"
                             : "bg-[#34D399]"
                         } ${
                           editingChordId !== null
