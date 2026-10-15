@@ -1,3 +1,4 @@
+import { trackBlockedTranscriptionSubmission, type SubmissionBlockReason, type SubmissionBlockStage, type SubmissionBlockDetails } from "../lib/transcriptionSubmission";
 import { localizedSignIn as signIn } from "../lib/i18n/auth";
 import { translatedError } from "../lib/i18n/translate";
 import { useLocale } from "../lib/i18n/react";
@@ -480,6 +481,15 @@ export default function TranscriberPage() {
     setFileEndInput(formatTimestamp(nextRange.end));
   };
 
+  function reportBlockedSubmission(reason: SubmissionBlockReason, stage: SubmissionBlockStage = "validation", details: SubmissionBlockDetails = {}) {
+    trackBlockedTranscriptionSubmission({
+      surface: "transcriber", mode, model: transcriptionModel, plan: entitlementPlan,
+      signedIn: Boolean(transcriberSession), sessionStatus,
+      file: selectedFile, clipStart: mode === "FILE" ? fileStartTime : ytStartTime,
+      clipEnd: mode === "FILE" ? fileEndTime : ytEndTime,
+    }, reason, stage, details);
+  }
+
   const selectAudioFile = (file: File | null) => {
     setSelectedFile(file);
     setFileDuration(null);
@@ -502,11 +512,19 @@ export default function TranscriberPage() {
       const pending = await peekPendingTranscription();
       if (cancelled || resumeHandoffAttemptRef.current !== attemptId) return;
       if (!pending) {
+        reportBlockedSubmission("saved_upload_missing", "auth_resume");
         setError(t("Your saved upload expired or could not be restored. Please choose it again to continue."));
         await router.replace("/transcribe", undefined, { shallow: true });
         return;
       }
 
+      const pendingBlockDetails: SubmissionBlockDetails = {
+        mode: pending.mode,
+        file_size_bytes: pending.mode === "FILE" ? pending.file.size : undefined,
+        file_type: pending.mode === "FILE" ? pending.file.type : undefined,
+        clip_start_sec: pending.mode === "FILE" ? pending.fileStartTime : pending.startTime,
+        clip_end_sec: pending.mode === "FILE" ? pending.fileEndTime : pending.endTime,
+      };
       const returnedFromBilling =
         router.query.upgrade === "success" || router.query.upgrade === "manage";
       const requiresPremium = pending.mode === "FILE" && pending.file.size > MAX_FREE_BYTES;
@@ -539,6 +557,7 @@ export default function TranscriberPage() {
         if (cancelled || resumeHandoffAttemptRef.current !== attemptId) return;
         if (!premiumEntitlementReady) {
           setStatus(null);
+          reportBlockedSubmission("entitlement_pending", "auth_resume", pendingBlockDetails);
           setError(
             t("Premium is still activating. Your upload is safe—reload this page to retry.")
           );
@@ -571,11 +590,14 @@ export default function TranscriberPage() {
       }
 
       if (pending.mode === "FILE" && pending.file.size > MAX_PRESERVABLE_UPLOAD_BYTES) {
+        reportBlockedSubmission("file_preservation_limit", "auth_resume", { ...pendingBlockDetails, limit_bytes: MAX_PRESERVABLE_UPLOAD_BYTES });
         setError(t("The restored file exceeds the {size} upload limit.", { size: formatMb(MAX_PRESERVABLE_UPLOAD_BYTES) }));
         setStatus(t("Choose a smaller audio file to continue."));
       } else if (requiresPremium && !premiumEntitlementReady) {
+        reportBlockedSubmission("file_too_large", "auth_resume", { ...pendingBlockDetails, limit_bytes: MAX_FREE_BYTES });
         setStatus(t("Your upload is restored. Upgrade to Premium to transcribe this file."));
       } else if (!canTranscribe) {
+        reportBlockedSubmission("email_unverified", "auth_resume", { ...pendingBlockDetails });
         setError(t("Verify your email to start transcribing and unlock your free Heavy preview."));
         setStatus(t("Your upload is restored and will remain available after verification."));
       } else {
@@ -587,7 +609,10 @@ export default function TranscriberPage() {
     };
 
     void restorePendingTranscription().catch(() => {
-      if (!cancelled) setError(t("You are signed in. Please choose the audio again to continue."));
+      if (!cancelled) {
+        reportBlockedSubmission("auth_resume_failed", "auth_resume");
+        setError(t("You are signed in. Please choose the audio again to continue."));
+      }
     });
 
     return () => {
@@ -811,14 +836,19 @@ export default function TranscriberPage() {
   };
 
   const handleConvert = async () => {
-    if (convertInFlightRef.current || authHandoffInFlightRef.current || loading) return;
+    if (convertInFlightRef.current || authHandoffInFlightRef.current || loading) {
+      reportBlockedSubmission("already_in_progress", "preflight");
+      return;
+    }
     if (sessionStatus === "loading") {
+      reportBlockedSubmission("session_loading", "preflight");
       setStatus(t("Checking your account…"));
       return;
     }
 
     if (!transcriberSession && !disableDbInDev) {
       if (mode === "FILE" && selectedFile && selectedFile.size > MAX_PRESERVABLE_UPLOAD_BYTES) {
+        reportBlockedSubmission("file_preservation_limit", "auth_handoff", { limit_bytes: MAX_PRESERVABLE_UPLOAD_BYTES });
         setError(t("Files over {size} cannot be preserved through sign-in.", { size: formatMb(MAX_PRESERVABLE_UPLOAD_BYTES) }));
         sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, {
           reason: "file_too_large",
@@ -828,10 +858,12 @@ export default function TranscriberPage() {
         });
         return;
       }
+      reportBlockedSubmission("sign_in_required", "authentication");
       authHandoffInFlightRef.current = true;
       setAuthHandoffBusy(true);
       setError(null);
       setStatus(t("Saving your selection before sign-in…"));
+      let handoffSaved = false;
       try {
         await savePendingTranscription(
           mode === "FILE" && selectedFile
@@ -850,12 +882,15 @@ export default function TranscriberPage() {
                 savedAt: Date.now(),
               }
         );
+        handoffSaved = true;
         sendEvent(ANALYTICS_EVENTS.authHandoffRequired, { reason: "signed_out", mode });
         sendEvent(ANALYTICS_EVENTS.authHandoffSaved, { mode, path: "/transcribe" });
-        await router.push(
+        const navigated = await router.push(
           `/auth/login?next=${encodeURIComponent("/transcribe?resumeTranscription=1")}`
         );
+        if (!navigated) reportBlockedSubmission("auth_navigation_failed", "auth_handoff");
       } catch {
+        reportBlockedSubmission(handoffSaved ? "auth_navigation_failed" : "auth_handoff_failed", "auth_handoff");
         setError(t("We could not safely preserve this audio for sign-in. Please sign in first, then choose it again."));
       } finally {
         authHandoffInFlightRef.current = false;
@@ -864,25 +899,30 @@ export default function TranscriberPage() {
       return;
     }
     if (transcriberSession && !canTranscribe) {
+      reportBlockedSubmission("email_unverified", "authentication");
       setError(t("Verify your email to start transcribing and unlock your free Heavy preview."));
       sendEvent(ANALYTICS_EVENTS.verificationGateShown, { surface: "transcriber", mode });
       return;
     }
 
     if (mode === "FILE" && !selectedFile) {
+      reportBlockedSubmission("missing_file", "validation");
       setError(t("Please select an audio file to transcribe."));
       return;
     }
 
     if (mode === "YOUTUBE" && !youtubeValid) {
+      reportBlockedSubmission("invalid_youtube_url", "validation");
       setError(t("Please paste a valid YouTube link."));
       return;
     }
     if (mode === "YOUTUBE" && (ytStartTime === null || ytEndTime === null)) {
+      reportBlockedSubmission("missing_clip_range", "validation");
       setError(t("Start time and end time are required for YouTube download."));
       return;
     }
     if (mode === "YOUTUBE" && ytStartTime !== null && ytEndTime !== null && ytEndTime <= ytStartTime) {
+      reportBlockedSubmission("invalid_clip_range", "validation");
       setError(t("End time must be after start time."));
       return;
     }
@@ -893,6 +933,7 @@ export default function TranscriberPage() {
       !isPremiumUser &&
       ytEndTime - ytStartTime > MAX_FREE_YOUTUBE_SNIPPET_SEC
     ) {
+      reportBlockedSubmission("clip_duration_limit", "validation", { limit_seconds: MAX_FREE_YOUTUBE_SNIPPET_SEC });
       setError(t("Free YouTube clips must be {seconds} seconds or less.", { seconds: MAX_FREE_YOUTUBE_SNIPPET_SEC }));
       return;
     }
@@ -902,12 +943,14 @@ export default function TranscriberPage() {
         ? maxUploadBytes
         : MAX_FREE_BYTES;
       if (selectedFile.size > maxBytes) {
+        reportBlockedSubmission("file_too_large", "validation", { limit_bytes: maxBytes });
         setError(t("File is too large. Max size is {size} for your plan.", { size: formatMb(maxBytes) }));
         return;
       }
     }
 
     if (mode === "FILE" && selectedFile && !fileTimeRangeValid) {
+      reportBlockedSubmission("invalid_file_clip_range", "validation");
       setError(heavyPreviewAvailable && transcriptionModel === "super_heavy"
         ? t("Your one-time Heavy preview can include up to 30 seconds.")
         : t("Selected file clip must be greater than 0 and within the file length."));
@@ -915,24 +958,29 @@ export default function TranscriberPage() {
     }
     if (mode === "YOUTUBE") {
       if (ytStartTime !== null && ytStartTime < 0) {
+        reportBlockedSubmission("negative_clip_start", "validation");
         setError(t("Start time must be 0 or greater."));
         return;
       }
       if (ytStartTime !== null && ytStartTime >= youtubeWindowSeconds) {
+        reportBlockedSubmission("clip_start_out_of_bounds", "validation", { limit_seconds: youtubeWindowSeconds });
         setError(t("Start time must be before {time}.", { time: formatTimestamp(youtubeWindowSeconds) }));
         return;
       }
       if (ytEndTime !== null && ytEndTime <= 0) {
+        reportBlockedSubmission("invalid_clip_end", "validation");
         setError(t("End time must be greater than 0."));
         return;
       }
       if (ytEndTime !== null && ytEndTime > youtubeWindowSeconds) {
+        reportBlockedSubmission("clip_end_out_of_bounds", "validation", { limit_seconds: youtubeWindowSeconds });
         setError(t("End time must be {time} or earlier.", { time: formatTimestamp(youtubeWindowSeconds) }));
         return;
       }
     }
 
     if (heavyPreviewAvailable && transcriptionModel === "super_heavy" && !heavyPreviewAcknowledgedRef.current) {
+      reportBlockedSubmission("preview_confirmation_required", "confirmation");
       setHeavyPreviewConfirmationIntent("start");
       setShowHeavyPreviewIntro(true);
       sendEvent(ANALYTICS_EVENTS.heavyPreviewConfirmationShown, {
@@ -958,6 +1006,9 @@ export default function TranscriberPage() {
       fileSizeBytes: selectedFile?.size,
       appendingToExistingEditor: Boolean(appendEditorId),
     });
+    let submissionAccepted = false;
+    let submissionPhase: SubmissionBlockStage = "request";
+    let failureDetails: SubmissionBlockDetails = {};
     try {
       let response: Response;
       const youtubeTitlePromise = mode === "YOUTUBE" ? fetchYouTubeVideoTitle(youtubeId) : null;
@@ -983,6 +1034,7 @@ export default function TranscriberPage() {
           response = await postFileDirectly();
         } else {
           const uploadStorageError = t("We could not securely transfer this file. Check your connection and try again; the file is still selected.");
+          submissionPhase = "upload_presign";
           const presignRes = await fetch("/api/uploads/presign", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -994,15 +1046,18 @@ export default function TranscriberPage() {
           });
           const presignData = await presignRes.json().catch(() => ({}));
           if (!presignRes.ok || !presignData?.url || !presignData?.key) {
+            failureDetails = { http_status: presignRes.status, request_id: presignRes.headers.get("x-request-id") || undefined };
             throw new Error(presignData?.error || uploadStorageError);
           } else {
             try {
+              submissionPhase = "upload_storage";
               const uploadRes = await fetch(presignData.url, {
                 method: "PUT",
                 headers: { "Content-Type": selectedFile.type || "application/octet-stream" },
                 body: selectedFile,
               });
               if (!uploadRes.ok) {
+                failureDetails = { http_status: uploadRes.status };
                 throw new Error(uploadStorageError);
               }
             } catch {
@@ -1020,6 +1075,7 @@ export default function TranscriberPage() {
             payload.startTime = Math.max(0, fileStartTime ?? 0);
             payload.duration = resolvedFileDuration;
             if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
+            submissionPhase = "request";
             response = await fetch("/api/transcribe", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -1039,6 +1095,7 @@ export default function TranscriberPage() {
           transcriptionModel,
         };
         if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
+        submissionPhase = "request";
         response = await fetch("/api/transcribe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1047,6 +1104,7 @@ export default function TranscriberPage() {
       }
 
       const data = (await response.json().catch(() => ({}))) as { error?: string } & TabsResponse;
+      submissionAccepted = response.ok && ((response.status === 202 && Boolean(data.jobId)) || Array.isArray(data.tabs));
       if (response.status === 202 && data.jobId) {
         const accessType = getAcceptedTranscriptionAccessType(
           Boolean(data.heavyPreviewUsed),
@@ -1114,13 +1172,16 @@ export default function TranscriberPage() {
         }
         if (data.verificationRequired) {
           await updateSession().catch(() => null);
+          reportBlockedSubmission("email_unverified", "server", { http_status: response.status, request_id: response.headers.get("x-request-id") || undefined });
           setError(t("Verify your email to start transcribing and unlock your free Heavy preview."));
           return;
         }
         if (response.status === 403 && data.credits) {
+          reportBlockedSubmission("credits_exhausted", "server", { http_status: response.status, request_id: response.headers.get("x-request-id") || undefined });
           setError(null);
           return;
         }
+        reportBlockedSubmission("server_rejected", "server", { http_status: response.status, request_id: response.headers.get("x-request-id") || undefined });
         setError(data?.error || t("We could not start this transcription. Your selection is still here, so you can try again."));
         sendEvent("transcribe_error", {
           ...researchProperties,
@@ -1130,6 +1191,7 @@ export default function TranscriberPage() {
         return;
       }
       if (!data.tabs || !Array.isArray(data.tabs)) {
+        reportBlockedSubmission("invalid_response", "server", { http_status: response.status, request_id: response.headers.get("x-request-id") || undefined });
         setError(t("The transcription finished without a usable tab. Try a clearer section or switch models."));
         sendEvent("transcribe_error", {
           ...researchProperties,
@@ -1193,6 +1255,7 @@ export default function TranscriberPage() {
       setStatus(t("Tabs ready. Import below."));
       return;
     } catch (err: any) {
+      if (!submissionAccepted) reportBlockedSubmission("request_failed", submissionPhase, failureDetails);
       setError(err?.message || t("We could not reach the transcription service. Check your connection and try again."));
       sendEvent("transcribe_error", {
         ...researchProperties,
