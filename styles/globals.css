@@ -12839,7 +12839,7 @@ input[type="number"] {
     transform: none;
   }
 }
-.gte-top-menu-bar > details > div button {
+.gte-top-menu-bar > details:not([data-gte-settings-panel]) > div button {
   min-height: 1.5rem;
   height: 1.5rem;
   padding: 0.125rem 0.5rem;
@@ -12847,14 +12847,14 @@ input[type="number"] {
   line-height: 1rem;
 }
 
-.gte-top-menu-bar > details > div label {
+.gte-top-menu-bar > details:not([data-gte-settings-panel]) > div label {
   min-height: 1.75rem;
   padding: 0.2rem 0.5rem;
   font-size: 0.7rem;
   line-height: 1rem;
 }
 
-.gte-top-menu-bar > details > div select {
+.gte-top-menu-bar > details:not([data-gte-settings-panel]) > div select {
   height: 1.5rem;
   min-height: 1.5rem;
   padding-top: 0;

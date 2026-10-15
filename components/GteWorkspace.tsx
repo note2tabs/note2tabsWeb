@@ -5487,6 +5487,9 @@ export default function GteWorkspace({
   const timelineWidth = viewportTimelineWidth;
   const timelineChromeWidth = viewportTimelineWidth + (isMobileEditMode ? 0 : 40);
   const rowHeight = ROW_HEIGHT * stringLabels.length;
+  const canvasNoteHeight = ROW_HEIGHT - (mobileViewport ? 4 : 6);
+  // The 1px separator occupies the top pixel of each row's visible interior.
+  const canvasNoteTopInset = (ROW_HEIGHT - canvasNoteHeight + 1) / 2;
   const coordinateBandHeight = showPlayingCoordinates
     ? PLAYING_COORDINATE_OFFSET + CUT_SEGMENT_HEIGHT
     : 0;
@@ -18343,10 +18346,10 @@ export default function GteWorkspace({
                           noteEffectEdges.right && isLast ? "rounded-r-none" : ""
                         }`}
                         style={{
-                          top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + (mobileViewport ? 1 : 2),
+                          top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + canvasNoteTopInset,
                           left: segment.inRowStart * scale + 1,
                           width: Math.max(10, segment.length * scale) - 2,
-                          height: mobileViewport ? ROW_HEIGHT - 2 : ROW_HEIGHT - 4,
+                          height: canvasNoteHeight,
                           touchAction: mobileViewport ? "none" : undefined,
                           outline: selectedNoteIds.includes(note.id)
                             ? "1px solid rgba(15, 23, 42, 0.35)"
@@ -18522,10 +18525,10 @@ export default function GteWorkspace({
                             : ""
                           }`}
                           style={{
-                            top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + (mobileViewport ? 1 : 2),
+                            top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + canvasNoteTopInset,
                             left: segment.inRowStart * scale + 1,
                             width: Math.max(10, segment.length * scale) - 2,
-                            height: mobileViewport ? ROW_HEIGHT - 2 : ROW_HEIGHT - 4,
+                            height: canvasNoteHeight,
                             touchAction: mobileViewport ? "none" : undefined,
                             outline: selectedChordIds.includes(chord.id)
                               ? "1px solid rgba(15, 23, 42, 0.35)"

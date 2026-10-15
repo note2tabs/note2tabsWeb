@@ -8101,7 +8101,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     </div>
                   </details>
                 {!practiceModeEnabled && (
-                <HoverSettingsDropdown summary={<>
+                <HoverSettingsDropdown panelTitle={t("Song settings")} closeLabel={t("Close")} summary={<>
                     <span className="font-semibold text-slate-700">{t("Song settings")}</span>
                     <span className="truncate">
                       {KEY_BASE_OPTIONS[normalizeKeyBase(canvas?.keyBase)]} {t(KEY_TYPE_OPTIONS[normalizeKeyType(canvas?.keyType)])}
@@ -8111,9 +8111,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       <path d="m4 6 4 4 4-4" />
                     </svg>
                   </>}>
-                    <label className="text-xs font-medium text-slate-600">
-                      <span className="mb-1 block">{t("Key")}</span>
-                      <span className="flex items-center gap-1">
+                    <label className="order-1 col-span-2 min-w-0 text-xs font-medium text-slate-600">
+                      <span className="mb-1 block">{t("Key signature")}</span>
+                      <span className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-2">
                         <select
                           value={normalizeKeyBase(canvas?.keyBase)}
                           name="song-key-base"
@@ -8121,7 +8121,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             commitCanvasKey(Number(event.target.value), normalizeKeyType(canvas?.keyType));
                             event.currentTarget.blur();
                           }}
-                          className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm"
+                          className="h-9 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm"
                           aria-label={t("Base note")}
                         >
                           {KEY_BASE_OPTIONS.map((label, index) => (
@@ -8135,7 +8135,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             commitCanvasKey(normalizeKeyBase(canvas?.keyBase), Number(event.target.value));
                             event.currentTarget.blur();
                           }}
-                          className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm"
+                          className="h-9 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm"
                           aria-label={t("Key extension")}
                         >
                           {KEY_TYPE_OPTIONS.map((label, index) => (
@@ -8144,8 +8144,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         </select>
                       </span>
                     </label>
-                    <label className="text-xs font-medium text-slate-600">
-                      <span className="mb-1 block">{t("BPM")}</span>
+                    <label className="order-3 min-w-0 text-xs font-medium text-slate-600">
+                      <span className="mb-1 block">{t("Tempo (BPM)")}</span>
                       <span className="flex items-center gap-1">
                         <input
                           type="number"
@@ -8168,13 +8168,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               event.currentTarget.blur();
                             }
                           }}
-                          className="h-8 w-20 rounded-md border border-slate-200 bg-white px-2 text-sm"
+                          className="h-9 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm"
                         />
                       </span>
                     </label>
-                    <label className="text-xs font-medium text-slate-600">
+                    <label className="order-4 min-w-0 text-xs font-medium text-slate-600">
                       <span className="mb-1 block">{t("Time signature")}</span>
-                      <span className="flex items-center gap-1">
+                      <span className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
                         <select
                           value={normalizeTimeSignature(timeSignatureDraft) ?? 8}
                           name="time-signature-top"
@@ -8183,7 +8183,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             scheduleTimeSignatureCommit(Number(event.target.value));
                             event.currentTarget.blur();
                           }}
-                          className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm"
+                          className="h-9 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm"
                           aria-label={t("Time signature top number")}
                         >
                           {TIME_SIGNATURE_TOP_OPTIONS.map((value) => (
@@ -8198,7 +8198,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             void commitTimeSignatureBottom(Number(event.target.value));
                             event.currentTarget.blur();
                           }}
-                          className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm"
+                          className="h-9 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm"
                           aria-label={t("Time signature bottom number")}
                         >
                           {TIME_SIGNATURE_BOTTOM_OPTIONS.map((value) => (
@@ -8210,16 +8210,16 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     <button
                       type="button"
                       onClick={() => setFindKeyDialogOpen(true)}
-                      className="h-8 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      className="order-2 col-span-2 flex h-9 items-center justify-self-end gap-1.5 rounded-md px-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                       title={t("Detect the most likely key from all notes and chords")}
-                    >{t("Detect key…")}</button>
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 fill-none stroke-current" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 17 10-10 4 4L7 21ZM11 9l4 4M5 3v4M3 5h4M18 2v4M16 4h4" /></svg>
+                      {t("Detect key")}
+                    </button>
                 </HoverSettingsDropdown>
                 )}
-                </div>
-
                 {!practiceModeEnabled && (
-                <details className="group w-fit max-w-full rounded-lg border border-slate-200 bg-white shadow-sm">
-                  <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-1.5 text-xs text-slate-600">
+                <HoverSettingsDropdown summary={<>
                     <span className="font-semibold text-slate-700">{t("Editing settings")}</span>
                     <span className="truncate">{t("Note ")}{formatNoteLengthOption(chordOnlyDefaultNoteLengthDenominator)}
                       {" · "}{t("Cursor 1/")}{chordOnlyCursorSizeDenominator}
@@ -8227,8 +8227,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 self-center transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <path d="m4 6 4 4 4-4" />
                     </svg>
-                  </summary>
-                  <div className="flex flex-wrap items-end gap-3 border-t border-slate-200 p-3">
+                  </>}>
                     <label className="grid gap-1 text-xs font-medium text-slate-600">{t("Add note size")}<select
                         value={chordOnlyDefaultNoteLengthDenominator}
                         name="editor-add-note-size"
@@ -8291,9 +8290,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       <span>{t("Key")}</span>
                       <span>{globalSnapToKeyEnabled ? t("On") : t("Off")}</span>
                     </button>
-                  </div>
-                </details>
+                </HoverSettingsDropdown>
                 )}
+                </div>
                 {(((nameSaving || bpmSaving) && !isGuestMode) ||
                   nameError ||
                   bpmError ||
