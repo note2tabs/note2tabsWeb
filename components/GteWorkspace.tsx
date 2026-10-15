@@ -75,6 +75,8 @@ import {
 } from "../lib/gteChordEditor";
 import type { Chord, ChordFingering, CutWithCoord, EditorSnapshot, Note, NoteEffect, TabCoord, TimingMapV2 } from "../types/gte";
 import TabViewer from "./TabViewer";
+import { estimateChordName } from "../lib/gteChordName";
+import { PropertiesInspectorShell, PropertyNumberField, DurationField, MusicalDurationField, NoteFingerings, ChordFingerings, InspectorAction, InspectorDelete } from "./GtePropertiesInspector";
 import { buildTabTextFromSnapshot } from "../lib/gteTabText";
 import {
   buildEditorTabView,
@@ -909,6 +911,7 @@ const computeNoteAlternatesForSnapshot = (
     }))
     .sort((left, right) => left.score - right.score || left.tab[0] - right.tab[0] || left.tab[1] - right.tab[1]);
   return {
+    orderedTabs: ranked.map((item) => item.tab),
     possibleTabs: ranked.filter((item) => !item.blocked).map((item) => item.tab),
     blockedTabs: ranked.filter((item) => item.blocked).map((item) => item.tab),
   };
@@ -1729,14 +1732,6 @@ type MoveSession = {
   anchorPointerFrame: number;
   notes: ScaleEntityBase[];
   chords: ScaleEntityBase[];
-};
-
-type FloatingPanelDragState = {
-  panel: "note" | "chord";
-  offsetX: number;
-  offsetY: number;
-  width: number;
-  height: number;
 };
 
 type DragPointerEventLike = {
@@ -5175,6 +5170,7 @@ export default function GteWorkspace({
   const [draftNote, setDraftNote] = useState<DraftNote | null>(null);
   const [draftNoteAnchor, setDraftNoteAnchor] = useState<DraftNoteAnchor | null>(null);
   const [noteAlternates, setNoteAlternates] = useState<{
+    orderedTabs: TabCoord[];
     possibleTabs: TabCoord[];
     blockedTabs: TabCoord[];
   } | null>(null);
@@ -5216,7 +5212,6 @@ export default function GteWorkspace({
   const [chordMenuAnchor, setChordMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const [chordMenuChordId, setChordMenuChordId] = useState<number | null>(null);
   const [chordMenuDraft, setChordMenuDraft] = useState<{ length: string } | null>(null);
-  const [floatingPanelDrag, setFloatingPanelDrag] = useState<FloatingPanelDragState | null>(null);
   const [editingChordId, setEditingChordId] = useState<number | null>(null);
   const [editingChordAnchor, setEditingChordAnchor] = useState<{ x: number; y: number } | null>(null);
   const [chordNoteMenuAnchor, setChordNoteMenuAnchor] = useState<{ x: number; y: number } | null>(null);
@@ -6589,6 +6584,11 @@ export default function GteWorkspace({
     const activeId = activeChordIds[0];
     return snapshot.chords.find((chord) => chord.id === activeId) || null;
   }, [snapshot.chords, activeChordIds]);
+
+  const selectedChordName = useMemo(
+    () => selectedChord ? estimateChordName(selectedChord.currentTabs.map((tab) => getSnapshotTabMidi({ tuning: snapshot.tuning }, tab, 0))) : null,
+    [selectedChord, snapshot.tuning]
+  );
 
   const cutBoundaries = useMemo(
     () =>
@@ -8485,32 +8485,6 @@ export default function GteWorkspace({
       window.removeEventListener("mousedown", handleMouseDownCapture, true);
     };
   }, [applyMovePreview, commitMoveTool, getMovePointerFrame, moveToolActive, scale]);
-
-  useEffect(() => {
-    if (!floatingPanelDrag) return;
-    const handleMove = (event: globalThis.MouseEvent) => {
-      const nextAnchor = clampFloatingPanelAnchor(
-        event.clientX - floatingPanelDrag.offsetX,
-        event.clientY - floatingPanelDrag.offsetY,
-        floatingPanelDrag.width,
-        floatingPanelDrag.height
-      );
-      if (floatingPanelDrag.panel === "note") {
-        setNoteMenuAnchor(nextAnchor);
-      } else {
-        setChordMenuAnchor(nextAnchor);
-      }
-    };
-    const handleUp = () => {
-      setFloatingPanelDrag(null);
-    };
-    window.addEventListener("mousemove", handleMove);
-    window.addEventListener("mouseup", handleUp);
-    return () => {
-      window.removeEventListener("mousemove", handleMove);
-      window.removeEventListener("mouseup", handleUp);
-    };
-  }, [floatingPanelDrag]);
 
   useEffect(() => {
     if (!scaleToolActive) return;
@@ -11434,59 +11408,13 @@ export default function GteWorkspace({
     setSelectedChordIds([]);
   };
 
-  const clampFloatingPanelAnchor = useCallback(
-    (x: number, y: number, width: number, height: number) => {
-      const padding = 12;
-      const maxX = Math.max(padding, window.innerWidth - width - padding);
-      const maxY = Math.max(padding, window.innerHeight - height - padding);
-      return {
-        x: clamp(Math.round(x), padding, maxX),
-        y: clamp(Math.round(y), padding, maxY),
-      };
-    },
-    [clamp]
-  );
-
-  const getSideMenuAnchor = (event: ReactMouseEvent, menuWidth: number, menuHeight: number) => {
-    const padding = 16;
-    const panelGap = 12;
-    const openOnRight = event.clientX < window.innerWidth / 2;
-    const toolbarRect =
-      toolbarOpen && !mobileViewport && toolbarRef.current
-        ? toolbarRef.current.getBoundingClientRect()
-        : null;
-    const rightEdgeX = window.innerWidth - menuWidth - padding;
-    const toolbarSafeRightX = toolbarRect ? toolbarRect.left - menuWidth - panelGap : rightEdgeX;
-    const targetX = openOnRight ? Math.min(rightEdgeX, toolbarSafeRightX) : padding;
-    const targetY = event.clientY - menuHeight / 2;
-    return clampFloatingPanelAnchor(targetX, targetY, menuWidth, menuHeight);
-  };
-
-  const startFloatingPanelDrag = useCallback(
-    (panel: "note" | "chord", event: ReactMouseEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const element = panel === "note" ? noteMenuRef.current : chordMenuRef.current;
-      if (!element) return;
-      const rect = element.getBoundingClientRect();
-      setFloatingPanelDrag({
-        panel,
-        offsetX: event.clientX - rect.left,
-        offsetY: event.clientY - rect.top,
-        width: rect.width,
-        height: rect.height,
-      });
-    },
-    []
-  );
 
   const openNoteMenu = (noteId: number, fret: number, length: number, event: ReactMouseEvent) => {
     if (event.shiftKey || editingChordId !== null) return;
     if (isMobileEditMode) {
       setNoteMenuAnchor(null);
     } else {
-      const { x, y } = getSideMenuAnchor(event, 224, 220);
-      setNoteMenuAnchor({ x, y });
+      setNoteMenuAnchor({ x: event.clientX, y: event.clientY });
     }
     setNoteMenuNoteId(noteId);
     setNoteMenuDraft({ fret: String(fret), length: formatLengthFramesAsSeconds(length) });
@@ -11494,16 +11422,14 @@ export default function GteWorkspace({
 
   const openChordMenu = (chordId: number, length: number, event: ReactMouseEvent) => {
     if (event.shiftKey || editingChordId !== null) return;
-    const { x, y } = getSideMenuAnchor(event, 240, 230);
-    setChordMenuAnchor({ x, y });
+    setChordMenuAnchor({ x: event.clientX, y: event.clientY });
     setChordMenuChordId(chordId);
     setChordMenuDraft({ length: formatLengthFramesAsSeconds(length) });
   };
 
   const openChordEdit = (chordId: number, event: ReactMouseEvent) => {
-    const { x, y } = getSideMenuAnchor(event, 200, 80);
     setEditingChordId(chordId);
-    setEditingChordAnchor({ x, y });
+    setEditingChordAnchor({ x: event.clientX, y: event.clientY });
     setChordMenuAnchor(null);
     setChordMenuChordId(null);
     setChordMenuDraft(null);
@@ -11530,8 +11456,7 @@ export default function GteWorkspace({
     event: ReactMouseEvent
   ) => {
     if (editingChordId !== chordId) return;
-    const { x, y } = getSideMenuAnchor(event, 224, 210);
-    setChordNoteMenuAnchor({ x, y });
+    setChordNoteMenuAnchor({ x: event.clientX, y: event.clientY });
     setChordNoteMenuIndex(tabIndex);
     setChordNoteMenuDraft({ fret: String(fret), length: formatLengthFramesAsSeconds(length) });
   };
@@ -11611,10 +11536,10 @@ export default function GteWorkspace({
     [flushPendingNoteFretArrowCommit]
   );
 
-  const commitNoteMenuFret = () => {
+  const commitNoteMenuFret = (rawValue?: string) => {
     if (!noteMenuDraft) return;
     clearPendingNoteFretArrowCommit();
-    const fretValue = Number(noteMenuDraft.fret);
+    const fretValue = Number(rawValue ?? noteMenuDraft.fret);
     if (!Number.isInteger(fretValue) || fretValue < 0 || fretValue > maxFret) {
       setError(`Enter a whole-number fret between 0 and ${maxFret}.`);
       return;
@@ -11653,9 +11578,9 @@ export default function GteWorkspace({
     [allowBackend, editorId, enqueueOptimisticMutation, selectedNote, snapLengthToGrid, snapToGridEnabled]
   );
 
-  const commitNoteMenuLength = () => {
+  const commitNoteMenuLength = (rawValue?: string) => {
     if (!noteMenuDraft) return;
-    const rawLength = parseLengthSecondsToFrames(noteMenuDraft.length);
+    const rawLength = parseLengthSecondsToFrames(rawValue ?? noteMenuDraft.length);
     if (rawLength === null) {
       setError(`Invalid length. Use seconds greater than 0.`);
       return;
@@ -11680,10 +11605,10 @@ export default function GteWorkspace({
   );
 
   const adjustDesktopNoteMenuFret = useCallback(
-    (delta: number) => {
+    (delta: number, draftValue?: string) => {
       if (!selectedNote) return;
       const fallbackValue = selectedNote?.tab[1] ?? 0;
-      const currentValue = Number(noteMenuDraft?.fret ?? fallbackValue);
+      const currentValue = Number(draftValue ?? noteMenuDraft?.fret ?? fallbackValue);
       const baseValue = Number.isFinite(currentValue) ? currentValue : fallbackValue;
       const nextValue = Math.max(0, Math.min(maxFret, baseValue + delta));
       setNoteMenuDraft((prev) => (prev ? { ...prev, fret: String(nextValue) } : prev));
@@ -11692,9 +11617,9 @@ export default function GteWorkspace({
     [maxFret, noteMenuDraft, scheduleNoteFretArrowCommit, selectedNote]
   );
 
-  const commitChordMenuLength = () => {
+  const commitChordMenuLength = (rawValue?: string) => {
     if (!selectedChord || !chordMenuDraft) return;
-    const rawLength = parseLengthSecondsToFrames(chordMenuDraft.length);
+    const rawLength = parseLengthSecondsToFrames(rawValue ?? chordMenuDraft.length);
     if (rawLength === null) {
       setError(`Invalid length. Use seconds greater than 0.`);
       return;
@@ -11724,26 +11649,33 @@ export default function GteWorkspace({
     });
   };
 
-  const commitChordNoteFret = () => {
+  const commitChordNoteFret = (rawValue?: string) => {
     if (!selectedChord || chordNoteMenuIndex === null || !chordNoteMenuDraft) return;
-    const fretValue = Number(chordNoteMenuDraft.fret);
+    const fretValue = Number(rawValue ?? chordNoteMenuDraft.fret);
     if (!Number.isInteger(fretValue) || fretValue < 0 || fretValue > maxFret) {
       setError(`Enter a whole-number fret between 0 and ${maxFret}.`);
       return;
     }
-    const nextTabs = selectedChord.currentTabs.map((tab, idx) =>
+    const chordId = resolveChordId(selectedChord.id);
+    const currentChord = snapshotRef.current.chords.find((chord) => chord.id === chordId);
+    if (!currentChord?.currentTabs[chordNoteMenuIndex] || currentChord.currentTabs[chordNoteMenuIndex][1] === fretValue) return;
+    const nextTabs = currentChord.currentTabs.map((tab, idx) =>
       idx === chordNoteMenuIndex ? ([tab[0], fretValue] as TabCoord) : tab
     );
-    void runMutation(() => gteApi.setChordTabs(editorId, selectedChord.id, nextTabs), {
+    void runMutation(() => gteApi.setChordTabs(editorId, chordId, nextTabs), {
       localApply: (draft) => {
-        setChordTabsInSnapshot(draft, selectedChord.id, nextTabs);
+        const chord = draft.chords.find((item) => item.id === chordId);
+        if (!chord?.currentTabs[chordNoteMenuIndex]) return;
+        chord.currentTabs = chord.currentTabs.map((tab, idx) =>
+          idx === chordNoteMenuIndex ? [tab[0], fretValue] : tab
+        );
       },
     });
   };
 
-  const commitChordNoteLength = () => {
+  const commitChordNoteLength = (rawValue?: string) => {
     if (!selectedChord || !chordNoteMenuDraft) return;
-    const rawLength = parseLengthSecondsToFrames(chordNoteMenuDraft.length);
+    const rawLength = parseLengthSecondsToFrames(rawValue ?? chordNoteMenuDraft.length);
     if (rawLength === null) {
       setError(`Invalid length. Use seconds greater than 0.`);
       return;
@@ -13429,8 +13361,12 @@ export default function GteWorkspace({
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       const isTyping = isShortcutTextEntryTarget(target);
+      // This listener runs in capture phase. Inspector controls own their keys,
+      // including Tab; editor undo/redo remains available outside text fields.
+      const insidePropertiesInspector = Boolean(target?.closest("[data-gte-properties-inspector='true']"));
+      if (insidePropertiesInspector && (isTyping || !((event.ctrlKey || event.metaKey) && /^[zy]$/i.test(event.key)))) return;
       const scaleModeSelect = target?.closest<HTMLElement>("[data-scale-mode-select='true']");
-      if (!isTyping) {
+      if (!isTyping && !insidePropertiesInspector) {
         blurFocusedShortcutControl(target);
       }
       if ((event.ctrlKey || event.metaKey) && (event.key === "z" || event.key === "Z")) {
@@ -13540,8 +13476,23 @@ export default function GteWorkspace({
           setSliceCursor(null);
           return;
         }
+        if (chordNoteMenuIndex !== null) {
+          setChordNoteMenuAnchor(null);
+          setChordNoteMenuIndex(null);
+          setChordNoteMenuDraft(null);
+          return;
+        }
         if (editingChordId !== null) {
           exitChordEdit();
+          return;
+        }
+        if (noteMenuDraft || chordMenuDraft) {
+          setNoteMenuAnchor(null);
+          setNoteMenuNoteId(null);
+          setNoteMenuDraft(null);
+          setChordMenuAnchor(null);
+          setChordMenuChordId(null);
+          setChordMenuDraft(null);
           return;
         }
         setSelectedNoteIds([]);
@@ -13751,6 +13702,18 @@ export default function GteWorkspace({
           const target = orderedTargets[nextIndex];
           applyKeyboardGridTargetSelection(target);
           playKeyboardGridTargetPreview(target);
+          return;
+        }
+
+        if ((isPlusKey || isMinusKey) && editingChordId !== null) {
+          event.preventDefault();
+          // In fingering edit mode the chord stays selected as a group, but
+          // fret shortcuts must edit only its explicitly chosen member.
+          if (chordNoteMenuIndex === null) return;
+          const chord = snapshotRef.current.chords.find((item) => item.id === resolveChordId(editingChordId));
+          const tab = chord?.currentTabs[chordNoteMenuIndex];
+          if (!tab) return;
+          commitChordNoteFret(String(Math.max(0, Math.min(maxFret, tab[1] + (isPlusKey ? 1 : -1)))));
           return;
         }
 
@@ -14333,6 +14296,11 @@ export default function GteWorkspace({
     selectedNoteIds,
     selectedChordIds,
     activeChordIds,
+    noteMenuDraft,
+    chordMenuDraft,
+    chordNoteMenuIndex,
+    editingChordId,
+    commitChordNoteFret,
     selectedCutBoundaryIndex,
     selectedNoteEffect,
     editorId,
@@ -15387,6 +15355,84 @@ export default function GteWorkspace({
       }}
     >
       {editMenuPortalTarget ? createPortal(renderEditMenuPanel(true), editMenuPortalTarget) : null}
+      {isActive && !tabViewEnabled && selectedNote && noteMenuNoteId === selectedNote.id && noteMenuDraft && selectedNoteIds.length === 1 && activeChordIds.length === 0 && (
+        <PropertiesInspectorShell
+          key={`note-properties-${selectedNote.id}`}
+          ref={noteMenuRef}
+          kind="note"
+          title={t("Note properties")}
+          context={t("{value1} string · Fret {value2}", { value1: stringLabels[selectedNote.tab[0]], value2: selectedNote.tab[1] })}
+          objectKey={`${editorId}:note-${selectedNote.id}`}
+          geometryKey={`${selectedNote.startTime}:${selectedNote.length}:${selectedNote.tab[0]}:${scale}:${rowStride}`}
+          anchor={noteMenuAnchor ?? { x: 0, y: 0 }}
+          mobile={mobileViewport}
+          onClose={() => { setNoteMenuAnchor(null); setNoteMenuNoteId(null); setNoteMenuDraft(null); }}
+        >
+          <div className="grid grid-cols-2 items-start gap-3">
+            <PropertyNumberField label={t("Fret")} value={String(selectedNote.tab[1])} min={0} max={maxFret} integer onCommit={commitNoteMenuFret} onStep={adjustDesktopNoteMenuFret} />
+            <MusicalDurationField value={getNearestNoteFractionDenominator(selectedNote.length)} options={NOTE_LENGTH_FRACTION_DENOMINATORS.map((value) => ({ value, label: formatNoteLengthOption(value) }))} onChange={commitNoteMenuFractionLength} />
+          </div>
+          <DurationField value={formatLengthFramesAsSeconds(selectedNote.length)} min={framesToDurationSeconds(1)} max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)} onCommit={commitNoteMenuLength} />
+          <NoteFingerings tabs={noteAlternates?.possibleTabs ?? []} blockedTabs={noteAlternates?.blockedTabs ?? []} orderedTabs={noteAlternates?.orderedTabs} current={selectedNote.tab} labels={stringLabels} onSelect={handleAssignAlt} />
+          {isMobileEditMode && <section className="space-y-2" aria-label={t("Move selected note")}>
+            <div className="grid grid-cols-4 gap-2">{(["left", "up", "down", "right"] as const).map((direction) => <InspectorAction key={direction} title={t("Move note {value1}", { value1: direction })} onClick={() => moveSelectedMobileNote(direction)}>{direction === "left" ? "←" : direction === "right" ? "→" : direction === "up" ? "↑" : "↓"}</InspectorAction>)}</div>
+            <div className="grid grid-cols-2 gap-2"><InspectorAction onClick={() => scaleSelectedMobileNote(0.5)}>{t("Scale ½×")}</InspectorAction><InspectorAction onClick={() => scaleSelectedMobileNote(2)}>{t("Scale 2×")}</InspectorAction></div>
+          </section>}
+          <InspectorDelete label={t("Delete note")} onClick={() => { handleDeleteNote(); setSelectedNoteIds([]); setNoteMenuAnchor(null); setNoteMenuNoteId(null); setNoteMenuDraft(null); }} />
+        </PropertiesInspectorShell>
+      )}
+      {isActive && !tabViewEnabled && selectedChord && chordMenuChordId === selectedChord.id && chordMenuDraft && editingChordId === null && activeChordIds.length === 1 && selectedNoteIds.length === 0 && (
+        <PropertiesInspectorShell
+          key={`chord-properties-${selectedChord.id}`}
+          compact
+          ref={chordMenuRef}
+          kind="chord"
+          title={t("Chord properties")}
+          context={t("{value1} notes · {value2}", { value1: selectedChord.currentTabs.length, value2: selectedChordName?.label ?? t("Unknown chord") })}
+          contextTitle={t("Estimated chord name from the current notes")}
+          objectKey={`${editorId}:chord-${selectedChord.id}`}
+          geometryKey={`${selectedChord.startTime}:${selectedChord.length}:${selectedChord.currentTabs.map((tab) => tab[0]).join(",")}:${scale}:${rowStride}`}
+          anchor={chordMenuAnchor ?? { x: 0, y: 0 }}
+          mobile={mobileViewport}
+          onClose={() => { setChordMenuAnchor(null); setChordMenuChordId(null); setChordMenuDraft(null); }}
+        >
+          <MusicalDurationField label={t("Chord duration")} value={getNearestNoteFractionDenominator(selectedChord.length)} options={NOTE_LENGTH_FRACTION_DENOMINATORS.map((value) => ({ value, label: formatNoteLengthOption(value) }))} onChange={(value) => commitChordMenuLength(formatLengthFramesAsSeconds(noteFractionDenominatorToFrames(Number(value))))} />
+          <DurationField value={formatLengthFramesAsSeconds(selectedChord.length)} min={framesToDurationSeconds(1)} max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)} onCommit={commitChordMenuLength} />
+          <ChordFingerings tabs={selectedChord.currentTabs} alternatives={chordAlternatives} labels={stringLabels} onSelect={handleApplyChordTabs} onEdit={(event) => openChordEdit(selectedChord.id, event)} />
+          <section className="space-y-2 border-t border-slate-100 pt-2" aria-label={t("Group actions")}>
+            <div className="grid grid-cols-2 gap-2"><InspectorAction onClick={() => handleChordOctaveShift(-1)}>{t("Octave down")}</InspectorAction><InspectorAction onClick={() => handleChordOctaveShift(1)}>{t("Octave up")}</InspectorAction></div>
+            {isMobileEditMode && <div className="grid grid-cols-2 gap-2"><InspectorAction title={t("Move chord left")} onClick={() => moveSelectedMobileChord("left")}>←</InspectorAction><InspectorAction title={t("Move chord right")} onClick={() => moveSelectedMobileChord("right")}>→</InspectorAction></div>}
+            <div className="grid grid-cols-2 items-center gap-2">
+              <InspectorAction title={t("Keep the notes, but remove their chord grouping")} onClick={() => { handleDisbandChord(); setChordMenuAnchor(null); setChordMenuChordId(null); setChordMenuDraft(null); }}>{t("Disband chord")}</InspectorAction>
+              <InspectorDelete inline label={t("Delete chord")} title={t("Deletes the chord and all its notes")} onClick={() => { handleDeleteChord(); setChordMenuAnchor(null); setChordMenuChordId(null); setChordMenuDraft(null); }} />
+            </div>
+          </section>
+        </PropertiesInspectorShell>
+      )}
+      {isActive && !tabViewEnabled && selectedChord && editingChordId === selectedChord.id && chordNoteMenuIndex === null && (
+        <PropertiesInspectorShell
+          ref={chordEditPanelRef} kind="chord" title={t("Chord properties")}
+          context={t("{value1} notes · {value2}", { value1: selectedChord.currentTabs.length, value2: selectedChordName?.label ?? t("Unknown chord") })}
+          contextTitle={t("Estimated chord name from the current notes")}
+          objectKey={`${editorId}:chord-${selectedChord.id}`} geometryKey={`${selectedChord.startTime}:${selectedChord.length}:${selectedChord.currentTabs.map((tab) => tab[0]).join(",")}:${scale}:${rowStride}`} anchor={editingChordAnchor ?? { x: 0, y: 0 }} mobile={mobileViewport} onClose={exitChordEdit}
+        >
+          <p className="text-xs leading-5 text-slate-600">{t("Click chord notes to edit.")}</p>
+          <InspectorAction onClick={exitChordEdit}>{t("Done")}</InspectorAction>
+        </PropertiesInspectorShell>
+      )}
+      {isActive && !tabViewEnabled && selectedChord && editingChordId === selectedChord.id && chordNoteMenuIndex !== null && selectedChord.currentTabs[chordNoteMenuIndex] && chordNoteMenuDraft && (
+        <PropertiesInspectorShell
+          key={`chord-member-${selectedChord.id}-${chordNoteMenuIndex}`} ref={chordNoteMenuRef} kind="note" title={t("Note properties")}
+          context={t("Chord note {value1} · {value2} string", { value1: chordNoteMenuIndex + 1, value2: stringLabels[selectedChord.currentTabs[chordNoteMenuIndex][0]] })}
+          objectKey={`${editorId}:chord-${selectedChord.id}`} geometryKey={`${selectedChord.startTime}:${selectedChord.length}:${selectedChord.currentTabs.map((tab) => tab[0]).join(",")}:${scale}:${rowStride}`} anchor={chordNoteMenuAnchor ?? { x: 0, y: 0 }} mobile={mobileViewport}
+          onClose={() => { setChordNoteMenuAnchor(null); setChordNoteMenuIndex(null); setChordNoteMenuDraft(null); }}
+        >
+          <PropertyNumberField label={t("Fret")} value={String(selectedChord.currentTabs[chordNoteMenuIndex][1])} min={0} max={maxFret} integer inlineStepper onCommit={commitChordNoteFret}
+            onStep={(delta, value) => commitChordNoteFret(String(Math.max(0, Math.min(maxFret, Number(value) + delta))))} />
+          <InspectorAction onClick={exitChordEdit}>{t("Done")}</InspectorAction>
+          <InspectorDelete label={t("Delete note")} onClick={deleteChordNote} />
+        </PropertiesInspectorShell>
+      )}
       {pendingSelectionTool && (
         <div
           data-gte-floating-ui="true"
@@ -18317,6 +18363,7 @@ export default function GteWorkspace({
                     return (
                       <button
                         key={`note-${note.id}-seg-${segment.rowIndex}-${idx}`}
+                        data-gte-inspector-object={`${editorId}:note-${note.id}`}
                         data-gte-note="true"
                         type="button"
                         onMouseDown={(event) => {
@@ -18517,6 +18564,7 @@ export default function GteWorkspace({
                       return (
                         <button
                           key={`chord-${chord.id}-${idx}-seg-${segment.rowIndex}-${segIdx}`}
+                          data-gte-inspector-object={`${editorId}:chord-${chord.id}`}
                           data-gte-note="true"
                           type="button"
                           onMouseDown={(event) => {
@@ -18655,378 +18703,6 @@ export default function GteWorkspace({
                     })
                   )];
                 })}
-
-                {selectedNote &&
-                  noteMenuAnchor &&
-                  noteMenuNoteId === selectedNote.id &&
-                  noteMenuDraft &&
-                  !mobileViewport && (
-                    <div
-                      ref={noteMenuRef}
-                      className="fixed z-[9999] w-56 rounded-md border border-slate-200 bg-white p-2 shadow-md"
-                      style={{
-                        left: noteMenuAnchor.x,
-                        top: noteMenuAnchor.y,
-                      }}
-                      onMouseDown={(event) => event.stopPropagation()}
-                    >
-                      <div
-                        className="flex cursor-move items-center justify-between rounded-md bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700"
-                        onMouseDown={(event) => startFloatingPanelDrag("note", event)}
-                      >
-                        <span>{t("Note #")}{selectedNote.id}</span>
-                        <span className="text-[9px] font-medium uppercase tracking-wide text-slate-400">{t("Drag")}</span>
-                      </div>
-                      <div className="mt-2 space-y-2">
-                        <label className="block text-[10px] text-slate-500">{t("Fret")}<div className="mt-1 flex items-stretch gap-1">
-                            <input
-                              type="number"
-                              min={0}
-                              max={maxFret}
-                              className="w-full rounded border border-slate-200 px-2 py-1 text-xs"
-                              value={noteMenuDraft.fret}
-                              onChange={(event) =>
-                                setNoteMenuDraft((prev) =>
-                                  prev ? { ...prev, fret: event.target.value } : prev
-                                )
-                              }
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                  event.preventDefault();
-                                  commitNoteMenuFret();
-                                }
-                                if (event.key === "Escape") {
-                                  event.preventDefault();
-                                  setNoteMenuAnchor(null);
-                                  setNoteMenuNoteId(null);
-                                  setNoteMenuDraft(null);
-                                }
-                              }}
-                              onBlur={() => commitNoteMenuFret()}
-                            />
-                            <div className="flex w-7 flex-col gap-1">
-                              <button
-                                type="button"
-                                className="flex h-[18px] items-center justify-center rounded border border-slate-200 bg-slate-50 text-[10px] text-slate-700"
-                                onClick={() => adjustDesktopNoteMenuFret(1)}
-                                aria-label={t("Increase fret")}
-                              >{"↑"}</button>
-                              <button
-                                type="button"
-                                className="flex h-[18px] items-center justify-center rounded border border-slate-200 bg-slate-50 text-[10px] text-slate-700"
-                                onClick={() => adjustDesktopNoteMenuFret(-1)}
-                                aria-label={t("Decrease fret")}
-                              >{"↓"}</button>
-                            </div>
-                          </div>
-                        </label>
-                        <div className="grid grid-cols-[1fr_80px] gap-2">
-                          <label className="block text-[10px] text-slate-500">{t("Length (sec)")}<input
-                              type="number"
-                              min={framesToDurationSeconds(1)}
-                              max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
-                              step={0.01}
-                              inputMode="decimal"
-                              className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
-                              value={noteMenuDraft.length}
-                              onChange={(event) =>
-                                setNoteMenuDraft((prev) =>
-                                  prev ? { ...prev, length: event.target.value } : prev
-                                )
-                              }
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                  event.preventDefault();
-                                  commitNoteMenuLength();
-                                }
-                                if (event.key === "Escape") {
-                                  event.preventDefault();
-                                  setNoteMenuAnchor(null);
-                                  setNoteMenuNoteId(null);
-                                  setNoteMenuDraft(null);
-                                }
-                              }}
-                              onBlur={() => commitNoteMenuLength()}
-                            />
-                          </label>
-                          <label className="block text-[10px] text-slate-500">{t("Length")}<select
-                              className="mt-1 h-[26px] w-full rounded border border-slate-200 bg-white px-1 text-xs"
-                              value={getNearestNoteFractionDenominator(selectedNote.length)}
-                              onChange={(event) => commitNoteMenuFractionLength(event.target.value)}
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                  event.preventDefault();
-                                  commitNoteMenuFractionLength(event.currentTarget.value);
-                                }
-                                if (event.key === "Escape") {
-                                  event.preventDefault();
-                                  setNoteMenuAnchor(null);
-                                  setNoteMenuNoteId(null);
-                                  setNoteMenuDraft(null);
-                                }
-                              }}
-                              aria-label={t("Musical note length {value1}", {value1: formatLengthFramesAsFraction(selectedNote.length)})}
-                            >
-                              {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
-                                <option key={denominator} value={denominator}>
-                                  {formatNoteLengthOption(denominator)}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        </div>
-                      </div>
-                      {noteAlternates?.possibleTabs?.length ||
-                      noteAlternates?.blockedTabs?.length ? (
-                        <div className="mt-3">
-                          <div className="text-[10px] text-slate-500">{t("Alternative fingerings")}</div>
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            {(noteAlternates?.possibleTabs || []).slice(0, 10).map((tab, idx) => (
-                              <button
-                                key={`note-alt-${selectedNote.id}-${idx}`}
-                                type="button"
-                                onClick={() => handleAssignAlt(tab)}
-                                className="rounded bg-amber-400/70 px-2 py-1 text-[10px] font-semibold text-slate-900"
-                              >
-                                {stringLabels[tab[0]]}
-                                {tab[1]}
-                              </button>
-                            ))}
-                            {(noteAlternates?.blockedTabs || []).slice(0, 10).map((tab, idx) => (
-                              <button
-                                key={`note-alt-blocked-${selectedNote.id}-${idx}`}
-                                type="button"
-                                onClick={() => handleAssignAlt(tab)}
-                                className="rounded bg-rose-200 px-2 py-1 text-[10px] font-semibold text-rose-700"
-                              >
-                                {stringLabels[tab[0]]}
-                                {tab[1]}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                      <button
-                          type="button"
-                          onClick={() => {
-                            handleDeleteNote();
-                            setSelectedNoteIds([]);
-                            setNoteMenuAnchor(null);
-                            setNoteMenuNoteId(null);
-                            setNoteMenuDraft(null);
-                          }}
-                        className="mt-3 w-full rounded-md bg-rose-500/80 px-2 py-1 text-xs font-semibold text-white"
-                      >{t("Delete note")}</button>
-                    </div>
-                  )}
-
-                {selectedChord &&
-                  chordMenuAnchor &&
-                  chordMenuChordId === selectedChord.id &&
-                  chordMenuDraft &&
-                  editingChordId === null &&
-                  !mobileViewport && (
-                    <div
-                      ref={chordMenuRef}
-                      className="fixed z-[9999] w-60 rounded-md border border-slate-200 bg-white p-2 shadow-md"
-                      style={{ left: chordMenuAnchor.x, top: chordMenuAnchor.y }}
-                      onMouseDown={(event) => event.stopPropagation()}
-                    >
-                      <div
-                        className="flex cursor-move items-center justify-between rounded-md bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700"
-                        onMouseDown={(event) => startFloatingPanelDrag("chord", event)}
-                      >
-                        <span>{t("Chord #")}{selectedChord.id}</span>
-                        <span className="text-[9px] font-medium uppercase tracking-wide text-slate-400">{t("Drag")}</span>
-                      </div>
-                      <div className="mt-2 space-y-2">
-                        <label className="block text-[10px] text-slate-500">{t("Length (sec)")}<input
-                            type="number"
-                            min={framesToDurationSeconds(1)}
-                            max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
-                            step={0.01}
-                            inputMode="decimal"
-                            className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
-                            value={chordMenuDraft.length}
-                            onChange={(event) =>
-                              setChordMenuDraft((prev) =>
-                                prev ? { ...prev, length: event.target.value } : prev
-                              )
-                            }
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                commitChordMenuLength();
-                              }
-                              if (event.key === "Escape") {
-                                event.preventDefault();
-                                setChordMenuAnchor(null);
-                                setChordMenuChordId(null);
-                                setChordMenuDraft(null);
-                              }
-                            }}
-                            onBlur={() => commitChordMenuLength()}
-                          />
-                        </label>
-                      </div>
-                      {chordAlternatives.length ? (
-                        <div className="mt-3">
-                          <div className="text-[10px] text-slate-500">{t("Fingerings")}</div>
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            {chordAlternatives.slice(0, 8).map((tabs, idx) => (
-                              <button
-                                key={`chord-alt-${selectedChord.id}-${idx}`}
-                                type="button"
-                                onClick={() => handleApplyChordTabs(tabs)}
-                                className="rounded bg-amber-400/70 px-2 py-1 text-[10px] font-semibold text-slate-900"
-                              >
-                                {tabs.map((tab) => `${stringLabels[tab[0]]}${tab[1]}`).join(" ")}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={(event) => openChordEdit(selectedChord.id, event)}
-                        className="mt-3 w-full rounded-md border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-100"
-                      >{t("Edit chord")}</button>
-                      <div className="mt-3 grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleChordOctaveShift(-1)}
-                          className="rounded-md border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-100"
-                        >{t("Octave down")}</button>
-                        <button
-                          type="button"
-                          onClick={() => handleChordOctaveShift(1)}
-                          className="rounded-md border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-100"
-                        >{t("Octave up")}</button>
-                      </div>
-                      <div className="mt-2 grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void runMutation(() => gteApi.disbandChord(editorId, selectedChord.id), {
-                              localApply: (draft) => {
-                                disbandChordInSnapshot(draft, selectedChord.id);
-                              },
-                            });
-                            setSelectedChordIds([]);
-                            setChordMenuAnchor(null);
-                            setChordMenuChordId(null);
-                            setChordMenuDraft(null);
-                          }}
-                          className="rounded-md border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-100"
-                        >{t("Disband")}</button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleDeleteChord();
-                            setChordMenuAnchor(null);
-                            setChordMenuChordId(null);
-                            setChordMenuDraft(null);
-                          }}
-                          className="rounded-md bg-rose-500/80 px-2 py-1 text-[10px] font-semibold text-white"
-                        >{t("Delete")}</button>
-                      </div>
-                    </div>
-                  )}
-
-                {editingChordId !== null && editingChordAnchor && (
-                  <div
-                    ref={chordEditPanelRef}
-                    className="fixed z-[9999] w-48 rounded-md border border-slate-200 bg-white p-2 shadow-md"
-                    style={{ left: editingChordAnchor.x, top: editingChordAnchor.y }}
-                    onMouseDown={(event) => event.stopPropagation()}
-                  >
-                    <div className="text-[11px] font-semibold text-slate-700">{t("Editing chord #")}{editingChordId}
-                    </div>
-                    <p className="mt-1 text-[10px] text-slate-500">{t("Click chord notes to edit.")}</p>
-                    <button
-                      type="button"
-                      onClick={exitChordEdit}
-                      className="mt-2 w-full rounded-md bg-emerald-500/80 px-2 py-1 text-[10px] font-semibold text-slate-900"
-                    >{t("Done")}</button>
-                  </div>
-                )}
-
-                {selectedChord &&
-                  editingChordId === selectedChord.id &&
-                  chordNoteMenuAnchor &&
-                  chordNoteMenuIndex !== null &&
-                  chordNoteMenuDraft && (
-                    <div
-                      ref={chordNoteMenuRef}
-                      className="fixed z-[9999] w-56 rounded-md border border-slate-200 bg-white p-2 shadow-md"
-                      style={{ left: chordNoteMenuAnchor.x, top: chordNoteMenuAnchor.y }}
-                      onMouseDown={(event) => event.stopPropagation()}
-                    >
-                      <div className="text-[11px] font-semibold text-slate-700">{t("Chord note #")}{chordNoteMenuIndex + 1}
-                      </div>
-                      <div className="mt-2 space-y-2">
-                        <label className="block text-[10px] text-slate-500">{t("Fret")}<input
-                            type="number"
-                            min={0}
-                            max={maxFret}
-                            className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
-                            value={chordNoteMenuDraft.fret}
-                            onChange={(event) =>
-                              setChordNoteMenuDraft((prev) =>
-                                prev ? { ...prev, fret: event.target.value } : prev
-                              )
-                            }
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                commitChordNoteFret();
-                              }
-                              if (event.key === "Escape") {
-                                event.preventDefault();
-                                setChordNoteMenuAnchor(null);
-                                setChordNoteMenuIndex(null);
-                                setChordNoteMenuDraft(null);
-                              }
-                            }}
-                            onBlur={() => commitChordNoteFret()}
-                          />
-                        </label>
-                        <label className="block text-[10px] text-slate-500">{t("Length (sec)")}<input
-                            type="number"
-                            min={framesToDurationSeconds(1)}
-                            max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
-                            step={0.01}
-                            inputMode="decimal"
-                            className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
-                            value={chordNoteMenuDraft.length}
-                            onChange={(event) =>
-                              setChordNoteMenuDraft((prev) =>
-                                prev ? { ...prev, length: event.target.value } : prev
-                              )
-                            }
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                commitChordNoteLength();
-                              }
-                              if (event.key === "Escape") {
-                                event.preventDefault();
-                                setChordNoteMenuAnchor(null);
-                                setChordNoteMenuIndex(null);
-                                setChordNoteMenuDraft(null);
-                              }
-                            }}
-                            onBlur={() => commitChordNoteLength()}
-                          />
-                        </label>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={deleteChordNote}
-                        className="mt-3 w-full rounded-md bg-rose-500/80 px-2 py-1 text-[10px] font-semibold text-white"
-                      >{t("Delete note")}</button>
-                    </div>
-                  )}
 
                 {optimizingFingering && (
                   <div
@@ -19293,125 +18969,6 @@ export default function GteWorkspace({
           <div className="pointer-events-auto fixed inset-x-0 bottom-0 z-[9980] h-32 bg-white/98 shadow-[0_-8px_24px_rgba(15,23,42,0.08)]" aria-hidden="true" data-gte-floating-ui="true" />,
           document.body
         )}
-        {showMobileEditRail && showMobileInlineNoteSettings && selectedNote && noteMenuDraft && typeof document !== "undefined" && createPortal(
-          <div className="mt-2 shrink-0" data-gte-floating-ui="true">
-            <div
-              className={`fixed bottom-2 left-2 right-2 z-[9999] mx-auto flex items-stretch gap-2 overflow-y-auto rounded-xl pb-0 ${
-                mobileLandscape
-                  ? "max-h-[70dvh] w-[min(calc(100vw-1rem),46rem)]"
-                  : "max-h-[48dvh] w-[min(calc(100vw-1rem),28rem)]"
-              }`}
-            >
-              <div
-                ref={showMobileInlineNoteSettings ? noteMenuRef : null}
-                className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white p-2.5 shadow-lg"
-                onMouseDown={(event) => event.stopPropagation()}
-              >
-                <div
-                  className={
-                    mobileLandscape
-                      ? "grid min-h-0 grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.2fr)] gap-3"
-                      : "flex min-h-0 flex-col"
-                  }
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Note settings")}</div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleDeleteNote();
-                          setSelectedNoteIds([]);
-                          setNoteMenuAnchor(null);
-                          setNoteMenuNoteId(null);
-                          setNoteMenuDraft(null);
-                        }}
-                        className="rounded-md bg-rose-500/90 px-2 py-1 text-[10px] font-semibold text-white"
-                      >{t("Delete")}</button>
-                    </div>
-                    <label className="mt-2 block rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                      <span className="flex items-center justify-between text-[9px] font-semibold uppercase tracking-wide text-slate-500">
-                        <span>{t("Fret")}</span>
-                        <span className="text-lg font-bold tabular-nums text-slate-900">{noteMenuDraft.fret}</span>
-                      </span>
-                      <input
-                        type="range"
-                        min={0}
-                        max={maxFret}
-                        step={1}
-                        value={Number(noteMenuDraft.fret)}
-                        onChange={(event) => {
-                          const fret = Number(event.currentTarget.value);
-                          setNoteMenuDraft((prev) => (prev ? { ...prev, fret: String(fret) } : prev));
-                          scheduleNoteFretArrowCommit(selectedNote.id, fret);
-                        }}
-                        className="mt-1 h-7 w-full accent-emerald-600"
-                        aria-label={t("Selected note fret")}
-                      />
-                    </label>
-                  </div>
-                  <div className="min-w-0">
-                    <div className={`grid grid-cols-4 gap-1.5 ${mobileLandscape ? "" : "mt-2"}`} aria-label={t("Move selected note")}>
-                      {(["left", "up", "down", "right"] as const).map((direction) => (
-                        <button
-                          key={direction}
-                          type="button"
-                          onClick={() => moveSelectedMobileNote(direction)}
-                          className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-700 shadow-sm active:bg-slate-100"
-                          aria-label={t("Move note {value1}", {value1: direction})}
-                        >
-                          {direction === "left" ? "←" : direction === "right" ? "→" : direction === "up" ? "↑" : "↓"}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => scaleSelectedMobileNote(0.5)}
-                        className="h-10 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm active:bg-slate-100"
-                      >{t("Scale ½×")}</button>
-                      <button
-                        type="button"
-                        onClick={() => scaleSelectedMobileNote(2)}
-                        className="h-10 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm active:bg-slate-100"
-                      >{t("Scale 2×")}</button>
-                    </div>
-                  </div>
-                  <div className={`min-w-0 ${mobileLandscape ? "max-h-[9.5rem] overflow-y-auto" : "mt-2"}`}>
-                      <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">{t("Fingering")}</div>
-                      {noteAlternates?.possibleTabs?.length || noteAlternates?.blockedTabs?.length ? (
-                        <div className="mt-1.5 flex flex-wrap gap-1.5">
-                          {(noteAlternates?.possibleTabs || []).slice(0, 10).map((tab, index) => (
-                            <button
-                              key={`mobile-note-alt-${selectedNote.id}-${index}`}
-                              type="button"
-                              onClick={() => handleAssignAlt(tab)}
-                              className="min-h-9 min-w-11 rounded-lg bg-amber-400/70 px-2.5 py-1.5 text-xs font-semibold text-slate-900 active:bg-amber-400"
-                            >
-                              {stringLabels[tab[0]]}{tab[1]}
-                            </button>
-                          ))}
-                          {(noteAlternates?.blockedTabs || []).slice(0, 10).map((tab, index) => (
-                            <button
-                              key={`mobile-note-alt-blocked-${selectedNote.id}-${index}`}
-                              type="button"
-                              onClick={() => handleAssignAlt(tab)}
-                              className="min-h-9 min-w-11 rounded-lg bg-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-700 active:bg-rose-300"
-                            >
-                              {stringLabels[tab[0]]}{tab[1]}
-                            </button>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="mt-1.5 text-xs text-slate-400">{t("No alternative fingerings")}</div>
-                      )}
-                    </div>
-                </div>
-              </div>
-            </div>
-          </div>,
-          document.body
-        )}
         {showMobileEditRail && showMobileMultiSelectPanel && typeof document !== "undefined" && createPortal(
           <div
             className={`fixed bottom-2 left-2 right-2 z-[9999] mx-auto rounded-xl border border-slate-200 bg-white p-3 shadow-2xl ${
@@ -19484,117 +19041,6 @@ export default function GteWorkspace({
           </div>,
           document.body
         )}
-        {showMobileEditRail &&
-          showMobileChordPanel &&
-          selectedChord &&
-          chordMenuDraft &&
-          editingChordId === null &&
-          typeof document !== "undefined" &&
-          createPortal(
-            <div
-              className="fixed bottom-2 left-2 right-2 z-[9999] mx-auto max-h-[48dvh] w-[min(calc(100vw-1rem),28rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-2xl"
-              data-gte-floating-ui="true"
-              onMouseDown={(event) => event.stopPropagation()}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Chord settings")}</div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleDeleteChord();
-                    setSelectedChordIds([]);
-                    setChordMenuAnchor(null);
-                    setChordMenuChordId(null);
-                    setChordMenuDraft(null);
-                  }}
-                  className="rounded-lg bg-rose-500/90 px-3 py-2 text-xs font-semibold text-white"
-                >{t("Delete")}</button>
-              </div>
-              <label className="mt-2 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Length (seconds)")}<input
-                  type="number"
-                  min={framesToDurationSeconds(1)}
-                  max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
-                  step={0.01}
-                  inputMode="decimal"
-                  className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal text-slate-800"
-                  value={chordMenuDraft.length}
-                  onChange={(event) =>
-                    setChordMenuDraft((prev) =>
-                      prev ? { ...prev, length: event.target.value } : prev
-                    )
-                  }
-                  onBlur={commitChordMenuLength}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      commitChordMenuLength();
-                    }
-                  }}
-                />
-              </label>
-              {chordAlternatives.length > 0 && (
-                <div className="mt-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Fingering")}</div>
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {chordAlternatives.slice(0, 8).map((tabs, index) => (
-                      <button
-                        key={`mobile-chord-alt-${selectedChord.id}-${index}`}
-                        type="button"
-                        onClick={() => handleApplyChordTabs(tabs)}
-                        className="min-h-10 rounded-lg bg-amber-400/70 px-2.5 py-1.5 text-xs font-semibold text-slate-900 active:bg-amber-400"
-                      >
-                        {tabs.map((tab) => `${stringLabels[tab[0]]}${tab[1]}`).join(" ")}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div className="mt-3 grid grid-cols-2 gap-2" aria-label={t("Move selected chord")}>
-                <button
-                  type="button"
-                  onClick={() => moveSelectedMobileChord("left")}
-                  className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-700 shadow-sm active:bg-slate-100"
-                  aria-label={t("Move chord left")}
-                >
-                  ←
-                </button>
-                <button
-                  type="button"
-                  onClick={() => moveSelectedMobileChord("right")}
-                  className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-700 shadow-sm active:bg-slate-100"
-                  aria-label={t("Move chord right")}
-                >
-                  →
-                </button>
-              </div>
-              <div className="mt-2 grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleChordOctaveShift(-1)}
-                  className="h-10 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700"
-                >{t("Octave −")}</button>
-                <button
-                  type="button"
-                  onClick={() => handleChordOctaveShift(1)}
-                  className="h-10 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700"
-                >{t("Octave +")}</button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void runMutation(() => gteApi.disbandChord(editorId, selectedChord.id), {
-                      localApply: (draft) => disbandChordInSnapshot(draft, selectedChord.id),
-                    });
-                    setSelectedChordIds([]);
-                    setChordMenuAnchor(null);
-                    setChordMenuChordId(null);
-                    setChordMenuDraft(null);
-                  }}
-                  className="h-10 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700"
-                >{t("Disband")}</button>
-              </div>
-            </div>,
-            document.body
-          )}
       </div>
     </div>
   );
