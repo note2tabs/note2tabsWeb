@@ -1,0 +1,2053 @@
+{
+  "reference": "Local final build. Localized SSR plus English hydrated browser rendering; trusted edge country headers and stale EUR cookies. Amounts compared with fresh read-only Stripe snapshot.",
+  "checks": [
+    {
+      "locale": "pt-BR",
+      "currency": "USD",
+      "country": "US",
+      "status": 200,
+      "actualCurrency": "USD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "GBP",
+      "country": "GB",
+      "status": 200,
+      "actualCurrency": "GBP",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "EUR",
+      "country": "FR",
+      "status": 200,
+      "actualCurrency": "EUR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "SEK",
+      "country": "SE",
+      "status": 200,
+      "actualCurrency": "SEK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "CAD",
+      "country": "CA",
+      "status": 200,
+      "actualCurrency": "CAD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "AUD",
+      "country": "AU",
+      "status": 200,
+      "actualCurrency": "AUD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "NZD",
+      "country": "NZ",
+      "status": 200,
+      "actualCurrency": "NZD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "CHF",
+      "country": "CH",
+      "status": 200,
+      "actualCurrency": "CHF",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "NOK",
+      "country": "NO",
+      "status": 200,
+      "actualCurrency": "NOK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "DKK",
+      "country": "DK",
+      "status": 200,
+      "actualCurrency": "DKK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "JPY",
+      "country": "JP",
+      "status": 200,
+      "actualCurrency": "JPY",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "SGD",
+      "country": "SG",
+      "status": 200,
+      "actualCurrency": "SGD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "BRL",
+      "country": "BR",
+      "status": 200,
+      "actualCurrency": "BRL",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "INR",
+      "country": "IN",
+      "status": 200,
+      "actualCurrency": "INR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "IDR",
+      "country": "ID",
+      "status": 200,
+      "actualCurrency": "IDR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "CNY",
+      "country": "CN",
+      "status": 200,
+      "actualCurrency": "CNY",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "MXN",
+      "country": "MX",
+      "status": 200,
+      "actualCurrency": "MXN",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "PHP",
+      "country": "PH",
+      "status": 200,
+      "actualCurrency": "PHP",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "MYR",
+      "country": "MY",
+      "status": 200,
+      "actualCurrency": "MYR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "THB",
+      "country": "TH",
+      "status": 200,
+      "actualCurrency": "THB",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "ZAR",
+      "country": "ZA",
+      "status": 200,
+      "actualCurrency": "ZAR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "PLN",
+      "country": "PL",
+      "status": 200,
+      "actualCurrency": "PLN",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pt-BR",
+      "currency": "KRW",
+      "country": "KR",
+      "status": 200,
+      "actualCurrency": "KRW",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "USD",
+      "country": "US",
+      "status": 200,
+      "actualCurrency": "USD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "GBP",
+      "country": "GB",
+      "status": 200,
+      "actualCurrency": "GBP",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "EUR",
+      "country": "FR",
+      "status": 200,
+      "actualCurrency": "EUR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "SEK",
+      "country": "SE",
+      "status": 200,
+      "actualCurrency": "SEK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "CAD",
+      "country": "CA",
+      "status": 200,
+      "actualCurrency": "CAD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "AUD",
+      "country": "AU",
+      "status": 200,
+      "actualCurrency": "AUD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "NZD",
+      "country": "NZ",
+      "status": 200,
+      "actualCurrency": "NZD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "CHF",
+      "country": "CH",
+      "status": 200,
+      "actualCurrency": "CHF",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "NOK",
+      "country": "NO",
+      "status": 200,
+      "actualCurrency": "NOK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "DKK",
+      "country": "DK",
+      "status": 200,
+      "actualCurrency": "DKK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "JPY",
+      "country": "JP",
+      "status": 200,
+      "actualCurrency": "JPY",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "SGD",
+      "country": "SG",
+      "status": 200,
+      "actualCurrency": "SGD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "BRL",
+      "country": "BR",
+      "status": 200,
+      "actualCurrency": "BRL",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "INR",
+      "country": "IN",
+      "status": 200,
+      "actualCurrency": "INR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "IDR",
+      "country": "ID",
+      "status": 200,
+      "actualCurrency": "IDR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "CNY",
+      "country": "CN",
+      "status": 200,
+      "actualCurrency": "CNY",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "MXN",
+      "country": "MX",
+      "status": 200,
+      "actualCurrency": "MXN",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "PHP",
+      "country": "PH",
+      "status": 200,
+      "actualCurrency": "PHP",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "MYR",
+      "country": "MY",
+      "status": 200,
+      "actualCurrency": "MYR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "THB",
+      "country": "TH",
+      "status": 200,
+      "actualCurrency": "THB",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "ZAR",
+      "country": "ZA",
+      "status": 200,
+      "actualCurrency": "ZAR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "PLN",
+      "country": "PL",
+      "status": 200,
+      "actualCurrency": "PLN",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "es",
+      "currency": "KRW",
+      "country": "KR",
+      "status": 200,
+      "actualCurrency": "KRW",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "USD",
+      "country": "US",
+      "status": 200,
+      "actualCurrency": "USD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "GBP",
+      "country": "GB",
+      "status": 200,
+      "actualCurrency": "GBP",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "EUR",
+      "country": "FR",
+      "status": 200,
+      "actualCurrency": "EUR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "SEK",
+      "country": "SE",
+      "status": 200,
+      "actualCurrency": "SEK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "CAD",
+      "country": "CA",
+      "status": 200,
+      "actualCurrency": "CAD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "AUD",
+      "country": "AU",
+      "status": 200,
+      "actualCurrency": "AUD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "NZD",
+      "country": "NZ",
+      "status": 200,
+      "actualCurrency": "NZD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "CHF",
+      "country": "CH",
+      "status": 200,
+      "actualCurrency": "CHF",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "NOK",
+      "country": "NO",
+      "status": 200,
+      "actualCurrency": "NOK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "DKK",
+      "country": "DK",
+      "status": 200,
+      "actualCurrency": "DKK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "JPY",
+      "country": "JP",
+      "status": 200,
+      "actualCurrency": "JPY",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "SGD",
+      "country": "SG",
+      "status": 200,
+      "actualCurrency": "SGD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "BRL",
+      "country": "BR",
+      "status": 200,
+      "actualCurrency": "BRL",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "INR",
+      "country": "IN",
+      "status": 200,
+      "actualCurrency": "INR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "IDR",
+      "country": "ID",
+      "status": 200,
+      "actualCurrency": "IDR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "CNY",
+      "country": "CN",
+      "status": 200,
+      "actualCurrency": "CNY",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "MXN",
+      "country": "MX",
+      "status": 200,
+      "actualCurrency": "MXN",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "PHP",
+      "country": "PH",
+      "status": 200,
+      "actualCurrency": "PHP",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "MYR",
+      "country": "MY",
+      "status": 200,
+      "actualCurrency": "MYR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "THB",
+      "country": "TH",
+      "status": 200,
+      "actualCurrency": "THB",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "ZAR",
+      "country": "ZA",
+      "status": 200,
+      "actualCurrency": "ZAR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "PLN",
+      "country": "PL",
+      "status": 200,
+      "actualCurrency": "PLN",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ja",
+      "currency": "KRW",
+      "country": "KR",
+      "status": 200,
+      "actualCurrency": "KRW",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "USD",
+      "country": "US",
+      "status": 200,
+      "actualCurrency": "USD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "GBP",
+      "country": "GB",
+      "status": 200,
+      "actualCurrency": "GBP",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "EUR",
+      "country": "FR",
+      "status": 200,
+      "actualCurrency": "EUR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "SEK",
+      "country": "SE",
+      "status": 200,
+      "actualCurrency": "SEK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "CAD",
+      "country": "CA",
+      "status": 200,
+      "actualCurrency": "CAD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "AUD",
+      "country": "AU",
+      "status": 200,
+      "actualCurrency": "AUD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "NZD",
+      "country": "NZ",
+      "status": 200,
+      "actualCurrency": "NZD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "CHF",
+      "country": "CH",
+      "status": 200,
+      "actualCurrency": "CHF",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "NOK",
+      "country": "NO",
+      "status": 200,
+      "actualCurrency": "NOK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "DKK",
+      "country": "DK",
+      "status": 200,
+      "actualCurrency": "DKK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "JPY",
+      "country": "JP",
+      "status": 200,
+      "actualCurrency": "JPY",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "SGD",
+      "country": "SG",
+      "status": 200,
+      "actualCurrency": "SGD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "BRL",
+      "country": "BR",
+      "status": 200,
+      "actualCurrency": "BRL",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "INR",
+      "country": "IN",
+      "status": 200,
+      "actualCurrency": "INR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "IDR",
+      "country": "ID",
+      "status": 200,
+      "actualCurrency": "IDR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "CNY",
+      "country": "CN",
+      "status": 200,
+      "actualCurrency": "CNY",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "MXN",
+      "country": "MX",
+      "status": 200,
+      "actualCurrency": "MXN",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "PHP",
+      "country": "PH",
+      "status": 200,
+      "actualCurrency": "PHP",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "MYR",
+      "country": "MY",
+      "status": 200,
+      "actualCurrency": "MYR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "THB",
+      "country": "TH",
+      "status": 200,
+      "actualCurrency": "THB",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "ZAR",
+      "country": "ZA",
+      "status": 200,
+      "actualCurrency": "ZAR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "PLN",
+      "country": "PL",
+      "status": 200,
+      "actualCurrency": "PLN",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ko",
+      "currency": "KRW",
+      "country": "KR",
+      "status": 200,
+      "actualCurrency": "KRW",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "USD",
+      "country": "US",
+      "status": 200,
+      "actualCurrency": "USD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "GBP",
+      "country": "GB",
+      "status": 200,
+      "actualCurrency": "GBP",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "EUR",
+      "country": "FR",
+      "status": 200,
+      "actualCurrency": "EUR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "SEK",
+      "country": "SE",
+      "status": 200,
+      "actualCurrency": "SEK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "CAD",
+      "country": "CA",
+      "status": 200,
+      "actualCurrency": "CAD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "AUD",
+      "country": "AU",
+      "status": 200,
+      "actualCurrency": "AUD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "NZD",
+      "country": "NZ",
+      "status": 200,
+      "actualCurrency": "NZD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "CHF",
+      "country": "CH",
+      "status": 200,
+      "actualCurrency": "CHF",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "NOK",
+      "country": "NO",
+      "status": 200,
+      "actualCurrency": "NOK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "DKK",
+      "country": "DK",
+      "status": 200,
+      "actualCurrency": "DKK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "JPY",
+      "country": "JP",
+      "status": 200,
+      "actualCurrency": "JPY",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "SGD",
+      "country": "SG",
+      "status": 200,
+      "actualCurrency": "SGD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "BRL",
+      "country": "BR",
+      "status": 200,
+      "actualCurrency": "BRL",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "INR",
+      "country": "IN",
+      "status": 200,
+      "actualCurrency": "INR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "IDR",
+      "country": "ID",
+      "status": 200,
+      "actualCurrency": "IDR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "CNY",
+      "country": "CN",
+      "status": 200,
+      "actualCurrency": "CNY",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "MXN",
+      "country": "MX",
+      "status": 200,
+      "actualCurrency": "MXN",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "PHP",
+      "country": "PH",
+      "status": 200,
+      "actualCurrency": "PHP",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "MYR",
+      "country": "MY",
+      "status": 200,
+      "actualCurrency": "MYR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "THB",
+      "country": "TH",
+      "status": 200,
+      "actualCurrency": "THB",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "ZAR",
+      "country": "ZA",
+      "status": 200,
+      "actualCurrency": "ZAR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "PLN",
+      "country": "PL",
+      "status": 200,
+      "actualCurrency": "PLN",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "pl",
+      "currency": "KRW",
+      "country": "KR",
+      "status": 200,
+      "actualCurrency": "KRW",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "USD",
+      "country": "US",
+      "status": 200,
+      "actualCurrency": "USD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "GBP",
+      "country": "GB",
+      "status": 200,
+      "actualCurrency": "GBP",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "EUR",
+      "country": "FR",
+      "status": 200,
+      "actualCurrency": "EUR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "SEK",
+      "country": "SE",
+      "status": 200,
+      "actualCurrency": "SEK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "CAD",
+      "country": "CA",
+      "status": 200,
+      "actualCurrency": "CAD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "AUD",
+      "country": "AU",
+      "status": 200,
+      "actualCurrency": "AUD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "NZD",
+      "country": "NZ",
+      "status": 200,
+      "actualCurrency": "NZD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "CHF",
+      "country": "CH",
+      "status": 200,
+      "actualCurrency": "CHF",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "NOK",
+      "country": "NO",
+      "status": 200,
+      "actualCurrency": "NOK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "DKK",
+      "country": "DK",
+      "status": 200,
+      "actualCurrency": "DKK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "JPY",
+      "country": "JP",
+      "status": 200,
+      "actualCurrency": "JPY",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "SGD",
+      "country": "SG",
+      "status": 200,
+      "actualCurrency": "SGD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "BRL",
+      "country": "BR",
+      "status": 200,
+      "actualCurrency": "BRL",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "INR",
+      "country": "IN",
+      "status": 200,
+      "actualCurrency": "INR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "IDR",
+      "country": "ID",
+      "status": 200,
+      "actualCurrency": "IDR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "CNY",
+      "country": "CN",
+      "status": 200,
+      "actualCurrency": "CNY",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "MXN",
+      "country": "MX",
+      "status": 200,
+      "actualCurrency": "MXN",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "PHP",
+      "country": "PH",
+      "status": 200,
+      "actualCurrency": "PHP",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "MYR",
+      "country": "MY",
+      "status": 200,
+      "actualCurrency": "MYR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "THB",
+      "country": "TH",
+      "status": 200,
+      "actualCurrency": "THB",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "ZAR",
+      "country": "ZA",
+      "status": 200,
+      "actualCurrency": "ZAR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "PLN",
+      "country": "PL",
+      "status": 200,
+      "actualCurrency": "PLN",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "ar",
+      "currency": "KRW",
+      "country": "KR",
+      "status": 200,
+      "actualCurrency": "KRW",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "USD",
+      "country": "US",
+      "status": 200,
+      "actualCurrency": "USD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "GBP",
+      "country": "GB",
+      "status": 200,
+      "actualCurrency": "GBP",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "EUR",
+      "country": "FR",
+      "status": 200,
+      "actualCurrency": "EUR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "SEK",
+      "country": "SE",
+      "status": 200,
+      "actualCurrency": "SEK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "CAD",
+      "country": "CA",
+      "status": 200,
+      "actualCurrency": "CAD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "AUD",
+      "country": "AU",
+      "status": 200,
+      "actualCurrency": "AUD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "NZD",
+      "country": "NZ",
+      "status": 200,
+      "actualCurrency": "NZD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "CHF",
+      "country": "CH",
+      "status": 200,
+      "actualCurrency": "CHF",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "NOK",
+      "country": "NO",
+      "status": 200,
+      "actualCurrency": "NOK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "DKK",
+      "country": "DK",
+      "status": 200,
+      "actualCurrency": "DKK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "JPY",
+      "country": "JP",
+      "status": 200,
+      "actualCurrency": "JPY",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "SGD",
+      "country": "SG",
+      "status": 200,
+      "actualCurrency": "SGD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "BRL",
+      "country": "BR",
+      "status": 200,
+      "actualCurrency": "BRL",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "INR",
+      "country": "IN",
+      "status": 200,
+      "actualCurrency": "INR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "IDR",
+      "country": "ID",
+      "status": 200,
+      "actualCurrency": "IDR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "CNY",
+      "country": "CN",
+      "status": 200,
+      "actualCurrency": "CNY",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "MXN",
+      "country": "MX",
+      "status": 200,
+      "actualCurrency": "MXN",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "PHP",
+      "country": "PH",
+      "status": 200,
+      "actualCurrency": "PHP",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "MYR",
+      "country": "MY",
+      "status": 200,
+      "actualCurrency": "MYR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "THB",
+      "country": "TH",
+      "status": 200,
+      "actualCurrency": "THB",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "ZAR",
+      "country": "ZA",
+      "status": 200,
+      "actualCurrency": "ZAR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "PLN",
+      "country": "PL",
+      "status": 200,
+      "actualCurrency": "PLN",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "zh-Hans",
+      "currency": "KRW",
+      "country": "KR",
+      "status": 200,
+      "actualCurrency": "KRW",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "USD",
+      "country": "US",
+      "status": 200,
+      "actualCurrency": "USD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "GBP",
+      "country": "GB",
+      "status": 200,
+      "actualCurrency": "GBP",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "EUR",
+      "country": "FR",
+      "status": 200,
+      "actualCurrency": "EUR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "SEK",
+      "country": "SE",
+      "status": 200,
+      "actualCurrency": "SEK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "CAD",
+      "country": "CA",
+      "status": 200,
+      "actualCurrency": "CAD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "AUD",
+      "country": "AU",
+      "status": 200,
+      "actualCurrency": "AUD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "NZD",
+      "country": "NZ",
+      "status": 200,
+      "actualCurrency": "NZD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "CHF",
+      "country": "CH",
+      "status": 200,
+      "actualCurrency": "CHF",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "NOK",
+      "country": "NO",
+      "status": 200,
+      "actualCurrency": "NOK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "DKK",
+      "country": "DK",
+      "status": 200,
+      "actualCurrency": "DKK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "JPY",
+      "country": "JP",
+      "status": 200,
+      "actualCurrency": "JPY",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "SGD",
+      "country": "SG",
+      "status": 200,
+      "actualCurrency": "SGD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "BRL",
+      "country": "BR",
+      "status": 200,
+      "actualCurrency": "BRL",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "INR",
+      "country": "IN",
+      "status": 200,
+      "actualCurrency": "INR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "IDR",
+      "country": "ID",
+      "status": 200,
+      "actualCurrency": "IDR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "CNY",
+      "country": "CN",
+      "status": 200,
+      "actualCurrency": "CNY",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "MXN",
+      "country": "MX",
+      "status": 200,
+      "actualCurrency": "MXN",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "PHP",
+      "country": "PH",
+      "status": 200,
+      "actualCurrency": "PHP",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "MYR",
+      "country": "MY",
+      "status": 200,
+      "actualCurrency": "MYR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "THB",
+      "country": "TH",
+      "status": 200,
+      "actualCurrency": "THB",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "ZAR",
+      "country": "ZA",
+      "status": 200,
+      "actualCurrency": "ZAR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "PLN",
+      "country": "PL",
+      "status": 200,
+      "actualCurrency": "PLN",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "fr",
+      "currency": "KRW",
+      "country": "KR",
+      "status": 200,
+      "actualCurrency": "KRW",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "USD",
+      "country": "US",
+      "status": 200,
+      "actualCurrency": "USD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "GBP",
+      "country": "GB",
+      "status": 200,
+      "actualCurrency": "GBP",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "EUR",
+      "country": "FR",
+      "status": 200,
+      "actualCurrency": "EUR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "SEK",
+      "country": "SE",
+      "status": 200,
+      "actualCurrency": "SEK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "CAD",
+      "country": "CA",
+      "status": 200,
+      "actualCurrency": "CAD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "AUD",
+      "country": "AU",
+      "status": 200,
+      "actualCurrency": "AUD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "NZD",
+      "country": "NZ",
+      "status": 200,
+      "actualCurrency": "NZD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "CHF",
+      "country": "CH",
+      "status": 200,
+      "actualCurrency": "CHF",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "NOK",
+      "country": "NO",
+      "status": 200,
+      "actualCurrency": "NOK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "DKK",
+      "country": "DK",
+      "status": 200,
+      "actualCurrency": "DKK",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "JPY",
+      "country": "JP",
+      "status": 200,
+      "actualCurrency": "JPY",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "SGD",
+      "country": "SG",
+      "status": 200,
+      "actualCurrency": "SGD",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "BRL",
+      "country": "BR",
+      "status": 200,
+      "actualCurrency": "BRL",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "INR",
+      "country": "IN",
+      "status": 200,
+      "actualCurrency": "INR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "IDR",
+      "country": "ID",
+      "status": 200,
+      "actualCurrency": "IDR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "CNY",
+      "country": "CN",
+      "status": 200,
+      "actualCurrency": "CNY",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "MXN",
+      "country": "MX",
+      "status": 200,
+      "actualCurrency": "MXN",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "PHP",
+      "country": "PH",
+      "status": 200,
+      "actualCurrency": "PHP",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "MYR",
+      "country": "MY",
+      "status": 200,
+      "actualCurrency": "MYR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "THB",
+      "country": "TH",
+      "status": 200,
+      "actualCurrency": "THB",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "ZAR",
+      "country": "ZA",
+      "status": 200,
+      "actualCurrency": "ZAR",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "PLN",
+      "country": "PL",
+      "status": 200,
+      "actualCurrency": "PLN",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "it",
+      "currency": "KRW",
+      "country": "KR",
+      "status": 200,
+      "actualCurrency": "KRW",
+      "issues": [],
+      "method": "SSR"
+    },
+    {
+      "locale": "en",
+      "country": "US",
+      "currency": "USD",
+      "method": "Hydrated browser",
+      "actualCurrency": "USD",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "GB",
+      "currency": "GBP",
+      "method": "Hydrated browser",
+      "actualCurrency": "GBP",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "FR",
+      "currency": "EUR",
+      "method": "Hydrated browser",
+      "actualCurrency": "EUR",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "SE",
+      "currency": "SEK",
+      "method": "Hydrated browser",
+      "actualCurrency": "SEK",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "CA",
+      "currency": "CAD",
+      "method": "Hydrated browser",
+      "actualCurrency": "CAD",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "AU",
+      "currency": "AUD",
+      "method": "Hydrated browser",
+      "actualCurrency": "AUD",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "NZ",
+      "currency": "NZD",
+      "method": "Hydrated browser",
+      "actualCurrency": "NZD",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "CH",
+      "currency": "CHF",
+      "method": "Hydrated browser",
+      "actualCurrency": "CHF",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "NO",
+      "currency": "NOK",
+      "method": "Hydrated browser",
+      "actualCurrency": "NOK",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "DK",
+      "currency": "DKK",
+      "method": "Hydrated browser",
+      "actualCurrency": "DKK",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "JP",
+      "currency": "JPY",
+      "method": "Hydrated browser",
+      "actualCurrency": "JPY",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "SG",
+      "currency": "SGD",
+      "method": "Hydrated browser",
+      "actualCurrency": "SGD",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "BR",
+      "currency": "BRL",
+      "method": "Hydrated browser",
+      "actualCurrency": "BRL",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "IN",
+      "currency": "INR",
+      "method": "Hydrated browser",
+      "actualCurrency": "INR",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "ID",
+      "currency": "IDR",
+      "method": "Hydrated browser",
+      "actualCurrency": "IDR",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "CN",
+      "currency": "CNY",
+      "method": "Hydrated browser",
+      "actualCurrency": "CNY",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "MX",
+      "currency": "MXN",
+      "method": "Hydrated browser",
+      "actualCurrency": "MXN",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "PH",
+      "currency": "PHP",
+      "method": "Hydrated browser",
+      "actualCurrency": "PHP",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "MY",
+      "currency": "MYR",
+      "method": "Hydrated browser",
+      "actualCurrency": "MYR",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "TH",
+      "currency": "THB",
+      "method": "Hydrated browser",
+      "actualCurrency": "THB",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "ZA",
+      "currency": "ZAR",
+      "method": "Hydrated browser",
+      "actualCurrency": "ZAR",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "PL",
+      "currency": "PLN",
+      "method": "Hydrated browser",
+      "actualCurrency": "PLN",
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "country": "KR",
+      "currency": "KRW",
+      "method": "Hydrated browser",
+      "actualCurrency": "KRW",
+      "issues": []
+    }
+  ],
+  "staticEnglishNote": "English pricing has static USD HTML; client hydration reads the country currency cookie. All 23 hydrated displays verified; no change to this existing architecture."
+}

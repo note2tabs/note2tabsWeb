@@ -1,6 +1,6 @@
 # French and Italian review editions
 
-The follow-up [16 October audit](audit-20261016.md) records corrections to this draft, current validation, currency parity and ongoing conversion monitoring. The results below describe the original draft, not final linguistic approval.
+The follow-up [16 October audit](audit-20261016.md) records corrections to this draft, current validation, currency parity and ongoing conversion monitoring. The final audit is complete, including contextual corrections and 1,366 passing tests. Both editions are ready for code review/merge within that scope; production release switches remain off. The results below describe the original draft and its historical validation, not the final audited edition.
 
 Branch: `codex/french-italian-localization-20261014`, based on main after PR #196. Neither edition is merged, published, submitted to Search Console, or claimed to be indexed.
 

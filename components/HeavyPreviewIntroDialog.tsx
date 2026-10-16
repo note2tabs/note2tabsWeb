@@ -1,3 +1,5 @@
+import { useLocale } from "../lib/i18n/react";
+
 type HeavyPreviewIntroDialogProps = {
   open: boolean;
   onCancel: () => void;
@@ -9,6 +11,7 @@ export default function HeavyPreviewIntroDialog({
   onCancel,
   onConfirm,
 }: HeavyPreviewIntroDialogProps) {
+  const { t } = useLocale();
   if (!open) return null;
   return (
     <div
@@ -26,18 +29,17 @@ export default function HeavyPreviewIntroDialog({
           type="button"
           className="heavy-preview-confirmation__close"
           onClick={onCancel}
-          aria-label="Close"
+          aria-label={t("Close")}
         >
           ×
         </button>
-        <h2 id="heavy-preview-title">Use your free Heavy model preview?</h2>
+        <h2 id="heavy-preview-title">{t("Use your free Heavy model preview?")}</h2>
         <p className="heavy-preview-confirmation__body">
-          This will use your account’s only free Heavy model transcription on 30 seconds of this recording.
-          The Heavy model is normally available only with Premium or Pro.
+          {t("This will use your account’s only free Heavy model transcription on 30 seconds of this recording. The Heavy model is normally available only with Premium or Pro.")}
         </p>
         <div className="heavy-preview-confirmation__actions">
-          <button type="button" className="heavy-preview-confirmation__later" onClick={onCancel}>Not yet</button>
-          <button type="button" className="button-primary" onClick={onConfirm}>Use my preview</button>
+          <button type="button" className="heavy-preview-confirmation__later" onClick={onCancel}>{t("Not yet")}</button>
+          <button type="button" className="button-primary" onClick={onConfirm}>{t("Use my preview")}</button>
         </div>
       </div>
     </div>

@@ -1,0 +1,2595 @@
+{
+  "catalogs": [
+    {
+      "locale": "en",
+      "group": "public",
+      "messages": 1790,
+      "missing": [],
+      "extra": [],
+      "issues": [],
+      "sha256": "40cc78c0aa760efed7de6fb75a75afce4c3ecf4f0015cacb27a700ec445c8d3c"
+    },
+    {
+      "locale": "pt-BR",
+      "group": "public",
+      "messages": 1790,
+      "missing": [],
+      "extra": [],
+      "issues": [],
+      "sha256": "b77003faf9bb3f002afd357bd0f327ec6e10ec46354b33e6ffa8a2da3e29356d"
+    },
+    {
+      "locale": "es",
+      "group": "public",
+      "messages": 1790,
+      "missing": [],
+      "extra": [],
+      "issues": [],
+      "sha256": "61137e5b01e7852b254e293d7dad90ded356c7755df7608184008f0f851cafb9"
+    },
+    {
+      "locale": "ja",
+      "group": "public",
+      "messages": 1790,
+      "missing": [],
+      "extra": [],
+      "issues": [],
+      "sha256": "6b6cab09ced66f198ee20058edfafa816aa12e4ccc929256a049fc44b39c4d36"
+    },
+    {
+      "locale": "ko",
+      "group": "public",
+      "messages": 1790,
+      "missing": [],
+      "extra": [],
+      "issues": [],
+      "sha256": "192dbac43de14091331a1a444c5ee3ebfca56aa0536e2b63952a83f6bec71122"
+    },
+    {
+      "locale": "pl",
+      "group": "public",
+      "messages": 1790,
+      "missing": [],
+      "extra": [],
+      "issues": [],
+      "sha256": "2ae28a395ac7bbf8b1d6f5946c621dab63ccd5fdb099e327bdc8e97f5ff90227"
+    },
+    {
+      "locale": "ar",
+      "group": "public",
+      "messages": 1790,
+      "missing": [],
+      "extra": [],
+      "issues": [],
+      "sha256": "707307d36d0ecc0844b9c46eb392757aa67ab7b5bdcdb0ec2618e770761c7a9e"
+    },
+    {
+      "locale": "zh-Hans",
+      "group": "public",
+      "messages": 1790,
+      "missing": [],
+      "extra": [],
+      "issues": [],
+      "sha256": "a837c5da8077ce0d1eb2554a28b0046221bd4502b88edafd9df4ba4cca83a3c6"
+    },
+    {
+      "locale": "fr",
+      "group": "public",
+      "messages": 1790,
+      "missing": [],
+      "extra": [],
+      "issues": [],
+      "sha256": "5890d53026a0d91f4fad166dc68bff1276db92cb16f40e0991b09128eb5fb438"
+    },
+    {
+      "locale": "it",
+      "group": "public",
+      "messages": 1790,
+      "missing": [],
+      "extra": [],
+      "issues": [],
+      "sha256": "96b1f826f5f997cc988c9741a090bfe2156fb308d23f5bc9925594e056e5edd8"
+    },
+    {
+      "locale": "en",
+      "group": "editor/",
+      "messages": 986,
+      "missing": [],
+      "extra": [],
+      "issues": [],
+      "sha256": "3a792ac9dce8e42fb25bea62ecc4db2c7ad8d40369e732f0fb5fcfc04eebe746"
+    },
+    {
+      "locale": "pt-BR",
+      "group": "editor/",
+      "messages": 986,
+      "missing": [],
+      "extra": [],
+      "issues": [],
+      "sha256": "cb30eb80b50c6b3d1fefe233f341eaba1dea4bd539cadd182c18591bbb5a0a97"
+    },
+    {
+      "locale": "es",
+      "group": "editor/",
+      "messages": 986,
+      "missing": [],
+      "extra": [],
+      "issues": [],
+      "sha256": "c85d170e56c45a723b582bf0e6fea9b476e3db3d892105ace785fd3901c8031d"
+    },
+    {
+      "locale": "ja",
+      "group": "editor/",
+      "messages": 986,
+      "missing": [],
+      "extra": [],
+      "issues": [],
+      "sha256": "9d4cfaa2cda2b9679a6c40a62887aa78d03ebe4736368642efcee0e770caff41"
+    },
+    {
+      "locale": "ko",
+      "group": "editor/",
+      "messages": 986,
+      "missing": [],
+      "extra": [],
+      "issues": [],
+      "sha256": "38e20d651b9d4f3fb980e78948088e3e33e83da7011ec6a59a633731534e74b8"
+    },
+    {
+      "locale": "pl",
+      "group": "editor/",
+      "messages": 986,
+      "missing": [],
+      "extra": [],
+      "issues": [],
+      "sha256": "735acbbbbf880ebdbe31b10be04d146150540628f47812644716d83ed24512f2"
+    },
+    {
+      "locale": "ar",
+      "group": "editor/",
+      "messages": 986,
+      "missing": [],
+      "extra": [],
+      "issues": [],
+      "sha256": "edb58f4cf664d5b7e0abf8f36d20f7806781c334ba65d7b0ac2deac0f7f64e25"
+    },
+    {
+      "locale": "zh-Hans",
+      "group": "editor/",
+      "messages": 986,
+      "missing": [],
+      "extra": [],
+      "issues": [],
+      "sha256": "2cb47bef174c16bf0d1e9d77a1415d50f9c1b3616d65edec69f2b1ec6c9e8910"
+    },
+    {
+      "locale": "fr",
+      "group": "editor/",
+      "messages": 986,
+      "missing": [],
+      "extra": [],
+      "issues": [],
+      "sha256": "4067759cb8d995058295824562c2130251d34c643e0797dd821fe9f53f03b498"
+    },
+    {
+      "locale": "it",
+      "group": "editor/",
+      "messages": 986,
+      "missing": [],
+      "extra": [],
+      "issues": [],
+      "sha256": "969351b81364e8afc0d6dac4afa668f22d58c341ea7adbb140fe8123e133cd28"
+    }
+  ],
+  "blogs": [
+    {
+      "file": "lib/i18n/blog/ar/ai-guitar-tab-editor.json",
+      "words": 304,
+      "characters": 1983,
+      "links": [
+        "/editor",
+        "/editor",
+        "/transcribe"
+      ],
+      "issues": [],
+      "sha256": "294a80d444b15a38f7874f594f638fa3eb2509205dd4574a11f4d9f740fb3767"
+    },
+    {
+      "file": "lib/i18n/blog/ar/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs.json",
+      "words": 411,
+      "characters": 2703,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "/blog/how-to-convert-audio-to-guitar-tabs",
+        "/youtube-to-guitar-tabs",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "7e0ffb7989131a986709d8403404d54a403f9a80d716d94dcd8f672a439034e6"
+    },
+    {
+      "file": "lib/i18n/blog/ar/ascii-guitar-tab-editor.json",
+      "words": 247,
+      "characters": 1512,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "4f70a564f2bf1216b762f06769e8e83be5e79b8eba001bd9055ea79c80b9a3c6"
+    },
+    {
+      "file": "lib/i18n/blog/ar/free-online-guitar-tab-maker.json",
+      "words": 286,
+      "characters": 1730,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "b514e04b2c71662d1adc70e835f6e07cf05a5a8cb7353859e6a7db02fae56588"
+    },
+    {
+      "file": "lib/i18n/blog/ar/guitar-fingering-optimizer.json",
+      "words": 276,
+      "characters": 1647,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "ec67ad9918d6db62ab76291970580d67327dfc63645f86a975d44ce915500206"
+    },
+    {
+      "file": "lib/i18n/blog/ar/guitar-pro-alternative-online.json",
+      "words": 355,
+      "characters": 2238,
+      "links": [
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "7a52bcbae08bc8b5c8b74cc7a035e92f5c401677f19bb89325fcab9f038e8355"
+    },
+    {
+      "file": "lib/i18n/blog/ar/guitar-solo-tab-maker.json",
+      "words": 358,
+      "characters": 2210,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/audio-to-guitar-tab-converter",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "f7a9c5937875106276ca42a8ae505668624feb6c92ef7328b19762257f4c15de"
+    },
+    {
+      "file": "lib/i18n/blog/ar/guitar-tab-creator-with-playback.json",
+      "words": 264,
+      "characters": 1685,
+      "links": [
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "8fac483e00ac5276489f33881e9259d9922d98d0ab646d5cdd5e4a0b41420310"
+    },
+    {
+      "file": "lib/i18n/blog/ar/guitar-tab-editor.json",
+      "words": 286,
+      "characters": 1862,
+      "links": [
+        "/editor",
+        "/transcribe",
+        "/editor",
+        "/transcribe"
+      ],
+      "issues": [],
+      "sha256": "b107c20b9bb3c1dc7546ad7caab091d982ac6e1a9c1fefea20f97b4a70abaa77"
+    },
+    {
+      "file": "lib/i18n/blog/ar/guitar-tab-maker-vs-guitar-tab-editor.json",
+      "words": 368,
+      "characters": 2293,
+      "links": [
+        "/editor",
+        "/transcribe",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "179c1b7e7cde5f6aeee5b6420b98179721b5b446e45f140c0f7bfe011c3e58ed"
+    },
+    {
+      "file": "lib/i18n/blog/ar/how-to-convert-audio-to-guitar-tabs.json",
+      "words": 271,
+      "characters": 1788,
+      "links": [
+        "/transcribe",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "105b03ab693d05a9e0bdaaa65e68cee811f49672d52a987bf93d11723916dc7d"
+    },
+    {
+      "file": "lib/i18n/blog/ar/how-to-edit-guitar-tabs-for-practice.json",
+      "words": 348,
+      "characters": 1995,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "edec22bb19f2a4bf28e503e9fc8bf7188c8da6fd090de1aded157532799e08e3"
+    },
+    {
+      "file": "lib/i18n/blog/ar/how-to-fix-ai-guitar-tabs.json",
+      "words": 246,
+      "characters": 1691,
+      "links": [
+        "/editor",
+        "/transcribe",
+        "/editor",
+        "/transcribe"
+      ],
+      "issues": [],
+      "sha256": "f8c61c10d7db43619f2fd1cf1ac02ec2c624e6ba555373efbcde140081d995ac"
+    },
+    {
+      "file": "lib/i18n/blog/ar/how-to-learn-guitar-faster-using-ai-tools.json",
+      "words": 302,
+      "characters": 1944,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "d9765a52adbc2c64601967b841e4291d72d6312e8ab11b67be4ed553ed7a4ada"
+    },
+    {
+      "file": "lib/i18n/blog/ar/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes.json",
+      "words": 313,
+      "characters": 2136,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/blog/how-to-convert-audio-to-guitar-tabs",
+        "/blog/how-to-fix-ai-guitar-tabs",
+        "/youtube-to-guitar-tabs",
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "e2952b3bff280c2b7cadc2d280d0ee9b0bb1f0a1c30062a3847cfa917ec2e154"
+    },
+    {
+      "file": "lib/i18n/blog/ar/how-to-use-generate-cuts-cut-regions-and-optimize.json",
+      "words": 284,
+      "characters": 1790,
+      "links": [
+        "/editor",
+        "/editor",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "c2243f68bad91dd8808f64a108469f641159d20a33b47ccb06aadb130e066a75"
+    },
+    {
+      "file": "lib/i18n/blog/ar/how-to-write-guitar-tabs-online-without-downloading-software.json",
+      "words": 321,
+      "characters": 1963,
+      "links": [
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/youtube-to-guitar-tabs",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "3c03bbc4930170cb297864547468cb02a9fa925dfe4599e5377e534efff7ca9c"
+    },
+    {
+      "file": "lib/i18n/blog/ar/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players.json",
+      "words": 313,
+      "characters": 2082,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/editor",
+        "/editor",
+        "/auth/signup",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "b0a815a44a1d9632e38c66cf72b39ce1dc2c712cd0aee4fce92816c261d440ac"
+    },
+    {
+      "file": "lib/i18n/blog/ar/mp3-to-guitar-tabs.json",
+      "words": 252,
+      "characters": 1539,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/audio-to-guitar-tab-converter",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "885f7b0380e361d1578cc2f13ae890065e828a581b8205046861b1f830d1b8fe"
+    },
+    {
+      "file": "lib/i18n/blog/ar/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online.json",
+      "words": 280,
+      "characters": 1887,
+      "links": [
+        "/editor",
+        "/blog/how-to-convert-audio-to-guitar-tabs",
+        "/editor",
+        "/audio-to-guitar-tab-converter",
+        "/free-guitar-tab-maker",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "cb0fc5d1a5cfaec583af384c32e44f9b9bc6a462667d5256036bc03b97e27b21"
+    },
+    {
+      "file": "lib/i18n/blog/ar/song-to-guitar-tabs.json",
+      "words": 262,
+      "characters": 1655,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/ai-guitar-tab-generator",
+        "/editor",
+        "/youtube-to-guitar-tabs",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "8c6ec569c0e899eeb18f296e4ce42cb0aa4ee42e1240a91442331f76cb7dae26"
+    },
+    {
+      "file": "lib/i18n/blog/ar/tab-editor-for-guitar.json",
+      "words": 244,
+      "characters": 1503,
+      "links": [
+        "/editor",
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "b2c6a9e864d4cc1e64b45f932c59a101669d1606929ebf727cb8c836534dbba9"
+    },
+    {
+      "file": "lib/i18n/blog/ar/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly.json",
+      "words": 286,
+      "characters": 1929,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "/blog/youtube-to-guitar-tabs-workflow",
+        "/editor",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "21c778f43604d0d2e5ff122ca1514df70a3860f8ee1c809d867694d72cb755a1"
+    },
+    {
+      "file": "lib/i18n/blog/ar/wav-to-guitar-tabs.json",
+      "words": 233,
+      "characters": 1373,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "07392749795972d2dfe795c4c5b214ca07596b1f6ccb90529c61352a0203774f"
+    },
+    {
+      "file": "lib/i18n/blog/ar/why-guitar-tabs-can-be-wrong.json",
+      "words": 1195,
+      "characters": 8601,
+      "links": [
+        "/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online#لماذا-للنغمة-مواضع-متعددة",
+        "https://doi.org/10.3758/BF03194586",
+        "https://doi.org/10.1162/0898929053467532",
+        "https://doi.org/10.1525/mp.2011.28.3.315",
+        "https://doi.org/10.3758/s13421-022-01282-6",
+        "https://doi.org/10.1016/j.neulet.2021.135624",
+        "https://doi.org/10.1093/cercor/bhy208",
+        "https://doi.org/10.1080/25742442.2019.1684164",
+        "/transcribe",
+        "/editor",
+        "https://doi.org/10.3758/BF03194586",
+        "https://doi.org/10.1162/0898929053467532",
+        "https://doi.org/10.1525/mp.2011.28.3.315",
+        "https://doi.org/10.3758/s13421-022-01282-6",
+        "https://doi.org/10.1016/j.neulet.2021.135624",
+        "https://doi.org/10.1080/25742442.2019.1684164",
+        "https://doi.org/10.1093/cercor/bhy208"
+      ],
+      "issues": [],
+      "sha256": "8e797eff7f743ae6353bd7c1e6404a018968c4d659378863053c26d759ed19b8"
+    },
+    {
+      "file": "lib/i18n/blog/ar/youtube-to-guitar-tabs-workflow.json",
+      "words": 279,
+      "characters": 1839,
+      "links": [
+        "/youtube-to-guitar-tabs",
+        "/blog/mp3-to-guitar-tabs",
+        "/blog/wav-to-guitar-tabs",
+        "/editor",
+        "/youtube-to-guitar-tabs"
+      ],
+      "issues": [],
+      "sha256": "74450f3dbd47f630e2a55fce3f04981eecf2f544f2425b925a346c7a7bcedca2"
+    },
+    {
+      "file": "lib/i18n/blog/es/ai-guitar-tab-editor.json",
+      "words": 380,
+      "characters": 2511,
+      "links": [
+        "/editor",
+        "/editor",
+        "/transcribe"
+      ],
+      "issues": [],
+      "sha256": "b073befaca7803a3e315d003f2c9f32006c6116376ddc1757adcccbe0a5ce039"
+    },
+    {
+      "file": "lib/i18n/blog/es/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs.json",
+      "words": 543,
+      "characters": 3637,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "/blog/how-to-convert-audio-to-guitar-tabs",
+        "/youtube-to-guitar-tabs",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "99fa8198973d8bd68eb071810e9791519c52262188072758970bfbb60db1bda0"
+    },
+    {
+      "file": "lib/i18n/blog/es/ascii-guitar-tab-editor.json",
+      "words": 308,
+      "characters": 2026,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "120bdefe28ae021194a574dddeb348a923ba5bfef09256040ac54b7d0629a329"
+    },
+    {
+      "file": "lib/i18n/blog/es/free-online-guitar-tab-maker.json",
+      "words": 353,
+      "characters": 2301,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "67669c589b3d9981e03036206bfb71aea5d277f558d0227c54b6099ca7fb3a65"
+    },
+    {
+      "file": "lib/i18n/blog/es/guitar-fingering-optimizer.json",
+      "words": 347,
+      "characters": 2226,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "ef365f17c8978c9d3e8bdee9e02bc8b28a4ab902fe8e10a5e33ea1b8ed19e4d8"
+    },
+    {
+      "file": "lib/i18n/blog/es/guitar-pro-alternative-online.json",
+      "words": 433,
+      "characters": 2974,
+      "links": [
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "897c4cd23f8e6f18404a8cb2460ac5d10c4c512c5b5bef180c33599dd78edfbc"
+    },
+    {
+      "file": "lib/i18n/blog/es/guitar-solo-tab-maker.json",
+      "words": 455,
+      "characters": 2969,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/audio-to-guitar-tab-converter",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "4d145889da4b7f22a1c6fd5e37d29425699a05715bea07060f3dc7a5d02c561e"
+    },
+    {
+      "file": "lib/i18n/blog/es/guitar-tab-creator-with-playback.json",
+      "words": 330,
+      "characters": 2159,
+      "links": [
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "b6fc31f6918bfe2497de952a613931cb62d75af5d0455bc03be003fd54a0abbb"
+    },
+    {
+      "file": "lib/i18n/blog/es/guitar-tab-editor.json",
+      "words": 351,
+      "characters": 2409,
+      "links": [
+        "/editor",
+        "/transcribe",
+        "/editor",
+        "/transcribe"
+      ],
+      "issues": [],
+      "sha256": "7ba382b247b56f3dfa6f78c5033d8588b911759118f43928c2599f933819890a"
+    },
+    {
+      "file": "lib/i18n/blog/es/guitar-tab-maker-vs-guitar-tab-editor.json",
+      "words": 446,
+      "characters": 2930,
+      "links": [
+        "/editor",
+        "/transcribe",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "61264d55ee47de267f0c80f0c1d57129fda79fb696e4d70b910b5dce3aa2c6f4"
+    },
+    {
+      "file": "lib/i18n/blog/es/how-to-convert-audio-to-guitar-tabs.json",
+      "words": 347,
+      "characters": 2377,
+      "links": [
+        "/transcribe",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "b4332ce0cd544936399ce3898df3900fdacdc6042803c51ce01a00ccfb142180"
+    },
+    {
+      "file": "lib/i18n/blog/es/how-to-edit-guitar-tabs-for-practice.json",
+      "words": 422,
+      "characters": 2703,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "577976664619a430bb9cf6d9d1bfc746bbe5473ba8488caadd209f12c7048fde"
+    },
+    {
+      "file": "lib/i18n/blog/es/how-to-fix-ai-guitar-tabs.json",
+      "words": 315,
+      "characters": 2221,
+      "links": [
+        "/editor",
+        "/transcribe",
+        "/editor",
+        "/transcribe"
+      ],
+      "issues": [],
+      "sha256": "e2c736ff37fcb0d5217966ffd59866bd061c247993cae17eced68c0f810bad9e"
+    },
+    {
+      "file": "lib/i18n/blog/es/how-to-learn-guitar-faster-using-ai-tools.json",
+      "words": 363,
+      "characters": 2417,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "820cabb668346f19518e9860c5bc40b93fe28d8ea023d85051c996b9029912f7"
+    },
+    {
+      "file": "lib/i18n/blog/es/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes.json",
+      "words": 384,
+      "characters": 2632,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/blog/how-to-convert-audio-to-guitar-tabs",
+        "/blog/how-to-fix-ai-guitar-tabs",
+        "/youtube-to-guitar-tabs",
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "f275972ce0749517b5f87c0a2d3ea1346856f2f2576bfc7cb08afe4c77d5aad6"
+    },
+    {
+      "file": "lib/i18n/blog/es/how-to-use-generate-cuts-cut-regions-and-optimize.json",
+      "words": 346,
+      "characters": 2237,
+      "links": [
+        "/editor",
+        "/editor",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "70684c39efd84c8ccbee8d19ee7e10451dafdcfec4e47f67e5147551f988cf11"
+    },
+    {
+      "file": "lib/i18n/blog/es/how-to-write-guitar-tabs-online-without-downloading-software.json",
+      "words": 395,
+      "characters": 2583,
+      "links": [
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/youtube-to-guitar-tabs",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "c13ece79dab200105b8526cdf6d00cb845d93934e155ccceebc8c7d6bfc5731c"
+    },
+    {
+      "file": "lib/i18n/blog/es/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players.json",
+      "words": 415,
+      "characters": 2675,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/editor",
+        "/editor",
+        "/auth/signup",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "c3092352f565e2bf83c0993165f44da58a2f8ab277bdb26d18ce68c7a244b24e"
+    },
+    {
+      "file": "lib/i18n/blog/es/mp3-to-guitar-tabs.json",
+      "words": 307,
+      "characters": 2041,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/audio-to-guitar-tab-converter",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "c0bab780908573b9113e4f932359dfedfdebd2298789a12f942a1c53ffc0c461"
+    },
+    {
+      "file": "lib/i18n/blog/es/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online.json",
+      "words": 356,
+      "characters": 2390,
+      "links": [
+        "/editor",
+        "/blog/how-to-convert-audio-to-guitar-tabs",
+        "/editor",
+        "/audio-to-guitar-tab-converter",
+        "/free-guitar-tab-maker",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "0c667da7e61bae8d918616b8d4d96de1951681861772f1ccde998328c8417a3a"
+    },
+    {
+      "file": "lib/i18n/blog/es/song-to-guitar-tabs.json",
+      "words": 298,
+      "characters": 2058,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/ai-guitar-tab-generator",
+        "/editor",
+        "/youtube-to-guitar-tabs",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "795e2a25ecbf799e684ee60a866fc26fddcdb27b5b65417af97480dc4708f990"
+    },
+    {
+      "file": "lib/i18n/blog/es/tab-editor-for-guitar.json",
+      "words": 291,
+      "characters": 1924,
+      "links": [
+        "/editor",
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "031b01811dabdb5076dc5f48672f3db62891ccd44d20c840dbc6f674805ef4ba"
+    },
+    {
+      "file": "lib/i18n/blog/es/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly.json",
+      "words": 350,
+      "characters": 2453,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "/blog/youtube-to-guitar-tabs-workflow",
+        "/editor",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "f5cf2e25f7f43457e093c0ffe6d43ceb8e272787de877288a2789676ea7fd92a"
+    },
+    {
+      "file": "lib/i18n/blog/es/wav-to-guitar-tabs.json",
+      "words": 269,
+      "characters": 1698,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "607428eb7e30610751ff44f5448458843f6f29913f5412b153667f3a37f78202"
+    },
+    {
+      "file": "lib/i18n/blog/es/why-guitar-tabs-can-be-wrong.json",
+      "words": 1431,
+      "characters": 10840,
+      "links": [
+        "/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online#por-qué-una-nota-tiene-varias-posiciones",
+        "https://doi.org/10.3758/BF03194586",
+        "https://doi.org/10.1162/0898929053467532",
+        "https://doi.org/10.1525/mp.2011.28.3.315",
+        "https://doi.org/10.3758/s13421-022-01282-6",
+        "https://doi.org/10.1016/j.neulet.2021.135624",
+        "https://doi.org/10.1093/cercor/bhy208",
+        "https://doi.org/10.1080/25742442.2019.1684164",
+        "/transcribe",
+        "/editor",
+        "https://doi.org/10.3758/BF03194586",
+        "https://doi.org/10.1162/0898929053467532",
+        "https://doi.org/10.1525/mp.2011.28.3.315",
+        "https://doi.org/10.3758/s13421-022-01282-6",
+        "https://doi.org/10.1016/j.neulet.2021.135624",
+        "https://doi.org/10.1080/25742442.2019.1684164",
+        "https://doi.org/10.1093/cercor/bhy208"
+      ],
+      "issues": [],
+      "sha256": "b6bcd0a7ebbf57935a6214c3d1ae8503224eed025b1c15ff8ffad68ded4b6e63"
+    },
+    {
+      "file": "lib/i18n/blog/es/youtube-to-guitar-tabs-workflow.json",
+      "words": 332,
+      "characters": 2282,
+      "links": [
+        "/youtube-to-guitar-tabs",
+        "/blog/mp3-to-guitar-tabs",
+        "/blog/wav-to-guitar-tabs",
+        "/editor",
+        "/youtube-to-guitar-tabs"
+      ],
+      "issues": [],
+      "sha256": "b979fcb0ae0db1f089fd06ab1048b10eab6ff27db2d19dac7c9644762e5f72be"
+    },
+    {
+      "file": "lib/i18n/blog/ja/ai-guitar-tab-editor.json",
+      "words": 39,
+      "characters": 926,
+      "links": [
+        "/editor",
+        "/editor",
+        "/transcribe"
+      ],
+      "issues": [],
+      "sha256": "bfe0559af62f32c21600231257dc7a3bcfa4c663f2f22725149ec3c9416e824e"
+    },
+    {
+      "file": "lib/i18n/blog/ja/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs.json",
+      "words": 41,
+      "characters": 1175,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "/blog/how-to-convert-audio-to-guitar-tabs",
+        "/youtube-to-guitar-tabs",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "95ffa62cfc14288a29eb1838fc91c9fbd4dc943f75783a7f9127fca9d0bf67ee"
+    },
+    {
+      "file": "lib/i18n/blog/ja/ascii-guitar-tab-editor.json",
+      "words": 35,
+      "characters": 732,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "c5adea8dfd1458ec65f1ae8ad84540cc870f6db8a44eaa0a316eaaff1249acfe"
+    },
+    {
+      "file": "lib/i18n/blog/ja/free-online-guitar-tab-maker.json",
+      "words": 33,
+      "characters": 737,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "af4b9d6d94f517f58813922a498902bf08f38a3d9622789b7fde3407873e7a33"
+    },
+    {
+      "file": "lib/i18n/blog/ja/guitar-fingering-optimizer.json",
+      "words": 39,
+      "characters": 758,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "010ebe6b6129476314d505498b3b7e4c5604e5c35f10ce38b6b4763c3ec79a64"
+    },
+    {
+      "file": "lib/i18n/blog/ja/guitar-pro-alternative-online.json",
+      "words": 40,
+      "characters": 830,
+      "links": [
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "a984e8804acf79cb8c7d9e4676b12d7e0646c4dd77c72d73c6d73afaef04a9a0"
+    },
+    {
+      "file": "lib/i18n/blog/ja/guitar-solo-tab-maker.json",
+      "words": 35,
+      "characters": 818,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "8c83d89fe2f5a5eb5a27dc2d261223443f5be99ae1fbbc8b296b2f67dc004555"
+    },
+    {
+      "file": "lib/i18n/blog/ja/guitar-tab-creator-with-playback.json",
+      "words": 38,
+      "characters": 768,
+      "links": [
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "abfa3aa3629dc80593c2ec3177e42f81ffbb6a2f67d1535c2712f4984bf02e31"
+    },
+    {
+      "file": "lib/i18n/blog/ja/guitar-tab-editor.json",
+      "words": 39,
+      "characters": 892,
+      "links": [
+        "/editor",
+        "/transcribe",
+        "/editor",
+        "/transcribe"
+      ],
+      "issues": [],
+      "sha256": "c181b95a26d5d5ff4c5597b31137f278ecfe5b48dfbf02967472921557b49e77"
+    },
+    {
+      "file": "lib/i18n/blog/ja/guitar-tab-maker-vs-guitar-tab-editor.json",
+      "words": 35,
+      "characters": 786,
+      "links": [
+        "/editor",
+        "/transcribe",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "d77d6802562f2f3f38156d2fe31b69553404989ae771333014fdc44f441a1d69"
+    },
+    {
+      "file": "lib/i18n/blog/ja/how-to-convert-audio-to-guitar-tabs.json",
+      "words": 39,
+      "characters": 893,
+      "links": [
+        "/transcribe",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "da88c2b3f6861a24b72ccdb111207f5efc543cb172f112811b132311445f068c"
+    },
+    {
+      "file": "lib/i18n/blog/ja/how-to-edit-guitar-tabs-for-practice.json",
+      "words": 48,
+      "characters": 887,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "161c3a1d90f24efad352c864cd631182d19eb89743f3172e0e06b8c2ec881a73"
+    },
+    {
+      "file": "lib/i18n/blog/ja/how-to-fix-ai-guitar-tabs.json",
+      "words": 30,
+      "characters": 830,
+      "links": [
+        "/editor",
+        "/transcribe",
+        "/editor",
+        "/transcribe"
+      ],
+      "issues": [],
+      "sha256": "fac5ac9a48432f1d63307cb58e58faf947200cabf8b7e4df621105f26d194b7e"
+    },
+    {
+      "file": "lib/i18n/blog/ja/how-to-learn-guitar-faster-using-ai-tools.json",
+      "words": 28,
+      "characters": 804,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "819d3a33e4e1f1848db18806c57d399d0b9211b6646700ce7cb1ee377401d462"
+    },
+    {
+      "file": "lib/i18n/blog/ja/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes.json",
+      "words": 39,
+      "characters": 1093,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/blog/how-to-convert-audio-to-guitar-tabs",
+        "/blog/how-to-fix-ai-guitar-tabs",
+        "/youtube-to-guitar-tabs",
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "e02e2c0d7559252dfe9cef3edbdba8e40d803341e2fd50472d0dc024d10b40b3"
+    },
+    {
+      "file": "lib/i18n/blog/ja/how-to-use-generate-cuts-cut-regions-and-optimize.json",
+      "words": 48,
+      "characters": 888,
+      "links": [
+        "/editor",
+        "/auth/signup",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "690206254bba0b2ee85afcf874e1cd7fa65a933b23db7ba14b683861538db5cb"
+    },
+    {
+      "file": "lib/i18n/blog/ja/how-to-write-guitar-tabs-online-without-downloading-software.json",
+      "words": 31,
+      "characters": 893,
+      "links": [
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/youtube-to-guitar-tabs",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "08869cd5b4b82fcd0cc945b6d64cba577c1f5153bdc4e50805b6ea029fd2b4e6"
+    },
+    {
+      "file": "lib/i18n/blog/ja/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players.json",
+      "words": 31,
+      "characters": 934,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/editor",
+        "/auth/signup",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "02bd7b64fd3ff0e58e823edcccecb7b91d69d52f6039345abfd1471894a189ca"
+    },
+    {
+      "file": "lib/i18n/blog/ja/mp3-to-guitar-tabs.json",
+      "words": 28,
+      "characters": 759,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/audio-to-guitar-tab-converter",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "8b2a45a072dcc52db0fefb1e64d07574cf8a70a09a4afcfd3b3ba67204e3b285"
+    },
+    {
+      "file": "lib/i18n/blog/ja/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online.json",
+      "words": 38,
+      "characters": 923,
+      "links": [
+        "/editor",
+        "/blog/how-to-convert-audio-to-guitar-tabs",
+        "/editor",
+        "/audio-to-guitar-tab-converter",
+        "/free-guitar-tab-maker",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "3a4aeb421d1ce9e76892b6b1423eedfcc650af50040a7a330cb757bc033f81e2"
+    },
+    {
+      "file": "lib/i18n/blog/ja/song-to-guitar-tabs.json",
+      "words": 28,
+      "characters": 817,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/ai-guitar-tab-generator",
+        "/editor",
+        "/youtube-to-guitar-tabs",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "d7710d2ca98e7a60e96650d5cda7b2423e5aff787635cdd285c2fe31988ee4b0"
+    },
+    {
+      "file": "lib/i18n/blog/ja/tab-editor-for-guitar.json",
+      "words": 41,
+      "characters": 742,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "a6e2a69d3589417feed2b2ab5c9dd379fef0fb2110951b9a5665e2a3d3cb5488"
+    },
+    {
+      "file": "lib/i18n/blog/ja/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly.json",
+      "words": 38,
+      "characters": 975,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "/blog/youtube-to-guitar-tabs-workflow",
+        "/editor",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "bb8af6197e556da30fc13eaf73801fb5608658ccfc75371743da2b38e2bf53a0"
+    },
+    {
+      "file": "lib/i18n/blog/ja/wav-to-guitar-tabs.json",
+      "words": 38,
+      "characters": 763,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "9df87c117965a627fbdc3d4c1c33076f8f3dc6bc658293bf88584bd7fd361ee0"
+    },
+    {
+      "file": "lib/i18n/blog/ja/why-guitar-tabs-can-be-wrong.json",
+      "words": 259,
+      "characters": 5210,
+      "links": [
+        "/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+        "https://doi.org/10.3758/BF03194586",
+        "https://doi.org/10.1162/0898929053467532",
+        "https://doi.org/10.1525/mp.2011.28.3.315",
+        "https://doi.org/10.3758/s13421-022-01282-6",
+        "https://doi.org/10.1016/j.neulet.2021.135624",
+        "https://doi.org/10.1093/cercor/bhy208",
+        "https://doi.org/10.1080/25742442.2019.1684164",
+        "/transcribe",
+        "/editor",
+        "https://doi.org/10.3758/BF03194586",
+        "https://doi.org/10.1162/0898929053467532",
+        "https://doi.org/10.1525/mp.2011.28.3.315",
+        "https://doi.org/10.3758/s13421-022-01282-6",
+        "https://doi.org/10.1016/j.neulet.2021.135624",
+        "https://doi.org/10.1080/25742442.2019.1684164",
+        "https://doi.org/10.1093/cercor/bhy208"
+      ],
+      "issues": [],
+      "sha256": "9991f169144d03dd229e6a0c7c4ef67839a91212a27da1ea9782978d03e5b9ce"
+    },
+    {
+      "file": "lib/i18n/blog/ja/youtube-to-guitar-tabs-workflow.json",
+      "words": 34,
+      "characters": 995,
+      "links": [
+        "/youtube-to-guitar-tabs",
+        "/blog/mp3-to-guitar-tabs",
+        "/blog/wav-to-guitar-tabs",
+        "/editor",
+        "/youtube-to-guitar-tabs"
+      ],
+      "issues": [],
+      "sha256": "21911cd8e867b3e5787b230779bb1b355dca0013a47933dafae11922b62766a7"
+    },
+    {
+      "file": "lib/i18n/blog/ko/ai-guitar-tab-editor.json",
+      "words": 214,
+      "characters": 961,
+      "links": [
+        "/editor",
+        "/editor",
+        "/transcribe"
+      ],
+      "issues": [],
+      "sha256": "694f186cbc74abd145c085431ddaf387a5073991a34839add0e31e355936a41b"
+    },
+    {
+      "file": "lib/i18n/blog/ko/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs.json",
+      "words": 268,
+      "characters": 1288,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "/blog/how-to-convert-audio-to-guitar-tabs",
+        "/youtube-to-guitar-tabs",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "591b1ff0b0291be6b5490e09ee8484bf79aaf5dd7509990762c7aef3b03cb4d0"
+    },
+    {
+      "file": "lib/i18n/blog/ko/ascii-guitar-tab-editor.json",
+      "words": 172,
+      "characters": 768,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "a6b3c81687ce313aa445cfad6aa5a0d68f254f64ee938d0290abedbd3b6c04bf"
+    },
+    {
+      "file": "lib/i18n/blog/ko/free-online-guitar-tab-maker.json",
+      "words": 186,
+      "characters": 797,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "4470c484453b87bc0b64f067bc880bc2c0671d8f11106413dd2ad5e99a455946"
+    },
+    {
+      "file": "lib/i18n/blog/ko/guitar-fingering-optimizer.json",
+      "words": 196,
+      "characters": 820,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "bce944ce5e120a118ae557fcad9d57615de148658d04d51e8ee7b05b9da3d012"
+    },
+    {
+      "file": "lib/i18n/blog/ko/guitar-pro-alternative-online.json",
+      "words": 208,
+      "characters": 900,
+      "links": [
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "4436339d60e83b720c107fd18c431966439316e1c5178ab11ec66669fcb1e2f6"
+    },
+    {
+      "file": "lib/i18n/blog/ko/guitar-solo-tab-maker.json",
+      "words": 206,
+      "characters": 890,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "ca0918a5849b1b9067c8e66337c0b270d0c8355178cf9cb46d98053519de46f8"
+    },
+    {
+      "file": "lib/i18n/blog/ko/guitar-tab-creator-with-playback.json",
+      "words": 179,
+      "characters": 798,
+      "links": [
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "7d46d289ce101b44ccf33a8bcd1314f128e6d3008e7c1dc46c18f4b2be5f92c7"
+    },
+    {
+      "file": "lib/i18n/blog/ko/guitar-tab-editor.json",
+      "words": 209,
+      "characters": 934,
+      "links": [
+        "/editor",
+        "/transcribe",
+        "/editor",
+        "/transcribe"
+      ],
+      "issues": [],
+      "sha256": "15d9a45b680bd50f227af770729bc9c8b9cae857ea7590d0b6a0072e849a003a"
+    },
+    {
+      "file": "lib/i18n/blog/ko/guitar-tab-maker-vs-guitar-tab-editor.json",
+      "words": 182,
+      "characters": 845,
+      "links": [
+        "/editor",
+        "/transcribe",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "b1477e114a98800759139a1799949eaf531e264c3188e829c541bf7315462bd5"
+    },
+    {
+      "file": "lib/i18n/blog/ko/how-to-convert-audio-to-guitar-tabs.json",
+      "words": 212,
+      "characters": 965,
+      "links": [
+        "/transcribe",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "e700ffae343f5423241b25e8de31e7b70ad09fb38ad33692c5364e04cbdeb738"
+    },
+    {
+      "file": "lib/i18n/blog/ko/how-to-edit-guitar-tabs-for-practice.json",
+      "words": 224,
+      "characters": 945,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "a17c1a327c8a868ba780e54c6645536b1bee4ddd1a728ed083625a379ff2de77"
+    },
+    {
+      "file": "lib/i18n/blog/ko/how-to-fix-ai-guitar-tabs.json",
+      "words": 188,
+      "characters": 866,
+      "links": [
+        "/editor",
+        "/transcribe",
+        "/editor",
+        "/transcribe"
+      ],
+      "issues": [],
+      "sha256": "8af61aa4801071b74bea06cbd0555a144d693807936b551f84b1faafe0a32813"
+    },
+    {
+      "file": "lib/i18n/blog/ko/how-to-learn-guitar-faster-using-ai-tools.json",
+      "words": 179,
+      "characters": 848,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "415df0bc150f6e592cc54345e1cbcf1fb853e527e153176612df9bbf42d9107c"
+    },
+    {
+      "file": "lib/i18n/blog/ko/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes.json",
+      "words": 223,
+      "characters": 1152,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/blog/how-to-convert-audio-to-guitar-tabs",
+        "/blog/how-to-fix-ai-guitar-tabs",
+        "/youtube-to-guitar-tabs",
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "f441d3fdda19da012fdc1c5eca2975b3bcddd14054aee49a17e658fb0e12bc13"
+    },
+    {
+      "file": "lib/i18n/blog/ko/how-to-use-generate-cuts-cut-regions-and-optimize.json",
+      "words": 179,
+      "characters": 902,
+      "links": [
+        "/editor",
+        "/auth/signup",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "dd13b8834deaa58cb72e5fadbdfaf9fe489fd1c3dd33e2a03dfa5fb6497ccf70"
+    },
+    {
+      "file": "lib/i18n/blog/ko/how-to-write-guitar-tabs-online-without-downloading-software.json",
+      "words": 201,
+      "characters": 938,
+      "links": [
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/youtube-to-guitar-tabs",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "d744fc5c6299542f4d670de57fe54fa9a106a72eaa61280b95b9da58042521a0"
+    },
+    {
+      "file": "lib/i18n/blog/ko/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players.json",
+      "words": 228,
+      "characters": 1018,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/editor",
+        "/auth/signup",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "b7f5899bb8a52e0ae8bfcd57d6a73acd73f50855f0d34f26fa1c102966fc9ba4"
+    },
+    {
+      "file": "lib/i18n/blog/ko/mp3-to-guitar-tabs.json",
+      "words": 182,
+      "characters": 852,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/audio-to-guitar-tab-converter",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "34876f78967525b4666f61d6de481742eb2d0a2b9aa6b75babda775f9f06b3ee"
+    },
+    {
+      "file": "lib/i18n/blog/ko/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online.json",
+      "words": 206,
+      "characters": 995,
+      "links": [
+        "/editor",
+        "/blog/how-to-convert-audio-to-guitar-tabs",
+        "/editor",
+        "/audio-to-guitar-tab-converter",
+        "/free-guitar-tab-maker",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "9babd537a9b167078aa2cfff4475f60db62c590462f316ea148249bca2ac8f17"
+    },
+    {
+      "file": "lib/i18n/blog/ko/song-to-guitar-tabs.json",
+      "words": 170,
+      "characters": 854,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/ai-guitar-tab-generator",
+        "/editor",
+        "/youtube-to-guitar-tabs",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "d544558d3291f9b0f79eedb2b6aad736c3343c273422eead8f3ec0bf3dbd48fe"
+    },
+    {
+      "file": "lib/i18n/blog/ko/tab-editor-for-guitar.json",
+      "words": 188,
+      "characters": 814,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "dee16834a4555674556e25cc2e7c5b4e3eb45057c714425bbac3996862ef85d0"
+    },
+    {
+      "file": "lib/i18n/blog/ko/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly.json",
+      "words": 199,
+      "characters": 1037,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "/blog/youtube-to-guitar-tabs-workflow",
+        "/editor",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "d530890caea9d44a1845ea32fa3f7a37c19a7092345314e2ef0b6986e5d1d753"
+    },
+    {
+      "file": "lib/i18n/blog/ko/wav-to-guitar-tabs.json",
+      "words": 176,
+      "characters": 801,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "e5241b2512acc1e9d5fa89e73558f5f9f984c57242bc66b9a6d329061934fbf2"
+    },
+    {
+      "file": "lib/i18n/blog/ko/why-guitar-tabs-can-be-wrong.json",
+      "words": 955,
+      "characters": 5635,
+      "links": [
+        "/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online",
+        "https://doi.org/10.3758/BF03194586",
+        "https://doi.org/10.1162/0898929053467532",
+        "https://doi.org/10.1525/mp.2011.28.3.315",
+        "https://doi.org/10.3758/s13421-022-01282-6",
+        "https://doi.org/10.1016/j.neulet.2021.135624",
+        "https://doi.org/10.1093/cercor/bhy208",
+        "https://doi.org/10.1080/25742442.2019.1684164",
+        "/transcribe",
+        "/editor",
+        "https://doi.org/10.3758/BF03194586",
+        "https://doi.org/10.1162/0898929053467532",
+        "https://doi.org/10.1525/mp.2011.28.3.315",
+        "https://doi.org/10.3758/s13421-022-01282-6",
+        "https://doi.org/10.1016/j.neulet.2021.135624",
+        "https://doi.org/10.1080/25742442.2019.1684164",
+        "https://doi.org/10.1093/cercor/bhy208"
+      ],
+      "issues": [],
+      "sha256": "335ed07f2e767d73ecb30a172a51b2de1d1f6b57b69bf4091be4bc740e7920f5"
+    },
+    {
+      "file": "lib/i18n/blog/ko/youtube-to-guitar-tabs-workflow.json",
+      "words": 208,
+      "characters": 1041,
+      "links": [
+        "/youtube-to-guitar-tabs",
+        "/blog/mp3-to-guitar-tabs",
+        "/blog/wav-to-guitar-tabs",
+        "/editor",
+        "/youtube-to-guitar-tabs"
+      ],
+      "issues": [],
+      "sha256": "9330fb7db9ba6eff8525d8a6b877402b140fca429fdb67d7671cae70e7f4ba4a"
+    },
+    {
+      "file": "lib/i18n/blog/pl/ai-guitar-tab-editor.json",
+      "words": 319,
+      "characters": 2299,
+      "links": [
+        "/editor",
+        "/editor",
+        "/transcribe"
+      ],
+      "issues": [],
+      "sha256": "0510feb4f38577656a45cb2c501259c1e5c8d6c66e03448962cc3a6da6e41684"
+    },
+    {
+      "file": "lib/i18n/blog/pl/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs.json",
+      "words": 430,
+      "characters": 3202,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "/blog/how-to-convert-audio-to-guitar-tabs",
+        "/youtube-to-guitar-tabs",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "e35559d3f0f4eb92c3fce6f8af2b0a590fb07dd1f02d7f4a547349dd35955ac9"
+    },
+    {
+      "file": "lib/i18n/blog/pl/ascii-guitar-tab-editor.json",
+      "words": 270,
+      "characters": 1918,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "c714c6f7ebf969d690649ca01f71827088f7733b97df59b21b114a02bc31b456"
+    },
+    {
+      "file": "lib/i18n/blog/pl/free-online-guitar-tab-maker.json",
+      "words": 292,
+      "characters": 2118,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "412dc866742772349935392942925fca517412d359bfb5b8549d3270873e3e73"
+    },
+    {
+      "file": "lib/i18n/blog/pl/guitar-fingering-optimizer.json",
+      "words": 277,
+      "characters": 1968,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "e58091862f1064c04eb400651b66c3707aa477debac85601513df4a3125ee6f4"
+    },
+    {
+      "file": "lib/i18n/blog/pl/guitar-pro-alternative-online.json",
+      "words": 363,
+      "characters": 2672,
+      "links": [
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "25d75cb4ebd712a8c0e1cddae3cbb21be4c7113760881d526eeb686929172f80"
+    },
+    {
+      "file": "lib/i18n/blog/pl/guitar-solo-tab-maker.json",
+      "words": 371,
+      "characters": 2678,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/audio-to-guitar-tab-converter",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "f5b5f7214ed084c08cced771bf292eff5c7e6f71862d812d0b9c018386eafb7f"
+    },
+    {
+      "file": "lib/i18n/blog/pl/guitar-tab-creator-with-playback.json",
+      "words": 258,
+      "characters": 1838,
+      "links": [
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "2ab2f31400722990eaddc5a814a6943a7473198a462a3bf4e6e99a70b75508fc"
+    },
+    {
+      "file": "lib/i18n/blog/pl/guitar-tab-editor.json",
+      "words": 302,
+      "characters": 2223,
+      "links": [
+        "/editor",
+        "/transcribe",
+        "/editor",
+        "/transcribe"
+      ],
+      "issues": [],
+      "sha256": "111d8680e4eb7e895f3ef6600054c07608967c50062898c4833a16e1424f7fcf"
+    },
+    {
+      "file": "lib/i18n/blog/pl/guitar-tab-maker-vs-guitar-tab-editor.json",
+      "words": 371,
+      "characters": 2647,
+      "links": [
+        "/editor",
+        "/transcribe",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "9a524278a7c4f870349783f93400bd219b9ac8f9696ab80f957a381fcb104ab8"
+    },
+    {
+      "file": "lib/i18n/blog/pl/how-to-convert-audio-to-guitar-tabs.json",
+      "words": 296,
+      "characters": 2206,
+      "links": [
+        "/transcribe",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "0c113b0cca559c4423a515732152c854bbbe6f5663cd3760db2a8d40047b0aec"
+    },
+    {
+      "file": "lib/i18n/blog/pl/how-to-edit-guitar-tabs-for-practice.json",
+      "words": 359,
+      "characters": 2516,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "e1dc231fd106abe1fde8ac201c0d2d790c3b347be4bfb36bd9a51928696bcf63"
+    },
+    {
+      "file": "lib/i18n/blog/pl/how-to-fix-ai-guitar-tabs.json",
+      "words": 275,
+      "characters": 2012,
+      "links": [
+        "/editor",
+        "/transcribe",
+        "/editor",
+        "/transcribe"
+      ],
+      "issues": [],
+      "sha256": "4928baf42e0739c2498f36c660a0a1181b1ce45c9363bdca80ed29ca75355350"
+    },
+    {
+      "file": "lib/i18n/blog/pl/how-to-learn-guitar-faster-using-ai-tools.json",
+      "words": 313,
+      "characters": 2309,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "c7bce1ffc60ffdde45677281f85d475aa4f4b77c6985ab8064905a671baf1a09"
+    },
+    {
+      "file": "lib/i18n/blog/pl/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes.json",
+      "words": 322,
+      "characters": 2472,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/blog/how-to-convert-audio-to-guitar-tabs",
+        "/blog/how-to-fix-ai-guitar-tabs",
+        "/youtube-to-guitar-tabs",
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "2603b0cf921b0caa964405e87b6a1fea64f0ab0100f4362504476fc687a6477d"
+    },
+    {
+      "file": "lib/i18n/blog/pl/how-to-use-generate-cuts-cut-regions-and-optimize.json",
+      "words": 310,
+      "characters": 2214,
+      "links": [
+        "/editor",
+        "/editor",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "b41250606f54ffb5abc00a8ddf6c351cb87f49b49885c7c4e07c62b682512ef3"
+    },
+    {
+      "file": "lib/i18n/blog/pl/how-to-write-guitar-tabs-online-without-downloading-software.json",
+      "words": 334,
+      "characters": 2397,
+      "links": [
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/youtube-to-guitar-tabs",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "73d63e87991a6d60c4e55ef3774814de10688d68e3ce11ee150a80120a07b68e"
+    },
+    {
+      "file": "lib/i18n/blog/pl/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players.json",
+      "words": 338,
+      "characters": 2448,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/editor",
+        "/editor",
+        "/auth/signup",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "3d614fba3e6bb4a7a8b3b49655217d51bccb4228e1bc1e8d8e7d733e93955681"
+    },
+    {
+      "file": "lib/i18n/blog/pl/mp3-to-guitar-tabs.json",
+      "words": 254,
+      "characters": 1900,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/audio-to-guitar-tab-converter",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "39218ea905556269b05a7c25e7305faacd85aa890f78fed5977e6ce54771e73c"
+    },
+    {
+      "file": "lib/i18n/blog/pl/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online.json",
+      "words": 294,
+      "characters": 2162,
+      "links": [
+        "/editor",
+        "/blog/how-to-convert-audio-to-guitar-tabs",
+        "/editor",
+        "/audio-to-guitar-tab-converter",
+        "/free-guitar-tab-maker",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "41c6ec3290d7dc0378b4f63eda5e8978cbcaaef1a338749816193a78027d7ae1"
+    },
+    {
+      "file": "lib/i18n/blog/pl/song-to-guitar-tabs.json",
+      "words": 259,
+      "characters": 1862,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/ai-guitar-tab-generator",
+        "/editor",
+        "/youtube-to-guitar-tabs",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "9ea31c980739497bf9783dffdc94a9046d1e94203a849c6fc221457bd777dce1"
+    },
+    {
+      "file": "lib/i18n/blog/pl/tab-editor-for-guitar.json",
+      "words": 253,
+      "characters": 1737,
+      "links": [
+        "/editor",
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "b8c9c981cf05c308cdc340dc8046cc96a454342da9eb8c868325efda0fe243db"
+    },
+    {
+      "file": "lib/i18n/blog/pl/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly.json",
+      "words": 307,
+      "characters": 2282,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "/blog/youtube-to-guitar-tabs-workflow",
+        "/editor",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "fb71c0b19ecae7bfec5a4e670ecc425ee3731a6b84a3bf886037299f47f8376b"
+    },
+    {
+      "file": "lib/i18n/blog/pl/wav-to-guitar-tabs.json",
+      "words": 238,
+      "characters": 1656,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "33be7fe40230df05c79146ec4736bbc1347a4e65beebfc29b4497346eca8ddc5"
+    },
+    {
+      "file": "lib/i18n/blog/pl/why-guitar-tabs-can-be-wrong.json",
+      "words": 1219,
+      "characters": 10273,
+      "links": [
+        "/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online#dlaczego-jedna-nuta-ma-kilka-pozycji",
+        "https://doi.org/10.3758/BF03194586",
+        "https://doi.org/10.1162/0898929053467532",
+        "https://doi.org/10.1525/mp.2011.28.3.315",
+        "https://doi.org/10.3758/s13421-022-01282-6",
+        "https://doi.org/10.1016/j.neulet.2021.135624",
+        "https://doi.org/10.1093/cercor/bhy208",
+        "https://doi.org/10.1080/25742442.2019.1684164",
+        "/transcribe",
+        "/editor",
+        "https://doi.org/10.3758/BF03194586",
+        "https://doi.org/10.1162/0898929053467532",
+        "https://doi.org/10.1525/mp.2011.28.3.315",
+        "https://doi.org/10.3758/s13421-022-01282-6",
+        "https://doi.org/10.1016/j.neulet.2021.135624",
+        "https://doi.org/10.1080/25742442.2019.1684164",
+        "https://doi.org/10.1093/cercor/bhy208"
+      ],
+      "issues": [],
+      "sha256": "616474921d3ac1f89019daeac898e09f2a3ec1ed78e284bd8573cfc7046ac0e2"
+    },
+    {
+      "file": "lib/i18n/blog/pl/youtube-to-guitar-tabs-workflow.json",
+      "words": 328,
+      "characters": 2367,
+      "links": [
+        "/youtube-to-guitar-tabs",
+        "/blog/mp3-to-guitar-tabs",
+        "/blog/wav-to-guitar-tabs",
+        "/editor",
+        "/youtube-to-guitar-tabs"
+      ],
+      "issues": [],
+      "sha256": "c0c4b5fea3ca5f4084af184a62cb2e7bd8ad747bcb03a1a19e587821e4942078"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/ai-guitar-tab-editor.json",
+      "words": 407,
+      "characters": 2591,
+      "links": [
+        "/editor",
+        "/editor",
+        "/transcribe"
+      ],
+      "issues": [],
+      "sha256": "34c20fe4dc090412912a8ed83e587bd621ec54651001a7f12a734099dbd44cbe"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs.json",
+      "words": 648,
+      "characters": 4114,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "/blog/how-to-convert-audio-to-guitar-tabs",
+        "/youtube-to-guitar-tabs",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "424bb298c98ea47055dfc58348c6f6b05c1397013be16e5a0606d9f0552bd64d"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/ascii-guitar-tab-editor.json",
+      "words": 354,
+      "characters": 2242,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "a3b193bccd612a0cd9c56716c9f44312c55e978fe6d29d77b7c3fe32b96a345d"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/free-online-guitar-tab-maker.json",
+      "words": 434,
+      "characters": 2779,
+      "links": [
+        "/editor",
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "9fd9779ba27dddc533ceb7459d40dfbfbc0eca2e8982b35e50105364429216a0"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/guitar-fingering-optimizer.json",
+      "words": 441,
+      "characters": 2710,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "03d0908a97ffe187615fcedc40616e54cef3b22cae7249239aa2cae5d923cabf"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/guitar-pro-alternative-online.json",
+      "words": 565,
+      "characters": 3712,
+      "links": [
+        "/editor",
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "ca534719a8e41e366fa12ab62593a49649659231cb3028ad0c85e5c883f0229a"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/guitar-solo-tab-maker.json",
+      "words": 572,
+      "characters": 3571,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/audio-to-guitar-tab-converter",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "c55fecf7c84e2837402e4220ad75d1505c303f86ff00d8de0a8b5661596ec009"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/guitar-tab-creator-with-playback.json",
+      "words": 469,
+      "characters": 2895,
+      "links": [
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "a93f3b152d23bce4fc07febd54817df03a6d6f154927a8bd73a7ae0efdb101f6"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/guitar-tab-editor.json",
+      "words": 405,
+      "characters": 2732,
+      "links": [
+        "/editor",
+        "/transcribe",
+        "/editor",
+        "/transcribe"
+      ],
+      "issues": [],
+      "sha256": "0bc0bc7237794d9b5f877ed0e5ab64346dc17aa717dd722fa3a5f34cd7f90745"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/guitar-tab-maker-vs-guitar-tab-editor.json",
+      "words": 707,
+      "characters": 4392,
+      "links": [
+        "/editor",
+        "/transcribe",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "85e3ae291dde06f1d97a4cad94feff7ae9a0e46714c97ebf97078f5735fdf790"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/how-to-convert-audio-to-guitar-tabs.json",
+      "words": 413,
+      "characters": 2752,
+      "links": [
+        "/transcribe",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "4e83ba15179bdff0648b1567845bb3fffeb4d6df96d9295297867b5a91daed92"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/how-to-edit-guitar-tabs-for-practice.json",
+      "words": 616,
+      "characters": 3906,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "c828f50409dcda2cbce0922a29af8b090cc3e70aff598d9e1d7ae9906373d15e"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/how-to-fix-ai-guitar-tabs.json",
+      "words": 379,
+      "characters": 2604,
+      "links": [
+        "/editor",
+        "/transcribe",
+        "/editor",
+        "/transcribe"
+      ],
+      "issues": [],
+      "sha256": "d510f2c0c7f74b194dd88c6bfe62ac486856c6f9ab350655a1a3ec264f780746"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/how-to-learn-guitar-faster-using-ai-tools.json",
+      "words": 496,
+      "characters": 3141,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "e457e4af37b7bf2b8e5374023a3f41d1d92d57b6831418e9f3c827c945f005bd"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes.json",
+      "words": 553,
+      "characters": 3546,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/blog/how-to-convert-audio-to-guitar-tabs",
+        "/blog/how-to-fix-ai-guitar-tabs",
+        "/youtube-to-guitar-tabs",
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "d2e827a55fd5b2b799c56e98372a5c3f28bd0e9c20afa43d83b38f2c35ee5003"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/how-to-use-generate-cuts-cut-regions-and-optimize.json",
+      "words": 464,
+      "characters": 2944,
+      "links": [
+        "/editor",
+        "/editor",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "2ffa253b04116438ced5aa82d4bf456a74308a08137e0153a75db03d53de1c3d"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/how-to-write-guitar-tabs-online-without-downloading-software.json",
+      "words": 675,
+      "characters": 4285,
+      "links": [
+        "/editor",
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/youtube-to-guitar-tabs",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "342e69ab2a6e33aa0134ce6d3c1a8c00b38714f2cecb076dcc45004cd522bf1c"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players.json",
+      "words": 729,
+      "characters": 4540,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/editor",
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/auth/signup",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "fc1c7523129fc29584b3a25278b1f0b09f48c17c2e819a89542b7fdc9271861b"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/mp3-to-guitar-tabs.json",
+      "words": 544,
+      "characters": 3357,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/audio-to-guitar-tab-converter",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "bb40b9961654c23d2e695003faddc4ce10400acb672f5c9714df71d90e1be79b"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online.json",
+      "words": 497,
+      "characters": 3180,
+      "links": [
+        "/editor",
+        "/editor",
+        "/blog/how-to-convert-audio-to-guitar-tabs",
+        "/editor",
+        "/audio-to-guitar-tab-converter",
+        "/free-guitar-tab-maker",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "d254015b97b11b6da6fac41b4938ed145d38a718aa822886a54ee81e1f7bccb8"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/song-to-guitar-tabs.json",
+      "words": 445,
+      "characters": 2874,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/ai-guitar-tab-generator",
+        "/editor",
+        "/youtube-to-guitar-tabs",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "91e4556e6c7283862a412dcd11a6c33089e45e8e6f956500da27ec7ddb3219db"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/tab-editor-for-guitar.json",
+      "words": 463,
+      "characters": 2986,
+      "links": [
+        "/editor",
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "f421ba86b0aa341da919c71484abc9b598924d15824a6c314fb6d928a68ee552"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly.json",
+      "words": 507,
+      "characters": 3394,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "/blog/youtube-to-guitar-tabs-workflow",
+        "/ai-guitar-tab-generator",
+        "/editor",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "4d416325de6ae98f9bed01fd4d3c7e5ee9b5e79025f7cf407d7f4aac34cb106e"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/wav-to-guitar-tabs.json",
+      "words": 495,
+      "characters": 2971,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "93af7b3b2b31856eaa1e9da552a770952e2d394b56afb6b294c56c336e3670c5"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/why-guitar-tabs-can-be-wrong.json",
+      "words": 1677,
+      "characters": 12250,
+      "links": [
+        "/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online#por-que-uma-nota-tem-várias-posições",
+        "https://doi.org/10.3758/BF03194586",
+        "https://doi.org/10.1162/0898929053467532",
+        "https://doi.org/10.1525/mp.2011.28.3.315",
+        "https://doi.org/10.3758/s13421-022-01282-6",
+        "https://doi.org/10.1016/j.neulet.2021.135624",
+        "https://doi.org/10.1093/cercor/bhy208",
+        "https://doi.org/10.1080/25742442.2019.1684164",
+        "/transcribe",
+        "/editor",
+        "https://doi.org/10.3758/BF03194586",
+        "https://doi.org/10.1162/0898929053467532",
+        "https://doi.org/10.1525/mp.2011.28.3.315",
+        "https://doi.org/10.3758/s13421-022-01282-6",
+        "https://doi.org/10.1016/j.neulet.2021.135624",
+        "https://doi.org/10.1080/25742442.2019.1684164",
+        "https://doi.org/10.1093/cercor/bhy208"
+      ],
+      "issues": [],
+      "sha256": "9dd90a5a04e9931d862d590aa8076fe349b01729d7548c6d037670617b4c7bae"
+    },
+    {
+      "file": "lib/i18n/blog/pt-BR/youtube-to-guitar-tabs-workflow.json",
+      "words": 488,
+      "characters": 3184,
+      "links": [
+        "/youtube-to-guitar-tabs",
+        "/blog/mp3-to-guitar-tabs",
+        "/blog/wav-to-guitar-tabs",
+        "/editor",
+        "/youtube-to-guitar-tabs"
+      ],
+      "issues": [],
+      "sha256": "6bfbb85861179d26c05523fe6dfb9010ef419163db5b2fa86bb01ef88497cfd1"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/ai-guitar-tab-editor.json",
+      "words": 48,
+      "characters": 674,
+      "links": [
+        "/editor",
+        "/editor",
+        "/transcribe"
+      ],
+      "issues": [],
+      "sha256": "ac203dd801b873c4e45ddc37705f75439a2418bc2eba8ab434e208bfa30fa5b6"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs.json",
+      "words": 56,
+      "characters": 931,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly",
+        "/blog/how-to-convert-audio-to-guitar-tabs",
+        "/youtube-to-guitar-tabs",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "2a95acc4fd01aab752ff7a96f4fb1d66f4be551fee85b7ecb897a9e9797742ae"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/ascii-guitar-tab-editor.json",
+      "words": 42,
+      "characters": 553,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "7028dbbcf749f4e3c29dd0dd32ef24baac343280abf69d1cd2cfcf61e8c2870b"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/free-online-guitar-tab-maker.json",
+      "words": 37,
+      "characters": 537,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "bb920de19902fd3c72cc70a3a69d74f5068933abbdf24d7a8cd4e15c2fef2600"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/guitar-fingering-optimizer.json",
+      "words": 45,
+      "characters": 585,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "2e00a2f6528aec6952ca7735c52b327ab4f5a642e71540ce05018f7d04c83ecb"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/guitar-pro-alternative-online.json",
+      "words": 54,
+      "characters": 643,
+      "links": [
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "7b45a7b232a62db495f78c5b1d57db1b53fcf9bbe280a08a04df19f14c084d7a"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/guitar-solo-tab-maker.json",
+      "words": 37,
+      "characters": 625,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "8776f017d0fdc5567733d0efa8ded6e5e3766092d9225834528261f81f236264"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/guitar-tab-creator-with-playback.json",
+      "words": 40,
+      "characters": 557,
+      "links": [
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "881739e05027a7a7596742dd149cf647cfad3ca9edb790d6ab06af0236d83469"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/guitar-tab-editor.json",
+      "words": 42,
+      "characters": 630,
+      "links": [
+        "/editor",
+        "/transcribe",
+        "/editor",
+        "/transcribe"
+      ],
+      "issues": [],
+      "sha256": "5ad2681091553e1010cdd128ec1753263325c003761cdaf17e64536262b1e219"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/guitar-tab-maker-vs-guitar-tab-editor.json",
+      "words": 39,
+      "characters": 572,
+      "links": [
+        "/editor",
+        "/transcribe",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "6cbb90d03d9855bbd799e06d712d3f9e6375d49fbdae902006c91bd4d587a19f"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/how-to-convert-audio-to-guitar-tabs.json",
+      "words": 51,
+      "characters": 673,
+      "links": [
+        "/transcribe",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "9e9afbd2cb8cd49d0cd057edfd06fd67998bff305c77a2dab64e12e7387f8807"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/how-to-edit-guitar-tabs-for-practice.json",
+      "words": 52,
+      "characters": 662,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "59549b31a0b4ac3af019d971eff3117fa8230132847190dbadca5a5df528b7e3"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/how-to-fix-ai-guitar-tabs.json",
+      "words": 33,
+      "characters": 573,
+      "links": [
+        "/editor",
+        "/transcribe",
+        "/editor",
+        "/transcribe"
+      ],
+      "issues": [],
+      "sha256": "aba6979e734aa1958519cd4a12eb83f7041e7a3b9a7384990883c37566e0d5c8"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/how-to-learn-guitar-faster-using-ai-tools.json",
+      "words": 37,
+      "characters": 622,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "6182bdac71426138a61a7545b60e2aa72c1bcb4d06549cdc3edc49c830771124"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes.json",
+      "words": 52,
+      "characters": 943,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/blog/how-to-convert-audio-to-guitar-tabs",
+        "/blog/how-to-fix-ai-guitar-tabs",
+        "/youtube-to-guitar-tabs",
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "23850cb6888ee2db0b46467f6338552a3b710a531cc9fd4baa792f39a6c89350"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/how-to-use-generate-cuts-cut-regions-and-optimize.json",
+      "words": 64,
+      "characters": 794,
+      "links": [
+        "/editor",
+        "/auth/signup",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "639cf642ac7656300855c0f019b7b712013bddf51be0d23d71043272b27969a4"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/how-to-write-guitar-tabs-online-without-downloading-software.json",
+      "words": 36,
+      "characters": 729,
+      "links": [
+        "/editor",
+        "/ai-guitar-tab-generator",
+        "/youtube-to-guitar-tabs",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "37f411d7c4b5fb79ba826e560a1b73a9735ca3d35cb9ae411f1e3233d8808443"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/manual-vs-ai-guitar-transcription-which-is-better-for-guitar-players.json",
+      "words": 45,
+      "characters": 815,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/editor",
+        "/auth/signup",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "e4459bc18e957ab56eba066b705edca516a4c8fd733d50e7fc512fa23ebbf43c"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/mp3-to-guitar-tabs.json",
+      "words": 40,
+      "characters": 684,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/audio-to-guitar-tab-converter",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "b329858474a495dcb211ee46c7b28f14f9a598fa5bd59a0c1d7abb226568636a"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online.json",
+      "words": 41,
+      "characters": 778,
+      "links": [
+        "/editor",
+        "/blog/how-to-convert-audio-to-guitar-tabs",
+        "/editor",
+        "/audio-to-guitar-tab-converter",
+        "/free-guitar-tab-maker",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "f237398a9c4dd02e6e0630197f8bc26b691cd314f1d38686783d52b33f7f3fbe"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/song-to-guitar-tabs.json",
+      "words": 36,
+      "characters": 685,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/ai-guitar-tab-generator",
+        "/editor",
+        "/youtube-to-guitar-tabs",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "0e7cd6b7a36722d50db9757cebec2a549b9f0f6e067d26168a162811a540b386"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/tab-editor-for-guitar.json",
+      "words": 44,
+      "characters": 614,
+      "links": [
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "4f0f9c6e85af81ce9c0dd87b34c1398a79d98141bffb2b332d06151d5c4d38cd"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly.json",
+      "words": 50,
+      "characters": 853,
+      "links": [
+        "/ai-guitar-tab-generator",
+        "/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes",
+        "/blog/youtube-to-guitar-tabs-workflow",
+        "/editor",
+        "/auth/signup"
+      ],
+      "issues": [],
+      "sha256": "6858949139c7b6d508ac16a87cb0319e616bc1fb4bb130611f7649b38ab713b8"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/wav-to-guitar-tabs.json",
+      "words": 54,
+      "characters": 640,
+      "links": [
+        "/audio-to-guitar-tab-converter",
+        "/editor",
+        "/editor"
+      ],
+      "issues": [],
+      "sha256": "f0846c3f7cd67ea48b9bd52c7dc1ead80f579d36202085bd0fe8511b8378cb11"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/why-guitar-tabs-can-be-wrong.json",
+      "words": 301,
+      "characters": 4675,
+      "links": [
+        "/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online#为什么同一个音有多个位置",
+        "https://doi.org/10.3758/BF03194586",
+        "https://doi.org/10.1162/0898929053467532",
+        "https://doi.org/10.1525/mp.2011.28.3.315",
+        "https://doi.org/10.3758/s13421-022-01282-6",
+        "https://doi.org/10.1016/j.neulet.2021.135624",
+        "https://doi.org/10.1093/cercor/bhy208",
+        "https://doi.org/10.1080/25742442.2019.1684164",
+        "/transcribe",
+        "/editor",
+        "https://doi.org/10.3758/BF03194586",
+        "https://doi.org/10.1162/0898929053467532",
+        "https://doi.org/10.1525/mp.2011.28.3.315",
+        "https://doi.org/10.3758/s13421-022-01282-6",
+        "https://doi.org/10.1016/j.neulet.2021.135624",
+        "https://doi.org/10.1080/25742442.2019.1684164",
+        "https://doi.org/10.1093/cercor/bhy208"
+      ],
+      "issues": [],
+      "sha256": "66bada064642088b96a37ffcd2a424b5a027df1f0171836d0e82c3eb731118be"
+    },
+    {
+      "file": "lib/i18n/blog/zh-Hans/youtube-to-guitar-tabs-workflow.json",
+      "words": 40,
+      "characters": 817,
+      "links": [
+        "/youtube-to-guitar-tabs",
+        "/blog/mp3-to-guitar-tabs",
+        "/blog/wav-to-guitar-tabs",
+        "/editor",
+        "/youtube-to-guitar-tabs"
+      ],
+      "issues": [],
+      "sha256": "abfbea3cb1701762f37b8cdfbd1ad9261df889b2e5a90b04ebf37b560d89d6b1"
+    }
+  ]
+}
