@@ -7,6 +7,12 @@ import {sanitizeAnalyticsProperties} from "../../lib/analyticsPrivacy";
 
 const placeholders = (value: string) => (value.match(/\{[a-zA-Z][a-zA-Z0-9_]*\}/g) || []).sort();
 describe("localization audit invariants", () => {
+  it("shows the required deletion literal in the actual form and placeholder", () => {
+    const settings = readFileSync("pages/settings.tsx", "utf8");
+    expect(settings).toContain('<strong dir="ltr">delete</strong>');
+    expect(settings).toContain('placeholder="delete"');
+    expect(settings).not.toContain('t("delete")');
+  });
   it.each(ALL_LOCALES)("keeps complete %s catalogs and functional literals", locale => {
     for (const group of ["", "editor/"]) {
       const source = JSON.parse(readFileSync(`lib/i18n/${group}en.json`, "utf8"));
@@ -33,7 +39,7 @@ describe("localization audit invariants", () => {
     expect(Object.keys(flowMessages[locale])).toEqual(Object.keys(flowMessages.en));
     for (const [key, value] of Object.entries(flowMessages[locale])) {
       expect(placeholders(value), key).toEqual(placeholders(key));
-      const rendered = translate(key, locale, {plan: "Premium", count: 3, percent: 20, size: 200});
+      const rendered = translate(key, locale, {plan: "Premium", count: 3, percent: 20, size: 200, seconds: 30, minutes: 10, date: "2026-10-17"});
       expect(rendered).not.toMatch(/\{[a-zA-Z]/);
       if (key.includes("{plan}")) expect(rendered).toContain("Premium");
       if (key.includes("{count}")) expect(rendered).toContain("3");

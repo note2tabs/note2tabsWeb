@@ -16,7 +16,11 @@ export const flowMessages: Record<AppLocale, Record<string, string>> = {
     "Earn from each referred customer’s first {count} paid subscription months.": "Earn from each referred customer’s first {count} paid subscription months.",
     "Earn from each referred customer’s first paid subscription month.": "Earn from each referred customer’s first paid subscription month.",
     "Commission on a referred customer’s first {count} qualifying payments.": "Commission on a referred customer’s first {count} qualifying payments.",
-    "On their first {count} billing periods with your code.": "On their first {count} billing periods with your code."
+    "On their first {count} billing periods with your code.": "On their first {count} billing periods with your code.",
+    "Up to {seconds} seconds": "Up to {seconds} seconds",
+    "First {minutes} minutes": "First {minutes} minutes",
+    "Your credits will be refreshed on {date}.": "Your credits will be refreshed on {date}.",
+    "You can cancel your {plan} subscription anytime from Manage subscription.": "You can cancel your {plan} subscription anytime from Manage subscription."
   },
   "pt-BR": {
     "Activating {plan}": "Ativando {plan}",
@@ -32,7 +36,11 @@ export const flowMessages: Record<AppLocale, Record<string, string>> = {
     "Earn from each referred customer’s first {count} paid subscription months.": "Ganhe nos primeiros {count} meses pagos de assinatura de cada cliente indicado.",
     "Earn from each referred customer’s first paid subscription month.": "Ganhe no primeiro mês pago de assinatura de cada cliente indicado.",
     "Commission on a referred customer’s first {count} qualifying payments.": "Comissão sobre os primeiros {count} pagamentos elegíveis de cada cliente indicado.",
-    "On their first {count} billing periods with your code.": "Nos primeiros {count} períodos de cobrança com seu código."
+    "On their first {count} billing periods with your code.": "Nos primeiros {count} períodos de cobrança com seu código.",
+    "Up to {seconds} seconds": "Até {seconds} segundos",
+    "First {minutes} minutes": "Primeiros {minutes} minutos",
+    "Your credits will be refreshed on {date}.": "Seus créditos serão renovados em {date}.",
+    "You can cancel your {plan} subscription anytime from Manage subscription.": "Você pode cancelar sua assinatura {plan} a qualquer momento em Gerenciar assinatura."
   },
   "es": {
     "Activating {plan}": "Activando {plan}",
@@ -48,7 +56,11 @@ export const flowMessages: Record<AppLocale, Record<string, string>> = {
     "Earn from each referred customer’s first {count} paid subscription months.": "Gana durante los primeros {count} meses de suscripción de pago de cada cliente referido.",
     "Earn from each referred customer’s first paid subscription month.": "Gana durante el primer mes de suscripción de pago de cada cliente referido.",
     "Commission on a referred customer’s first {count} qualifying payments.": "Comisión sobre los primeros {count} pagos válidos de cada cliente referido.",
-    "On their first {count} billing periods with your code.": "Durante sus primeros {count} periodos de facturación con tu código."
+    "On their first {count} billing periods with your code.": "Durante sus primeros {count} periodos de facturación con tu código.",
+    "Up to {seconds} seconds": "Hasta {seconds} segundos",
+    "First {minutes} minutes": "Primeros {minutes} minutos",
+    "Your credits will be refreshed on {date}.": "Tus créditos se renovarán el {date}.",
+    "You can cancel your {plan} subscription anytime from Manage subscription.": "Puedes cancelar tu suscripción {plan} cuando quieras desde Gestionar suscripción."
   },
   "ja": {
     "Activating {plan}": "{plan}を有効化しています",
@@ -64,7 +76,11 @@ export const flowMessages: Record<AppLocale, Record<string, string>> = {
     "Earn from each referred customer’s first {count} paid subscription months.": "紹介したお客様の最初の{count}か月分の有料サブスクリプションから報酬を獲得できます。",
     "Earn from each referred customer’s first paid subscription month.": "紹介したお客様の最初の1か月分の有料サブスクリプションから報酬を獲得できます。",
     "Commission on a referred customer’s first {count} qualifying payments.": "紹介したお客様の最初の{count}回の対象支払いに対する報酬。",
-    "On their first {count} billing periods with your code.": "あなたのコードを使った最初の{count}請求期間が対象です。"
+    "On their first {count} billing periods with your code.": "あなたのコードを使った最初の{count}請求期間が対象です。",
+    "Up to {seconds} seconds": "最大{seconds}秒",
+    "First {minutes} minutes": "最初の{minutes}分間",
+    "Your credits will be refreshed on {date}.": "クレジットは{date}に更新されます。",
+    "You can cancel your {plan} subscription anytime from Manage subscription.": "「サブスクリプションを管理」から、{plan}のサブスクリプションをいつでも解約できます。"
   },
   "ko": {
     "Activating {plan}": "{plan} 활성화 중",
@@ -80,7 +96,11 @@ export const flowMessages: Record<AppLocale, Record<string, string>> = {
     "Earn from each referred customer’s first {count} paid subscription months.": "추천 고객의 첫 {count}개월 유료 구독에서 수익을 얻으세요.",
     "Earn from each referred customer’s first paid subscription month.": "추천 고객의 첫 유료 구독 한 달에서 수익을 얻으세요.",
     "Commission on a referred customer’s first {count} qualifying payments.": "추천 고객의 첫 {count}회 대상 결제에 대한 수수료입니다.",
-    "On their first {count} billing periods with your code.": "코드를 사용한 첫 {count}회 결제 기간에 적용됩니다."
+    "On their first {count} billing periods with your code.": "코드를 사용한 첫 {count}회 결제 기간에 적용됩니다.",
+    "Up to {seconds} seconds": "최대 {seconds}초",
+    "First {minutes} minutes": "처음 {minutes}분",
+    "Your credits will be refreshed on {date}.": "크레딧은 {date}에 갱신됩니다.",
+    "You can cancel your {plan} subscription anytime from Manage subscription.": "구독 관리에서 언제든지 {plan} 구독을 취소할 수 있습니다."
   },
   "pl": {
     "Activating {plan}": "Aktywowanie {plan}",
@@ -96,7 +116,11 @@ export const flowMessages: Record<AppLocale, Record<string, string>> = {
     "Earn from each referred customer’s first {count} paid subscription months.": "Zarabiaj na pierwszych {count} miesiącach płatnej subskrypcji każdego poleconego klienta.",
     "Earn from each referred customer’s first paid subscription month.": "Zarabiaj na pierwszym miesiącu płatnej subskrypcji każdego poleconego klienta.",
     "Commission on a referred customer’s first {count} qualifying payments.": "Prowizja od pierwszych {count} kwalifikujących się płatności poleconego klienta.",
-    "On their first {count} billing periods with your code.": "Przez pierwsze {count} okresy rozliczeniowe z Twoim kodem."
+    "On their first {count} billing periods with your code.": "Przez pierwsze {count} okresy rozliczeniowe z Twoim kodem.",
+    "Up to {seconds} seconds": "Do {seconds} sekund",
+    "First {minutes} minutes": "Pierwsze {minutes} minut",
+    "Your credits will be refreshed on {date}.": "Twoje kredyty zostaną odnowione {date}.",
+    "You can cancel your {plan} subscription anytime from Manage subscription.": "Subskrypcję {plan} możesz anulować w dowolnym momencie w sekcji zarządzania subskrypcją."
   },
   "ar": {
     "Activating {plan}": "جارٍ تفعيل {plan}",
@@ -112,7 +136,11 @@ export const flowMessages: Record<AppLocale, Record<string, string>> = {
     "Earn from each referred customer’s first {count} paid subscription months.": "اكسب عمولة عن أول {count} أشهر اشتراك مدفوعة لكل عميل تُحيله.",
     "Earn from each referred customer’s first paid subscription month.": "اكسب عمولة عن أول شهر اشتراك مدفوع لكل عميل تُحيله.",
     "Commission on a referred customer’s first {count} qualifying payments.": "عمولة على أول {count} دفعات مؤهلة للعميل المُحال.",
-    "On their first {count} billing periods with your code.": "خلال أول {count} فترات فوترة باستخدام رمزك."
+    "On their first {count} billing periods with your code.": "خلال أول {count} فترات فوترة باستخدام رمزك.",
+    "Up to {seconds} seconds": "حتى {seconds} ثانية",
+    "First {minutes} minutes": "أول {minutes} دقائق",
+    "Your credits will be refreshed on {date}.": "سيُجدَّد رصيدك في {date}.",
+    "You can cancel your {plan} subscription anytime from Manage subscription.": "يمكنك إلغاء اشتراك {plan} في أي وقت من إدارة الاشتراك."
   },
   "zh-Hans": {
     "Activating {plan}": "正在激活 {plan}",
@@ -128,7 +156,11 @@ export const flowMessages: Record<AppLocale, Record<string, string>> = {
     "Earn from each referred customer’s first {count} paid subscription months.": "从每位受邀客户前 {count} 个月的付费订阅中赚取佣金。",
     "Earn from each referred customer’s first paid subscription month.": "从每位受邀客户首月的付费订阅中赚取佣金。",
     "Commission on a referred customer’s first {count} qualifying payments.": "每位受邀客户前 {count} 次符合条件的付款均可获得佣金。",
-    "On their first {count} billing periods with your code.": "使用你的优惠码，前 {count} 个计费周期均可享受优惠。"
+    "On their first {count} billing periods with your code.": "使用你的优惠码，前 {count} 个计费周期均可享受优惠。",
+    "Up to {seconds} seconds": "最多 {seconds} 秒",
+    "First {minutes} minutes": "前 {minutes} 分钟",
+    "Your credits will be refreshed on {date}.": "你的额度将于 {date} 重置。",
+    "You can cancel your {plan} subscription anytime from Manage subscription.": "你可以随时在“管理订阅”中取消 {plan} 订阅。"
   },
   "fr": {
     "Activating {plan}": "Activation de {plan}",
@@ -144,7 +176,11 @@ export const flowMessages: Record<AppLocale, Record<string, string>> = {
     "Earn from each referred customer’s first {count} paid subscription months.": "Recevez une commission sur les {count} premiers mois d’abonnement payant de chaque client parrainé.",
     "Earn from each referred customer’s first paid subscription month.": "Recevez une commission sur le premier mois d’abonnement payant de chaque client parrainé.",
     "Commission on a referred customer’s first {count} qualifying payments.": "Commission sur les {count} premiers paiements éligibles d’un client parrainé.",
-    "On their first {count} billing periods with your code.": "Pendant les {count} premières périodes de facturation avec votre code."
+    "On their first {count} billing periods with your code.": "Pendant les {count} premières périodes de facturation avec votre code.",
+    "Up to {seconds} seconds": "Jusqu’à {seconds} secondes",
+    "First {minutes} minutes": "Les {minutes} premières minutes",
+    "Your credits will be refreshed on {date}.": "Vos crédits seront renouvelés le {date}.",
+    "You can cancel your {plan} subscription anytime from Manage subscription.": "Vous pouvez résilier votre abonnement {plan} à tout moment depuis Gérer l’abonnement."
   },
   "it": {
     "Activating {plan}": "Attivazione di {plan}",
@@ -160,6 +196,10 @@ export const flowMessages: Record<AppLocale, Record<string, string>> = {
     "Earn from each referred customer’s first {count} paid subscription months.": "Guadagna sui primi {count} mesi di abbonamento a pagamento di ogni cliente invitato.",
     "Earn from each referred customer’s first paid subscription month.": "Guadagna sul primo mese di abbonamento a pagamento di ogni cliente invitato.",
     "Commission on a referred customer’s first {count} qualifying payments.": "Commissione sui primi {count} pagamenti idonei di un cliente invitato.",
-    "On their first {count} billing periods with your code.": "Per i primi {count} periodi di fatturazione con il tuo codice."
+    "On their first {count} billing periods with your code.": "Per i primi {count} periodi di fatturazione con il tuo codice.",
+    "Up to {seconds} seconds": "Fino a {seconds} secondi",
+    "First {minutes} minutes": "Primi {minutes} minuti",
+    "Your credits will be refreshed on {date}.": "I tuoi crediti si rinnoveranno il {date}.",
+    "You can cancel your {plan} subscription anytime from Manage subscription.": "Puoi disdire l’abbonamento {plan} in qualsiasi momento da Gestisci abbonamento."
   }
 };
