@@ -1,6 +1,6 @@
 import {useEffect,useState} from "react";
 import {useLocale} from "../lib/i18n/react";
-import {localeEnabled,LOCALE_NAMES,LOCALE_LANGUAGE_LABELS,type AppLocale} from "../lib/i18n/locale";
+import {localeEnabled,LOCALE_FLAGS,LOCALE_NAMES,LOCALE_LANGUAGE_LABELS,type AppLocale} from "../lib/i18n/locale";
 import {browserLanguageChoice,saveLanguageChoice,settingsLanguageOptions} from "../lib/i18n/preference";
 import {sendEvent} from "../lib/analytics";
 
@@ -26,7 +26,7 @@ export default function LanguagePreference() {
    <label className="settingsRowLabel" htmlFor="site-language">{t("Language")}</label>
   </div><div className="settingsRowValue settingsLanguageActions">
    <select id="site-language" value={selected} onChange={event=>{setSelected(event.target.value as AppLocale);setSaved(false);}} disabled={!languageReady} aria-label={LOCALE_LANGUAGE_LABELS[locale]}>
-    {options.map(option=><option key={option} value={option} lang={option} dir={option==="ar"?"rtl":"ltr"}>{LOCALE_NAMES[option]}</option>)}
+    {options.map(option=><option key={option} value={option} lang={option} dir={option==="ar"?"rtl":"ltr"}>{LOCALE_FLAGS[option]} {LOCALE_NAMES[option]}</option>)}
    </select>
    <button className="settingsButton settingsButtonPrimary" type="button" onClick={()=>void save()} disabled={!languageReady}>{t("Save language")}</button>
   </div></div></div>
