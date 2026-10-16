@@ -32,9 +32,11 @@ describe.each(["fr","it"] as const)("%s localization",locale=>{
   expect(sanitizeAnalyticsPathname(`/${locale}/reset-password/secret`)).toBe(`/${locale}/reset-password/[token]`);
   expect(stripeLocale(locale)).toBe(locale);expect(localeCohort(locale,locale==="fr"?"FR":"IT").visitor_market).toBe(locale==="fr"?"france":"italy");
  });
- it("keeps production discovery gated until reviewed",()=>{
+ it("releases reviewed editions by default and retains an explicit disable switch",()=>{
   vi.stubEnv("NODE_ENV","production");vi.stubEnv("VERCEL_ENV","production");
   vi.stubEnv(locale==="fr"?"NEXT_PUBLIC_FR_REVIEWED":"NEXT_PUBLIC_IT_REVIEWED","");
+  expect(localizedPilotAvailable(locale)).toBe(true);expect(localizedPilotIndexable(locale)).toBe(true);
+  vi.stubEnv(locale==="fr"?"NEXT_PUBLIC_FR_REVIEWED":"NEXT_PUBLIC_IT_REVIEWED","false");
   expect(localizedPilotAvailable(locale)).toBe(false);expect(localizedPilotIndexable(locale)).toBe(false);
   vi.stubEnv(locale==="fr"?"NEXT_PUBLIC_FR_REVIEWED":"NEXT_PUBLIC_IT_REVIEWED","true");
   expect(localizedPilotAvailable(locale)).toBe(true);expect(localizedPilotIndexable(locale)).toBe(true);
