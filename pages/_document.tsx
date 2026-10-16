@@ -1,3 +1,4 @@
+import {publicMessagesForDocument} from "../lib/i18n/publicCatalogs.server";
 import { editorRequestLocale } from "../lib/i18n/editor/detection";
 import NextDocument, { Html, Head, Main, NextScript, type DocumentContext, type DocumentInitialProps } from "next/document";
 import { localeFromPath, localeDirection, isEditorPath, type AppLocale } from "../lib/i18n/locale";
@@ -100,6 +101,7 @@ export default function Document({ contentLocale = "en" }: DocumentInitialProps 
         <meta name="theme-color" content="#ffffff" />
       </Head>
       <body>
+        <script id="n2t-public-messages" type="application/json" dangerouslySetInnerHTML={{__html: publicMessagesForDocument(contentLocale)}} />
         <Main />
         <NextScript />
       </body>
