@@ -76,8 +76,8 @@ describe("Spanish website",()=>{
   expect(setHeader).toHaveBeenCalledWith("X-Robots-Tag","noindex, follow");expect(requestLocale({body:{locale:"es"},cookies:{}})).toBe("es");
  });
  it("retains Brazil prices and separates currency from language",()=>{
-  expect(formatLocalizedPrice("PREMIUM","monthly","BRL","es")).toContain("21,90");
-  expect(formatLocalizedPrice("PRO","monthly","BRL","es")).toContain("54,90");
+  expect(formatLocalizedPrice("PREMIUM","monthly","BRL","es")).toContain("14,99");
+  expect(formatLocalizedPrice("PRO","monthly","BRL","es")).toContain("37,99");
   expect(formatLocalizedPrice("PREMIUM","monthly","USD","es")).toContain("5,99");
  });
  it("preserves checkout resume and account returns",()=>{

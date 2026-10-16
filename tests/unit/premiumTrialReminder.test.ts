@@ -28,7 +28,7 @@ describe("Premium trial reminder", () => {
     });
 
     expect(email.subject).toBe("Your Note2Tabs trial ends September 2, 2026");
-    expect(email.text).toContain("renews at $5.99 per month unless you cancel before then");
+    expect(email.text).toContain("renews at the price and billing interval confirmed at checkout unless you cancel before then");
     expect(email.continueUrl).toBe(
       "https://www.note2tabs.com/gte/editor%20123?mode=practice&source=trial_reminder"
     );
@@ -48,7 +48,7 @@ describe("Premium trial reminder", () => {
     expect(email.subject).toBe("Your Note2Tabs Premium trial has started");
     expect(email.text).toContain("7-day trial started on August 26, 2026");
     expect(email.text).toContain("On September 2, 2026");
-    expect(email.text).toContain("renews at $5.99 per month unless you cancel before then");
+    expect(email.text).toContain("renews at the price and billing interval confirmed at checkout unless you cancel before then");
     expect(email.text).toContain("100 monthly transcription credits");
     expect(email.text).toContain("Review or cancel online at any time");
   });

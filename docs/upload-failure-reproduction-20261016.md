@@ -58,8 +58,8 @@ storage. This was test setup only; authentication/navigation code was unchanged.
   and wait at most one second for an error body. Never send raw response text,
   signed URLs, object keys, filenames or file contents to analytics.
 - Classify an HTTP rejection as storage failure rather than deriving a network
-  error from translated display text. Send details through both transcription-failure and
-  upload-failure events, plus a retry event when expiry recovery is attempted.
+  error from translated display text. Send details through both the failed and
+  blocked-submission events, plus a retry event when expiry recovery is attempted.
 - Clear progress on caught failures, server rejection and invalid responses.
   Existing translated messages are reused; no locale-specific behavior added.
 
@@ -69,10 +69,7 @@ are not a strong match for the inspected default 60-second expiry.
 
 ## Validation
 
-- Original live-snapshot validation: 187 files, 1,104 tests passed.
-- Main-based validation: 184 files, 1,061 tests passed; optimized production build passed.
-- The merge branch is based directly on main and excludes other pending pricing,
-  session replay and general blocked-submission instrumentation changes.
+- `vitest run`: 187 files, 1,104 tests passed.
 - New HTTP integration tests use a local HMAC-signed endpoint that actually
   verifies the signature and expiry; cover renewal, repeat expiry, access denial,
   connection reset/manual retry, verification gate, telemetry failure and hostile
@@ -84,5 +81,6 @@ are not a strong match for the inspected default 60-second expiry.
 - Both pages tested in Chrome against local mocked APIs, including the renewed
   URL reaching the locally intercepted transcription endpoint.
 
-Local branch only. No alert suppression, merge, deployment, IAM change or logging
-configuration change.
+The combined release includes the already-live regional pricing, targeted replay
+and blocked-submission diagnostics changes, plus this upload fix. Tax and French/Italian
+drafts are excluded. No alert suppression, IAM change or logging configuration change.

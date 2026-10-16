@@ -44,7 +44,7 @@ describe("additional language routing", () => {
     expect(formatLocalizedPrice("PREMIUM","monthly","KRW","ko")).toBe("₩7,900");
     expect(formatLocalizedPrice("PREMIUM","monthly","PLN","pl")).toContain("19,99");
     expect(formatLocalizedPrice("PREMIUM","monthly","CNY","zh-Hans")).toContain("30.00");
-    expect(formatLocalizedPrice("PREMIUM","monthly","BRL","pt-BR")).toContain("21,90");
+    expect(formatLocalizedPrice("PREMIUM","monthly","BRL","pt-BR")).toContain("14,99");
     expect(localeCohort("ar","SA")).toMatchObject({visitor_country:"SA", visitor_market:"arabic_speaking_markets",localization_cohort:"ar:SA"});
     expect(localeCohort("ko","KR").visitor_market).toBe("south_korea");
     expect(localeCohort("pl","PL").visitor_market).toBe("poland");

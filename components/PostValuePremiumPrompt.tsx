@@ -56,7 +56,7 @@ export default function PostValuePremiumPrompt({
         <button type="button" className="button-primary button-small" onClick={onUpgrade}>{t("See plans")}</button>
         <button type="button" className="heavy-preview-editor-prompt__later" onClick={onClose}>{t("Not now")}</button>
       </div>
-      <small className="heavy-preview-editor-prompt__reassurance">{t("Plans from $5.99/month · Cancel anytime")}</small>
+      <small className="heavy-preview-editor-prompt__reassurance">{t("Choose a plan. Cancel anytime.")}</small>
     </aside>
   );
 }

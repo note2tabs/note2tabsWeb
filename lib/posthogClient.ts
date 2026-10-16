@@ -82,6 +82,8 @@ let identifiedUserId: string | null = null;
 let identityResetPending = false;
 let legacyPersistenceCleared = false;
 let trackingDisabledOverride: boolean | null = null;
+let replayEligibility: Promise<boolean> | null = null;
+let replaySyncGeneration = 0;
 
 function getCookie(name: string) {
   if (typeof document === "undefined") return undefined;
@@ -200,10 +202,10 @@ export async function initPostHog(options: { ignoreDeniedConsent?: boolean } = {
           });
         },
         session_recording: {
-          // Editor content and controls are intentionally replayed in full. Sensitive
-          // non-editor surfaces opt out with this selector or route-level recording stops.
+          // Keep product visuals visible while masking form values. Sensitive
+          // surfaces opt out with this selector or route-level recording stops.
           blockSelector: ".ph-no-capture, [data-ph-no-capture]",
-          maskAllInputs: false,
+          maskAllInputs: true,
           maskInputOptions: { password: true },
           recordCrossOriginIframes: false,
           recordHeaders: false,
@@ -252,10 +254,21 @@ export async function initPostHog(options: { ignoreDeniedConsent?: boolean } = {
 }
 
 function sessionReplayIsEnabled() {
-  // Session replay is deliberately paused across the product. Keep the explicit
-  // false here (rather than relying on a deployment environment variable) so a
-  // stale Vercel setting cannot resume recordings unexpectedly.
-  return false;
+  // Geography comes from the trusted edge, never the selected language, browser
+  // locale or a client-controlled country cookie. Fail closed on lookup errors.
+  if (!replayEligibility) {
+    replayEligibility = (async () => {
+      try {
+        const response = await fetch("/api/analytics/replay-eligibility", {
+          credentials: "same-origin", cache: "no-store", signal: AbortSignal.timeout(5_000),
+        });
+        return response.ok && (await response.json()).eligible === true;
+      } catch {
+        return false;
+      }
+    })();
+  }
+  return replayEligibility;
 }
 
 export function sessionReplayIsBlocked(url: string) {
@@ -264,20 +277,22 @@ export function sessionReplayIsBlocked(url: string) {
 }
 
 export function stopPostHogSessionRecording() {
+  replaySyncGeneration += 1;
   client?.stopSessionRecording();
 }
 
 export async function syncPostHogSessionRecording(url: string) {
-  if (!sessionReplayIsEnabled() || trackingIsDisabled()) {
+  if (trackingIsDisabled() || sessionReplayIsBlocked(url)) {
     stopPostHogSessionRecording();
     return;
   }
-  if (sessionReplayIsBlocked(url)) {
-    stopPostHogSessionRecording();
-    return;
-  }
-
+  const generation = ++replaySyncGeneration;
+  const eligible = await sessionReplayIsEnabled();
+  if (generation !== replaySyncGeneration) return;
+  if (!eligible || trackingIsDisabled()) return stopPostHogSessionRecording();
   const posthog = await initPostHog();
+  // Navigation or consent withdrawal may have happened during either await.
+  if (generation !== replaySyncGeneration || trackingIsDisabled()) return;
   posthog?.startSessionRecording();
 }
 

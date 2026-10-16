@@ -9,7 +9,6 @@ import { localizedPilotAvailable } from "./lib/i18n/pilot";
 
 const withCurrencyPreference = (request: NextRequest, response: NextResponse) => {
   const country = request.headers.get("x-vercel-ip-country");
-  if (!country) return response;
   response.cookies.set({
     name: DISPLAY_CURRENCY_COOKIE,
     value: displayCurrencyForCountry(country),
