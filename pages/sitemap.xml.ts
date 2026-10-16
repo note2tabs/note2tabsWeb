@@ -88,7 +88,7 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   const entries: SitemapEntry[] = paths.map((path) => ({
     loc: buildUrl(baseUrl, path),
     ...(localeFromPath(path) !== "en"
-      ? { lastmod: "2026-10-09T00:00:00.000Z" }
+      ? { lastmod: "2026-10-16T00:00:00.000Z" }
       : recentlyUpdatedSeoPaths.has(path)
       ? {
           lastmod: `${
