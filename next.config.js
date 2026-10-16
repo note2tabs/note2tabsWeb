@@ -4,8 +4,8 @@ const nextConfig = {
   // Feature branches must be reviewable without exposing unfinished plans on
   // the production deployment. Vercel replaces this at build time.
   env: {
-    NEXT_PUBLIC_IT_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_IT_REVIEWED === "true" ? "true" : "false",
-    NEXT_PUBLIC_FR_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_FR_REVIEWED === "true" ? "true" : "false",
+    NEXT_PUBLIC_IT_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_IT_REVIEWED !== "false" ? "true" : "false",
+    NEXT_PUBLIC_FR_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_FR_REVIEWED !== "false" ? "true" : "false",
     NEXT_PUBLIC_APP_VERSION: process.env.VERCEL_GIT_COMMIT_SHA || "development",
     NEXT_PUBLIC_KO_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_KO_REVIEWED !== "false" ? "true" : "false",
     NEXT_PUBLIC_PL_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_PL_REVIEWED !== "false" ? "true" : "false",

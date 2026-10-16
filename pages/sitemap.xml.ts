@@ -1,3 +1,4 @@
+import {INDEXABLE_BLOG_CLUSTERS} from "../lib/blogIndexPolicy";
 import {articleLocales} from "../lib/i18n/blog/availability";
 import { localeFromPath, localeHref, stripLocale, TRANSLATED_LOCALES, normalizeLocale } from "../lib/i18n/locale";
 import { localizedPilotIndexable } from "../lib/i18n/pilot";
@@ -29,6 +30,7 @@ const staticPaths = [
   "/ai-guitar-tab-generator",
   "/free-guitar-tab-maker",
   "/features",
+  ...Array.from(INDEXABLE_BLOG_CLUSTERS, slug => `/blog/cluster/${slug}`),
   ...seoFeaturePages.map((page) => `/features/${page.slug}`),
 ];
 
@@ -88,7 +90,7 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   const entries: SitemapEntry[] = paths.map((path) => ({
     loc: buildUrl(baseUrl, path),
     ...(localeFromPath(path) !== "en"
-      ? { lastmod: "2026-10-09T00:00:00.000Z" }
+      ? { lastmod: "2026-10-16T00:00:00.000Z" }
       : recentlyUpdatedSeoPaths.has(path)
       ? {
           lastmod: `${
