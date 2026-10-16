@@ -26,7 +26,7 @@ export function LocaleProvider({ children, path, initialEditorLocale = "en", ini
   const editorLocale=preferredLocale===initialEditorLocale && initialEditorMessages ? initialEditorLocale : loadedEditorLocale;
   const requestedLocale = editor ? (localeEnabled(editorLocale) ? editorLocale : "en") : routeLocale;
   const [publicLocale, setPublicLocale] = useState(requestedLocale);
-  const locale = requestedLocale === "en" || hasPublicCatalog(requestedLocale) ? requestedLocale : publicLocale;
+  const locale = hasPublicCatalog(requestedLocale) ? requestedLocale : publicLocale;
   useEffect(() => {
     let cancelled = false;
     void loadPublicCatalog(requestedLocale).then(() => {if(!cancelled)setPublicLocale(requestedLocale);}).catch(() => {
