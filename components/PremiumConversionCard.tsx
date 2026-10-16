@@ -128,7 +128,7 @@ export default function PremiumConversionCard({
           </button>
         )}
         <small>
-          {locale !== "en" ? t("Final price and billing details are shown at checkout.") : reassurance || "$5.99 billed today · Cancel anytime"}
+          {t("Final price and billing details are shown at checkout.")}
           {t(resetMessage ? ` · ${resetMessage}` : "")}
         </small>
       </div>

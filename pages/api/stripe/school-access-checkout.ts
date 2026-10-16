@@ -1,3 +1,5 @@
+import { displayCurrencyForCountry } from "../../../lib/localizedPricing";
+import { verifyStripePrice } from "../../../lib/stripePriceParity";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
@@ -45,6 +47,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
     if (customerState.manageableCustomer) return redirect(res, 302, "/settings");
 
+    const country = req.headers["x-vercel-ip-country"];
+    const currency = displayCurrencyForCountry(typeof country === "string" ? country : undefined);
+    await verifyStripePrice(stripeClient, config.priceId, "PREMIUM", "monthly", currency);
     const existingCustomer = customerState.premiumCustomer || customerState.fallbackCustomer;
     const metadata = {
       userId: session.user.id,
@@ -57,6 +62,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const checkout = await stripeClient.checkout.sessions.create({
       ...(existingCustomer ? { customer: existingCustomer.id } : { customer_email: session.user.email }),
       mode: "subscription",
+      currency: currency.toLowerCase(),
       payment_method_collection: "if_required",
       line_items: [{ price: config.priceId, quantity: 1 }],
       allow_promotion_codes: true,

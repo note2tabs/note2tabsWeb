@@ -1,3 +1,5 @@
+import { uploadTranscriptionFile, TranscriptionUploadError } from "../lib/transcriptionUpload";
+import { trackBlockedTranscriptionSubmission, type SubmissionBlockReason, type SubmissionBlockStage, type SubmissionBlockDetails } from "../lib/transcriptionSubmission";
 import MonthlyCredits from "../components/MonthlyCredits";
 import { localizedSignIn as signIn } from "../lib/i18n/auth";
 import { translatedError } from "../lib/i18n/translate";
@@ -458,6 +460,15 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     setFileEndInput(formatTimestamp(nextRange.end));
   };
 
+  function reportBlockedSubmission(reason: SubmissionBlockReason, stage: SubmissionBlockStage = "validation", details: SubmissionBlockDetails = {}) {
+    trackBlockedTranscriptionSubmission({
+      surface: "home_transcriber", mode, model: transcriptionModel, plan: currentPlan,
+      signedIn: Boolean(transcriberSession), sessionStatus,
+      file: selectedFile, clipStart: mode === "FILE" ? fileStartTime : ytStartTime,
+      clipEnd: mode === "FILE" ? fileEndTime : ytEndTime,
+    }, reason, stage, details);
+  }
+
   const selectAudioFile = (file: File | null) => {
     setSelectedFile(file);
     setFileDuration(null);
@@ -480,11 +491,19 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       const pending = await peekPendingTranscription();
       if (cancelled || resumeHandoffAttemptRef.current !== attemptId) return;
       if (!pending) {
+        reportBlockedSubmission("saved_upload_missing", "auth_resume");
         setError(t("Your saved upload expired or could not be restored. Please choose it again to continue."));
         await router.replace("/#hero", undefined, { shallow: true });
         return;
       }
 
+      const pendingBlockDetails: SubmissionBlockDetails = {
+        mode: pending.mode,
+        file_size_bytes: pending.mode === "FILE" ? pending.file.size : undefined,
+        file_type: pending.mode === "FILE" ? pending.file.type : undefined,
+        clip_start_sec: pending.mode === "FILE" ? pending.fileStartTime : pending.startTime,
+        clip_end_sec: pending.mode === "FILE" ? pending.fileEndTime : pending.endTime,
+      };
       const returnedFromBilling =
         router.query.upgrade === "success" || router.query.upgrade === "manage";
       const requiresPremium = pending.mode === "FILE" && pending.file.size > MAX_FREE_BYTES;
@@ -517,6 +536,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         if (cancelled || resumeHandoffAttemptRef.current !== attemptId) return;
         if (!premiumEntitlementReady) {
           setStatus(null);
+          reportBlockedSubmission("entitlement_pending", "auth_resume", pendingBlockDetails);
           setError(
             t("Premium is still activating. Your upload is safe—reload this page to retry.")
           );
@@ -550,11 +570,14 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       }
 
       if (pending.mode === "FILE" && pending.file.size > MAX_PRESERVABLE_UPLOAD_BYTES) {
+        reportBlockedSubmission("file_preservation_limit", "auth_resume", { ...pendingBlockDetails, limit_bytes: MAX_PRESERVABLE_UPLOAD_BYTES });
         setError(t("The restored file exceeds the {size} upload limit.", { size: formatMb(MAX_PRESERVABLE_UPLOAD_BYTES) }));
         setStatus(t("Choose a smaller audio file to continue."));
       } else if (requiresPremium && !premiumEntitlementReady) {
+        reportBlockedSubmission("file_too_large", "auth_resume", { ...pendingBlockDetails, limit_bytes: MAX_FREE_BYTES });
         setStatus(t("Your upload is restored. Upgrade to Premium to transcribe this file."));
       } else if (!canTranscribe) {
+        reportBlockedSubmission("email_unverified", "auth_resume", { ...pendingBlockDetails });
         setError(t("Verify your email to start transcribing and unlock your free Heavy preview."));
         setStatus(t("Your upload is restored and will remain available after verification."));
       } else {
@@ -568,7 +591,10 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
     void restorePendingTranscription()
       .catch(() => {
-        if (!cancelled) setError(t("You are signed in. Please choose the audio again to continue."));
+        if (!cancelled) {
+          reportBlockedSubmission("auth_resume_failed", "auth_resume");
+          setError(t("You are signed in. Please choose the audio again to continue."));
+        }
       });
 
     return () => {
@@ -802,12 +828,14 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
   const validateConvertInputs = () => {
     if (!transcriberSession && !disableDbInDev) {
+      reportBlockedSubmission("sign_in_required", "authentication");
       setError(t("Sign in to start transcribing."));
       sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "signed_out", mode });
       signIn(undefined, { callbackUrl: "/" });
       return false;
     }
     if (transcriberSession && !canTranscribe) {
+      reportBlockedSubmission("email_unverified", "authentication");
       setError(t("Verify your email to start transcribing and unlock your free Heavy preview."));
       sendEvent(ANALYTICS_EVENTS.verificationGateShown, { surface: "home_transcriber", mode });
       sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "email_unverified", mode });
@@ -815,21 +843,25 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     }
 
     if (mode === "FILE" && !selectedFile) {
+      reportBlockedSubmission("missing_file", "validation");
       setError(t("Please select an audio file to transcribe."));
       sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "missing_file", mode });
       return false;
     }
 
     if (mode === "YOUTUBE" && !youtubeValid) {
+      reportBlockedSubmission("invalid_youtube_url", "validation");
       setError(t("Please paste a valid YouTube link."));
       sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, { reason: "invalid_youtube_url", mode });
       return false;
     }
     if (mode === "YOUTUBE" && (ytStartTime === null || ytEndTime === null)) {
+      reportBlockedSubmission("missing_clip_range", "validation");
       setError(t("Start time and end time are required for YouTube download."));
       return false;
     }
     if (mode === "YOUTUBE" && ytStartTime !== null && ytEndTime !== null && ytEndTime <= ytStartTime) {
+      reportBlockedSubmission("invalid_clip_range", "validation");
       setError(t("End time must be after start time."));
       return false;
     }
@@ -840,6 +872,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       !isPremiumUser &&
       ytEndTime - ytStartTime > MAX_FREE_YOUTUBE_SNIPPET_SEC
     ) {
+      reportBlockedSubmission("clip_duration_limit", "validation", { limit_seconds: MAX_FREE_YOUTUBE_SNIPPET_SEC });
       setError(t("Free YouTube clips must be {seconds} seconds or less.", { seconds: MAX_FREE_YOUTUBE_SNIPPET_SEC }));
       return false;
     }
@@ -849,6 +882,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         ? maxUploadBytes
         : MAX_FREE_BYTES;
       if (selectedFile.size > maxBytes) {
+        reportBlockedSubmission("file_too_large", "validation", { limit_bytes: maxBytes });
         setError(t("File is too large. Max size is {size} for your plan.", { size: formatMb(maxBytes) }));
         sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, {
           reason: "file_too_large",
@@ -861,6 +895,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     }
 
     if (mode === "FILE" && selectedFile && !fileTimeRangeValid) {
+      reportBlockedSubmission("invalid_file_clip_range", "validation");
       setError(heavyPreviewAvailable && transcriptionModel === "super_heavy"
         ? t("Your one-time Heavy preview can include up to 30 seconds.")
         : t("Selected file clip must be greater than 0 and within the file length."));
@@ -868,18 +903,22 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     }
     if (mode === "YOUTUBE") {
       if (ytStartTime !== null && ytStartTime < 0) {
+        reportBlockedSubmission("negative_clip_start", "validation");
         setError(t("Start time must be 0 or greater."));
         return false;
       }
       if (ytStartTime !== null && ytStartTime >= youtubeWindowSeconds) {
+        reportBlockedSubmission("clip_start_out_of_bounds", "validation", { limit_seconds: youtubeWindowSeconds });
         setError(t("Start time must be before {time}.", { time: formatTimestamp(youtubeWindowSeconds) }));
         return false;
       }
       if (ytEndTime !== null && ytEndTime <= 0) {
+        reportBlockedSubmission("invalid_clip_end", "validation");
         setError(t("End time must be greater than 0."));
         return false;
       }
       if (ytEndTime !== null && ytEndTime > youtubeWindowSeconds) {
+        reportBlockedSubmission("clip_end_out_of_bounds", "validation", { limit_seconds: youtubeWindowSeconds });
         setError(t("End time must be {time} or earlier.", { time: formatTimestamp(youtubeWindowSeconds) }));
         return false;
       }
@@ -888,7 +927,10 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   };
 
   const startConvert = async () => {
-    if (convertInFlightRef.current || loading) return;
+    if (convertInFlightRef.current || loading) {
+      reportBlockedSubmission("already_in_progress", "preflight");
+      return;
+    }
     const transcribingStatusLabel = t("Transcribing audio...");
     const youtubeTranscribingStatusLabel = t("Downloading YouTube audio and transcribing...");
 
@@ -909,6 +951,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       durationSec: mode === "YOUTUBE" ? resolvedYtDuration : resolvedFileDuration,
       appendingToExistingEditor: Boolean(appendEditorId),
     });
+    let submissionAccepted = false;
+    let submissionPhase: SubmissionBlockStage = "request";
+    let failureDetails: SubmissionBlockDetails = {};
     try {
       let response: Response | null = null;
       const youtubeTitlePromise = mode === "YOUTUBE" ? fetchYouTubeVideoTitle(youtubeId) : null;
@@ -935,64 +980,48 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         } else {
           const uploadStorageError = t("We could not securely transfer this file. Check your connection and try again; the file is still selected.");
           sendEvent(ANALYTICS_EVENTS.uploadPresignStarted, { mode, size: selectedFile.size });
-          const presignRes = await fetch("/api/uploads/presign", {
+          submissionPhase = "upload_presign";
+          let uploadKey: string;
+          try {
+            uploadKey = await uploadTranscriptionFile(selectedFile, uploadFileName, uploadStorageError, (details) => {
+              sendEvent(ANALYTICS_EVENTS.uploadStorageRetry, { mode, ...details });
+            });
+          } catch (error) {
+            if (error instanceof TranscriptionUploadError) {
+              submissionPhase = error.stage;
+              failureDetails = error.details;
+              sendEvent(ANALYTICS_EVENTS.uploadStorageFailed, {
+                mode,
+                step: error.stage === "upload_presign" ? "presign" : "storage_put",
+                error_code: error.analyticsCode,
+                upload_stage: error.stage,
+                http_status_class: analyticsHttpStatusClass(error.details.http_status),
+                ...error.details,
+              });
+            }
+            throw error;
+          }
+          sendEvent(ANALYTICS_EVENTS.uploadStorageSucceeded, {
+            mode, size: selectedFile.size, type: selectedFile.type || "unknown",
+          });
+          setStatus(transcribingStatusLabel);
+          const payload: Record<string, unknown> = {
+            mode: "FILE",
+            s3Key: uploadKey,
+            fileName: uploadFileName,
+            separateGuitar,
+            multipleGuitars,
+            transcriptionModel,
+          };
+          payload.startTime = Math.max(0, fileStartTime ?? 0);
+          payload.duration = resolvedFileDuration;
+          if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
+          submissionPhase = "request";
+          response = await fetch("/api/transcribe", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              fileName: uploadFileName,
-              contentType: selectedFile.type || "application/octet-stream",
-              size: selectedFile.size,
-            }),
+            body: JSON.stringify(payload),
           });
-          const presignData = await presignRes.json().catch(() => ({}));
-          if (!presignRes.ok || !presignData?.url || !presignData?.key) {
-            sendEvent(ANALYTICS_EVENTS.uploadStorageFailed, {
-              mode,
-              step: "presign",
-              error_code: categorizeAnalyticsError(
-                presignData?.error,
-                "presign_rejected"
-              ),
-              http_status_class: analyticsHttpStatusClass(presignRes.status),
-            });
-            throw new Error(presignData?.error || uploadStorageError);
-          } else {
-            try {
-              const uploadRes = await fetch(presignData.url, {
-                method: "PUT",
-                headers: { "Content-Type": selectedFile.type || "application/octet-stream" },
-                body: selectedFile,
-              });
-              if (!uploadRes.ok) {
-                throw new Error(uploadStorageError);
-              }
-              sendEvent(ANALYTICS_EVENTS.uploadStorageSucceeded, {
-                mode,
-                size: selectedFile.size,
-                type: selectedFile.type || "unknown",
-              });
-            } catch {
-              sendEvent(ANALYTICS_EVENTS.uploadStorageFailed, { mode, step: "storage_put" });
-              throw new Error(uploadStorageError);
-            }
-            setStatus(transcribingStatusLabel);
-            const payload: Record<string, unknown> = {
-              mode: "FILE",
-              s3Key: presignData.key,
-              fileName: uploadFileName,
-              separateGuitar,
-              multipleGuitars,
-              transcriptionModel,
-            };
-            payload.startTime = Math.max(0, fileStartTime ?? 0);
-            payload.duration = resolvedFileDuration;
-            if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
-            response = await fetch("/api/transcribe", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload),
-            });
-          }
         }
       } else {
         setStatus(youtubeTranscribingStatusLabel);
@@ -1006,6 +1035,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
           transcriptionModel,
         };
         if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
+        submissionPhase = "request";
         response = await fetch("/api/transcribe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1018,6 +1048,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       }
 
       const data = (await response.json().catch(() => ({}))) as { error?: string } & TabsResponse;
+      submissionAccepted = response.ok && ((response.status === 202 && Boolean(data.jobId)) || Array.isArray(data.tabs));
       if (response.status === 202 && data.jobId) {
         const accessType = getAcceptedTranscriptionAccessType(
           Boolean(data.heavyPreviewUsed),
@@ -1080,18 +1111,22 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         return;
       }
       if (!response.ok) {
+        setStatus(null);
         if (data.credits) {
           setCredits(data.credits);
         }
         if (data.verificationRequired) {
           await updateSession().catch(() => null);
+          reportBlockedSubmission("email_unverified", "server", { http_status: response.status, request_id: response.headers.get("x-request-id") || undefined });
           setError(t("Verify your email to start transcribing and unlock your free Heavy preview."));
           return;
         }
         if (response.status === 403 && data.credits) {
+          reportBlockedSubmission("credits_exhausted", "server", { http_status: response.status, request_id: response.headers.get("x-request-id") || undefined });
           setError(null);
           return;
         }
+        reportBlockedSubmission("server_rejected", "server", { http_status: response.status, request_id: response.headers.get("x-request-id") || undefined });
         setError(data?.error || t("We could not start this transcription. Your selection is still here, so you can try again."));
         sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
           ...researchProperties,
@@ -1101,6 +1136,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         return;
       }
       if (!data.tabs || !Array.isArray(data.tabs)) {
+        setStatus(null);
+        reportBlockedSubmission("invalid_response", "server", { http_status: response.status, request_id: response.headers.get("x-request-id") || undefined });
         setError(t("The transcription finished without a usable tab. Try a clearer section or switch models."));
         sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
           ...researchProperties,
@@ -1166,10 +1203,14 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       setStatus(t("Tabs ready. Choose an editor below."));
       return;
     } catch (err: any) {
+      if (!submissionAccepted) reportBlockedSubmission("request_failed", submissionPhase, failureDetails);
+      setStatus(null);
       setError(err?.message || t("We could not reach the transcription service. Check your connection and try again."));
       sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
         ...researchProperties,
-        error_code: categorizeAnalyticsError(err, "transcription_failed"),
+        error_code: err instanceof TranscriptionUploadError ? err.analyticsCode : categorizeAnalyticsError(err, "transcription_failed"),
+        ...failureDetails,
+        ...(err instanceof TranscriptionUploadError ? { upload_stage: err.stage } : {}),
       });
     } finally {
       setLoading(false);
@@ -1178,13 +1219,18 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   };
 
   const handleConvert = async () => {
-    if (convertInFlightRef.current || authHandoffInFlightRef.current || loading) return;
+    if (convertInFlightRef.current || authHandoffInFlightRef.current || loading) {
+      reportBlockedSubmission("already_in_progress", "preflight");
+      return;
+    }
     if (sessionStatus === "loading") {
+      reportBlockedSubmission("session_loading", "preflight");
       setStatus(t("Checking your account…"));
       return;
     }
     if (!transcriberSession && !disableDbInDev) {
       if (mode === "FILE" && selectedFile && selectedFile.size > MAX_PRESERVABLE_UPLOAD_BYTES) {
+        reportBlockedSubmission("file_preservation_limit", "auth_handoff", { limit_bytes: MAX_PRESERVABLE_UPLOAD_BYTES });
         setError(t("Files over {size} cannot be preserved through sign-in.", { size: formatMb(MAX_PRESERVABLE_UPLOAD_BYTES) }));
         sendEvent(ANALYTICS_EVENTS.uploadValidationFailed, {
           reason: "file_too_large",
@@ -1194,10 +1240,12 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         });
         return;
       }
+      reportBlockedSubmission("sign_in_required", "authentication");
       authHandoffInFlightRef.current = true;
       setAuthHandoffBusy(true);
       setError(null);
       setStatus(t("Saving your selection before sign-in…"));
+      let handoffSaved = false;
       try {
         await savePendingTranscription(
           mode === "FILE" && selectedFile
@@ -1216,12 +1264,15 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 savedAt: Date.now(),
               }
         );
+        handoffSaved = true;
         sendEvent(ANALYTICS_EVENTS.authHandoffRequired, { reason: "signed_out", mode });
         sendEvent(ANALYTICS_EVENTS.authHandoffSaved, { mode, path: "/" });
-        await router.push(
+        const navigated = await router.push(
           `/auth/login?next=${encodeURIComponent("/transcribe?resumeTranscription=1")}`
         );
+        if (!navigated) reportBlockedSubmission("auth_navigation_failed", "auth_handoff");
       } catch {
+        reportBlockedSubmission(handoffSaved ? "auth_navigation_failed" : "auth_handoff_failed", "auth_handoff");
         setError(t("We could not safely preserve this audio for sign-in. Please sign in first, then choose it again."));
       } finally {
         authHandoffInFlightRef.current = false;
@@ -1232,6 +1283,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     if (!validateConvertInputs()) return;
     setError(null);
     if (heavyPreviewAvailable && transcriptionModel === "super_heavy" && !heavyPreviewAcknowledgedRef.current) {
+      reportBlockedSubmission("preview_confirmation_required", "confirmation");
       setHeavyPreviewConfirmationIntent("start");
       setShowHeavyPreviewIntro(true);
       sendEvent(ANALYTICS_EVENTS.heavyPreviewConfirmationShown, {
@@ -1907,7 +1959,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 isSignedIn && !needsProForSelectedFile ? (
                   <PremiumConversionCard title={t("Continue with this upload")} description={t("Your file is still selected. Premium supports audio files up to 200 MB and full-length transcription.")} actionLabel={t("Continue with Premium")} onAction={() => void handlePreservedUploadUpgrade()} busy={pricingBusy} tracking={{ source: "large_upload_gate", reason: "file_size_limit", surface: "file_size_limit_card", trigger: "oversized_file_selected" }} />
                 ) : (
-                  <PremiumConversionCard title={needsProForSelectedFile ? t("This file needs Pro") : t("This file needs Premium")} description={needsProForSelectedFile ? t("This file is larger than Premium's 200 MB limit. Pro supports files up to 500 MB.") : t("Free uploads are limited to 50 MB. Premium supports files up to 200 MB.")} actionLabel={needsProForSelectedFile ? t("See Pro") : t("See Premium")} planLabel={needsProForSelectedFile ? "Note2Tabs Pro" : undefined} reassurance={needsProForSelectedFile ? "$14.99 billed today · Cancel anytime" : undefined} href={premiumPricingHref({ source: "large_upload_gate", reason: needsProForSelectedFile ? "pro_file_size_limit" : "file_size_limit" })} tracking={{ source: "large_upload_gate", reason: needsProForSelectedFile ? "pro_file_size_limit" : "file_size_limit", surface: needsProForSelectedFile ? "pro_file_size_limit_card" : "file_size_limit_card", trigger: "oversized_file_selected" }} />
+                  <PremiumConversionCard title={needsProForSelectedFile ? t("This file needs Pro") : t("This file needs Premium")} description={needsProForSelectedFile ? t("This file is larger than Premium's 200 MB limit. Pro supports files up to 500 MB.") : t("Free uploads are limited to 50 MB. Premium supports files up to 200 MB.")} actionLabel={needsProForSelectedFile ? t("See Pro") : t("See Premium")} planLabel={needsProForSelectedFile ? "Note2Tabs Pro" : undefined}  href={premiumPricingHref({ source: "large_upload_gate", reason: needsProForSelectedFile ? "pro_file_size_limit" : "file_size_limit" })} tracking={{ source: "large_upload_gate", reason: needsProForSelectedFile ? "pro_file_size_limit" : "file_size_limit", surface: needsProForSelectedFile ? "pro_file_size_limit_card" : "file_size_limit_card", trigger: "oversized_file_selected" }} />
                 )
               )}
               {!needsPremiumForSelectedFile && needsPremiumForFileDuration && !showHeavyUpgrade && (

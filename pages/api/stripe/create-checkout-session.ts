@@ -1,3 +1,4 @@
+import { verifyStripePrice } from "../../../lib/stripePriceParity";
 import { stripeLocale } from "../../../lib/i18n/checkout";
 import {localeCohort} from "../../../lib/i18n/locale";
 import { localizeCheckoutReturnPaths } from "../../../lib/i18n/checkout";
@@ -15,7 +16,7 @@ import {
 } from "../../../lib/stripePremium";
 import { getFreshUserAccess } from "../../../lib/serverAuth";
 import { PLAN_CATALOG, premiumTrialCheckoutEnabled, proPlanCheckoutEnabled, type PaidSubscriptionPlan } from "../../../lib/subscriptionPlans";
-import { DISPLAY_CURRENCIES, type DisplayCurrency } from "../../../lib/localizedPricing";
+import { displayCurrencyForCountry, DISPLAY_CURRENCIES, type DisplayCurrency } from "../../../lib/localizedPricing";
 import { createPostHogServerClient, stablePostHogEventUuid } from "../../../lib/posthogServer";
 import { inspectPremiumCustomerState } from "../../../lib/stripePremiumOffer";
 import {
@@ -99,6 +100,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const contentLocale = requestLocale(req);
   const rawCountry = req.headers["x-vercel-ip-country"];
   const visitorCountry = typeof rawCountry === "string" && /^[A-Z]{2}$/.test(rawCountry) ? rawCountry : "unknown";
+  const checkoutCurrency = displayCurrencyForCountry(visitorCountry);
   const requestId = String(req.headers["x-vercel-id"] || "local");
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
@@ -239,10 +241,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     const activeAttribution = attribution?.affiliate.status === "ACTIVE" ? attribution : null;
 
+    await verifyStripePrice(stripeClient, selectedConfig.priceId, requestedPlan, billingInterval, checkoutCurrency);
     const existingCustomer = customerState.premiumCustomer || customerState.fallbackCustomer;
     const checkoutStateHash = createHash("sha256")
       .update(
-      `${session.user.id}|${requestedPlan}|${billingInterval}|${returnPaths.success}|${funnelId}|${
+      `${session.user.id}|${requestedPlan}|${billingInterval}|${selectedConfig.priceId}|${checkoutCurrency}|${returnPaths.success}|${funnelId}|${
           customerState.subscriptionState.sort().join("|") || "new"
         }|${trialIncluded ? "seven_day_trial" : "immediate_charge"}`
       )
@@ -256,6 +259,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       note2tabsDeviceType: deviceType,
       note2tabsBillingInterval: billingInterval,
       note2tabsPriceId: selectedConfig.priceId,
+      note2tabsCheckoutCurrency: checkoutCurrency.toLowerCase(),
+      note2tabsPricingRevision: "parity-2026-10-15",
       premiumFunnelId: funnelId,
       premiumFunnelSource: source,
       premiumFunnelReason: reason,
@@ -278,6 +283,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ? { customer: existingCustomer.id }
           : { customer_email: session.user.email }),
         mode: "subscription",
+        currency: checkoutCurrency.toLowerCase(),
         ...(contentLocale !== "en" ? {locale: stripeLocale(contentLocale)} : {}),
         payment_method_collection: "always",
         line_items: [{ price: selectedConfig.priceId, quantity: 1 }],

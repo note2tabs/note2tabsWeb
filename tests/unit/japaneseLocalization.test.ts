@@ -70,7 +70,7 @@ describe("Japanese localization",()=>{
   expect(localeCohort("ja",undefined).visitor_country).toBe("unknown");
   expect(formatLocalizedPrice("PREMIUM","monthly","JPY","ja")).toBe("￥999");
   expect(formatLocalizedPrice("PRO","monthly","JPY","ja")).toBe("￥2,499");
-  expect(formatLocalizedPrice("PREMIUM","monthly","BRL","pt-BR")).toContain("21,90");
+  expect(formatLocalizedPrice("PREMIUM","monthly","BRL","pt-BR")).toContain("14,99");
   expect(formatLocalizedPrice("PREMIUM","monthly","USD","ja")).toContain("5.99");
  });
  it("ships completed editions as indexable production pages by default",()=>{

@@ -297,7 +297,7 @@ describe("PostHog client identity lifecycle", () => {
     expect(analytics.sessionReplayIsBlocked("/gte/editor-secret-id")).toBe(false);
   });
 
-  it("configures full editor capture without network payloads", async () => {
+  it("masks inputs and excludes network payloads from replay", async () => {
     installBrowserGlobals("granted");
     const posthog = createPostHogMock();
     vi.doMock("posthog-js", () => ({ default: posthog }));
@@ -319,7 +319,7 @@ describe("PostHog client identity lifecycle", () => {
     expect(config.session_recording).toEqual(
       expect.objectContaining({
         blockSelector: ".ph-no-capture, [data-ph-no-capture]",
-        maskAllInputs: false,
+        maskAllInputs: true,
         recordHeaders: false,
         recordBody: false,
         captureCanvas: expect.objectContaining({ recordCanvas: true }),
@@ -352,4 +352,43 @@ describe("PostHog client identity lifecycle", () => {
 
     delete process.env.NEXT_PUBLIC_POSTHOG_SESSION_RECORDING;
   });
+  it.each([true, false])("records an eligible country only: %s", async eligible => {
+    installBrowserGlobals();
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ eligible }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const posthog = createPostHogMock();
+    vi.doMock("posthog-js", () => ({ default: posthog }));
+    const analytics = await import("../../lib/posthogClient");
+    await analytics.syncPostHogSessionRecording("/ja/transcribe");
+    await analytics.syncPostHogSessionRecording("/pricing");
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(posthog.startSessionRecording).toHaveBeenCalledTimes(eligible ? 2 : 0);
+  });
+
+  it("fails closed when geography cannot be fetched", async () => {
+    installBrowserGlobals();
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    const posthog = createPostHogMock();
+    vi.doMock("posthog-js", () => ({ default: posthog }));
+    const analytics = await import("../../lib/posthogClient");
+    await analytics.syncPostHogSessionRecording("/zh-hans");
+    expect(posthog.startSessionRecording).not.toHaveBeenCalled();
+  });
+
+  it.each(["navigation", "consent"])("does not start after %s changes during geography lookup", async change => {
+    installBrowserGlobals();
+    let resolve!: (response: unknown) => void;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(r => { resolve = r; })));
+    const posthog = createPostHogMock();
+    vi.doMock("posthog-js", () => ({ default: posthog }));
+    const analytics = await import("../../lib/posthogClient");
+    await analytics.initPostHog();
+    const pending = analytics.syncPostHogSessionRecording("/ja");
+    if (change === "navigation") analytics.stopPostHogSessionRecording();
+    else await analytics.setPostHogConsent("denied");
+    resolve({ ok: true, json: async () => ({ eligible: true }) });
+    await pending;
+    expect(posthog.startSessionRecording).not.toHaveBeenCalled();
+  });
+
 });

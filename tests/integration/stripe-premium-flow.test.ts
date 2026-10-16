@@ -7,6 +7,7 @@ const { sessionMock, stripeMock, prismaMock, posthogMock, sendEmailMock } = vi.h
   return {
     sessionMock: vi.fn(),
     stripeMock: {
+      prices: { retrieve: vi.fn() },
       checkout: {
         sessions: {
           create: vi.fn(),
@@ -168,6 +169,12 @@ const premiumInvoice = (overrides: Record<string, unknown> = {}) => ({
 describe("stripe premium flow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    stripeMock.prices.retrieve.mockImplementation(async (id: string) => {
+      const { DISPLAY_CURRENCIES, localizedPriceAmount } = await import("../../lib/localizedPricing");
+      const plan = id.includes("pro") && !id.includes("premium") ? "PRO" : "PREMIUM";
+      const interval = id.includes("yearly") ? "yearly" : "monthly";
+      return {id, active:true, currency:"usd", unit_amount:Math.round(localizedPriceAmount(plan,interval,"USD")*100), recurring:{interval:interval==="yearly"?"year":"month"}, currency_options:Object.fromEntries(DISPLAY_CURRENCIES.map(c=>[c.toLowerCase(),{unit_amount:Math.round(localizedPriceAmount(plan,interval,c)*(["JPY","KRW"].includes(c)?1:100))}]))};
+    });
     process.env.STRIPE_PRICE_PREMIUM_MONTHLY = "price_test_premium";
     delete process.env.STRIPE_PRICE_PREMIUM_YEARLY;
     delete process.env.STRIPE_PRODUCT_PREMIUM;
@@ -266,6 +273,23 @@ describe("stripe premium flow", () => {
   });
 
   describe("create-checkout-session", () => {
+    it.each([["CN","cny"],["MX","mxn"],["PH","php"],["MY","myr"],["TH","thb"],["ZA","zar"],["PL","pln"],["KR","krw"],["BR","brl"],["ID","idr"]])("pins %s checkout to %s despite a different client currency", async (country,currency) => {
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const {req,res} = createMocks({method:"POST",headers:{"x-vercel-ip-country":country},body:{plan:"premium",displayCurrency:"usd"}});
+      await handler(req as any,res as any);
+      expect(res._getStatusCode()).toBe(200);
+      expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(expect.objectContaining({currency}),expect.anything());
+    });
+    it("refuses checkout when the configured price lacks the selected currency", async () => {
+      process.env.STRIPE_PRICE_PREMIUM_MONTHLY="price_missing_currency";
+      stripeMock.prices.retrieve.mockResolvedValueOnce({active:true,currency:"usd",unit_amount:599,recurring:{interval:"month"},currency_options:{}});
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const {req,res} = createMocks({method:"POST",headers:{"x-vercel-ip-country":"MX"},body:{plan:"premium"}});
+      await handler(req as any,res as any);
+      expect(res._getStatusCode()).toBe(500);
+      expect(stripeMock.checkout.sessions.create).not.toHaveBeenCalled();
+    });
+
     it("charges Premium immediately while the 30-day no-trial test is active", async () => {
       delete process.env.PREMIUM_TRIAL_ENABLED;
       const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
@@ -1605,7 +1629,7 @@ describe("stripe premium flow", () => {
         expect.objectContaining({
           to: "user@example.com",
           subject: "Your Note2Tabs Premium trial has started",
-          text: expect.stringContaining("renews at $5.99 per month unless you cancel before then"),
+          text: expect.stringContaining("renews at the price and billing interval confirmed at checkout unless you cancel before then"),
         })
       );
       expect(prismaMock.verificationToken.create).toHaveBeenCalledWith({
