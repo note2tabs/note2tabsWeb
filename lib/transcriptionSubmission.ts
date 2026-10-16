@@ -1,3 +1,4 @@
+import type { UploadFailureDetails } from "./transcriptionUpload";
 import { ANALYTICS_EVENTS, sendEvent } from "./analytics";
 import { getTranscriptionModelAnalyticsProperties, type TranscriptionModelChoice } from "./transcriptionModels";
 
@@ -10,7 +11,7 @@ export type SubmissionBlockReason =
   | "auth_handoff_failed" | "auth_navigation_failed" | "saved_upload_missing" | "auth_resume_failed"
   | "entitlement_pending" | "credits_exhausted" | "server_rejected" | "request_failed" | "invalid_response";
 export type SubmissionBlockStage = "preflight" | "validation" | "authentication" | "auth_handoff" | "auth_resume" | "confirmation" | "server" | "request" | "upload_presign" | "upload_storage";
-export type SubmissionBlockDetails = {
+export type SubmissionBlockDetails = UploadFailureDetails & {
   clip_start_sec?: number;
   clip_end_sec?: number;
   limit_bytes?: number;
@@ -73,6 +74,12 @@ export function trackBlockedTranscriptionSubmission(
       limit_seconds: numeric(details.limit_seconds),
       http_status: numeric(details.http_status),
       request_id: details.request_id,
+      storage_error_code: details.storage_error_code,
+      storage_error_reason: details.storage_error_reason,
+      upload_failure_kind: details.upload_failure_kind,
+      upload_attempt: numeric(details.upload_attempt),
+      upload_elapsed_ms: numeric(details.upload_elapsed_ms),
+      upload_browser_online: details.upload_browser_online,
       ...getTranscriptionModelAnalyticsProperties(context.model),
     });
   } catch {

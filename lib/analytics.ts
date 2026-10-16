@@ -81,6 +81,7 @@ export const ANALYTICS_EVENTS = {
   uploadPresignStarted: "upload_presign_started",
   uploadStorageSucceeded: "upload_storage_succeeded",
   uploadStorageFailed: "upload_storage_failed",
+  uploadStorageRetry: "upload_storage_retry",
   tabGenerationStarted: "transcription_started",
   // Historical Basic Pitch event: new Light submissions must never emit this.
   transcriptionStartedLightModel: "transcription_started_light_model",

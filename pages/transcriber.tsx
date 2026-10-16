@@ -1,3 +1,4 @@
+import { uploadTranscriptionFile, TranscriptionUploadError } from "../lib/transcriptionUpload";
 import { trackBlockedTranscriptionSubmission, type SubmissionBlockReason, type SubmissionBlockStage, type SubmissionBlockDetails } from "../lib/transcriptionSubmission";
 import { localizedSignIn as signIn } from "../lib/i18n/auth";
 import { translatedError } from "../lib/i18n/translate";
@@ -1034,54 +1035,48 @@ export default function TranscriberPage() {
           response = await postFileDirectly();
         } else {
           const uploadStorageError = t("We could not securely transfer this file. Check your connection and try again; the file is still selected.");
+          sendEvent(ANALYTICS_EVENTS.uploadPresignStarted, { mode, size: selectedFile.size });
           submissionPhase = "upload_presign";
-          const presignRes = await fetch("/api/uploads/presign", {
+          let uploadKey: string;
+          try {
+            uploadKey = await uploadTranscriptionFile(selectedFile, uploadFileName, uploadStorageError, (details) => {
+              sendEvent(ANALYTICS_EVENTS.uploadStorageRetry, { mode, ...details });
+            });
+          } catch (error) {
+            if (error instanceof TranscriptionUploadError) {
+              submissionPhase = error.stage;
+              failureDetails = error.details;
+              sendEvent(ANALYTICS_EVENTS.uploadStorageFailed, {
+                mode,
+                step: error.stage === "upload_presign" ? "presign" : "storage_put",
+                error_code: error.analyticsCode,
+                http_status_class: analyticsHttpStatusClass(error.details.http_status),
+                ...error.details,
+              });
+            }
+            throw error;
+          }
+          sendEvent(ANALYTICS_EVENTS.uploadStorageSucceeded, {
+            mode, size: selectedFile.size, type: selectedFile.type || "unknown",
+          });
+          setStatus(transcribingStatusLabel);
+          const payload: Record<string, unknown> = {
+            mode: "FILE",
+            s3Key: uploadKey,
+            fileName: uploadFileName,
+            separateGuitar,
+            multipleGuitars,
+            transcriptionModel,
+          };
+          payload.startTime = Math.max(0, fileStartTime ?? 0);
+          payload.duration = resolvedFileDuration;
+          if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
+          submissionPhase = "request";
+          response = await fetch("/api/transcribe", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              fileName: uploadFileName,
-              contentType: selectedFile.type || "application/octet-stream",
-              size: selectedFile.size,
-            }),
+            body: JSON.stringify(payload),
           });
-          const presignData = await presignRes.json().catch(() => ({}));
-          if (!presignRes.ok || !presignData?.url || !presignData?.key) {
-            failureDetails = { http_status: presignRes.status, request_id: presignRes.headers.get("x-request-id") || undefined };
-            throw new Error(presignData?.error || uploadStorageError);
-          } else {
-            try {
-              submissionPhase = "upload_storage";
-              const uploadRes = await fetch(presignData.url, {
-                method: "PUT",
-                headers: { "Content-Type": selectedFile.type || "application/octet-stream" },
-                body: selectedFile,
-              });
-              if (!uploadRes.ok) {
-                failureDetails = { http_status: uploadRes.status };
-                throw new Error(uploadStorageError);
-              }
-            } catch {
-              throw new Error(uploadStorageError);
-            }
-            setStatus(transcribingStatusLabel);
-            const payload: Record<string, unknown> = {
-              mode: "FILE",
-              s3Key: presignData.key,
-              fileName: uploadFileName,
-              separateGuitar,
-              multipleGuitars,
-              transcriptionModel,
-            };
-            payload.startTime = Math.max(0, fileStartTime ?? 0);
-            payload.duration = resolvedFileDuration;
-            if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
-            submissionPhase = "request";
-            response = await fetch("/api/transcribe", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload),
-            });
-          }
         }
       } else {
         setStatus(youtubeTranscribingStatusLabel);
@@ -1167,6 +1162,7 @@ export default function TranscriberPage() {
         return;
       }
       if (!response.ok) {
+        setStatus(null);
         if (data.credits) {
           setCredits(data.credits);
         }
@@ -1191,6 +1187,7 @@ export default function TranscriberPage() {
         return;
       }
       if (!data.tabs || !Array.isArray(data.tabs)) {
+        setStatus(null);
         reportBlockedSubmission("invalid_response", "server", { http_status: response.status, request_id: response.headers.get("x-request-id") || undefined });
         setError(t("The transcription finished without a usable tab. Try a clearer section or switch models."));
         sendEvent("transcribe_error", {
@@ -1256,10 +1253,12 @@ export default function TranscriberPage() {
       return;
     } catch (err: any) {
       if (!submissionAccepted) reportBlockedSubmission("request_failed", submissionPhase, failureDetails);
+      setStatus(null);
       setError(err?.message || t("We could not reach the transcription service. Check your connection and try again."));
       sendEvent("transcribe_error", {
         ...researchProperties,
-        error_code: categorizeAnalyticsError(err, "transcription_failed"),
+        error_code: err instanceof TranscriptionUploadError ? err.analyticsCode : categorizeAnalyticsError(err, "transcription_failed"),
+        ...failureDetails,
       });
     } finally {
       setLoading(false);

@@ -28,4 +28,15 @@ describe("blocked transcription telemetry", () => {
     capture.mockImplementation(()=>{throw Error("analytics unavailable");});
     expect(()=>trackBlockedTranscriptionSubmission(context,"file_too_large","validation")).not.toThrow();
   });
+  it("includes storage rejection diagnostics on the blocked submission", () => {
+    trackBlockedTranscriptionSubmission(context, "request_failed", "upload_storage", {
+      http_status: 403, storage_error_code: "signature_does_not_match", upload_failure_kind: "http",
+      request_id: "storage-request-123", upload_attempt: 1, upload_elapsed_ms: 150, upload_browser_online: true,
+    });
+    expect(capture.mock.calls[0][1]).toMatchObject({
+      is_expected_gate: false, blocked_stage: "upload_storage", http_status: 403,
+      storage_error_code: "signature_does_not_match", upload_failure_kind: "http",
+      request_id: "storage-request-123", upload_attempt: 1, upload_elapsed_ms: 150, upload_browser_online: true,
+    });
+  });
 });
