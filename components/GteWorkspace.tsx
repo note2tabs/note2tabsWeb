@@ -276,6 +276,8 @@ type Props = {
     chordIds: number[];
   }) => void;
   onCursorActiveChange?: (active: boolean) => void;
+  showFretTypingHint?: boolean;
+  onKeyboardNotePlaced?: () => void;
   onRequestGlobalSelectedShift?: (deltaFrames: number) => boolean | void;
   onBarSelectionStateChange?: (barIndices: number[]) => void;
   onRequestSelectedBarsCopy?: (barIndices: number[]) => void | Promise<void>;
@@ -5005,6 +5007,8 @@ export default function GteWorkspace({
   multiTrackSelectionActive = false,
   onSelectionStateChange,
   onCursorActiveChange,
+  showFretTypingHint = true,
+  onKeyboardNotePlaced,
   onRequestGlobalSelectedShift,
   onBarSelectionStateChange,
   onRequestSelectedBarsCopy,
@@ -10686,13 +10690,14 @@ export default function GteWorkspace({
     if (bassLane) return;
     const chordIds = [...activeChordIds];
     const baseNoteIds = [...selectedNoteIds];
-    if (chordIds.length === 1 && baseNoteIds.length > 0) {
+    if (chordIds.length >= 2 || (chordIds.length === 1 && baseNoteIds.length > 0)) {
       const targetChordId = resolveChordId(chordIds[0]);
       const noteIds = baseNoteIds.map(resolveNoteId);
-      const merged = mergeNotesIntoChordLocal(snapshotRef.current, targetChordId, noteIds);
+      const sourceChordIds = chordIds.slice(1).map(resolveChordId);
+      const merged = mergeNotesIntoChordLocal(snapshotRef.current, targetChordId, noteIds, sourceChordIds);
       void runMutation(() => gteApi.applySnapshot(editorId, merged), {
         localApply: (draft) => {
-          Object.assign(draft, mergeNotesIntoChordLocal(draft, targetChordId, noteIds));
+          Object.assign(draft, mergeNotesIntoChordLocal(draft, targetChordId, noteIds, sourceChordIds));
         },
       });
       setSelectedNoteIds([]);
@@ -11434,6 +11439,8 @@ export default function GteWorkspace({
 
   const openNoteMenu = (noteId: number, fret: number, length: number, event: ReactMouseEvent) => {
     if (event.shiftKey || editingChordId !== null) return;
+    noteFretTypingBufferRef.current = "";
+    noteFretTypingAtRef.current = 0;
     if (isMobileEditMode) {
       setNoteMenuAnchor(null);
     } else {
@@ -11479,6 +11486,8 @@ export default function GteWorkspace({
     event: ReactMouseEvent
   ) => {
     if (editingChordId !== chordId) return;
+    noteFretTypingBufferRef.current = "";
+    noteFretTypingAtRef.current = 0;
     setChordNoteMenuAnchor({ x: event.clientX, y: event.clientY });
     setChordNoteMenuIndex(tabIndex);
     setChordNoteMenuDraft({ fret: String(fret), length: formatLengthFramesAsSeconds(length) });
@@ -13264,6 +13273,7 @@ export default function GteWorkspace({
         },
       });
       showKeyboardCursor({ time: snapped.startTime, stringIndex: cursor.stringIndex });
+      onKeyboardNotePlaced?.();
       setKeyboardAddMode({ noteId: tempId, fretText: String(fretValue) });
       setSelectedNoteIds([]);
       setSelectedChordIds([]);
@@ -13286,6 +13296,7 @@ export default function GteWorkspace({
       showKeyboardCursor,
       snapNewNoteToGrid,
       snapTabToKeyIfEnabled,
+      onKeyboardNotePlaced,
     ]
   );
 
@@ -13784,6 +13795,18 @@ export default function GteWorkspace({
 
         if (isDigitKey) {
           event.preventDefault();
+          if (editingChordId !== null) {
+            if (chordNoteMenuIndex === null) return;
+            const now = Date.now();
+            const base = now - noteFretTypingAtRef.current <= KEYBOARD_FRET_TYPE_TIMEOUT_MS ? noteFretTypingBufferRef.current : "";
+            const nextText = normalizeTypedFretText(base, event.key);
+            if (nextText) {
+              noteFretTypingBufferRef.current = nextText;
+              noteFretTypingAtRef.current = now;
+              commitChordNoteFret(nextText);
+            }
+            return;
+          }
           const activeAddMode = keyboardAddModeRef.current;
           if (activeAddMode) {
             const nextText = normalizeTypedFretText(activeAddMode.fretText, event.key);
@@ -14551,9 +14574,24 @@ export default function GteWorkspace({
     timelineEnd,
   ]);
 
+  const showSelectedFretCaret = isActive && !mobileViewport && !effectiveIsPlaying &&
+    !scaleToolActive && !moveToolActive && !cutToolActive && !sliceToolActive && !quantizeDialogOpen;
+
+  const cursorGridLineMask = (rowIndex: number, x: number) => {
+    if (mobileViewport || !keyboardCursorMarker ||
+      Math.floor(keyboardCursorMarker.top / rowStride) !== rowIndex ||
+      x <= keyboardCursorMarker.left || x >= keyboardCursorMarker.left + keyboardCursorMarker.width) return undefined;
+    const top = keyboardCursorMarker.top - rowIndex * rowStride + 1;
+    const bottom = top + keyboardCursorMarker.height - 2;
+    return `linear-gradient(to bottom, #000 ${top}px, transparent ${top}px, transparent ${bottom}px, #000 ${bottom}px)`;
+  };
+
   const cursorActiveCallbackRef = useRef(onCursorActiveChange);
   cursorActiveCallbackRef.current = onCursorActiveChange;
-  const editingCursorActive = Boolean(keyboardCursorMarker && isActive && !mobileViewport && !tabViewEnabled && !practiceMode);
+  const editingCursorActive = Boolean(
+    (keyboardCursorMarker || selectedNoteIds.length > 0 || activeChordIds.length > 0) &&
+    isActive && !mobileViewport && !tabViewEnabled && !practiceMode
+  );
   useEffect(() => {
     cursorActiveCallbackRef.current?.(editingCursorActive);
     return () => cursorActiveCallbackRef.current?.(false);
@@ -17871,7 +17909,7 @@ export default function GteWorkspace({
                               <div
                                 key={`row-${rowIdx}-beat-${beat}`}
                                 className="absolute top-0 h-full w-px pointer-events-none bg-slate-300/80"
-                                style={{ left, height: rowHeight }}
+                                style={{ left, height: rowHeight, maskImage: cursorGridLineMask(rowIdx, left) }}
                               />
                             );
                           })
@@ -17888,7 +17926,7 @@ export default function GteWorkspace({
                                 <div
                                   key={`row-${rowIdx}-half-beat-${barIndex}-${beatOffset}`}
                                   className="pointer-events-none absolute top-0 h-full w-px bg-slate-200/75"
-                                  style={{ left: halfBeat * beatWidth, height: rowHeight }}
+                                  style={{ left: halfBeat * beatWidth, height: rowHeight, maskImage: cursorGridLineMask(rowIdx, halfBeat * beatWidth) }}
                                 />
                               );
                             })
@@ -17908,7 +17946,7 @@ export default function GteWorkspace({
                               className={`absolute top-0 w-[2px] pointer-events-none ${
                                 isOuterEdge ? "bg-slate-400/90" : "bg-slate-500/85"
                               }`}
-                              style={{ left: dividerX, height: rowHeight }}
+                              style={{ left: dividerX, height: rowHeight, maskImage: cursorGridLineMask(rowIdx, dividerX) }}
                             />
                           );
                         })}
@@ -17980,11 +18018,11 @@ export default function GteWorkspace({
                     <div className="flex h-full w-full items-center justify-center rounded-sm border border-slate-400/75 bg-slate-300/45">
                       {!mobileViewport && !keyboardAddMode && selectedNoteIds.length === 0 && selectedChordIds.length === 0 && !sliceToolActive && !cutToolActive && !scaleToolActive && !moveToolActive && !effectiveIsPlaying && (
                         <>
-                          <span aria-hidden="true" className="gte-input-caret absolute left-[2px] top-1/2 h-3 -translate-y-1/2 border-l border-slate-700" />
-                          <span className="absolute bottom-full mb-1 flex items-center gap-1 whitespace-nowrap rounded bg-white/90 px-1 py-0.5 text-[10px] leading-3 text-slate-500"
+                          <span aria-hidden="true" className="gte-input-caret absolute left-[5px] top-1/2 h-3 -translate-y-1/2 border-l border-slate-700" />
+                          {showFretTypingHint && <span className="absolute bottom-full mb-1 flex items-center gap-1 whitespace-nowrap rounded bg-white/90 px-1 py-0.5 text-[10px] leading-3 text-slate-500"
                             style={{ left: Math.min(0, timelineWidth - keyboardCursorMarker.left - 88) }}>
                             {t("Type fret")} <kbd className="rounded border border-slate-300 px-0.5 font-sans text-[9px] leading-3">0–22</kbd>
-                          </span>
+                          </span>}
                         </>
                       )}
                     </div>
@@ -18530,7 +18568,12 @@ export default function GteWorkspace({
                             : undefined,
                         }}
                       >
-                        {idx === 0 ? note.tab[1] : null}
+                        {idx === 0 ? <span className="relative inline-flex items-center">
+                          {note.tab[1]}
+                          {showSelectedFretCaret && selectedNoteIds.length === 1 && selectedNoteIds[0] === note.id && selectedChordIds.length === 0 && (
+                            <span aria-hidden="true" className="gte-input-caret pointer-events-none absolute left-full top-1/2 ml-0.5 h-3 -translate-y-1/2 border-l border-current" />
+                          )}
+                        </span> : null}
                         {isLast && (
                           <span
                             className="absolute right-0 top-0 h-full w-2 cursor-ew-resize"
@@ -18734,7 +18777,12 @@ export default function GteWorkspace({
                               : undefined,
                           }}
                         >
-                          {tab[1]}
+                          <span className="relative inline-flex items-center">
+                            {tab[1]}
+                            {showSelectedFretCaret && isEditingThisChord && chordNoteMenuIndex === idx && selectedNoteIds.length === 0 && activeChordIds.length === 1 && (
+                              <span aria-hidden="true" className="gte-input-caret pointer-events-none absolute left-full top-1/2 ml-0.5 h-3 -translate-y-1/2 border-l border-current" />
+                            )}
+                          </span>
                           {isLast && editingChordId === null && (
                             <span
                               className="absolute right-0 top-0 h-full w-2 cursor-ew-resize"

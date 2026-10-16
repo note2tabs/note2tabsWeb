@@ -425,3 +425,57 @@ describe("inspector keyboard ownership", () => {
     expect(undo).not.toHaveBeenCalled();
   });
 });
+
+describe("selected fret caret and chord-member typing", () => {
+  function expressionStarting(prefix: string) {
+    let expression = "";
+    function visit(node: ts.Node) {
+      if (ts.isJsxExpression(node) && node.expression && ts.isBinaryExpression(node.expression) && node.expression.getText(workspaceAst).startsWith(prefix)) expression = node.expression.left.getText(workspaceAst);
+      ts.forEachChild(node, visit);
+    }
+    visit(workspaceAst);
+    expect(expression).not.toBe("");
+    return (context: Record<string, any>) => vm.runInNewContext(expression, context);
+  }
+  it("shows a caret only for a single standalone selected note", () => {
+    const visible = expressionStarting("showSelectedFretCaret && selectedNoteIds.length === 1");
+    const context = { showSelectedFretCaret: true, selectedNoteIds: [1], selectedChordIds: [], note: { id: 1 } };
+    expect(visible(context)).toBe(true);
+    expect(visible({ ...context, selectedNoteIds: [1, 2] })).toBe(false);
+    expect(visible({ ...context, selectedChordIds: [9] })).toBe(false);
+    expect(visible({ ...context, showSelectedFretCaret: false })).toBe(false);
+  });
+  it("shows a caret only on the chosen member of the chord being edited", () => {
+    const visible = expressionStarting("showSelectedFretCaret && isEditingThisChord");
+    const context = { showSelectedFretCaret: true, isEditingThisChord: true, chordNoteMenuIndex: 1, idx: 1, selectedNoteIds: [], activeChordIds: [2] };
+    expect(visible(context)).toBe(true);
+    expect(visible({ ...context, idx: 0 })).toBe(false);
+    expect(visible({ ...context, isEditingThisChord: false })).toBe(false);
+    expect(visible({ ...context, chordNoteMenuIndex: null })).toBe(false);
+  });
+  it("routes two-digit fret typing to the chosen chord member, never to note creation", () => {
+    let branch = "";
+    function visit(node: ts.Node) {
+      if (ts.isIfStatement(node) && node.expression.getText(workspaceAst) === "editingChordId !== null" && node.thenStatement.getText(workspaceAst).includes("commitChordNoteFret(nextText)")) branch = node.getText(workspaceAst);
+      ts.forEachChild(node, visit);
+    }
+    visit(workspaceAst);
+    expect(branch).not.toBe("");
+    const h = actionHarness();
+    const context: Record<string, any> = {
+      ...h.context, editingChordId: 2, noteFretTypingAtRef: { current: 0 }, noteFretTypingBufferRef: { current: "" }, KEYBOARD_FRET_TYPE_TIMEOUT_MS: 1400,
+      normalizeTypedFretText: (base: string, key: string) => base + key, commitChordNoteFret: realAction("commitChordNoteFret", h.context),
+      createKeyboardNoteAtCursor: vi.fn(), event: { key: "1" },
+    };
+    const code = ts.transpileModule(`(() => { ${branch}; createKeyboardNoteAtCursor(); })()`, {}).outputText;
+    vm.runInNewContext(code, context);
+    context.event.key = "2";
+    vm.runInNewContext(code, context);
+    expect(h.snapshot.chords[0].currentTabs).toEqual([[0, 0], [2, 12], [5, 12]]);
+    expect(h.snapshot.notes[0].tab).toEqual([0, 3]);
+    expect(context.createKeyboardNoteAtCursor).not.toHaveBeenCalled();
+    context.chordNoteMenuIndex = null;
+    vm.runInNewContext(code, context);
+    expect(context.createKeyboardNoteAtCursor).not.toHaveBeenCalled();
+  });
+});

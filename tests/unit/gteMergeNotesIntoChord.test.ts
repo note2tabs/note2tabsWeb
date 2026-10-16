@@ -16,6 +16,17 @@ const fixture = (): EditorSnapshot => ({
 });
 
 describe("merge standalone notes into an existing chord", () => {
+  it("merges two chords once, preserving members, dynamics and timing", () => {
+    const snapshot = fixture();
+    snapshot.chords.push({ id: 10, startTime: 600, length: 200, currentTabs: [[3, 7]], ogTabs: [[3, 5]], originalMidi: [62], velocities: [75], pitchBends: [[1, 2]] });
+    const before = structuredClone(snapshot);
+    const merged = mergeNotesIntoChordLocal(snapshot, 9, [], [10, 10, 9]);
+    expect(merged.chords).toHaveLength(1);
+    expect(merged.chords[0]).toMatchObject({ id: 9, startTime: 480, length: 320, currentTabs: [[1, 1], [0, 0], [3, 7]], ogTabs: [[1, 1], [0, 0], [3, 5]], originalMidi: [60, 64, 62], velocities: [80, 90, 75], pitchBends: [[], [], [1, 2]] });
+    expect(merged.notes).toEqual(snapshot.notes);
+    expect(snapshot).toEqual(before);
+    expect(mergeNotesIntoChordLocal(snapshot, 9, [1], [10]).chords[0].currentTabs).toHaveLength(4);
+  });
   it("keeps chord identity, appends the note once, and retains unrelated content", () => {
     const snapshot = fixture();
     const before = structuredClone(snapshot);

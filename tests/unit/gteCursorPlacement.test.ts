@@ -48,10 +48,13 @@ describe("cursor-context editing settings", () => {
     ts.forEachChild(node, find);
   }
   find(ast);
-  it("requires a visible cursor on the active desktop canvas", () => {
-    const state = { keyboardCursorMarker: {}, isActive: true, mobileViewport: false, tabViewEnabled: false, practiceMode: false };
+  it("shows for a cursor or selected notes/chords on the active desktop canvas", () => {
+    const state = { keyboardCursorMarker: {}, selectedNoteIds: [], activeChordIds: [], isActive: true, mobileViewport: false, tabViewEnabled: false, practiceMode: false };
     const evaluate = (context: Record<string, unknown>) => vm.runInNewContext(ts.transpileModule(`(${activeExpression})`, {}).outputText, context);
     expect(evaluate(state)).toBe(true);
+    expect(evaluate({ ...state, keyboardCursorMarker: null, selectedNoteIds: [1] })).toBe(true);
+    expect(evaluate({ ...state, keyboardCursorMarker: null, activeChordIds: [2] })).toBe(true);
+    expect(evaluate({ ...state, keyboardCursorMarker: null, selectedNoteIds: [1], isActive: false })).toBe(false);
     for (const patch of [{ keyboardCursorMarker: null }, { isActive: false }, { mobileViewport: true }, { tabViewEnabled: true }, { practiceMode: true }]) expect(evaluate({ ...state, ...patch })).toBe(false);
   });
   it("reports cursor activation and clears the panel on cleanup", () => {
@@ -60,5 +63,23 @@ describe("cursor-context editing settings", () => {
     expect(callback).toHaveBeenLastCalledWith(true);
     cleanup();
     expect(callback).toHaveBeenLastCalledWith(false);
+  });
+});
+
+describe("grid lines inside the typing cursor", () => {
+  it("hides only the grid segment inside the cursor, preserving its edges and other rows", () => {
+    let maskExpression = "";
+    function find(node: ts.Node) {
+      if (ts.isVariableDeclaration(node) && node.name.getText(ast) === "cursorGridLineMask") maskExpression = node.initializer!.getText(ast);
+      ts.forEachChild(node, find);
+    }
+    find(ast);
+    const mask = vm.runInNewContext(ts.transpileModule(`(${maskExpression})`, {}).outputText, {
+      mobileViewport: false, rowStride: 180, keyboardCursorMarker: { left: 120, top: 220, width: 120, height: 20 },
+    });
+    expect(mask(1, 180)).toBe("linear-gradient(to bottom, #000 41px, transparent 41px, transparent 59px, #000 59px)");
+    expect(mask(1, 120)).toBeUndefined();
+    expect(mask(1, 240)).toBeUndefined();
+    expect(mask(0, 180)).toBeUndefined();
   });
 });

@@ -1415,6 +1415,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const [openMobileBarMenuLaneId, setOpenMobileBarMenuLaneId] = useState<string | null>(null);
   const [editMenuPortalTarget, setEditMenuPortalTarget] = useState<HTMLDivElement | null>(null);
   const [cursorSettingsLaneId, setCursorSettingsLaneId] = useState<string | null>(null);
+  const [fretHintProgress, setFretHintProgress] = useState({ editorId, count: 0 });
+  const fretHintNoteCount = fretHintProgress.editorId === editorId ? fretHintProgress.count : 0;
+  const handleKeyboardNotePlaced = useCallback(() => {
+    setFretHintProgress((previous) => ({
+      editorId,
+      count: Math.min(4, (previous.editorId === editorId ? previous.count : 0) + 1),
+    }));
+  }, [editorId]);
   const [editorMode, setEditorMode] = useState<"canvas" | "tab" | "practice">("canvas");
   const practiceModeEnabled = editorMode === "practice";
   const tabViewEnabled = editorMode !== "canvas";
@@ -7559,7 +7567,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     }}
                     onMouseLeave={() => setOpenTopMenu(null)}
                   >
-                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{t("File")}</summary>
+                    <summary className="flex h-9 cursor-pointer list-none items-center rounded-md px-3.5 text-base text-slate-700 hover:bg-slate-100">{t("File")}</summary>
                     <div className="absolute left-0 top-full z-[10000] min-w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                       {!isGuestMode && (
                         <button
@@ -7646,7 +7654,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     }}
                     onMouseLeave={scheduleEditMenuClose}
                   >
-                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{t("Tools")}</summary>
+                    <summary className="flex h-9 cursor-pointer list-none items-center rounded-md px-3.5 text-base text-slate-700 hover:bg-slate-100">{t("Tools")}</summary>
                     <div className="absolute left-0 top-full z-[10000] max-h-[calc(100vh-10rem)] w-72 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                       <div ref={setEditMenuPortalTarget}>
                         {!editMenuOwnerLaneId && (
@@ -7749,7 +7757,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     }}
                     onMouseLeave={() => setOpenTopMenu(null)}
                   >
-                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{t("Help")}</summary>
+                    <summary className="flex h-9 cursor-pointer list-none items-center rounded-md px-3.5 text-base text-slate-700 hover:bg-slate-100">{t("Help")}</summary>
                     <div className="absolute left-0 top-full z-[10000] max-h-[calc(100vh-10rem)] w-80 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                       <div className="px-2 pb-1.5 pt-1 text-xs font-semibold text-slate-700">{t("Keyboard shortcut help")}</div>
                       {SHORTCUT_HELP_SECTIONS.map(([title, shortcuts]) => (
@@ -7787,7 +7795,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     }}
                     onMouseLeave={() => setOpenTopMenu(null)}
                   >
-                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{t("View")}</summary>
+                    <summary className="flex h-9 cursor-pointer list-none items-center rounded-md px-3.5 text-base text-slate-700 hover:bg-slate-100">{t("View")}</summary>
                     <div className="absolute left-0 top-full z-[10000] w-64 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                       <button
                         type="button"
@@ -8993,6 +9001,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               practiceControlsVisible={false}
                               showToolbarWhenInactive={false}
                               multiTrackSelectionActive={multiTrackSelectionActive}
+                              showFretTypingHint={fretHintNoteCount < 4}
+                              onKeyboardNotePlaced={handleKeyboardNotePlaced}
                               onCursorActiveChange={(active) => setCursorSettingsLaneId((previous) => active ? laneId : previous === laneId ? null : previous)}
                               onSelectionStateChange={(selection) =>
                                 handleLaneSelectionStateChange(laneId, selection)
@@ -9278,6 +9288,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               practiceControlsVisible={false}
                               showToolbarWhenInactive={laneId === globalControlsLaneId}
                               multiTrackSelectionActive={multiTrackSelectionActive}
+                              showFretTypingHint={fretHintNoteCount < 4}
+                              onKeyboardNotePlaced={handleKeyboardNotePlaced}
                               onCursorActiveChange={(active) => setCursorSettingsLaneId((previous) => active ? laneId : previous === laneId ? null : previous)}
                               onSelectionStateChange={(selection) =>
                                 handleLaneSelectionStateChange(laneId, selection)
@@ -9841,6 +9853,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           practiceControlsVisible={false}
                           showToolbarWhenInactive={!practiceModeEnabled && laneId === globalControlsLaneId}
                           multiTrackSelectionActive={multiTrackSelectionActive}
+                          showFretTypingHint={fretHintNoteCount < 4}
+                          onKeyboardNotePlaced={handleKeyboardNotePlaced}
                           onCursorActiveChange={(active) => setCursorSettingsLaneId((previous) => active ? laneId : previous === laneId ? null : previous)}
                           onSelectionStateChange={(selection) =>
                             handleLaneSelectionStateChange(laneId, selection)
@@ -9911,19 +9925,20 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
 
               return (
                 <div
-                  className="fixed bottom-12 left-[calc(1.25rem+28rem+0.75rem)] z-50"
+                  className="fixed bottom-5 left-[calc(1.25rem+28rem+0.75rem)] z-50"
                   data-gte-floating-ui="true"
                   data-track-menu="true"
                   data-desktop-track-selector="true"
                 >
+                  <div className="absolute bottom-0 right-[calc(100%+0.75rem)] flex h-[4.5rem] w-[28rem] items-center rounded-2xl border border-slate-200 bg-white p-1 shadow-[0_16px_45px_rgba(15,23,42,0.14)]">
                   <button
                     type="button"
                     data-gte-floating-ui="true"
                     onClick={() => setLocalIsolateBool((prev) => !prev)}
-                    className={`fixed bottom-12 left-5 flex h-[3.75rem] w-[3.75rem] items-center justify-center rounded-full border shadow-lg transition ${
+                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl transition ${
                       local_isolate_bool
-                        ? "border-emerald-600 bg-emerald-600 text-white"
-                        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                        ? "bg-emerald-600 text-white"
+                        : "text-slate-700 hover:bg-slate-50"
                     }`}
                     title={local_isolate_bool ? t("Stop local isolate") : t("Locally isolate this track")}
                     aria-label={local_isolate_bool ? t("Stop local isolate") : t("Locally isolate this track")}
@@ -9933,6 +9948,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       <path d="M12 4a7 7 0 0 0-7 7v5a2.5 2.5 0 0 0 2.5 2.5H8a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H7v-.5a5 5 0 0 1 10 0v.5h-1a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h.5A2.5 2.5 0 0 0 19 16v-5a7 7 0 0 0-7-7z" />
                     </svg>
                   </button>
+                  <span aria-hidden="true" className="mx-1 h-8 w-px shrink-0 bg-slate-200" />
                   {desktopTrackSettingsCollapsed ? (
                     <button
                       type="button"
@@ -9940,7 +9956,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         setDesktopTrackMenuOpen((open) => !open);
                         setDesktopTrackAddMenuOpen(false);
                       }}
-                      className="absolute bottom-0 right-[calc(100%+0.75rem)] flex w-[28rem] items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left text-slate-700 shadow-[0_16px_45px_rgba(15,23,42,0.14)] transition hover:bg-slate-50"
+                      className="flex min-w-0 flex-1 items-center justify-between rounded-xl px-3 py-3 text-left text-slate-700 transition hover:bg-slate-50"
                       title={t("Choose a track")}
                       aria-label={t("Choose a track")}
                       aria-expanded={desktopTrackMenuOpen}
@@ -10065,8 +10081,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   </div>
                   </>
                   )}
+                  </div>
                   {desktopTrackSettingsCollapsed && desktopTrackMenuOpen && (
-                    <div className="absolute bottom-16 right-[calc(100%+0.75rem)] w-[28rem] overflow-visible rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.18)]">
+                    <div className="absolute bottom-20 right-[calc(100%+0.75rem)] w-[28rem] overflow-visible rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.18)]">
                       <div className="hidden border-b border-slate-100 px-4 py-3">
                         <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{t("Edit track")}</div>
                         <input
@@ -10540,7 +10557,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       )}
       {!isMobileViewport && !tabViewEnabled && canvas && cursorSettingsLaneId !== null && cursorSettingsLaneId === activeLaneId && (
         <div data-gte-floating-ui="true" data-gte-editor-control="true" role="region" aria-label={t("Editing settings")}
-          className="fixed bottom-36 left-1/2 z-[9997] grid w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 grid-cols-2 items-end gap-3 rounded-xl border border-slate-200 bg-white/95 p-3 text-slate-700 shadow-sm backdrop-blur">
+          className="fixed bottom-28 left-1/2 z-[9997] grid w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 grid-cols-2 items-end gap-3 rounded-xl border border-slate-200 bg-white/95 p-3 text-slate-700 shadow-sm backdrop-blur">
                     <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_2.25rem_minmax(0,1fr)] items-start gap-2">
                     <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-600">{t("Add note size")}<select
                         value={chordOnlyDefaultNoteLengthDenominator}
@@ -10634,10 +10651,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       {!isMobileViewport && canvas && (
         <div
           data-gte-floating-ui="true"
-          className="pointer-events-none fixed bottom-10 left-1/2 z-[9997] w-[min(calc(100vw-2rem),64rem)] -translate-x-1/2 px-2"
+          className="pointer-events-none fixed bottom-5 left-1/2 z-[9997] w-[min(calc(100vw-2rem),64rem)] -translate-x-1/2 px-2"
         >
           <div className="flex justify-center">
-            <div className="pointer-events-auto grid grid-cols-[8rem_2rem_2.25rem_2rem_8rem] items-center gap-x-1 gap-y-1 rounded-2xl border border-slate-200 bg-white/95 px-2 py-2 text-slate-700 shadow-sm backdrop-blur">
+            <div className="pointer-events-auto grid min-h-[4.5rem] grid-cols-[8rem_2rem_2.25rem_2rem_8rem] items-center gap-x-1 gap-y-1 rounded-2xl border border-slate-200 bg-white/95 px-2 py-2 text-slate-700 shadow-sm backdrop-blur">
             {displayPreferences.showPlaybackCounter && (
               <span
                 className="col-start-3 row-start-1 justify-self-center whitespace-nowrap text-[10px] font-semibold tabular-nums text-slate-600"
@@ -10740,28 +10757,27 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           </div>
         </div>
       )}
+      {canvas && !practiceModeEnabled && !isMobileViewport && (
+        <label
+          data-gte-floating-ui="true"
+          className="fixed bottom-24 left-5 z-50 flex items-center gap-2 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-xs font-medium text-slate-600 shadow-sm"
+        >
+          <span>{t("Bars/row")}</span>
+          <input
+            type="range"
+            name="bottom-timeline-zoom"
+            min={1}
+            max={6}
+            step={1}
+            value={desktopBarsPerRow}
+            onChange={(event) => setDesktopBarsPerRow(Number(event.target.value))}
+            className="w-28 accent-slate-700"
+            aria-label={t("Bars per row")}
+          />
+          <span className="w-3 text-right tabular-nums">{desktopBarsPerRow}</span>
+        </label>
+      )}
       {canvas && !practiceModeEnabled && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/90 backdrop-blur">
-
-          <div className="container gte-wide py-1">
-            <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-1 shadow-sm">
-              {!isMobileViewport && (
-                <label className="hidden w-48 shrink-0 items-center gap-2 text-xs font-medium text-slate-600 sm:flex">
-                  <span>{t("Bars/row")}</span>
-                  <input
-                    type="range"
-                    name="bottom-timeline-zoom"
-                    min={1}
-                    max={6}
-                    step={1}
-                    value={desktopBarsPerRow}
-                    onChange={(event) => setDesktopBarsPerRow(Number(event.target.value))}
-                    className="min-w-0 flex-1"
-                    aria-label={t("Bars per row")}
-                  />
-                  <span className="w-4 text-right tabular-nums">{desktopBarsPerRow}</span>
-                </label>
-              )}
               <div
                 ref={globalTimelineScrollbarRef}
                 data-gte-timeline-control="true"
@@ -10773,9 +10789,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               >
                 <div style={{ width: globalTimelineTrackWidth, height: 1 }} />
               </div>
-            </div>
-          </div>
-        </div>
       )}
       {trackContextMenu && (
         <div

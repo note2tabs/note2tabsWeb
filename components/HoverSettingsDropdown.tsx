@@ -149,7 +149,7 @@ export default function HoverSettingsDropdown({ summary, children, panelTitle, c
       }}
       className={`group relative order-[7] w-fit max-w-full rounded-lg border border-slate-200 bg-white shadow-sm ${pushRight ? "ml-auto" : "ml-2"}`}
     >
-      <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-1.5 text-xs text-slate-600">
+      <summary className="flex h-9 cursor-pointer list-none items-center gap-3 px-3.5 text-sm text-slate-600">
         {summary}
       </summary>
       <div ref={panelRef} className={`absolute right-0 top-full z-[10000] mt-1 max-w-[calc(100vw-3rem)] rounded-lg border border-slate-200 bg-white shadow-xl ${panelTitle ? "w-[18rem] p-3" : "flex w-max flex-wrap items-end gap-3 p-3"}`}>
