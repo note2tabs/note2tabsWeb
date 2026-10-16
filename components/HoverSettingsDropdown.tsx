@@ -147,7 +147,7 @@ export default function HoverSettingsDropdown({ summary, children, panelTitle, c
         if (event.relatedTarget === null && event.target instanceof HTMLSelectElement) return;
         if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
       }}
-      className={`group relative order-[7] w-fit max-w-full rounded-lg border border-slate-200 bg-white shadow-sm ${pushRight ? "ml-auto" : "ml-2"}`}
+      className={`group relative order-[7] w-fit max-w-full rounded-lg border border-transparent bg-transparent transition-colors hover:bg-slate-900/[0.04] open:border-slate-200 open:bg-white ${pushRight ? "ml-auto" : "ml-2"}`}
     >
       <summary className="flex h-9 cursor-pointer list-none items-center gap-3 px-3.5 text-sm text-slate-600">
         {summary}

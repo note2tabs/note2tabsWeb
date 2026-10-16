@@ -10557,7 +10557,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       )}
       {!isMobileViewport && !tabViewEnabled && canvas && cursorSettingsLaneId !== null && cursorSettingsLaneId === activeLaneId && (
         <div data-gte-floating-ui="true" data-gte-editor-control="true" role="region" aria-label={t("Editing settings")}
-          className="fixed bottom-28 left-1/2 z-[9997] grid w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 grid-cols-2 items-end gap-3 rounded-xl border border-slate-200 bg-white/95 p-3 text-slate-700 shadow-sm backdrop-blur">
+          className="fixed bottom-24 left-1/2 z-[9997] grid w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 grid-cols-2 items-end gap-x-2 gap-y-2 rounded-xl border border-slate-200 bg-white/95 p-2.5 text-slate-700 shadow-sm backdrop-blur">
                     <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_2.25rem_minmax(0,1fr)] items-start gap-2">
                     <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-600">{t("Add note size")}<select
                         value={chordOnlyDefaultNoteLengthDenominator}
@@ -10566,7 +10566,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         onChange={(event) =>
                           handleDefaultNoteLengthDenominatorChange(Number(event.target.value))
                         }
-                        className="h-9 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm text-slate-700"
+                        className="h-7 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm text-slate-700"
                       >
                         {(noteCursorSizesLinked
                           ? CURSOR_SIZE_FRACTION_DENOMINATORS
@@ -10585,11 +10585,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         <span>{t("larger")}</span>
                       </span>
                     </label>
-                    <div className="mt-5 flex h-9 items-center justify-center">
+                    <div className="mt-5 flex h-7 items-center justify-center">
                       <SizeLinkToggle
                       linked={noteCursorSizesLinked}
                       onToggle={toggleNoteCursorSizeLink}
-                      className="!h-9 !w-9 self-center !border-transparent !bg-transparent hover:!bg-slate-100"
+                      className="!h-7 !w-7 self-center !border-transparent !bg-transparent hover:!bg-slate-100"
                       />
                     </div>
                     <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-600">{t("Cursor size")}<select
@@ -10599,7 +10599,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         onChange={(event) =>
                           handleCursorSizeDenominatorChange(Number(event.target.value))
                         }
-                        className="h-9 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm text-slate-700"
+                        className="h-7 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm text-slate-700"
                       >
                         {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
                           <option key={`desktop-cursor-size-${denominator}`} value={denominator}>
@@ -10623,7 +10623,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
                         aria-label={t("Snap to grid")}
                         aria-pressed={globalSnapToGridEnabled}
-                        className={`flex h-9 w-full items-center justify-center rounded-md border transition-colors ${globalSnapToGridEnabled ? "border-sky-600 bg-sky-600 text-white hover:bg-sky-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                        className={`flex h-7 w-full items-center justify-center rounded-md border transition-colors ${globalSnapToGridEnabled ? "border-sky-600 bg-sky-600 text-white hover:bg-sky-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
                       >
                         <svg viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                           <rect x="3" y="3" width="18" height="18" rx="2" />
@@ -10638,7 +10638,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
                         aria-label={t("Snap to key")}
                         aria-pressed={globalSnapToKeyEnabled}
-                        className={`flex h-9 w-full items-center justify-center gap-1.5 rounded-md border transition-colors ${globalSnapToKeyEnabled ? "border-sky-600 bg-sky-600 text-white hover:bg-sky-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                        className={`flex h-7 w-full items-center justify-center gap-1.5 rounded-md border transition-colors ${globalSnapToKeyEnabled ? "border-sky-600 bg-sky-600 text-white hover:bg-sky-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
                       >
                         <span className="text-sm font-semibold" aria-hidden="true">{KEY_BASE_OPTIONS[normalizeKeyBase(canvas?.keyBase)]}</span>
                         <svg viewBox="0 0 16 20" className="h-5 w-4 fill-current" aria-hidden="true">
@@ -10760,7 +10760,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       {canvas && !practiceModeEnabled && !isMobileViewport && (
         <label
           data-gte-floating-ui="true"
-          className="fixed bottom-24 left-5 z-50 flex items-center gap-2 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-xs font-medium text-slate-600 shadow-sm"
+          className="fixed bottom-5 left-5 z-50 flex items-center gap-2 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-xs font-medium text-slate-600 shadow-sm"
         >
           <span>{t("Bars/row")}</span>
           <input
