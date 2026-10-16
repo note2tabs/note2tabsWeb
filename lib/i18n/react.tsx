@@ -7,6 +7,8 @@ import { localeFromPath, localeHref, navigationLocaleForPath, localeEnabled, loc
 import {deviceLocale} from "./detection";
 import {restoreLanguageChoice, browserLanguageChoice, LANGUAGE_STORAGE_KEY} from "./preference";
 import {localeSwitchDestination, supportsLocalizedPath} from "./locale";
+import {loadPublicCatalog} from "./publicCatalogs";
+import {hasPublicCatalog} from "./translate";
 import { translate, registerEditorCatalog } from "./translate";
 const LocaleContext = createContext<{ locale: AppLocale; navigationLocale: AppLocale; deviceLanguage:AppLocale; languageChosen:boolean; languageReady:boolean }>({ locale: "en", navigationLocale: "en", deviceLanguage:"en", languageChosen:false, languageReady:false });
 export function LocaleProvider({ children, path, initialEditorLocale = "en", initialEditorMessages }: { children: ReactNode; path: string; initialEditorLocale?: AppLocale; initialEditorMessages?: Record<string,string> }) {
@@ -22,7 +24,17 @@ export function LocaleProvider({ children, path, initialEditorLocale = "en", ini
   const [preferredLocale, setPreferredLocale] = useState<AppLocale>(editor ? initialEditorLocale : routeLocale);
   const [loadedEditorLocale,setLoadedEditorLocale]=useState(initialEditorLocale);
   const editorLocale=preferredLocale===initialEditorLocale && initialEditorMessages ? initialEditorLocale : loadedEditorLocale;
-  const locale = editor ? (localeEnabled(editorLocale) ? editorLocale : "en") : routeLocale;
+  const requestedLocale = editor ? (localeEnabled(editorLocale) ? editorLocale : "en") : routeLocale;
+  const [publicLocale, setPublicLocale] = useState(requestedLocale);
+  const locale = hasPublicCatalog(requestedLocale) ? requestedLocale : publicLocale;
+  useEffect(() => {
+    let cancelled = false;
+    void loadPublicCatalog(requestedLocale).then(() => {if(!cancelled)setPublicLocale(requestedLocale);}).catch(() => {
+      // A full navigation receives server-rendered messages if a chunk download fails.
+      if (!cancelled) window.location.reload();
+    });
+    return () => {cancelled = true;};
+  }, [requestedLocale]);
   useEffect(()=>{
     if(!editor)return;
     const target=localeEnabled(preferredLocale) ? preferredLocale : "en";

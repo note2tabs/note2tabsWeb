@@ -1,4 +1,5 @@
 import {quickLanguageOptions,saveLanguageChoice} from "../lib/i18n/preference";
+import {loadPublicCatalog} from "../lib/i18n/publicCatalogs";
 import {getEditorCatalog} from "../lib/i18n/editor/catalogs";
 import {registerEditorCatalog} from "../lib/i18n/translate";
 import Link from "next/link";
@@ -32,15 +33,16 @@ export default function LanguageSelector() {
   const select = async (target: AppLocale) => {
     const sequence=++selectionSequence.current;
     if (menuRef.current) menuRef.current.open = false;
-    if(isEditorPath(router.asPath)) {
-      try {
-        const copy=await getEditorCatalog(target);
-        if(sequence!==selectionSequence.current)return;
-        registerEditorCatalog(target,copy);
-      } catch {
-        if(sequence===selectionSequence.current && menuRef.current)menuRef.current.open=true;
-        return;
-      }
+    try {
+      const [, editorCopy] = await Promise.all([
+        loadPublicCatalog(target),
+        isEditorPath(router.asPath) ? getEditorCatalog(target) : Promise.resolve(null),
+      ]);
+      if(sequence!==selectionSequence.current)return;
+      if(editorCopy)registerEditorCatalog(target,editorCopy);
+    } catch {
+      if(sequence===selectionSequence.current && menuRef.current)menuRef.current.open=true;
+      return;
     }
     saveLanguageChoice(target);
     sendEvent("language_selected", { previous_locale: locale, selected_locale: target, locale_source: "selector", locale_version: LOCALE_VERSION });
