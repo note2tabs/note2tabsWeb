@@ -41,3 +41,5 @@ Bundle numbers precede a small selector-recovery refinement; verify deployed bun
 ## Release follow-up
 
 Check the production bundler and public language flows before starting Search Console validation. Record the release and validation outcome separately. Validation is an observation period, not an instant declaration that all real-user metrics pass.
+
+Additional recovery check: offline French-to-English selector download kept the page in French and left the explicit preference unset; restoring connectivity and retrying switched to English successfully.
