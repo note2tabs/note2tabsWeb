@@ -5,6 +5,7 @@ import {readFileSync} from "node:fs";
 import SeoHead from "../../components/SeoHead";
 import {LocaleProvider} from "../../lib/i18n/react";
 import {ALL_LOCALES, LOCALIZED_PUBLIC_PATHS, localeHref} from "../../lib/i18n/locale";
+import {INDEXABLE_BLOG_CLUSTERS} from "../../lib/blogIndexPolicy";
 import {seoFeaturePages} from "../../lib/seoFeaturePages";
 import {translate} from "../../lib/i18n/translate";
 import {getServerSideProps as sitemap} from "../../pages/sitemap.xml";
@@ -15,7 +16,7 @@ afterEach(()=>vi.unstubAllEnvs());
 const flags=["PT_BR","ES","JA","KO","PL","AR","ZH_HANS","FR","IT"];
 function production(){vi.stubEnv("NODE_ENV","production");vi.stubEnv("VERCEL_ENV","production");for(const flag of flags)vi.stubEnv(`NEXT_PUBLIC_${flag}_REVIEWED`,"true");}
 function head(path:string,canonicalPath:string,extra={}){return renderToStaticMarkup(React.createElement(LocaleProvider,{path,children:React.createElement(SeoHead,{title:"Audio to Guitar Tab Converter",description:"Convert audio to playable, editable guitar tabs online. Upload MP3, WAV, M4A, or FLAC, generate tablature, then practise, edit, and export it.",canonicalPath,...extra})}));}
-const paths=[...LOCALIZED_PUBLIC_PATHS.filter(p=>p!=="/online-guitar-tab-editor"),...seoFeaturePages.map(p=>`/features/${p.slug}`)];
+const paths=[...LOCALIZED_PUBLIC_PATHS.filter(p=>p!=="/online-guitar-tab-editor"),...seoFeaturePages.map(p=>`/features/${p.slug}`),...Array.from(INDEXABLE_BLOG_CLUSTERS,slug=>`/blog/cluster/${slug}`)];
 describe("all-language search discoverability",()=>{
  it.each(ALL_LOCALES)("keeps %s public pages self-canonical with reciprocal language links",locale=>{
   production();

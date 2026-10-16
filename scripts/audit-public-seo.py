@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Read-only sitemap SEO audit. Standard library only; no auth or indexing claims."""
+import urllib.robotparser
 import argparse,concurrent.futures,datetime,hashlib,json,re,time,urllib.request,urllib.parse,xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 class Page(HTMLParser):
@@ -24,9 +25,10 @@ class Page(HTMLParser):
 
 def fetch(url):
  req=urllib.request.Request(url,headers={'User-Agent':'Note2Tabs-SEO-Audit/1.0 (read-only; sitemap URLs)'})
- with urllib.request.urlopen(req,timeout=30) as r:return r.status,r.url,dict(r.headers),r.read().decode('utf-8')
+ with urllib.request.urlopen(req,timeout=30) as r:return r.status,r.url,{k.lower():v for k,v in r.headers.items()},r.read().decode('utf-8')
 def run(base,output,workers):
  status,_,_,xml=fetch(base+'/sitemap.xml');root=ET.fromstring(xml)
+ robots=urllib.robotparser.RobotFileParser(base+'/robots.txt');robots.read()
  entries=[]
  for node in root.findall('{*}url'):
   loc=node.find('{*}loc').text
@@ -37,12 +39,19 @@ def run(base,output,workers):
   url,sitemapAlts=entry;issues=[];warnings=[]
   try:
    status,final,headers,html=fetch(url);p=Page();p.feed(html)
+   if not robots.can_fetch('Googlebot',url):issues.append('robots.txt blocks Googlebot')
    if status!=200:issues.append('HTTP '+str(status))
    if final.rstrip('/')!=url.rstrip('/'):issues.append('sitemap redirects')
    if p.canonical!=[url]:issues.append('canonical does not match sitemap URL')
-   for directive in [p.meta.get('robots',''),p.meta.get('googlebot',''),headers.get('X-Robots-Tag','')]:
+   for directive in [p.meta.get('robots',''),p.meta.get('googlebot',''),headers.get('x-robots-tag','')]:
     if re.search(r'noindex|none',directive,re.I):issues.append('sitemap URL blocks indexing')
    if not p.title:issues.append('missing title')
+   for key in ['og:title','twitter:title']:
+    if p.meta.get(key)!=p.title:issues.append(key+' does not match title')
+   for key in ['og:description','twitter:description']:
+    if p.meta.get(key)!=p.meta.get('description'):issues.append(key+' does not match description')
+   if p.meta.get('og:url')!=url:issues.append('social URL differs from canonical')
+   if not p.meta.get('og:image') or not p.meta.get('twitter:image'):issues.append('missing social image')
    if not p.meta.get('description','').strip():issues.append('missing description')
    if len(p.h1)!=1 or not p.h1[0]:issues.append('expected one nonempty H1')
    path=urllib.parse.urlparse(url).path;prefix=path.split('/')[1];locale={'pt-br':'pt-BR','zh-hans':'zh-Hans'}.get(prefix,prefix if prefix in ['es','ja','ko','pl','ar','fr','it'] else 'en')
@@ -60,6 +69,11 @@ def run(base,output,workers):
   except Exception as e:return dict(url=url,issues=[type(e).__name__+': '+str(e)])
  with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:rows=list(pool.map(check,entries))
  # Every language cluster must link back to the same set of canonical alternates.
+ seenTitles={}
+ for row in rows:
+  key=(row.get('locale'),row.get('title'))
+  if key[1] and key in seenTitles:row['issues'].append('duplicate title within language: '+seenTitles[key])
+  seenTitles[key]=row['url']
  lookup={r['url']:r for r in rows}
  for row in rows:
   for href in row.get('alternates',{}).values():
