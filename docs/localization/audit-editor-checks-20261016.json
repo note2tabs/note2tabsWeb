@@ -1,0 +1,82 @@
+[
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"en\",\"path\":\"/gte/local\",\"width\":390,\"scroll\":390,\"dir\":\"ltr\",\"title\":\"Guitar Tab Editor Workspace | Note2Tabs\",\"canvas\":false}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"pt-BR\",\"path\":\"/gte/local\",\"width\":390,\"scroll\":390,\"dir\":\"ltr\",\"title\":\"Área de edição de tablaturas | Note2Tabs\",\"canvas\":false}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"es\",\"path\":\"/gte/local\",\"width\":390,\"scroll\":390,\"dir\":\"ltr\",\"title\":\"Área de edición de tablaturas | Note2Tabs\",\"canvas\":false}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"ja\",\"path\":\"/gte/local\",\"width\":390,\"scroll\":390,\"dir\":\"ltr\",\"title\":\"ギターTAB譜の作業画面 · Note2Tabs\",\"canvas\":false}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"ko\",\"path\":\"/gte/local\",\"width\":390,\"scroll\":390,\"dir\":\"ltr\",\"title\":\"기타 타브 작업 공간 · Note2Tabs\",\"canvas\":false}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"pl\",\"path\":\"/gte/local\",\"width\":390,\"scroll\":390,\"dir\":\"ltr\",\"title\":\"Edytor tabulatur | Note2Tabs\",\"canvas\":false}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"ar\",\"path\":\"/gte/local\",\"width\":390,\"scroll\":390,\"dir\":\"rtl\",\"title\":\"مساحة محرّر تابلاتشر الغيتار | Note2Tabs\",\"canvas\":false}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"zh-Hans\",\"path\":\"/gte/local\",\"width\":390,\"scroll\":390,\"dir\":\"ltr\",\"title\":\"吉他六线谱编辑工作区 | Note2Tabs\",\"canvas\":false}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"fr\",\"path\":\"/gte/local\",\"width\":390,\"scroll\":390,\"dir\":\"ltr\",\"title\":\"Espace de travail de tablatures de guitare | Note2Tabs\",\"canvas\":false}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"it\",\"path\":\"/gte/local\",\"width\":390,\"scroll\":390,\"dir\":\"ltr\",\"title\":\"Area di lavoro dell’editor di tablature | Note2Tabs\",\"canvas\":false}\n```"
+      }
+    ]
+  }
+]

@@ -94,14 +94,14 @@ export default function AffiliatePage() {
         </section>
         <div className="affiliateGrid">
           <section className="affiliateCard affiliateShareCard"><div className="affiliateCardHeading"><div><span className="affiliateSectionLabel">{t("Your referral")}</span><h2>{t("Share your link")}</h2></div>
-            <span className="affiliateTermsBadge">{affiliate.discountPercent}{t("% off for ")}{affiliate.discountMonths} {t(" months")}</span></div>
+            <span className="affiliateTermsBadge">{t(affiliate.discountMonths === 1 ? "{percent}% off for one month" : "{percent}% off for {count} months", {percent: affiliate.discountPercent, count: affiliate.discountMonths})}</span></div>
             <p>{t("Anyone who subscribes through your link receives the discount automatically.")}</p>
             <div className="affiliateCopyField"><span>{link}</span><button type="button" onClick={() => copy(link, "link")} aria-label={t("Copy referral link")} aria-live="polite"><CopyIcon/>{t(copied === "link" ? "Copied" : "Copy")}</button></div>
             <div className="affiliateCodeRow"><div><span>{t("Promotion code")}</span><strong>{affiliate.code}</strong></div><button type="button" onClick={() => copy(affiliate.code, "code")} aria-live="polite"><CopyIcon/>{t(copied === "code" ? "Copied" : "Copy code")}</button></div>
             {copyError && <p className="affiliateInlineError" role="alert">{t("Could not copy automatically. Select the link or code and copy it manually.")}</p>}
           </section>
           <aside className="affiliateCard affiliateTermsCard"><span className="affiliateSectionLabel">{t("How earnings work")}</span><h2>{affiliate.commissionPercent}{t("% commission")}</h2>
-            <p>{t("Earn from each referred customer’s first ")}{affiliate.commissionMonths} {t(" paid subscription months.")}</p>
+            <p>{t(affiliate.commissionMonths === 1 ? "Earn from each referred customer’s first paid subscription month." : "Earn from each referred customer’s first {count} paid subscription months.", {count: affiliate.commissionMonths})}</p>
             <div className="affiliateTimeline" aria-label={t("Commission timeline")}>{Array.from({ length: affiliate.commissionMonths }, (_, index) => <span key={index}>{index + 1}</span>)}</div>
             <small>{t("Commissions are held briefly for refunds, then paid through Stripe.")}</small>
           </aside>

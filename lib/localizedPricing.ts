@@ -122,8 +122,10 @@ export function formatLocalizedPrice(
 export function localizedAnnualSaving(plan: PaidSubscriptionPlan, currency: DisplayCurrency, locale = "en") {
   const monthly = PRICES[plan].monthly[currency];
   const yearly = PRICES[plan].yearly[currency];
-  const saving = Math.round(monthly * 12 - yearly);
-  return formatLocalizedAmount(saving, currency, locale);
+  // Calculate from exact charge units, then round the savings label up as intended.
+  const minor = currency === "JPY" || currency === "KRW" ? 1 : 100;
+  const saving = (Math.round(monthly * minor) * 12 - Math.round(yearly * minor)) / minor;
+  return formatLocalizedAmount(Math.ceil(saving), currency, locale);
 }
 
 export function readDisplayCurrencyCookie(cookieHeader: string): DisplayCurrency {

@@ -1,0 +1,692 @@
+{
+  "checkedAt": "2026-10-16T14:46:27.785Z",
+  "reference": "Configured price IDs recorded in October 15 production parity audit; fresh read-only Stripe retrieval",
+  "currencies": 23,
+  "prices": [
+    {
+      "plan": "PREMIUM",
+      "interval": "monthly",
+      "priceId": "price_1UQo7W4WRmrnOGtcqrTotLPw",
+      "active": true,
+      "intervalMatches": true,
+      "productMatches": true,
+      "amounts": [
+        {
+          "currency": "USD",
+          "websiteMinor": 599,
+          "stripeMinor": 599,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "GBP",
+          "websiteMinor": 499,
+          "stripeMinor": 499,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "EUR",
+          "websiteMinor": 549,
+          "stripeMinor": 549,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "SEK",
+          "websiteMinor": 5900,
+          "stripeMinor": 5900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "CAD",
+          "websiteMinor": 899,
+          "stripeMinor": 899,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "AUD",
+          "websiteMinor": 899,
+          "stripeMinor": 899,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "NZD",
+          "websiteMinor": 1099,
+          "stripeMinor": 1099,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "CHF",
+          "websiteMinor": 499,
+          "stripeMinor": 499,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "NOK",
+          "websiteMinor": 5900,
+          "stripeMinor": 5900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "DKK",
+          "websiteMinor": 3900,
+          "stripeMinor": 3900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "JPY",
+          "websiteMinor": 999,
+          "stripeMinor": 999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "SGD",
+          "websiteMinor": 849,
+          "stripeMinor": 849,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "BRL",
+          "websiteMinor": 1499,
+          "stripeMinor": 1499,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "INR",
+          "websiteMinor": 29900,
+          "stripeMinor": 29900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "IDR",
+          "websiteMinor": 4899900,
+          "stripeMinor": 4899900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "CNY",
+          "websiteMinor": 3000,
+          "stripeMinor": 3000,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "MXN",
+          "websiteMinor": 8900,
+          "stripeMinor": 8900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "PHP",
+          "websiteMinor": 19900,
+          "stripeMinor": 19900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "MYR",
+          "websiteMinor": 1990,
+          "stripeMinor": 1990,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "THB",
+          "websiteMinor": 13900,
+          "stripeMinor": 13900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "ZAR",
+          "websiteMinor": 6999,
+          "stripeMinor": 6999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "PLN",
+          "websiteMinor": 1999,
+          "stripeMinor": 1999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "KRW",
+          "websiteMinor": 7900,
+          "stripeMinor": 7900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        }
+      ]
+    },
+    {
+      "plan": "PREMIUM",
+      "interval": "yearly",
+      "priceId": "price_1UQo7X4WRmrnOGtcGoVGWSuw",
+      "active": true,
+      "intervalMatches": true,
+      "productMatches": true,
+      "amounts": [
+        {
+          "currency": "USD",
+          "websiteMinor": 5999,
+          "stripeMinor": 5999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "GBP",
+          "websiteMinor": 4999,
+          "stripeMinor": 4999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "EUR",
+          "websiteMinor": 5499,
+          "stripeMinor": 5499,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "SEK",
+          "websiteMinor": 59900,
+          "stripeMinor": 59900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "CAD",
+          "websiteMinor": 8599,
+          "stripeMinor": 8599,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "AUD",
+          "websiteMinor": 8999,
+          "stripeMinor": 8999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "NZD",
+          "websiteMinor": 10999,
+          "stripeMinor": 10999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "CHF",
+          "websiteMinor": 4999,
+          "stripeMinor": 4999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "NOK",
+          "websiteMinor": 59900,
+          "stripeMinor": 59900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "DKK",
+          "websiteMinor": 39900,
+          "stripeMinor": 39900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "JPY",
+          "websiteMinor": 9999,
+          "stripeMinor": 9999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "SGD",
+          "websiteMinor": 8499,
+          "stripeMinor": 8499,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "BRL",
+          "websiteMinor": 14999,
+          "stripeMinor": 14999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "INR",
+          "websiteMinor": 299900,
+          "stripeMinor": 299900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "IDR",
+          "websiteMinor": 48999900,
+          "stripeMinor": 48999900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "CNY",
+          "websiteMinor": 30000,
+          "stripeMinor": 30000,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "MXN",
+          "websiteMinor": 89900,
+          "stripeMinor": 89900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "PHP",
+          "websiteMinor": 199900,
+          "stripeMinor": 199900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "MYR",
+          "websiteMinor": 19900,
+          "stripeMinor": 19900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "THB",
+          "websiteMinor": 139900,
+          "stripeMinor": 139900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "ZAR",
+          "websiteMinor": 69999,
+          "stripeMinor": 69999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "PLN",
+          "websiteMinor": 19999,
+          "stripeMinor": 19999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "KRW",
+          "websiteMinor": 79000,
+          "stripeMinor": 79000,
+          "match": true,
+          "taxBehavior": "unspecified"
+        }
+      ]
+    },
+    {
+      "plan": "PRO",
+      "interval": "monthly",
+      "priceId": "price_1UQo7Y4WRmrnOGtcli3j59C0",
+      "active": true,
+      "intervalMatches": true,
+      "productMatches": true,
+      "amounts": [
+        {
+          "currency": "USD",
+          "websiteMinor": 1499,
+          "stripeMinor": 1499,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "GBP",
+          "websiteMinor": 1199,
+          "stripeMinor": 1199,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "EUR",
+          "websiteMinor": 1399,
+          "stripeMinor": 1399,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "SEK",
+          "websiteMinor": 14900,
+          "stripeMinor": 14900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "CAD",
+          "websiteMinor": 2199,
+          "stripeMinor": 2199,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "AUD",
+          "websiteMinor": 2199,
+          "stripeMinor": 2199,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "NZD",
+          "websiteMinor": 2699,
+          "stripeMinor": 2699,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "CHF",
+          "websiteMinor": 1249,
+          "stripeMinor": 1249,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "NOK",
+          "websiteMinor": 14900,
+          "stripeMinor": 14900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "DKK",
+          "websiteMinor": 9900,
+          "stripeMinor": 9900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "JPY",
+          "websiteMinor": 2499,
+          "stripeMinor": 2499,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "SGD",
+          "websiteMinor": 2099,
+          "stripeMinor": 2099,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "BRL",
+          "websiteMinor": 3799,
+          "stripeMinor": 3799,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "INR",
+          "websiteMinor": 74900,
+          "stripeMinor": 74900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "IDR",
+          "websiteMinor": 11999900,
+          "stripeMinor": 11999900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "CNY",
+          "websiteMinor": 7500,
+          "stripeMinor": 7500,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "MXN",
+          "websiteMinor": 21900,
+          "stripeMinor": 21900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "PHP",
+          "websiteMinor": 49900,
+          "stripeMinor": 49900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "MYR",
+          "websiteMinor": 4990,
+          "stripeMinor": 4990,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "THB",
+          "websiteMinor": 34900,
+          "stripeMinor": 34900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "ZAR",
+          "websiteMinor": 17499,
+          "stripeMinor": 17499,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "PLN",
+          "websiteMinor": 4999,
+          "stripeMinor": 4999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "KRW",
+          "websiteMinor": 19900,
+          "stripeMinor": 19900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        }
+      ]
+    },
+    {
+      "plan": "PRO",
+      "interval": "yearly",
+      "priceId": "price_1UQo7Z4WRmrnOGtcYeCeHWLl",
+      "active": true,
+      "intervalMatches": true,
+      "productMatches": true,
+      "amounts": [
+        {
+          "currency": "USD",
+          "websiteMinor": 14999,
+          "stripeMinor": 14999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "GBP",
+          "websiteMinor": 11999,
+          "stripeMinor": 11999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "EUR",
+          "websiteMinor": 13999,
+          "stripeMinor": 13999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "SEK",
+          "websiteMinor": 149900,
+          "stripeMinor": 149900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "CAD",
+          "websiteMinor": 21499,
+          "stripeMinor": 21499,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "AUD",
+          "websiteMinor": 21999,
+          "stripeMinor": 21999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "NZD",
+          "websiteMinor": 26999,
+          "stripeMinor": 26999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "CHF",
+          "websiteMinor": 12499,
+          "stripeMinor": 12499,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "NOK",
+          "websiteMinor": 149900,
+          "stripeMinor": 149900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "DKK",
+          "websiteMinor": 99900,
+          "stripeMinor": 99900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "JPY",
+          "websiteMinor": 24999,
+          "stripeMinor": 24999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "SGD",
+          "websiteMinor": 20999,
+          "stripeMinor": 20999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "BRL",
+          "websiteMinor": 37999,
+          "stripeMinor": 37999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "INR",
+          "websiteMinor": 749900,
+          "stripeMinor": 749900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "IDR",
+          "websiteMinor": 119999900,
+          "stripeMinor": 119999900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "CNY",
+          "websiteMinor": 75000,
+          "stripeMinor": 75000,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "MXN",
+          "websiteMinor": 219900,
+          "stripeMinor": 219900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "PHP",
+          "websiteMinor": 499900,
+          "stripeMinor": 499900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "MYR",
+          "websiteMinor": 49900,
+          "stripeMinor": 49900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "THB",
+          "websiteMinor": 349900,
+          "stripeMinor": 349900,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "ZAR",
+          "websiteMinor": 174999,
+          "stripeMinor": 174999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "PLN",
+          "websiteMinor": 49999,
+          "stripeMinor": 49999,
+          "match": true,
+          "taxBehavior": "unspecified"
+        },
+        {
+          "currency": "KRW",
+          "websiteMinor": 199000,
+          "stripeMinor": 199000,
+          "match": true,
+          "taxBehavior": "unspecified"
+        }
+      ]
+    }
+  ],
+  "amountMismatches": []
+}

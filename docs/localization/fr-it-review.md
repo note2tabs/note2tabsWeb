@@ -1,5 +1,7 @@
 # French and Italian review editions
 
+The follow-up [16 October audit](audit-20261016.md) records corrections to this draft, current validation, currency parity and ongoing conversion monitoring. The results below describe the original draft, not final linguistic approval.
+
 Branch: `codex/french-italian-localization-20261014`, based on main after PR #196. Neither edition is merged, published, submitted to Search Console, or claimed to be indexed.
 
 ## Scope

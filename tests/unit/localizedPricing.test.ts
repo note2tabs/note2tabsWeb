@@ -3,6 +3,7 @@ import {
   DISPLAY_CURRENCIES,
   displayCurrencyForCountry,
   formatLocalizedPrice,
+  formatLocalizedAmount,
   localizedAnnualSaving,
   localizedPriceAmount,
   readDisplayCurrencyCookie,
@@ -61,6 +62,23 @@ describe("localized pricing", () => {
     expect(formatLocalizedPrice("PREMIUM", "monthly", "PLN")).toBe("19.99 zł");
     expect(formatLocalizedPrice("PRO", "monthly", "KRW")).toBe("₩19,900");
     expect(localizedAnnualSaving("PREMIUM", "GBP")).toBe("£10");
+  });
+
+  it("rounds savings labels up from exact charge units for every currency and plan", () => {
+    for (const currency of DISPLAY_CURRENCIES) {
+      const minor = currency === "JPY" || currency === "KRW" ? 1 : 100;
+      for (const plan of ["PREMIUM", "PRO"] as const) {
+        const monthly = Math.round(localizedPriceAmount(plan, "monthly", currency) * minor);
+        const yearly = Math.round(localizedPriceAmount(plan, "yearly", currency) * minor);
+        const expected = (monthly * 12 - yearly) / minor;
+        expect(localizedAnnualSaving(plan, currency)).toBe(formatLocalizedAmount(Math.ceil(expected), currency));
+      }
+    }
+    expect(localizedAnnualSaving("PREMIUM", "USD")).toBe("$12");
+    expect(localizedAnnualSaving("PRO", "USD")).toBe("$30");
+    expect(localizedAnnualSaving("PREMIUM", "BRL", "pt-BR")).toBe("R$ 30,00");
+    expect(localizedAnnualSaving("PREMIUM", "JPY", "ja")).toBe("￥1,989");
+    expect(localizedAnnualSaving("PREMIUM", "KRW", "ko")).toBe("₩15,800");
   });
 
   it("never prices non-psychological localized plans below their USD equivalent", () => {

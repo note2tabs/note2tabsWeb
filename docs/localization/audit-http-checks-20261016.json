@@ -1,0 +1,602 @@
+[
+  {
+    "locale": "en",
+    "path": "/pricing",
+    "status": 200,
+    "html": "<html lang=\"en\" dir=\"ltr\">",
+    "title": "Pricing | Note2Tabs",
+    "robots": null,
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/pricing\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "en",
+    "path": "/transcribe",
+    "status": 200,
+    "html": "<html lang=\"en\" dir=\"ltr\">",
+    "title": "Audio to Guitar Tab Transcriber | Note2Tabs",
+    "robots": null,
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/transcribe\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "en",
+    "path": "/auth/signup",
+    "status": 200,
+    "html": "<html lang=\"en\" dir=\"ltr\">",
+    "title": "Create your account | Note2Tabs",
+    "robots": null,
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/auth/signup\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "en",
+    "path": "/auth/login",
+    "status": 200,
+    "html": "<html lang=\"en\" dir=\"ltr\">",
+    "title": "Log in | Note2Tabs",
+    "robots": null,
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/auth/login\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "en",
+    "path": "/features/guitar-tab-fingering-optimizer",
+    "status": 200,
+    "html": "<html lang=\"en\" dir=\"ltr\">",
+    "title": "Guitar Tab Fingering Optimizer | Note2Tabs",
+    "robots": null,
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/features/guitar-tab-fingering-optimizer\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "pt-BR",
+    "path": "/pricing",
+    "status": 200,
+    "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+    "title": "Planos e preços | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/pt-br/pricing\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "pt-BR",
+    "path": "/transcribe",
+    "status": 200,
+    "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+    "title": "Transcrição de áudio para tablatura de guitarra | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/pt-br/transcribe\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "pt-BR",
+    "path": "/auth/signup",
+    "status": 200,
+    "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+    "title": "Crie sua conta | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/pt-br/auth/signup\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "pt-BR",
+    "path": "/auth/login",
+    "status": 200,
+    "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+    "title": "Entre na sua conta | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/pt-br/auth/login\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "pt-BR",
+    "path": "/features/guitar-tab-fingering-optimizer",
+    "status": 200,
+    "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+    "title": "Otimizador de digitação de tablaturas | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/pt-br/features/guitar-tab-fingering-optimizer\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "es",
+    "path": "/pricing",
+    "status": 200,
+    "html": "<html lang=\"es\" dir=\"ltr\">",
+    "title": "Precios | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/es/pricing\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "es",
+    "path": "/transcribe",
+    "status": 200,
+    "html": "<html lang=\"es\" dir=\"ltr\">",
+    "title": "Transcriptor de audio a tablaturas de guitarra | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/es/transcribe\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "es",
+    "path": "/auth/signup",
+    "status": 200,
+    "html": "<html lang=\"es\" dir=\"ltr\">",
+    "title": "Crea tu cuenta | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/es/auth/signup\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "es",
+    "path": "/auth/login",
+    "status": 200,
+    "html": "<html lang=\"es\" dir=\"ltr\">",
+    "title": "Iniciar sesión | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/es/auth/login\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "es",
+    "path": "/features/guitar-tab-fingering-optimizer",
+    "status": 200,
+    "html": "<html lang=\"es\" dir=\"ltr\">",
+    "title": "Optimizador de digitación de tablaturas | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/es/features/guitar-tab-fingering-optimizer\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "ja",
+    "path": "/pricing",
+    "status": 200,
+    "html": "<html lang=\"ja\" dir=\"ltr\">",
+    "title": "料金 | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/ja/pricing\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "ja",
+    "path": "/transcribe",
+    "status": 200,
+    "html": "<html lang=\"ja\" dir=\"ltr\">",
+    "title": "音源からギターTAB譜を自動採譜 | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/ja/transcribe\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "ja",
+    "path": "/auth/signup",
+    "status": 200,
+    "html": "<html lang=\"ja\" dir=\"ltr\">",
+    "title": "アカウント作成 | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/ja/auth/signup\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "ja",
+    "path": "/auth/login",
+    "status": 200,
+    "html": "<html lang=\"ja\" dir=\"ltr\">",
+    "title": "ログイン | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/ja/auth/login\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "ja",
+    "path": "/features/guitar-tab-fingering-optimizer",
+    "status": 200,
+    "html": "<html lang=\"ja\" dir=\"ltr\">",
+    "title": "ギターTAB譜の運指最適化 | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/ja/features/guitar-tab-fingering-optimizer\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "ko",
+    "path": "/pricing",
+    "status": 200,
+    "html": "<html lang=\"ko\" dir=\"ltr\">",
+    "title": "요금 · Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/ko/pricing\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "ko",
+    "path": "/transcribe",
+    "status": 200,
+    "html": "<html lang=\"ko\" dir=\"ltr\">",
+    "title": "음원을 기타 타브 악보로 자동 변환 | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/ko/transcribe\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "ko",
+    "path": "/auth/signup",
+    "status": 200,
+    "html": "<html lang=\"ko\" dir=\"ltr\">",
+    "title": "계정 만들기 · Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/ko/auth/signup\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "ko",
+    "path": "/auth/login",
+    "status": 200,
+    "html": "<html lang=\"ko\" dir=\"ltr\">",
+    "title": "로그인 · Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/ko/auth/login\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "ko",
+    "path": "/features/guitar-tab-fingering-optimizer",
+    "status": 200,
+    "html": "<html lang=\"ko\" dir=\"ltr\">",
+    "title": "기타 타브 운지 최적화 | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/ko/features/guitar-tab-fingering-optimizer\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "pl",
+    "path": "/pricing",
+    "status": 200,
+    "html": "<html lang=\"pl\" dir=\"ltr\">",
+    "title": "Cennik · Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/pl/pricing\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "pl",
+    "path": "/transcribe",
+    "status": 200,
+    "html": "<html lang=\"pl\" dir=\"ltr\">",
+    "title": "Transkrypcja audio na tabulatury · Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/pl/transcribe\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "pl",
+    "path": "/auth/signup",
+    "status": 200,
+    "html": "<html lang=\"pl\" dir=\"ltr\">",
+    "title": "Utwórz konto · Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/pl/auth/signup\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "pl",
+    "path": "/auth/login",
+    "status": 200,
+    "html": "<html lang=\"pl\" dir=\"ltr\">",
+    "title": "Logowanie · Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/pl/auth/login\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "pl",
+    "path": "/features/guitar-tab-fingering-optimizer",
+    "status": 200,
+    "html": "<html lang=\"pl\" dir=\"ltr\">",
+    "title": "Optymalizacja palcowania tabulatur | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/pl/features/guitar-tab-fingering-optimizer\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "ar",
+    "path": "/pricing",
+    "status": 200,
+    "html": "<html lang=\"ar\" dir=\"rtl\">",
+    "title": "الأسعار · Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/ar/pricing\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "ar",
+    "path": "/transcribe",
+    "status": 200,
+    "html": "<html lang=\"ar\" dir=\"rtl\">",
+    "title": "تحويل الصوت إلى تابلاتشر للغيتار · Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/ar/transcribe\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "ar",
+    "path": "/auth/signup",
+    "status": 200,
+    "html": "<html lang=\"ar\" dir=\"rtl\">",
+    "title": "إنشاء حساب · Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/ar/auth/signup\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "ar",
+    "path": "/auth/login",
+    "status": 200,
+    "html": "<html lang=\"ar\" dir=\"rtl\">",
+    "title": "تسجيل الدخول · Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/ar/auth/login\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "ar",
+    "path": "/features/guitar-tab-fingering-optimizer",
+    "status": 200,
+    "html": "<html lang=\"ar\" dir=\"rtl\">",
+    "title": "تحسين وضع أصابع تابلاتشر الغيتار | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/ar/features/guitar-tab-fingering-optimizer\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "zh-Hans",
+    "path": "/pricing",
+    "status": 200,
+    "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+    "title": "价格 · Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/zh-hans/pricing\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "zh-Hans",
+    "path": "/transcribe",
+    "status": 200,
+    "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+    "title": "音频转吉他六线谱 · Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/zh-hans/transcribe\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "zh-Hans",
+    "path": "/auth/signup",
+    "status": 200,
+    "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+    "title": "创建账户 · Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/zh-hans/auth/signup\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "zh-Hans",
+    "path": "/auth/login",
+    "status": 200,
+    "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+    "title": "登录 · Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/zh-hans/auth/login\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "zh-Hans",
+    "path": "/features/guitar-tab-fingering-optimizer",
+    "status": 200,
+    "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+    "title": "吉他六线谱指法优化工具 · Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/zh-hans/features/guitar-tab-fingering-optimizer\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "fr",
+    "path": "/pricing",
+    "status": 200,
+    "html": "<html lang=\"fr\" dir=\"ltr\">",
+    "title": "Tarifs | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/fr/pricing\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "fr",
+    "path": "/transcribe",
+    "status": 200,
+    "html": "<html lang=\"fr\" dir=\"ltr\">",
+    "title": "Transcription audio en tablature de guitare | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/fr/transcribe\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "fr",
+    "path": "/auth/signup",
+    "status": 200,
+    "html": "<html lang=\"fr\" dir=\"ltr\">",
+    "title": "Créer un compte | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/fr/auth/signup\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "fr",
+    "path": "/auth/login",
+    "status": 200,
+    "html": "<html lang=\"fr\" dir=\"ltr\">",
+    "title": "Connexion | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/fr/auth/login\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "fr",
+    "path": "/features/guitar-tab-fingering-optimizer",
+    "status": 200,
+    "html": "<html lang=\"fr\" dir=\"ltr\">",
+    "title": "Optimiseur de doigtés pour tablatures de guitare | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/fr/features/guitar-tab-fingering-optimizer\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "it",
+    "path": "/pricing",
+    "status": 200,
+    "html": "<html lang=\"it\" dir=\"ltr\">",
+    "title": "Prezzi | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/it/pricing\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "it",
+    "path": "/transcribe",
+    "status": 200,
+    "html": "<html lang=\"it\" dir=\"ltr\">",
+    "title": "Trascrizione audio in tablature per chitarra | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/it/transcribe\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  },
+  {
+    "locale": "it",
+    "path": "/auth/signup",
+    "status": 200,
+    "html": "<html lang=\"it\" dir=\"ltr\">",
+    "title": "Crea un account | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/it/auth/signup\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "it",
+    "path": "/auth/login",
+    "status": 200,
+    "html": "<html lang=\"it\" dir=\"ltr\">",
+    "title": "Accedi | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/it/auth/login\" data-next-head=\"\"/>"
+    ],
+    "alternates": 0
+  },
+  {
+    "locale": "it",
+    "path": "/features/guitar-tab-fingering-optimizer",
+    "status": 200,
+    "html": "<html lang=\"it\" dir=\"ltr\">",
+    "title": "Ottimizzatore di diteggiature per tablature di chitarra | Note2Tabs",
+    "robots": "noindex, follow",
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://www.note2tabs.com/it/features/guitar-tab-fingering-optimizer\" data-next-head=\"\"/>"
+    ],
+    "alternates": 2
+  }
+]

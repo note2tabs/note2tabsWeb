@@ -169,7 +169,7 @@ export default function PremiumWelcomePage({ previewMode }: Props) {
 
   return (
     <>
-      <NoIndexHead title={`Welcome to ${plan.name} | Note2Tabs`} canonicalPath="/premium/welcome" />
+      <NoIndexHead title={t("Welcome to {plan} | Note2Tabs", {plan: plan.name})} canonicalPath="/premium/welcome" />
       <main className="premium-welcome-page">
         <section className="premium-welcome-card" aria-live="polite">
           {previewMode && <span className="premium-welcome-preview">Preview</span>}
@@ -183,15 +183,15 @@ export default function PremiumWelcomePage({ previewMode }: Props) {
 
           {state === "checking" ? (
             <>
-              <p className="premium-welcome-eyebrow">{t("Activating ")}{plan.name}</p>
-              <h1>{t("Getting ")}{plan.name}{t(" ready…")}</h1>
+              <p className="premium-welcome-eyebrow">{t("Activating {plan}", {plan: plan.name})}</p>
+              <h1>{t("Getting {plan} ready…", {plan: plan.name})}</h1>
               <p>{t("Your signup is complete. We’re syncing your new limits now.")}</p>
               <div className="premium-welcome-loader" aria-hidden="true" />
             </>
           ) : state === "delayed" ? (
             <>
-              <p className="premium-welcome-eyebrow">{plan.name}{t(" is activating")}</p>
-              <h1>{plan.name}{t(" is almost ready.")}</h1>
+              <p className="premium-welcome-eyebrow">{t("{plan} is activating", {plan: plan.name})}</p>
+              <h1>{t("{plan} is almost ready.", {plan: plan.name})}</h1>
               <p>{t(" Your signup was confirmed, but your account is taking a little longer to update. No action is needed—check again in a moment. ")}</p>
               <button className="premium-welcome-primary" type="button" onClick={() => router.reload()}>{t(" Check again ")}</button>
               <Link className="premium-welcome-secondary" href="/settings">{t(" View plan settings ")}</Link>
@@ -205,9 +205,9 @@ export default function PremiumWelcomePage({ previewMode }: Props) {
                   : t("Thanks for choosing Note2Tabs Premium. Premium is active, with more room for full songs, the Heavy model, and credits that roll over.")}
               </p>
               <div className="premium-welcome-access" aria-label={t("Premium access now available")}>
-                <div><span>{t("Monthly capacity")}</span><strong>{plan.monthlyCredits}{t(" credits")}</strong></div>
-                <div><span>{t("Credit rollover")}</span><strong>{t("Up to ")}{plan.rolloverCap}</strong></div>
-                <div><span>{t("Audio uploads")}</span><strong>{t("Up to ")}{Math.round(plan.maxUploadBytes / 1024 / 1024)} MB</strong></div>
+                <div><span>{t("Monthly capacity")}</span><strong>{t("{count} credits", {count: plan.monthlyCredits})}</strong></div>
+                <div><span>{t("Credit rollover")}</span><strong>{t("Up to {count}", {count: plan.rolloverCap})}</strong></div>
+                <div><span>{t("Audio uploads")}</span><strong>{t("Up to {size} MB", {size: Math.round(plan.maxUploadBytes / 1024 / 1024)})}</strong></div>
               </div>
               <Link className="premium-welcome-primary" href={destination} onClick={trackContinue}>
                 {resumesUpload ? t("Continue your transcription") : t("Transcribe with {plan}", {plan: plan.name})}

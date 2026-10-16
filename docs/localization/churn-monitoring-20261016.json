@@ -1,0 +1,241 @@
+{
+  "checkedAt": "2026-10-16",
+  "projectId": 208789,
+  "period": "Rolling 28 days; baseline also measured 2026-09-18 through 2026-10-15 UTC.",
+  "noncanonical": true,
+  "catalogStatus": "Not accessible: data_catalog:read scope absent.",
+  "definitions": [
+    {
+      "name": "Localization: visit → transcription → result by language",
+      "description": "Rolling 28 days; unique people; ordered steps within 1 day; language attributed at first pageview. Detected bots excluded at entry. Language is not country. Missing historical language is unassigned. Drop-off identifies friction, not proof of bad translation.",
+      "query": {
+        "series": [
+          {
+            "event": "$pageview",
+            "kind": "EventsNode",
+            "properties": [
+              {
+                "key": "$virt_is_bot",
+                "type": "event",
+                "operator": "exact",
+                "value": "false"
+              }
+            ]
+          },
+          {
+            "event": "transcription_started",
+            "kind": "EventsNode"
+          },
+          {
+            "event": "transcription_succeeded",
+            "kind": "EventsNode"
+          }
+        ],
+        "dateRange": {
+          "date_from": "-28d"
+        },
+        "breakdownFilter": {
+          "breakdown": "content_locale",
+          "breakdown_type": "event",
+          "breakdown_limit": 20
+        },
+        "funnelsFilter": {
+          "funnelOrderType": "ordered",
+          "funnelWindowInterval": 1,
+          "funnelWindowIntervalUnit": "day",
+          "breakdownAttributionType": "step",
+          "breakdownAttributionValue": 0
+        },
+        "filterTestAccounts": true
+      }
+    },
+    {
+      "name": "Localization: file upload funnel by language",
+      "description": "Rolling28days, ordered within1day. Visit → upload_selected → transcription_started → succeeded. Audio-upload path only; excludes YouTube-only use. Entry language; detected bots excluded at entry. Signup/limits can interrupt this path.",
+      "query": {
+        "series": [
+          {
+            "event": "$pageview",
+            "kind": "EventsNode",
+            "properties": [
+              {
+                "key": "$virt_is_bot",
+                "type": "event",
+                "operator": "exact",
+                "value": "false"
+              }
+            ]
+          },
+          {
+            "event": "upload_selected",
+            "kind": "EventsNode"
+          },
+          {
+            "event": "transcription_started",
+            "kind": "EventsNode"
+          },
+          {
+            "event": "transcription_succeeded",
+            "kind": "EventsNode"
+          }
+        ],
+        "dateRange": {
+          "date_from": "-28d"
+        },
+        "breakdownFilter": {
+          "breakdown": "content_locale",
+          "breakdown_type": "event",
+          "breakdown_limit": 20
+        },
+        "funnelsFilter": {
+          "funnelOrderType": "ordered",
+          "funnelWindowInterval": 1,
+          "funnelWindowIntervalUnit": "day",
+          "breakdownAttributionType": "step",
+          "breakdownAttributionValue": 0
+        },
+        "filterTestAccounts": true
+      }
+    },
+    {
+      "name": "Localization: signup path by language",
+      "description": "Rolling28days, unique people, ordered within1day: visit → signup_started → signup_completed → transcription_started. Entry language; excludes detected bots at entry. Returning signed-in users need not follow this path. Small cohorts require caution.",
+      "query": {
+        "series": [
+          {
+            "event": "$pageview",
+            "kind": "EventsNode",
+            "properties": [
+              {
+                "key": "$virt_is_bot",
+                "type": "event",
+                "operator": "exact",
+                "value": "false"
+              }
+            ]
+          },
+          {
+            "event": "signup_started",
+            "kind": "EventsNode"
+          },
+          {
+            "event": "signup_completed",
+            "kind": "EventsNode"
+          },
+          {
+            "event": "transcription_started",
+            "kind": "EventsNode"
+          }
+        ],
+        "dateRange": {
+          "date_from": "-28d"
+        },
+        "breakdownFilter": {
+          "breakdown": "content_locale",
+          "breakdown_type": "event",
+          "breakdown_limit": 20
+        },
+        "funnelsFilter": {
+          "funnelOrderType": "ordered",
+          "funnelWindowInterval": 1,
+          "funnelWindowIntervalUnit": "day",
+          "breakdownAttributionType": "step",
+          "breakdownAttributionValue": 0
+        },
+        "filterTestAccounts": true
+      }
+    },
+    {
+      "name": "Localization: page → transcription → result",
+      "description": "Rolling28days; unique people; ordered within1day; breakdown at pageview pathname. One person may enter multiple page cohorts; rows cannot be summed. Includes editor pages where transcription may not be intended. Use matched page types and traffic sources.",
+      "query": {
+        "series": [
+          {
+            "event": "$pageview",
+            "kind": "EventsNode",
+            "properties": [
+              {
+                "key": "$virt_is_bot",
+                "type": "event",
+                "operator": "exact",
+                "value": "false"
+              }
+            ]
+          },
+          {
+            "event": "transcription_started",
+            "kind": "EventsNode"
+          },
+          {
+            "event": "transcription_succeeded",
+            "kind": "EventsNode"
+          }
+        ],
+        "dateRange": {
+          "date_from": "-28d"
+        },
+        "breakdownFilter": {
+          "breakdown": "$pathname",
+          "breakdown_type": "event",
+          "breakdown_limit": 100
+        },
+        "funnelsFilter": {
+          "funnelOrderType": "ordered",
+          "funnelWindowInterval": 1,
+          "funnelWindowIntervalUnit": "day",
+          "breakdownAttributionType": "step",
+          "breakdownAttributionValue": 0
+        },
+        "filterTestAccounts": true
+      }
+    }
+  ],
+  "reports": [
+    {
+      "id": "B2DLSEvj",
+      "name": "Language transcription funnel"
+    },
+    {
+      "id": "MQxlpf2M",
+      "name": "Language upload funnel"
+    },
+    {
+      "id": "vTdK4Npl",
+      "name": "Language signup funnel"
+    },
+    {
+      "id": "JZ2rEc8F",
+      "name": "Page transcription funnel"
+    },
+    {
+      "id": "ewuAkZYq",
+      "name": "Blocked attempts by language, page and reason"
+    }
+  ],
+  "baseline": [
+    "Date range: 2026-09-18 00:00:00 to 2026-10-15 23:59:59 (UTC)\n\n---\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|3286|1196|1061\nConversion rate|100%|36.4%|32.29%\nDropoff rate|0%|63.6%|67.71%\nAverage conversion time|-|41s|2m 55s\nMedian conversion time|-|25s|57s\n\n---en\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|1136|372|369\nConversion rate|100%|32.75%|32.48%\nDropoff rate|0%|67.25%|67.52%\nAverage conversion time|-|1m 4s|3m 4s\nMedian conversion time|-|12s|2m 26s\n\n---es\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|143|57|57\nConversion rate|100%|39.86%|39.86%\nDropoff rate|0%|60.14%|60.14%\nAverage conversion time|-|19s|2m 40s\nMedian conversion time|-|10s|2m 12s\n\n---pt-BR\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|89|45|44\nConversion rate|100%|50.56%|49.44%\nDropoff rate|0%|49.44%|50.56%\nAverage conversion time|-|24s|3m 11s\nMedian conversion time|-|11s|2m 20s\n\n---ja\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|91|15|14\nConversion rate|100%|16.48%|15.38%\nDropoff rate|0%|83.52%|84.62%\nAverage conversion time|-|33s|3m 19s\nMedian conversion time|-|8s|2m 19s\n\n---pl\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|40|10|10\nConversion rate|100%|25%|25%\nDropoff rate|0%|75%|75%\nAverage conversion time|-|22s|2m 10s\nMedian conversion time|-|11s|1m 37s\n\n---ko\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|24|7|7\nConversion rate|100%|29.17%|29.17%\nDropoff rate|0%|70.83%|70.83%\nAverage conversion time|-|17s|1m 38s\nMedian conversion time|-|11s|1m 26s\n\n---zh-Hans\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|35|5|5\nConversion rate|100%|14.29%|14.29%\nDropoff rate|0%|85.71%|85.71%\nAverage conversion time|-|25s|1m 39s\nMedian conversion time|-|17s|1m 52s\n\n---ar\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|5|2|2\nConversion rate|100%|40%|40%\nDropoff rate|0%|60%|60%\nAverage conversion time|-|12s|1m 19s\nMedian conversion time|-|12s|1m 19s\n\nConversion and drop-off rates are calculated in overall. For example, \"Conversion rate: 9%\" means that 9% of users from the first step completed the funnel.",
+    "{\"conversation_id\":\"01a14541-9620-7ac9-ae6a-7c7e01df4f8e\"}"
+  ],
+  "blocked": [
+    "language|page|reason|expected_gate|attempts|people\nen|/|sign_in_required|True|59|53\nen|/transcribe|sign_in_required|True|15|15\nes|/es/transcribe|sign_in_required|True|7|7\npt-BR|/pt-br/|sign_in_required|True|7|6\npt-BR|/pt-br/transcribe|sign_in_required|True|5|5\nja|/ja/transcribe|sign_in_required|True|4|4\nes|/es/|sign_in_required|True|3|3\nja|/ja/|sign_in_required|True|2|2\nen|/transcribe|file_too_large|True|13|2\nen|/transcribe|request_failed|False|6|2\npt-BR|/pt-br/transcribe|file_too_large|True|5|2\nja|/ja/transcribe|saved_upload_missing|True|1|1\npl|/pl/transcribe|sign_in_required|True|1|1\nzh-Hans|/zh-hans/|sign_in_required|True|1|1\nen|/transcribe|credits_exhausted|True|2|1\nzh-Hans|/zh-hans/transcribe|file_too_large|True|3|1\nen|/transcribe|saved_upload_missing|True|1|1\npl|/pl/|sign_in_required|True|1|1\nen|/|auth_navigation_failed|False|1|1\nzh-Hans|/zh-hans/transcribe|request_failed|False|7|1\nen|/|auth_handoff_failed|False|5|1\nzh-Hans|/zh-hans/transcribe|credits_exhausted|True|18|1",
+    "{\"conversation_id\":\"01a14542-ba2e-7f14-bc15-9aa1dab78a29\"}"
+  ],
+  "verification": {
+    "B2DLSEvj": [
+      "Date range: 2026-09-18 00:00:00 to 2026-10-16 23:59:59 (UTC)\n\n---\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|3286|1196|1061\nConversion rate|100%|36.4%|32.29%\nDropoff rate|0%|63.6%|67.71%\nAverage conversion time|-|41s|2m 55s\nMedian conversion time|-|25s|57s\n\n---en\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|1223|398|395\nConversion rate|100%|32.54%|32.3%\nDropoff rate|0%|67.46%|67.7%\nAverage conversion time|-|1m 1s|3m 5s\nMedian conversion time|-|12s|2m 28s\n\n---es\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|153|62|62\nConversion rate|100%|40.52%|40.52%\nDropoff rate|0%|59.48%|59.48%\nAverage conversion time|-|21s|2m 47s\nMedian conversion time|-|10s|2m 16s\n\n---pt-BR\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|97|51|50\nConversion rate|100%|52.58%|51.55%\nDropoff rate|0%|47.42%|48.45%\nAverage conversion time|-|25s|3m 2s\nMedian conversion time|-|11s|2m 8s\n\n---ja\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|104|18|17\nConversion rate|100%|17.31%|16.35%\nDropoff rate|0%|82.69%|83.65%\nAverage conversion time|-|35s|2m 56s\nMedian conversion time|-|10s|1m 55s\n\n---pl\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|43|11|11\nConversion rate|100%|25.58%|25.58%\nDropoff rate|0%|74.42%|74.42%\nAverage conversion time|-|21s|2m 5s\nMedian conversion time|-|11s|1m 32s\n\n---ko\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|29|9|9\nConversion rate|100%|31.03%|31.03%\nDropoff rate|0%|68.97%|68.97%\nAverage conversion time|-|19s|1m 56s\nMedian conversion time|-|15s|1m 37s\n\n---zh-Hans\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|38|5|5\nConversion rate|100%|13.16%|13.16%\nDropoff rate|0%|86.84%|86.84%\nAverage conversion time|-|25s|1m 39s\nMedian conversion time|-|17s|1m 52s\n\n---ar\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|6|2|2\nConversion rate|100%|33.33%|33.33%\nDropoff rate|0%|66.67%|66.67%\nAverage conversion time|-|12s|1m 19s\nMedian conversion time|-|12s|1m 19s\n\nConversion and drop-off rates are calculated in overall. For example, \"Conversion rate: 9%\" means that 9% of users from the first step completed the funnel.",
+      "{\"conversation_id\":\"01a14544-005d-7504-92a1-1cba2290bfc2\"}"
+    ],
+    "MQxlpf2M": [
+      "Date range: 2026-09-18 00:00:00 to 2026-10-16 23:59:59 (UTC)\n\n---\nMetric|$pageview|upload_selected|transcription_started|transcription_succeeded\nTotal person count|3286|628|343|311\nConversion rate|100%|19.11%|10.44%|9.46%\nDropoff rate|0%|80.89%|89.56%|90.54%\nAverage conversion time|-|1m 2s|5m 20s|3m 60s\nMedian conversion time|-|11s|1m 21s|1m 5s\n\n---en\nMetric|$pageview|upload_selected|transcription_started|transcription_succeeded\nTotal person count|1223|239|129|129\nConversion rate|100%|19.54%|10.55%|10.55%\nDropoff rate|0%|80.46%|89.45%|89.45%\nAverage conversion time|-|35s|5m 21s|4m 3s\nMedian conversion time|-|11s|52s|3m 14s\n\n---pt-BR\nMetric|$pageview|upload_selected|transcription_started|transcription_succeeded\nTotal person count|97|17|15|14\nConversion rate|100%|17.53%|15.46%|14.43%\nDropoff rate|0%|82.47%|84.54%|85.57%\nAverage conversion time|-|30s|1m 40s|3m 45s\nMedian conversion time|-|22s|59s|3m 13s\n\n---es\nMetric|$pageview|upload_selected|transcription_started|transcription_succeeded\nTotal person count|153|19|11|11\nConversion rate|100%|12.42%|7.19%|7.19%\nDropoff rate|0%|87.58%|92.81%|92.81%\nAverage conversion time|-|38s|2m 35s|2m 44s\nMedian conversion time|-|21s|1m 19s|2m 37s\n\n---pl\nMetric|$pageview|upload_selected|transcription_started|transcription_succeeded\nTotal person count|43|6|3|3\nConversion rate|100%|13.95%|6.98%|6.98%\nDropoff rate|0%|86.05%|93.02%|93.02%\nAverage conversion time|-|1m 4s|1m|3m 21s\nMedian conversion time|-|46s|1m 4s|2m 48s\n\n---ko\nMetric|$pageview|upload_selected|transcription_started|transcription_succeeded\nTotal person count|29|5|2|2\nConversion rate|100%|17.24%|6.9%|6.9%\nDropoff rate|0%|82.76%|93.1%|93.1%\nAverage conversion time|-|7s|43s|1m 43s\nMedian conversion time|-|7s|43s|1m 43s\n\n---zh-Hans\nMetric|$pageview|upload_selected|transcription_started|transcription_succeeded\nTotal person count|38|4|2|2\nConversion rate|100%|10.53%|5.26%|5.26%\nDropoff rate|0%|89.47%|94.74%|94.74%\nAverage conversion time|-|47s|2m 19s|2m 13s\nMedian conversion time|-|30s|2m 19s|2m 13s\n\n---ja\nMetric|$pageview|upload_selected|transcription_started|transcription_succeeded\nTotal person count|104|6|1|1\nConversion rate|100%|5.77%|0.96%|0.96%\nDropoff rate|0%|94.23%|99.04%|99.04%\nAverage conversion time|-|11s|55s|1m 33s\nMedian conversion time|-|9s|55s|1m 33s\n\n---ar\nMetric|$pageview|upload_selected|transcription_started|transcription_succeeded\nTotal person count|6|0|0|0\nConversion rate|100%|0%|0%|0%\nDropoff rate|0%|100%|100%|100%\nAverage conversion time|-|-|-|-\nMedian conversion time|-|-|-|-\n\nConversion and drop-off rates are calculated in overall. For example, \"Conversion rate: 9%\" means that 9% of users from the first step completed the funnel.",
+      "{\"conversation_id\":\"01a14544-07f0-7adb-acd2-32ed8340e401\"}"
+    ],
+    "vTdK4Npl": [
+      "Date range: 2026-09-18 00:00:00 to 2026-10-16 23:59:59 (UTC)\n\n---\nMetric|$pageview|signup_started|signup_completed|transcription_started\nTotal person count|3286|275|256|204\nConversion rate|100%|8.37%|7.79%|6.21%\nDropoff rate|0%|91.63%|92.21%|93.79%\nAverage conversion time|-|33s|32s|2m 11s\nMedian conversion time|-|14s|3s|1m 6s\n\n---en\nMetric|$pageview|signup_started|signup_completed|transcription_started\nTotal person count|1223|93|86|71\nConversion rate|100%|7.6%|7.03%|5.81%\nDropoff rate|0%|92.4%|92.97%|94.19%\nAverage conversion time|-|32s|6s|38s\nMedian conversion time|-|17s|3s|20s\n\n---es\nMetric|$pageview|signup_started|signup_completed|transcription_started\nTotal person count|153|8|8|6\nConversion rate|100%|5.23%|5.23%|3.92%\nDropoff rate|0%|94.77%|94.77%|96.08%\nAverage conversion time|-|15s|5s|53s\nMedian conversion time|-|12s|3s|25s\n\n---ja\nMetric|$pageview|signup_started|signup_completed|transcription_started\nTotal person count|104|6|5|5\nConversion rate|100%|5.77%|4.81%|4.81%\nDropoff rate|0%|94.23%|95.19%|95.19%\nAverage conversion time|-|25s|18s|1m 28s\nMedian conversion time|-|17s|3s|29s\n\n---pt-BR\nMetric|$pageview|signup_started|signup_completed|transcription_started\nTotal person count|97|6|5|5\nConversion rate|100%|6.19%|5.15%|5.15%\nDropoff rate|0%|93.81%|94.85%|94.85%\nAverage conversion time|-|20s|8s|40m 17s\nMedian conversion time|-|16s|3s|1m 23s\n\n---ko\nMetric|$pageview|signup_started|signup_completed|transcription_started\nTotal person count|29|3|3|3\nConversion rate|100%|10.34%|10.34%|10.34%\nDropoff rate|0%|89.66%|89.66%|89.66%\nAverage conversion time|-|9s|7s|17s\nMedian conversion time|-|7s|3s|16s\n\n---zh-Hans\nMetric|$pageview|signup_started|signup_completed|transcription_started\nTotal person count|38|2|2|2\nConversion rate|100%|5.26%|5.26%|5.26%\nDropoff rate|0%|94.74%|94.74%|94.74%\nAverage conversion time|-|31s|3s|28s\nMedian conversion time|-|31s|3s|28s\n\n---pl\nMetric|$pageview|signup_started|signup_completed|transcription_started\nTotal person count|43|3|1|1\nConversion rate|100%|6.98%|2.33%|2.33%\nDropoff rate|0%|93.02%|97.67%|97.67%\nAverage conversion time|-|15s|3s|27s\nMedian conversion time|-|17s|3s|27s\n\n---ar\nMetric|$pageview|signup_started|signup_completed|transcription_started\nTotal person count|6|0|0|0\nConversion rate|100%|0%|0%|0%\nDropoff rate|0%|100%|100%|100%\nAverage conversion time|-|-|-|-\nMedian conversion time|-|-|-|-\n\nConversion and drop-off rates are calculated in overall. For example, \"Conversion rate: 9%\" means that 9% of users from the first step completed the funnel.",
+      "{\"conversation_id\":\"01a14544-0eaf-7b60-aaba-3bf7e9712b79\"}"
+    ],
+    "JZ2rEc8F": [
+      "Date range: 2026-09-18 00:00:00 to 2026-10-16 23:59:59 (UTC)\n\n---/transcribe\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|2215|1531|1395\nConversion rate|100%|69.12%|62.98%\nDropoff rate|0%|30.88%|37.02%\nAverage conversion time|-|48s|3m 2s\nMedian conversion time|-|21s|1m 15s\n\n---/auth/login\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|2440|1466|1340\nConversion rate|100%|60.08%|54.92%\nDropoff rate|0%|39.92%|45.08%\nAverage conversion time|-|1m 42s|3m 5s\nMedian conversion time|-|45s|1m 16s\n\n---/\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|2984|1176|1083\nConversion rate|100%|39.41%|36.29%\nDropoff rate|0%|60.59%|63.71%\nAverage conversion time|-|6m 20s|4m 28s\nMedian conversion time|-|1m 34s|1m 19s\n\n---/auth/verify-email\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|621|408|372\nConversion rate|100%|65.7%|59.9%\nDropoff rate|0%|34.3%|40.1%\nAverage conversion time|-|2m 27s|1m 55s\nMedian conversion time|-|54s|1m 3s\n\n---/auth/signup\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|454|297|272\nConversion rate|100%|65.42%|59.91%\nDropoff rate|0%|34.58%|40.09%\nAverage conversion time|-|6m 13s|2m 2s\nMedian conversion time|-|1m 23s|1m 19s\n\n---/home\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|568|221|207\nConversion rate|100%|38.91%|36.44%\nDropoff rate|0%|61.09%|63.56%\nAverage conversion time|-|5m 53s|7m 40s\nMedian conversion time|-|45s|1m 12s\n\n---/job/[job_id]\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|1608|203|184\nConversion rate|100%|12.62%|11.44%\nDropoff rate|0%|87.38%|88.56%\nAverage conversion time|-|53m 50s|2m 53s\nMedian conversion time|-|3m 30s|1m 29s\n\n---/gte/[editor_id]\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|1832|200|179\nConversion rate|100%|10.92%|9.77%\nDropoff rate|0%|89.08%|90.23%\nAverage conversion time|-|49m 39s|2m 17s\nMedian conversion time|-|2m 52s|1m 28s\n\n---/ai-guitar-tab-generator\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|280|118|112\nConversion rate|100%|42.14%|40%\nDropoff rate|0%|57.86%|60%\nAverage conversion time|-|14m 17s|2m 30s\nMedian conversion time|-|1m 29s|1m 21s\n\n---/gte\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|234|94|86\nConversion rate|100%|40.17%|36.75%\nDropoff rate|0%|59.83%|63.25%\nAverage conversion time|-|34m 11s|2m 18s\nMedian conversion time|-|2m 7s|1m 25s\n\n---/pricing\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|264|73|68\nConversion rate|100%|27.65%|25.76%\nDropoff rate|0%|72.35%|74.24%\nAverage conversion time|-|31m 25s|2m 26s\nMedian conversion time|-|1m 21s|1m 58s\n\n---/youtube-to-guitar-tabs\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|189|76|65\nConversion rate|100%|40.21%|34.39%\nDropoff rate|0%|59.79%|65.61%\nAverage conversion time|-|3m 10s|7m 53s\nMedian conversion time|-|2m 4s|57s\n\n---/es/transcribe\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|96|62|62\nConversion rate|100%|64.58%|64.58%\nDropoff rate|0%|35.42%|35.42%\nAverage conversion time|-|22s|2m 47s\nMedian conversion time|-|10s|2m 16s\n\n---/es/auth/login\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|83|59|59\nConversion rate|100%|71.08%|71.08%\nDropoff rate|0%|28.92%|28.92%\nAverage conversion time|-|1m 12s|2m 48s\nMedian conversion time|-|36s|2m 16s\n\n---/mp3-to-guitar-tabs\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|174|66|58\nConversion rate|100%|37.93%|33.33%\nDropoff rate|0%|62.07%|66.67%\nAverage conversion time|-|14m 27s|2m 28s\nMedian conversion time|-|1m 35s|1m 35s\n\n---/pt-br/transcribe\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|67|51|50\nConversion rate|100%|76.12%|74.63%\nDropoff rate|0%|23.88%|25.37%\nAverage conversion time|-|26s|3m 2s\nMedian conversion time|-|11s|2m 8s\n\n---/pt-br/auth/login\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|58|46|45\nConversion rate|100%|79.31%|77.59%\nDropoff rate|0%|20.69%|22.41%\nAverage conversion time|-|5m 4s|2m 57s\nMedian conversion time|-|32s|2m 3s\n\n---/transcriber\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|50|35|33\nConversion rate|100%|70%|66%\nDropoff rate|0%|30%|34%\nAverage conversion time|-|1m 30s|1m 41s\nMedian conversion time|-|53s|1m 21s\n\n---/pt-br/\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|48|31|30\nConversion rate|100%|64.58%|62.5%\nDropoff rate|0%|35.42%|37.5%\nAverage conversion time|-|8m 13s|3m 9s\nMedian conversion time|-|1m 24s|2m 8s\n\n---/editor\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|387|28|26\nConversion rate|100%|7.24%|6.72%\nDropoff rate|0%|92.76%|93.28%\nAverage conversion time|-|30m 58s|2m 49s\nMedian conversion time|-|5m 48s|1m 50s\n\n---/es/\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|67|25|25\nConversion rate|100%|37.31%|37.31%\nDropoff rate|0%|62.69%|62.69%\nAverage conversion time|-|2m 42s|2m 45s\nMedian conversion time|-|1m 49s|2m 22s\n\n---/es/youtube-to-guitar-tabs\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|38|22|22\nConversion rate|100%|57.89%|57.89%\nDropoff rate|0%|42.11%|42.11%\nAverage conversion time|-|1m 34s|2m 22s\nMedian conversion time|-|1m|1m 53s\n\n---/ja/transcribe\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|57|18|17\nConversion rate|100%|31.58%|29.82%\nDropoff rate|0%|68.42%|70.18%\nAverage conversion time|-|35s|2m 56s\nMedian conversion time|-|10s|1m 55s\n\n---/ja/auth/login\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|29|17|16\nConversion rate|100%|58.62%|55.17%\nDropoff rate|0%|41.38%|44.83%\nAverage conversion time|-|3m 49s|2m 50s\nMedian conversion time|-|47s|1m 53s\n\n---Other\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|342|14|14\nConversion rate|100%|4.09%|4.09%\nDropoff rate|0%|95.91%|95.91%\nAverage conversion time|-|4h 32m 17s|2m 12s\nMedian conversion time|-|10m 37s|1m 51s\n\n---/pl/transcribe\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|17|11|11\nConversion rate|100%|64.71%|64.71%\nDropoff rate|0%|35.29%|35.29%\nAverage conversion time|-|23s|2m 5s\nMedian conversion time|-|15s|1m 32s\n\n---/pt-br/youtube-to-guitar-tabs\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|16|10|10\nConversion rate|100%|62.5%|62.5%\nDropoff rate|0%|37.5%|37.5%\nAverage conversion time|-|1m 53s|3m 6s\nMedian conversion time|-|1m 21s|1m 50s\n\n---/pl/auth/login\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|15|9|9\nConversion rate|100%|60%|60%\nDropoff rate|0%|40%|40%\nAverage conversion time|-|1m 12s|2m 10s\nMedian conversion time|-|47s|1m 32s\n\n---/ko/transcribe\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|14|9|9\nConversion rate|100%|64.29%|64.29%\nDropoff rate|0%|35.71%|35.71%\nAverage conversion time|-|19s|1m 56s\nMedian conversion time|-|15s|1m 37s\n\n---/settings\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|31|10|8\nConversion rate|100%|32.26%|25.81%\nDropoff rate|0%|67.74%|74.19%\nAverage conversion time|-|7m 35s|2m 34s\nMedian conversion time|-|1m 25s|1m 5s\n\n---/premium/welcome\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|9|9|8\nConversion rate|100%|100%|88.89%\nDropoff rate|0%|0%|11.11%\nAverage conversion time|-|19m 1s|6m 48s\nMedian conversion time|-|3m 44s|2m 40s\n\n---/ja/youtube-to-guitar-tabs\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|28|8|8\nConversion rate|100%|28.57%|28.57%\nDropoff rate|0%|71.43%|71.43%\nAverage conversion time|-|2m 3s|1m 45s\nMedian conversion time|-|1m 33s|1m 46s\n\n---/ko/\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|14|8|8\nConversion rate|100%|57.14%|57.14%\nDropoff rate|0%|42.86%|42.86%\nAverage conversion time|-|1m 2s|1m 41s\nMedian conversion time|-|59s|1m 32s\n\n---/pt-br/pricing\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|11|8|8\nConversion rate|100%|72.73%|72.73%\nDropoff rate|0%|27.27%|27.27%\nAverage conversion time|-|26m 28s|2m 37s\nMedian conversion time|-|1m 55s|2m 1s\n\n---/audio-to-guitar-tab-converter\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|43|10|7\nConversion rate|100%|23.26%|16.28%\nDropoff rate|0%|76.74%|83.72%\nAverage conversion time|-|1m 46s|2m 56s\nMedian conversion time|-|1m 35s|1m 44s\n\n---/pt-br/job/[job_id]\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|52|7|7\nConversion rate|100%|13.46%|13.46%\nDropoff rate|0%|86.54%|86.54%\nAverage conversion time|-|1h 23m 51s|2m 10s\nMedian conversion time|-|49s|1m 50s\n\n---/pt-br/ai-guitar-tab-generator\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|10|7|7\nConversion rate|100%|70%|70%\nDropoff rate|0%|30%|30%\nAverage conversion time|-|2m 14s|2m 36s\nMedian conversion time|-|2m 8s|2m 34s\n\n---/ko/auth/login\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|8|7|7\nConversion rate|100%|87.5%|87.5%\nDropoff rate|0%|12.5%|12.5%\nAverage conversion time|-|43s|1m 38s\nMedian conversion time|-|38s|1m 26s\n\n---/pt-br/auth/verify-email\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|8|7|7\nConversion rate|100%|87.5%|87.5%\nDropoff rate|0%|12.5%|12.5%\nAverage conversion time|-|28m 49s|2m 6s\nMedian conversion time|-|54s|1m 45s\n\n---/ja/\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|37|7|6\nConversion rate|100%|18.92%|16.22%\nDropoff rate|0%|81.08%|83.78%\nAverage conversion time|-|19m 14s|2m 13s\nMedian conversion time|-|1m 52s|2m 14s\n\n---/es/job/[job_id]\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|64|6|6\nConversion rate|100%|9.38%|9.38%\nDropoff rate|0%|90.62%|90.62%\nAverage conversion time|-|1h 37m 47s|3m 29s\nMedian conversion time|-|1m 23s|2m 49s\n\n---/pl/\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|23|6|6\nConversion rate|100%|26.09%|26.09%\nDropoff rate|0%|73.91%|73.91%\nAverage conversion time|-|2m 56s|2m 28s\nMedian conversion time|-|2m 50s|1m 37s\n\n---/es/ai-guitar-tab-generator\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|15|6|6\nConversion rate|100%|40%|40%\nDropoff rate|0%|60%|60%\nAverage conversion time|-|4m 41s|3m 41s\nMedian conversion time|-|1m 37s|3m 20s\n\n---/reset-password\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|14|6|6\nConversion rate|100%|42.86%|42.86%\nDropoff rate|0%|57.14%|57.14%\nAverage conversion time|-|4m 2s|1m 50s\nMedian conversion time|-|2m 34s|1m 9s\n\n---/es/auth/signup\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|11|6|6\nConversion rate|100%|54.55%|54.55%\nDropoff rate|0%|45.45%|45.45%\nAverage conversion time|-|1m 14s|3m 11s\nMedian conversion time|-|52s|2m 33s\n\n---/es/pricing\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|10|6|6\nConversion rate|100%|60%|60%\nDropoff rate|0%|40%|40%\nAverage conversion time|-|3m 11s|4m 14s\nMedian conversion time|-|1m 38s|4m 41s\n\n---/pt-br/auth/signup\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|8|6|6\nConversion rate|100%|75%|75%\nDropoff rate|0%|25%|25%\nAverage conversion time|-|34m 2s|4m 28s\nMedian conversion time|-|1m 29s|3m 18s\n\n---/free-guitar-tab-maker\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|84|5|5\nConversion rate|100%|5.95%|5.95%\nDropoff rate|0%|94.05%|94.05%\nAverage conversion time|-|49s|3m 49s\nMedian conversion time|-|47s|2m 59s\n\n---/ja/auth/signup\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|13|5|5\nConversion rate|100%|38.46%|38.46%\nDropoff rate|0%|61.54%|61.54%\nAverage conversion time|-|2m 10s|3m 12s\nMedian conversion time|-|1m 18s|1m 50s\n\n---/zh-hans/auth/login\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|9|5|5\nConversion rate|100%|55.56%|55.56%\nDropoff rate|0%|44.44%|44.44%\nAverage conversion time|-|1m 29s|1m 39s\nMedian conversion time|-|1m 8s|1m 52s\n\n---/zh-hans/transcribe\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|7|5|5\nConversion rate|100%|71.43%|71.43%\nDropoff rate|0%|28.57%|28.57%\nAverage conversion time|-|25s|1m 39s\nMedian conversion time|-|17s|1m 52s\n\n---/es/audio-to-guitar-tab-converter\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|6|5|5\nConversion rate|100%|83.33%|83.33%\nDropoff rate|0%|16.67%|16.67%\nAverage conversion time|-|3m 3s|3m 18s\nMedian conversion time|-|2m 42s|2m 36s\n\n---/features/guitar-tab-key-detector\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|22|5|4\nConversion rate|100%|22.73%|18.18%\nDropoff rate|0%|77.27%|81.82%\nAverage conversion time|-|2m 27s|49s\nMedian conversion time|-|1m 12s|48s\n\n---/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|38|4|4\nConversion rate|100%|10.53%|10.53%\nDropoff rate|0%|89.47%|89.47%\nAverage conversion time|-|2m 47s|1m 56s\nMedian conversion time|-|1m 17s|1m 49s\n\n---/features/guitar-tab-fingering-optimizer\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|31|4|4\nConversion rate|100%|12.9%|12.9%\nDropoff rate|0%|87.1%|87.1%\nAverage conversion time|-|3m 18s|2m 25s\nMedian conversion time|-|2m 47s|1m 37s\n\n---/zh-hans/\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|23|4|4\nConversion rate|100%|17.39%|17.39%\nDropoff rate|0%|82.61%|82.61%\nAverage conversion time|-|2m 31s|1m 41s\nMedian conversion time|-|2m 1s|1m 54s\n\n---/es/auth/verify-email\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|7|4|4\nConversion rate|100%|57.14%|57.14%\nDropoff rate|0%|42.86%|42.86%\nAverage conversion time|-|3m 51s|5m 52s\nMedian conversion time|-|1m 17s|5m 33s\n\n---/ja/job/[job_id]\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|20|4|3\nConversion rate|100%|20%|15%\nDropoff rate|0%|80%|85%\nAverage conversion time|-|3h 21m 50s|2m 20s\nMedian conversion time|-|41m 20s|2m 1s\n\n---/ja/ai-guitar-tab-generator\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|25|3|3\nConversion rate|100%|12%|12%\nDropoff rate|0%|88%|88%\nAverage conversion time|-|3m 14s|5m 28s\nMedian conversion time|-|51s|6m 16s\n\n---/ja/pricing\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|15|3|3\nConversion rate|100%|20%|20%\nDropoff rate|0%|80%|80%\nAverage conversion time|-|39m 53s|1m 52s\nMedian conversion time|-|1m 45s|1m 43s\n\n---/about\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|11|3|3\nConversion rate|100%|27.27%|27.27%\nDropoff rate|0%|72.73%|72.73%\nAverage conversion time|-|1m 17s|5m 24s\nMedian conversion time|-|1m 14s|2m 17s\n\n---/ja/editor\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|7|3|3\nConversion rate|100%|42.86%|42.86%\nDropoff rate|0%|57.14%|57.14%\nAverage conversion time|-|2m 4s|1m 35s\nMedian conversion time|-|1m 58s|1m 39s\n\n---/es/home\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|6|3|3\nConversion rate|100%|50%|50%\nDropoff rate|0%|50%|50%\nAverage conversion time|-|15m 18s|5m 9s\nMedian conversion time|-|3m 1s|5m 38s\n\n---/pl/youtube-to-guitar-tabs\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|6|3|3\nConversion rate|100%|50%|50%\nDropoff rate|0%|50%|50%\nAverage conversion time|-|25s|1m 38s\nMedian conversion time|-|24s|1m 32s\n\n---/ko/pricing\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|5|3|3\nConversion rate|100%|60%|60%\nDropoff rate|0%|40%|40%\nAverage conversion time|-|2m 22s|2m\nMedian conversion time|-|55s|2m 1s\n\n---/pt-br/home\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|4|3|3\nConversion rate|100%|75%|75%\nDropoff rate|0%|25%|25%\nAverage conversion time|-|1m 59s|1m 16s\nMedian conversion time|-|36s|1m 26s\n\n---/ko/auth/signup\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|3|3|3\nConversion rate|100%|100%|100%\nDropoff rate|0%|0%|0%\nAverage conversion time|-|32s|2m 2s\nMedian conversion time|-|32s|2m 1s\n\n---/ja/home\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|4|3|2\nConversion rate|100%|75%|50%\nDropoff rate|0%|25%|50%\nAverage conversion time|-|57s|2m 11s\nMedian conversion time|-|1m 4s|2m 11s\n\n---/features/guitar-tab-import-export\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|73|2|2\nConversion rate|100%|2.74%|2.74%\nDropoff rate|0%|97.26%|97.26%\nAverage conversion time|-|3m 11s|3m 20s\nMedian conversion time|-|3m 11s|3m 20s\n\n---/blog\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|33|2|2\nConversion rate|100%|6.06%|6.06%\nDropoff rate|0%|93.94%|93.94%\nAverage conversion time|-|12m 53s|1m 52s\nMedian conversion time|-|12m 53s|1m 52s\n\n---/es/editor\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|21|2|2\nConversion rate|100%|9.52%|9.52%\nDropoff rate|0%|90.48%|90.48%\nAverage conversion time|-|9m 41s|3m 31s\nMedian conversion time|-|9m 41s|3m 31s\n\n---/pl/job/[job_id]\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|11|2|2\nConversion rate|100%|18.18%|18.18%\nDropoff rate|0%|81.82%|81.82%\nAverage conversion time|-|54s|1m 37s\nMedian conversion time|-|54s|1m 37s\n\n---/affiliate\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|10|2|2\nConversion rate|100%|20%|20%\nDropoff rate|0%|80%|80%\nAverage conversion time|-|3h 12m 24s|58s\nMedian conversion time|-|3h 12m 24s|58s\n\n---/blog/wav-to-guitar-tabs\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|10|2|2\nConversion rate|100%|20%|20%\nDropoff rate|0%|80%|80%\nAverage conversion time|-|60s|2m 30s\nMedian conversion time|-|60s|2m 30s\n\n---/ko/job/[job_id]\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|9|2|2\nConversion rate|100%|22.22%|22.22%\nDropoff rate|0%|77.78%|77.78%\nAverage conversion time|-|7m 52s|1m 23s\nMedian conversion time|-|7m 52s|1m 23s\n\n---/shared\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|9|2|2\nConversion rate|100%|22.22%|22.22%\nDropoff rate|0%|77.78%|77.78%\nAverage conversion time|-|15m 41s|2m 11s\nMedian conversion time|-|15m 41s|2m 11s\n\n---/blog/guitar-solo-tab-maker\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|8|2|2\nConversion rate|100%|25%|25%\nDropoff rate|0%|75%|75%\nAverage conversion time|-|1m 23s|2m 21s\nMedian conversion time|-|1m 23s|2m 21s\n\n---/es/free-guitar-tab-maker\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|8|2|2\nConversion rate|100%|25%|25%\nDropoff rate|0%|75%|75%\nAverage conversion time|-|58s|3m 32s\nMedian conversion time|-|58s|3m 32s\n\n---/reset-password/[token]\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|5|2|2\nConversion rate|100%|40%|40%\nDropoff rate|0%|60%|60%\nAverage conversion time|-|1m 57s|3m 43s\nMedian conversion time|-|1m 57s|3m 43s\n\n---/ja/mp3-to-guitar-tabs\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|5|2|2\nConversion rate|100%|40%|40%\nDropoff rate|0%|60%|60%\nAverage conversion time|-|55s|5m 38s\nMedian conversion time|-|55s|5m 38s\n\n---/ar/transcribe\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|4|2|2\nConversion rate|100%|50%|50%\nDropoff rate|0%|50%|50%\nAverage conversion time|-|12s|1m 19s\nMedian conversion time|-|12s|1m 19s\n\n---/pt-br/mp3-to-guitar-tabs\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|4|2|2\nConversion rate|100%|50%|50%\nDropoff rate|0%|50%|50%\nAverage conversion time|-|1m 12s|3m 15s\nMedian conversion time|-|1m 12s|3m 15s\n\n---/zh-hans/auth/signup\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|3|2|2\nConversion rate|100%|66.67%|66.67%\nDropoff rate|0%|33.33%|33.33%\nAverage conversion time|-|1m 3s|2m 13s\nMedian conversion time|-|1m 3s|2m 13s\n\n---/pl/auth/signup\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|3|2|2\nConversion rate|100%|66.67%|66.67%\nDropoff rate|0%|33.33%|33.33%\nAverage conversion time|-|31s|1m 40s\nMedian conversion time|-|31s|1m 40s\n\n---/tabs\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|3|2|2\nConversion rate|100%|66.67%|66.67%\nDropoff rate|0%|33.33%|33.33%\nAverage conversion time|-|41s|32s\nMedian conversion time|-|41s|32s\n\n---/admin/affiliates\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|3|2|2\nConversion rate|100%|66.67%|66.67%\nDropoff rate|0%|33.33%|33.33%\nAverage conversion time|-|10h 13m 10s|1m 26s\nMedian conversion time|-|10h 13m 10s|1m 26s\n\n---/ko/home\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|3|2|2\nConversion rate|100%|66.67%|66.67%\nDropoff rate|0%|33.33%|33.33%\nAverage conversion time|-|2m 11s|1m 33s\nMedian conversion time|-|2m 11s|1m 33s\n\n---/ko/auth/verify-email\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|2|2|2\nConversion rate|100%|100%|100%\nDropoff rate|0%|0%|0%\nAverage conversion time|-|33s|1m 23s\nMedian conversion time|-|33s|1m 23s\n\n---/ar/auth/login\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|2|2|2\nConversion rate|100%|100%|100%\nDropoff rate|0%|0%|0%\nAverage conversion time|-|33s|1m 19s\nMedian conversion time|-|33s|1m 19s\n\n---/blog/note-to-tab-converter-how-to-turn-guitar-notes-into-tablature-online\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|28|1|1\nConversion rate|100%|3.57%|3.57%\nDropoff rate|0%|96.43%|96.43%\nAverage conversion time|-|1m|1m 18s\nMedian conversion time|-|1m|1m 18s\n\n---/pt-br/editor\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|12|1|1\nConversion rate|100%|8.33%|8.33%\nDropoff rate|0%|91.67%|91.67%\nAverage conversion time|-|15m 25s|30s\nMedian conversion time|-|15m 25s|30s\n\n---/pl/pricing\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|6|1|1\nConversion rate|100%|16.67%|16.67%\nDropoff rate|0%|83.33%|83.33%\nAverage conversion time|-|1m 14s|1m 19s\nMedian conversion time|-|1m 14s|1m 19s\n\n---/es/mp3-to-guitar-tabs\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|5|1|1\nConversion rate|100%|20%|20%\nDropoff rate|0%|80%|80%\nAverage conversion time|-|28s|4m 16s\nMedian conversion time|-|28s|4m 16s\n\n---/zh-hans/auth/verify-email\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|5|1|1\nConversion rate|100%|20%|20%\nDropoff rate|0%|80%|80%\nAverage conversion time|-|3m 53s|1m 18s\nMedian conversion time|-|3m 53s|1m 18s\n\n---/zh-hans/job/[job_id]\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|5|1|1\nConversion rate|100%|20%|20%\nDropoff rate|0%|80%|80%\nAverage conversion time|-|27m 35s|1m 18s\nMedian conversion time|-|27m 35s|1m 18s\n\n---/zh-hans/pricing\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|4|1|1\nConversion rate|100%|25%|25%\nDropoff rate|0%|75%|75%\nAverage conversion time|-|17m 10s|1m 18s\nMedian conversion time|-|17m 10s|1m 18s\n\n---/zh-hans/editor\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|4|1|1\nConversion rate|100%|25%|25%\nDropoff rate|0%|75%|75%\nAverage conversion time|-|21h 35m 22s|1m 51s\nMedian conversion time|-|21h 35m 22s|1m 51s\n\n---/zh-hans/home\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|4|1|1\nConversion rate|100%|25%|25%\nDropoff rate|0%|75%|75%\nAverage conversion time|-|12m 32s|1m 18s\nMedian conversion time|-|12m 32s|1m 18s\n\n---/pl/audio-to-guitar-tab-converter\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|3|1|1\nConversion rate|100%|33.33%|33.33%\nDropoff rate|0%|66.67%|66.67%\nAverage conversion time|-|1m 11s|1m 19s\nMedian conversion time|-|1m 11s|1m 19s\n\n---/zh-hans/blog\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|3|1|1\nConversion rate|100%|33.33%|33.33%\nDropoff rate|0%|66.67%|66.67%\nAverage conversion time|-|21h 38m 28s|1m 51s\nMedian conversion time|-|21h 38m 28s|1m 51s\n\n---/ja/blog/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs\nMetric|$pageview|transcription_started|transcription_succeeded\nTotal person count|3|1|1\nConversion rate|100%|33.33%|33.33%\nDropoff rate|0%|66.67%|66.67%\nAverage conversion time|-|1m 6s|1m 39s\nMedian conversion time|-|1m 6s|1m 39s\n\nConversion and drop-off rates are calculated in overall. For example, \"Conversion rate: 9%\" means that 9% of users from the first step completed the funnel.",
+      "{\"conversation_id\":\"01a14544-160b-72d1-9e4a-5f43888b351e\"}"
+    ]
+  }
+}
