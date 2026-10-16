@@ -1,5 +1,6 @@
 import {afterEach,describe,expect,it,vi} from "vitest";
 import {existsSync,readFileSync} from "node:fs";
+import {runInNewContext} from "node:vm";
 import {ALL_LOCALES,localeFromPath,localeHref,localeSwitchHref,LOCALE_NAMES,localeCohort,stripLocale} from "../../lib/i18n/locale";
 import {catalogs,translate,translatedError} from "../../lib/i18n/translate";
 import {getEditorCatalog} from "../../lib/i18n/editor/catalogs";
@@ -40,6 +41,14 @@ describe.each(["fr","it"] as const)("%s localization",locale=>{
   expect(localizedPilotAvailable(locale)).toBe(false);expect(localizedPilotIndexable(locale)).toBe(false);
   vi.stubEnv(locale==="fr"?"NEXT_PUBLIC_FR_REVIEWED":"NEXT_PUBLIC_IT_REVIEWED","true");
   expect(localizedPilotAvailable(locale)).toBe(true);expect(localizedPilotIndexable(locale)).toBe(true);
+ });
+ it("exposes released languages in the production client bundle and honors a disable override",()=>{
+  const name=locale==="fr"?"FR":"IT";
+  for(const disabled of [false,true]){
+   const sandbox={__dirname:process.cwd(),module:{exports:{} as any},process:{env:{NODE_ENV:"production",VERCEL_ENV:"production",...(disabled?{[`NEXT_PUBLIC_${name}_REVIEWED`]:"false"}:{})}}};
+   runInNewContext(readFileSync("next.config.js","utf8"),sandbox);
+   expect(sandbox.module.exports.env[`NEXT_PUBLIC_${name}_AVAILABLE`]).toBe(disabled?"false":"true");
+  }
  });
  it("covers core routes and does not advertise untranslated articles",()=>{
   for(const route of ["index.tsx","pricing.tsx","transcribe.tsx","editor/index.tsx","auth/login.tsx","auth/signup.tsx","settings.tsx","home.tsx","features/[slug].tsx","blog/[slug].tsx"])
