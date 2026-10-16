@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useLocale } from "../lib/i18n/react";
-import { placePropertiesInspector, sameInspectorFingering } from "../lib/gtePropertiesInspector";
+import { constrainInspectorPosition, placePropertiesInspector, sameInspectorFingering, transposeInspectorFrets } from "../lib/gtePropertiesInspector";
 import type { TabCoord } from "../types/gte";
 
 const controlClass = "h-9 w-full min-w-0 rounded-md border border-slate-200 bg-white px-2.5 text-sm text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400";
@@ -33,6 +33,8 @@ export const PropertiesInspectorShell = forwardRef<HTMLDivElement, ShellProps>(f
   const { t } = useLocale();
   const headingId = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const movedPositionRef = useRef<{ left: number; top: number } | null>(null);
+  const dragRef = useRef<{ x: number; y: number; pointerId: number } | null>(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   const [placement, setPlacement] = useState<ReturnType<typeof placePropertiesInspector> | null>(null);
@@ -45,7 +47,13 @@ export const PropertiesInspectorShell = forwardRef<HTMLDivElement, ShellProps>(f
       const preferredHeight = compact
         ? Math.min(620, (panelRef.current?.firstElementChild?.getBoundingClientRect().height ?? 0) + (panelRef.current?.lastElementChild?.scrollHeight ?? 0) + 2)
         : 0;
-      const next = placePropertiesInspector({ width: document.documentElement.clientWidth, height: window.innerHeight }, obstacles, anchor, preferredHeight);
+      const viewport = { width: document.documentElement.clientWidth, height: window.innerHeight };
+      const next = placePropertiesInspector(viewport, obstacles, anchor, preferredHeight);
+      if (movedPositionRef.current) {
+        const position = constrainInspectorPosition(movedPositionRef.current.left, movedPositionRef.current.top, next.width, panelRef.current?.getBoundingClientRect().height ?? 160, viewport);
+        movedPositionRef.current = position;
+        Object.assign(next, position, { maxHeight: Math.min(620, viewport.height - position.top - 12) });
+      }
       setPlacement((prev) => prev && prev.left === next.left && prev.top === next.top && prev.maxHeight === next.maxHeight && prev.width === next.width ? prev : next);
     };
     const schedule = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(measure); };
@@ -56,6 +64,13 @@ export const PropertiesInspectorShell = forwardRef<HTMLDivElement, ShellProps>(f
     if (panelRef.current) observer.observe(panelRef.current);
     return () => { cancelAnimationFrame(raf); observer.disconnect(); window.removeEventListener("resize", schedule); window.removeEventListener("scroll", schedule, true); };
   }, [anchor.x, anchor.y, compact, geometryKey, mobile, objectKey]);
+  const movePanel = (left: number, top: number) => {
+    const rect = panelRef.current?.getBoundingClientRect();
+    if (!rect || mobile) return;
+    const position = constrainInspectorPosition(left, top, rect.width, rect.height, { width: document.documentElement.clientWidth, height: window.innerHeight });
+    movedPositionRef.current = position;
+    setPlacement((prev) => prev ? { ...prev, ...position, maxHeight: Math.min(620, window.innerHeight - position.top - 12) } : prev);
+  };
   if (typeof document === "undefined") return null;
   return createPortal(<div
     ref={(element) => { panelRef.current = element; if (typeof forwardedRef === "function") forwardedRef(element); else if (forwardedRef) forwardedRef.current = element; }}
@@ -75,9 +90,32 @@ export const PropertiesInspectorShell = forwardRef<HTMLDivElement, ShellProps>(f
       if ((event.target as HTMLElement).closest("input, select, textarea") || ["Escape", "Enter", " "].includes(event.key)) event.stopPropagation();
     }}
   >
-    <div className={`flex shrink-0 items-start gap-2.5 border-b border-slate-100 ${compact ? "px-3 py-2" : "px-4 py-3"}`}>
+    <div className={`flex shrink-0 items-start gap-2.5 border-b border-slate-100 ${mobile ? "" : "touch-none cursor-grab active:cursor-grabbing"} ${compact ? "px-3 py-2" : "px-4 py-3"}`}
+      onPointerDown={(event) => {
+        if (mobile || event.button !== 0 || (event.target as HTMLElement).closest("button:not([data-inspector-drag-handle])")) return;
+        const rect = panelRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        event.preventDefault();
+        dragRef.current = { x: event.clientX - rect.left, y: event.clientY - rect.top, pointerId: event.pointerId };
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={(event) => { const drag = dragRef.current; if (drag?.pointerId === event.pointerId) movePanel(event.clientX - drag.x, event.clientY - drag.y); }}
+      onPointerUp={(event) => { if (dragRef.current?.pointerId === event.pointerId) { dragRef.current = null; event.currentTarget.releasePointerCapture(event.pointerId); } }}
+      onPointerCancel={() => { dragRef.current = null; }}
+      onLostPointerCapture={() => { dragRef.current = null; }}
+    >
       <span className={`mt-0.5 rounded-md p-1.5 ${kind === "note" ? "bg-emerald-50 text-emerald-700" : "bg-sky-50 text-sky-700"}`}><InspectorIcon kind={kind} /></span>
       <div className="min-w-0 flex-1"><h2 id={headingId} className="text-sm font-semibold">{title}</h2><p title={contextTitle} className="mt-0.5 text-xs leading-4 text-slate-500">{context}</p></div>
+      {!mobile && <button type="button" data-inspector-drag-handle="true" aria-label={t("Move properties panel")} title={t("Drag to move, or use arrow keys")}
+        className="flex h-8 w-4 shrink-0 cursor-grab items-center justify-center rounded text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+        onKeyDown={(event) => {
+          if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+          event.preventDefault(); event.stopPropagation();
+          const rect = panelRef.current?.getBoundingClientRect(); if (!rect) return;
+          const step = event.shiftKey ? 32 : 8;
+          movePanel(rect.left + (event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0), rect.top + (event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0));
+        }}
+      ><svg aria-hidden="true" width="10" height="18" viewBox="0 0 10 18" fill="currentColor">{[4, 9, 14].map((y) => <g key={y}><circle cx="2" cy={y} r="1" /><circle cx="7" cy={y} r="1" /></g>)}</svg></button>}
       <button type="button" onClick={onClose} aria-label={t("Close properties")} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 6 12 12M18 6 6 18" /></svg></button>
     </div>
     <div className={`min-h-0 overflow-y-auto overscroll-contain ${compact ? "space-y-2.5 p-3 [&_input]:h-8 [&_select]:h-8 [&_button]:!min-h-8 [&_button]:!py-1" : "space-y-4 p-4"}`}>{children}</div>
@@ -125,6 +163,34 @@ export function MusicalDurationField({ value, options, onChange, label }: { valu
       {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
     </select>
   </label>;
+}
+
+export function ChordTransposeControl({ tabs, maxFret, onTranspose }: { tabs: TabCoord[]; maxFret: number; onTranspose: (delta: number) => boolean }) {
+  const { t } = useLocale();
+  // Mounted afresh when an inspector is reopened: current frets become 0.
+  const [offset, setOffset] = useState(0);
+  const baselineRef = useRef(tabs.map(([string, fret]) => [string, fret] as TabCoord));
+  useEffect(() => {
+    const baseline = baselineRef.current;
+    const delta = tabs.length && baseline.length ? tabs[0][1] - baseline[0][1] : 0;
+    if (tabs.length === baseline.length && tabs.every(([string, fret], i) => string === baseline[i][0] && fret - baseline[i][1] === delta)) {
+      setOffset(delta);
+    } else {
+      // Choosing a different fingering establishes a new local baseline.
+      baselineRef.current = tabs.map(([string, fret]) => [string, fret]);
+      setOffset(0);
+    }
+  }, [tabs]);
+  return <div>
+    <div className="mb-1.5 text-xs font-medium text-slate-600">{t("Transpose")}</div>
+    <div className="flex items-center gap-2">
+      <button type="button" aria-label={t("Transpose down")} disabled={!transposeInspectorFrets(tabs, -1, maxFret)} className={`${actionClass} w-9 shrink-0 !px-0 disabled:cursor-not-allowed disabled:opacity-40`}
+        onClick={() => onTranspose(-1)}>−</button>
+      <output aria-label={t("Transpose")} aria-live="polite" className="flex h-8 min-w-0 flex-1 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-sm tabular-nums text-slate-700">{offset > 0 ? `+${offset}` : offset}</output>
+      <button type="button" aria-label={t("Transpose up")} disabled={!transposeInspectorFrets(tabs, 1, maxFret)} className={`${actionClass} w-9 shrink-0 !px-0 disabled:cursor-not-allowed disabled:opacity-40`}
+        onClick={() => onTranspose(1)}>+</button>
+    </div>
+  </div>;
 }
 
 export function FingeringOption({ selected, onClick, children, blocked = false }: { selected: boolean; onClick: () => void; children: ReactNode; blocked?: boolean }) {

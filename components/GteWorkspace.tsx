@@ -51,7 +51,7 @@ import {
   getEffectPairKeys,
   orderNotesForEffect,
 } from "../lib/gteNoteEffects";
-import { cloneEditorSnapshot, nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
+import { cloneEditorSnapshot, mergeNotesIntoChordLocal, nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
 import { generatePlayingCoordinatesInSnapshot } from "../lib/gtePlayingCoordinates";
 import {
   finalizeOptimizedTrackFingeringInSnapshot as finalizeOptimizedTrackFingeringCore,
@@ -76,7 +76,8 @@ import {
 import type { Chord, ChordFingering, CutWithCoord, EditorSnapshot, Note, NoteEffect, TabCoord, TimingMapV2 } from "../types/gte";
 import TabViewer from "./TabViewer";
 import { estimateChordName } from "../lib/gteChordName";
-import { PropertiesInspectorShell, PropertyNumberField, DurationField, MusicalDurationField, NoteFingerings, ChordFingerings, InspectorAction, InspectorDelete } from "./GtePropertiesInspector";
+import { PropertiesInspectorShell, PropertyNumberField, MusicalDurationField, ChordTransposeControl, NoteFingerings, ChordFingerings, InspectorAction, InspectorDelete } from "./GtePropertiesInspector";
+import { transposeInspectorFrets } from "../lib/gtePropertiesInspector";
 import { buildTabTextFromSnapshot } from "../lib/gteTabText";
 import {
   buildEditorTabView,
@@ -274,6 +275,7 @@ type Props = {
     noteIds: number[];
     chordIds: number[];
   }) => void;
+  onCursorActiveChange?: (active: boolean) => void;
   onRequestGlobalSelectedShift?: (deltaFrames: number) => boolean | void;
   onBarSelectionStateChange?: (barIndices: number[]) => void;
   onRequestSelectedBarsCopy?: (barIndices: number[]) => void | Promise<void>;
@@ -5002,6 +5004,7 @@ export default function GteWorkspace({
   barSelectionClearExemptEditorId,
   multiTrackSelectionActive = false,
   onSelectionStateChange,
+  onCursorActiveChange,
   onRequestGlobalSelectedShift,
   onBarSelectionStateChange,
   onRequestSelectedBarsCopy,
@@ -5115,8 +5118,8 @@ export default function GteWorkspace({
   const [timeSignature, setTimeSignature] = useState(8);
   const [timeSignatureInput, setTimeSignatureInput] = useState("8");
   const [timeSignatureBottom, setTimeSignatureBottom] = useState(4);
-  const [localDefaultNoteLengthDenominator, setLocalDefaultNoteLengthDenominator] = useState(4);
-  const [localCursorSizeDenominator, setLocalCursorSizeDenominator] = useState(4);
+  const [localDefaultNoteLengthDenominator, setLocalDefaultNoteLengthDenominator] = useState(8);
+  const [localCursorSizeDenominator, setLocalCursorSizeDenominator] = useState(8);
   const defaultNoteLengthDenominator =
     controlledDefaultNoteLengthDenominator ?? localDefaultNoteLengthDenominator;
   const cursorSizeDenominator = controlledCursorSizeDenominator ?? localCursorSizeDenominator;
@@ -5379,7 +5382,6 @@ export default function GteWorkspace({
   const noteFretTypingAtRef = useRef(0);
   // A controlled value comes from the editor-level preference store, so it
   // must not be overwritten by the time-signature default during hydration.
-  const defaultNoteLengthUserChangedRef = useRef(controlledDefaultNoteLengthDenominator !== undefined);
   const previousTimeSignatureRef = useRef(8);
   const previousTimeSignatureBottomRef = useRef(4);
   // Only a time signature the user committed here should rescale the cursor
@@ -5564,10 +5566,6 @@ export default function GteWorkspace({
     (frames: number) => formatNoteLengthOption(getNearestNoteFractionDenominator(frames)),
     [getNearestNoteFractionDenominator]
   );
-  useEffect(() => {
-    if (defaultNoteLengthUserChangedRef.current) return;
-    setDefaultNoteLengthDenominator(getNearestNoteLengthDenominator(timeSignatureBottom));
-  }, [timeSignatureBottom]);
   useEffect(() => {
     const previousTop = Math.max(1, Math.round(previousTimeSignatureRef.current));
     const previousBottom = Math.max(1, Math.round(previousTimeSignatureBottomRef.current));
@@ -9468,12 +9466,20 @@ export default function GteWorkspace({
         const availableFrames = Math.max(1, rowBarCount * framesPerMeasure);
         const stringIndex = clamp(Math.floor(localY / ROW_HEIGHT), 0, stringMax);
         const rawStartTime = Math.round(current.startX / scale) + rowStart;
-        const startTime = clamp(snapStartTimeToGrid(rawStartTime), rowStart, rowStart + availableFrames - 1);
+        const snappedStart = clamp(snapStartTimeToGrid(rawStartTime), rowStart, rowStart + availableFrames - 1);
+        const cursorStep = cursorSizeDenominatorToFrames(cursorSizeDenominator);
+        const startTime = Math.floor(snappedStart / cursorStep) * cursorStep;
         const currentCursor = keyboardGridCursorRef.current;
         const tappedCurrentCursor =
           mobileViewport &&
           currentCursor?.time === startTime &&
           currentCursor.stringIndex === stringIndex;
+        if (!mobileViewport && document.activeElement instanceof HTMLElement &&
+          document.activeElement.matches("input, textarea, select, [contenteditable='true']")) {
+          // Timeline mousedown prevents default selection, so explicitly return
+          // typing to the canvas rather than leaving an earlier field focused.
+          document.activeElement.blur();
+        }
         setKeyboardGridCursor({ time: startTime, stringIndex });
         setKeyboardCursorVisible(true);
         setKeyboardAddMode(null);
@@ -9588,6 +9594,9 @@ export default function GteWorkspace({
     snapshot.chords,
     clamp,
     snapStartTimeToGrid,
+    cursorSizeDenominator,
+    cursorSizeDenominatorToFrames,
+    onGlobalPlaybackFrameChange,
     mobileViewport,
   ]);
 
@@ -10220,6 +10229,7 @@ export default function GteWorkspace({
     setDraftNoteAnchor(null);
   };
 
+
   const handleOptimizeFingering = () => {
     if (snapshotRef.current.notes.length === 0 && snapshotRef.current.chords.length === 0) return;
     setOptimizingFingering(true);
@@ -10676,6 +10686,19 @@ export default function GteWorkspace({
     if (bassLane) return;
     const chordIds = [...activeChordIds];
     const baseNoteIds = [...selectedNoteIds];
+    if (chordIds.length === 1 && baseNoteIds.length > 0) {
+      const targetChordId = resolveChordId(chordIds[0]);
+      const noteIds = baseNoteIds.map(resolveNoteId);
+      const merged = mergeNotesIntoChordLocal(snapshotRef.current, targetChordId, noteIds);
+      void runMutation(() => gteApi.applySnapshot(editorId, merged), {
+        localApply: (draft) => {
+          Object.assign(draft, mergeNotesIntoChordLocal(draft, targetChordId, noteIds));
+        },
+      });
+      setSelectedNoteIds([]);
+      setSelectedChordIds([]);
+      return;
+    }
     const chordRefs: ChordRef[] = chordIds
       .map((id) => snapshot.chords.find((chord) => chord.id === id))
       .filter((chord): chord is EditorSnapshot["chords"][number] => Boolean(chord))
@@ -11638,6 +11661,23 @@ export default function GteWorkspace({
       commit: () =>
         gteApi.setChordLength(editorId, resolveChordId(selectedChord.id), lengthValue, snapToGridEnabled),
     });
+  };
+
+  const handleTransposeChordFrets = (delta: number) => {
+    if (!selectedChord || !Number.isInteger(delta)) return false;
+    const chordId = resolveChordId(selectedChord.id);
+    const chord = snapshotRef.current.chords.find((item) => item.id === chordId);
+    const tabs = chord && transposeInspectorFrets(chord.currentTabs, delta, maxFret);
+    if (!tabs) return false;
+    void runMutation(() => gteApi.setChordTabs(editorId, chordId, tabs), {
+      localApply: (draft) => {
+        const current = draft.chords.find((item) => item.id === chordId);
+        if (!current) return;
+        const transposed = transposeInspectorFrets(current.currentTabs, delta, maxFret);
+        if (transposed) current.currentTabs = transposed;
+      },
+    });
+    return true;
   };
 
   const handleChordOctaveShift = (direction: number) => {
@@ -14511,6 +14551,14 @@ export default function GteWorkspace({
     timelineEnd,
   ]);
 
+  const cursorActiveCallbackRef = useRef(onCursorActiveChange);
+  cursorActiveCallbackRef.current = onCursorActiveChange;
+  const editingCursorActive = Boolean(keyboardCursorMarker && isActive && !mobileViewport && !tabViewEnabled && !practiceMode);
+  useEffect(() => {
+    cursorActiveCallbackRef.current?.(editingCursorActive);
+    return () => cursorActiveCallbackRef.current?.(false);
+  }, [editingCursorActive]);
+
   const openMobileAddNoteAtCursor = useCallback(() => {
     const cursor = keyboardGridCursorRef.current ?? keyboardGridCursor;
     if (!cursor || !isMobileEditMode) return;
@@ -15295,7 +15343,6 @@ export default function GteWorkspace({
       <select
         value={defaultNoteLengthDenominator}
         onChange={(event) => {
-          defaultNoteLengthUserChangedRef.current = true;
           setDefaultNoteLengthDenominator(Number(event.target.value));
           releaseSizeSelectFocus(event.currentTarget);
         }}
@@ -15368,11 +15415,11 @@ export default function GteWorkspace({
           mobile={mobileViewport}
           onClose={() => { setNoteMenuAnchor(null); setNoteMenuNoteId(null); setNoteMenuDraft(null); }}
         >
-          <div className="grid grid-cols-2 items-start gap-3">
+          <div>
             <PropertyNumberField label={t("Fret")} value={String(selectedNote.tab[1])} min={0} max={maxFret} integer onCommit={commitNoteMenuFret} onStep={adjustDesktopNoteMenuFret} />
-            <MusicalDurationField value={getNearestNoteFractionDenominator(selectedNote.length)} options={NOTE_LENGTH_FRACTION_DENOMINATORS.map((value) => ({ value, label: formatNoteLengthOption(value) }))} onChange={commitNoteMenuFractionLength} />
+            <p className="mt-1.5 text-xs text-slate-500">{t("Use +/− to change the fret")}</p>
           </div>
-          <DurationField value={formatLengthFramesAsSeconds(selectedNote.length)} min={framesToDurationSeconds(1)} max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)} onCommit={commitNoteMenuLength} />
+          <MusicalDurationField value={getNearestNoteFractionDenominator(selectedNote.length)} options={NOTE_LENGTH_FRACTION_DENOMINATORS.map((value) => ({ value, label: formatNoteLengthOption(value) }))} onChange={commitNoteMenuFractionLength} />
           <NoteFingerings tabs={noteAlternates?.possibleTabs ?? []} blockedTabs={noteAlternates?.blockedTabs ?? []} orderedTabs={noteAlternates?.orderedTabs} current={selectedNote.tab} labels={stringLabels} onSelect={handleAssignAlt} />
           {isMobileEditMode && <section className="space-y-2" aria-label={t("Move selected note")}>
             <div className="grid grid-cols-4 gap-2">{(["left", "up", "down", "right"] as const).map((direction) => <InspectorAction key={direction} title={t("Move note {value1}", { value1: direction })} onClick={() => moveSelectedMobileNote(direction)}>{direction === "left" ? "←" : direction === "right" ? "→" : direction === "up" ? "↑" : "↓"}</InspectorAction>)}</div>
@@ -15397,7 +15444,7 @@ export default function GteWorkspace({
           onClose={() => { setChordMenuAnchor(null); setChordMenuChordId(null); setChordMenuDraft(null); }}
         >
           <MusicalDurationField label={t("Chord duration")} value={getNearestNoteFractionDenominator(selectedChord.length)} options={NOTE_LENGTH_FRACTION_DENOMINATORS.map((value) => ({ value, label: formatNoteLengthOption(value) }))} onChange={(value) => commitChordMenuLength(formatLengthFramesAsSeconds(noteFractionDenominatorToFrames(Number(value))))} />
-          <DurationField value={formatLengthFramesAsSeconds(selectedChord.length)} min={framesToDurationSeconds(1)} max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)} onCommit={commitChordMenuLength} />
+          <ChordTransposeControl tabs={selectedChord.currentTabs} maxFret={maxFret} onTranspose={handleTransposeChordFrets} />
           <ChordFingerings tabs={selectedChord.currentTabs} alternatives={chordAlternatives} labels={stringLabels} onSelect={handleApplyChordTabs} onEdit={(event) => openChordEdit(selectedChord.id, event)} />
           <section className="space-y-2 border-t border-slate-100 pt-2" aria-label={t("Group actions")}>
             <div className="grid grid-cols-2 gap-2"><InspectorAction onClick={() => handleChordOctaveShift(-1)}>{t("Octave down")}</InspectorAction><InspectorAction onClick={() => handleChordOctaveShift(1)}>{t("Octave up")}</InspectorAction></div>
@@ -15429,6 +15476,7 @@ export default function GteWorkspace({
         >
           <PropertyNumberField label={t("Fret")} value={String(selectedChord.currentTabs[chordNoteMenuIndex][1])} min={0} max={maxFret} integer inlineStepper onCommit={commitChordNoteFret}
             onStep={(delta, value) => commitChordNoteFret(String(Math.max(0, Math.min(maxFret, Number(value) + delta))))} />
+          <p className="!mt-1.5 text-xs text-slate-500">{t("Use +/− to change the fret")}</p>
           <InspectorAction onClick={exitChordEdit}>{t("Done")}</InspectorAction>
           <InspectorDelete label={t("Delete note")} onClick={deleteChordNote} />
         </PropertiesInspectorShell>
@@ -17929,7 +17977,17 @@ export default function GteWorkspace({
                       height: keyboardCursorMarker.height,
                     }}
                   >
-                    <div className="h-full w-full rounded-sm border border-slate-400/75 bg-slate-300/45" />
+                    <div className="flex h-full w-full items-center justify-center rounded-sm border border-slate-400/75 bg-slate-300/45">
+                      {!mobileViewport && !keyboardAddMode && selectedNoteIds.length === 0 && selectedChordIds.length === 0 && !sliceToolActive && !cutToolActive && !scaleToolActive && !moveToolActive && !effectiveIsPlaying && (
+                        <>
+                          <span aria-hidden="true" className="gte-input-caret absolute left-[2px] top-1/2 h-3 -translate-y-1/2 border-l border-slate-700" />
+                          <span className="absolute bottom-full mb-1 flex items-center gap-1 whitespace-nowrap rounded bg-white/90 px-1 py-0.5 text-[10px] leading-3 text-slate-500"
+                            style={{ left: Math.min(0, timelineWidth - keyboardCursorMarker.left - 88) }}>
+                            {t("Type fret")} <kbd className="rounded border border-slate-300 px-0.5 font-sans text-[9px] leading-3">0–22</kbd>
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 ))}
 
@@ -18834,104 +18892,6 @@ export default function GteWorkspace({
                     </div>
                   </div>,
                   document.body
-                )}
-                {draftNote && draftNoteAnchor && !mobileViewport && (
-                  <div
-                    ref={draftPopupRef}
-                    className="fixed z-[9999] rounded-md border border-slate-200 bg-white px-2 py-2 shadow-md"
-                    style={{
-                      left: draftNoteAnchor.x,
-                      top: draftNoteAnchor.y,
-                      transform: "translate(-10%, calc(-100% - 8px))",
-                    }}
-                    onClick={(event) => event.stopPropagation()}
-                    onMouseDown={(event) => {
-                      event.stopPropagation();
-                    }}
-                  >
-                    <div className="text-[11px] text-slate-600">{t("String ")}{stringLabels[draftNote.stringIndex]} @ {draftNote.startTime}
-                    </div>
-                    <div className="mt-1 flex items-end gap-2">
-                      <div className="flex flex-col items-start gap-1">
-                        <input
-                          ref={draftFretRef}
-                          type="number"
-                          min={0}
-                          max={maxFret}
-                          value={draftNote.fret ?? ""}
-                          onChange={(e) =>
-                            setDraftNote((prev) =>
-                              prev ? { ...prev, fret: parseOptionalNumber(e.target.value) } : prev
-                            )
-                          }
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                              event.preventDefault();
-                              handleAddNote();
-                            }
-                            if (event.key === "Escape") {
-                              event.preventDefault();
-                              setDraftNote(null);
-                              setDraftNoteAnchor(null);
-                            }
-                          }}
-                          className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
-                          placeholder={t("Fret")}
-                        />
-                        <span className="text-[10px] text-slate-500">{t("Fret")}</span>
-                      </div>
-                      <div className="flex flex-col items-start gap-1">
-                        <input
-                          type="number"
-                          min={framesToDurationSeconds(1)}
-                          max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
-                          step={0.01}
-                          inputMode="decimal"
-                          value={draftNote.length === null ? "" : formatLengthFramesAsSeconds(draftNote.length)}
-                          onChange={(e) =>
-                            setDraftNote((prev) => {
-                              if (!prev) return prev;
-                              const parsed = e.target.value === "" ? null : parseLengthSecondsToFrames(e.target.value);
-                              return {
-                                ...prev,
-                                length: parsed,
-                              };
-                            })
-                          }
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                              event.preventDefault();
-                              handleAddNote();
-                            }
-                            if (event.key === "Escape") {
-                              event.preventDefault();
-                              setDraftNote(null);
-                              setDraftNoteAnchor(null);
-                            }
-                          }}
-                          className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
-                          placeholder={t("Sec")}
-                        />
-                        <span className="text-[10px] text-slate-500">{t("Length sec")}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleAddNote}
-                        onMouseDown={(event) => event.stopPropagation()}
-                        className="rounded-md bg-emerald-500/80 px-2 py-1 text-[11px] font-semibold text-slate-900"
-                      >{t("Add")}</button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDraftNote(null);
-                          setDraftNoteAnchor(null);
-                        }}
-                        onMouseDown={(event) => event.stopPropagation()}
-                        className="rounded-md border border-slate-200 px-2 py-1 text-[11px] text-slate-700"
-                      >{t("Cancel")}</button>
-                    </div>
-                    <div className="mt-1 text-[10px] text-slate-500">{t("Type a fret and press Enter.")}</div>
-                  </div>
                 )}
               </div>
               </div>

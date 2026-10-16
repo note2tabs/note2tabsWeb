@@ -1188,8 +1188,8 @@ const normalizeEditorInputSettings = (value: unknown) => {
   return {
     defaultNoteLengthDenominator: NOTE_LENGTH_FRACTION_DENOMINATORS.includes(noteSize)
       ? noteSize
-      : 4,
-    cursorSizeDenominator: cursorSize === 64 ? 32 : CURSOR_SIZE_FRACTION_DENOMINATORS.includes(cursorSize) ? cursorSize : 4,
+      : 8,
+    cursorSizeDenominator: cursorSize === 64 ? 32 : CURSOR_SIZE_FRACTION_DENOMINATORS.includes(cursorSize) ? cursorSize : 8,
   };
 };
 
@@ -1414,6 +1414,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   } | null>(null);
   const [openMobileBarMenuLaneId, setOpenMobileBarMenuLaneId] = useState<string | null>(null);
   const [editMenuPortalTarget, setEditMenuPortalTarget] = useState<HTMLDivElement | null>(null);
+  const [cursorSettingsLaneId, setCursorSettingsLaneId] = useState<string | null>(null);
   const [editorMode, setEditorMode] = useState<"canvas" | "tab" | "practice">("canvas");
   const practiceModeEnabled = editorMode === "practice";
   const tabViewEnabled = editorMode !== "canvas";
@@ -1421,8 +1422,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const [globalSnapToKeyEnabled, setGlobalSnapToKeyEnabledState] = useState(false);
   const [globalSnapSubdivisionsPerBeat, setGlobalSnapSubdivisionsPerBeat] = useState(4);
   const [leftHandedChordDiagrams, setLeftHandedChordDiagramsState] = useState(false);
-  const [chordOnlyDefaultNoteLengthDenominator, setChordOnlyDefaultNoteLengthDenominator] = useState(4);
-  const [chordOnlyCursorSizeDenominator, setChordOnlyCursorSizeDenominator] = useState(4);
+  const [chordOnlyDefaultNoteLengthDenominator, setChordOnlyDefaultNoteLengthDenominator] = useState(8);
+  const [chordOnlyCursorSizeDenominator, setChordOnlyCursorSizeDenominator] = useState(8);
   const [noteCursorSizesLinked, setNoteCursorSizesLinked] = useState(false);
   const inputSettingsSaveTimerRef = useRef<number | null>(null);
   const inputSettingsHydratedRef = useRef(false);
@@ -3252,6 +3253,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       setError("Track not found.");
       return;
     }
+    setDesktopTrackSettingsCollapsed(true);
+    setDesktopTrackMenuOpen(false);
+    setDesktopTrackAddMenuOpen(false);
     const deletedLane = canvas.editors[deletedLaneIndex];
     const previousActiveLaneId = activeLaneId;
     const previousMobileEditLaneId = mobileEditLaneId;
@@ -8218,106 +8222,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     </button>
                 </HoverSettingsDropdown>
                 )}
-                {!practiceModeEnabled && (
-                <HoverSettingsDropdown panelTitle={t("Editing settings")} closeLabel={t("Close")} panelIcon="editing" summary={<>
-                    <span className="font-semibold text-slate-700">{t("Editing settings")}</span>
-                    <span className="truncate">{t("Note ")}{formatNoteLengthOption(chordOnlyDefaultNoteLengthDenominator)}
-                      {" · "}{t("Cursor 1/")}{chordOnlyCursorSizeDenominator}
-                    </span>
-                    <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 self-center transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="m4 6 4 4 4-4" />
-                    </svg>
-                  </>}>
-                    <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_2.25rem_minmax(0,1fr)] items-start gap-2">
-                    <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-600">{t("Add note size")}<select
-                        value={chordOnlyDefaultNoteLengthDenominator}
-                        name="editor-add-note-size"
-                        onKeyDown={blockSizeSelectKeyboardChange}
-                        onChange={(event) =>
-                          handleDefaultNoteLengthDenominatorChange(Number(event.target.value))
-                        }
-                        className="h-9 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm text-slate-700"
-                      >
-                        {(noteCursorSizesLinked
-                          ? CURSOR_SIZE_FRACTION_DENOMINATORS
-                          : NOTE_LENGTH_FRACTION_DENOMINATORS
-                        ).map((denominator) => (
-                          <option key={`desktop-note-size-${denominator}`} value={denominator}>
-                            {formatNoteLengthOption(denominator)}
-                          </option>
-                        ))}
-                      </select>
-                      <span className="flex flex-nowrap items-center gap-0.5 whitespace-nowrap text-[10px] font-medium leading-4 text-slate-600">
-                        <kbd className="inline-flex h-4 min-w-3 shrink-0 items-center justify-center rounded-sm border border-slate-300 bg-slate-50 px-0.5 font-sans text-[10px] font-semibold leading-none text-slate-700 shadow-[0_1px_0_#cbd5e1]">,</kbd>
-                        <span>{t("smaller")}</span>
-                        <span className="text-slate-400">/</span>
-                        <kbd className="inline-flex h-4 min-w-3 shrink-0 items-center justify-center rounded-sm border border-slate-300 bg-slate-50 px-0.5 font-sans text-[10px] font-semibold leading-none text-slate-700 shadow-[0_1px_0_#cbd5e1]">.</kbd>
-                        <span>{t("larger")}</span>
-                      </span>
-                    </label>
-                    <div className="mt-5 flex h-9 items-center justify-center">
-                      <SizeLinkToggle
-                      linked={noteCursorSizesLinked}
-                      onToggle={toggleNoteCursorSizeLink}
-                      className="!h-9 !w-9 self-center !border-transparent !bg-transparent hover:!bg-slate-100"
-                      />
-                    </div>
-                    <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-600">{t("Cursor size")}<select
-                        value={chordOnlyCursorSizeDenominator}
-                        name="editor-cursor-size"
-                        onKeyDown={blockSizeSelectKeyboardChange}
-                        onChange={(event) =>
-                          handleCursorSizeDenominatorChange(Number(event.target.value))
-                        }
-                        className="h-9 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm text-slate-700"
-                      >
-                        {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
-                          <option key={`desktop-cursor-size-${denominator}`} value={denominator}>
-                            1/{denominator}
-                          </option>
-                        ))}
-                      </select>
-                      <span className="flex flex-nowrap items-center gap-0.5 whitespace-nowrap text-[10px] font-medium leading-4 text-slate-600">
-                        <kbd className="inline-flex h-4 min-w-3 shrink-0 items-center justify-center rounded-sm border border-slate-300 bg-slate-50 px-0.5 font-sans text-[10px] font-semibold leading-none text-slate-700 shadow-[0_1px_0_#cbd5e1]">N</kbd>
-                        <span>{t("smaller")}</span>
-                        <span className="text-slate-400">/</span>
-                        <kbd className="inline-flex h-4 min-w-3 shrink-0 items-center justify-center rounded-sm border border-slate-300 bg-slate-50 px-0.5 font-sans text-[10px] font-semibold leading-none text-slate-700 shadow-[0_1px_0_#cbd5e1]">M</kbd>
-                        <span>{t("larger")}</span>
-                      </span>
-                    </label>
-                    </div>
-                    <div className="order-4 grid min-w-0 gap-1 text-xs font-medium text-slate-600">
-                      <span>{t("Snap to grid")}</span>
-                      <button
-                        type="button"
-                        onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
-                        aria-label={t("Snap to grid")}
-                        aria-pressed={globalSnapToGridEnabled}
-                        className={`flex h-9 w-full items-center justify-center rounded-md border transition-colors ${globalSnapToGridEnabled ? "border-sky-600 bg-sky-600 text-white hover:bg-sky-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
-                      >
-                        <svg viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <rect x="3" y="3" width="18" height="18" rx="2" />
-                          <path d="M9 3v18M15 3v18M3 9h18M3 15h18" />
-                        </svg>
-                      </button>
-                    </div>
-                    <div className="order-5 grid min-w-0 gap-1 text-xs font-medium text-slate-600">
-                      <span>{t("Snap to key")}</span>
-                      <button
-                        type="button"
-                        onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
-                        aria-label={t("Snap to key")}
-                        aria-pressed={globalSnapToKeyEnabled}
-                        className={`flex h-9 w-full items-center justify-center gap-1.5 rounded-md border transition-colors ${globalSnapToKeyEnabled ? "border-sky-600 bg-sky-600 text-white hover:bg-sky-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
-                      >
-                        <span className="text-sm font-semibold" aria-hidden="true">{KEY_BASE_OPTIONS[normalizeKeyBase(canvas?.keyBase)]}</span>
-                        <svg viewBox="0 0 16 20" className="h-5 w-4 fill-current" aria-hidden="true">
-                          <path d="M11 2h1.75v12.5c0 1.8-1.9 3.25-4.25 3.25S4.25 16.7 4.25 15 6.15 11.75 8.5 11.75c.92 0 1.78.22 2.5.59V2Z" />
-                        </svg>
-                      </button>
-                    </div>
-                </HoverSettingsDropdown>
-                )}
                 </div>
                 {(((nameSaving || bpmSaving) && !isGuestMode) ||
                   nameError ||
@@ -9089,6 +8993,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               practiceControlsVisible={false}
                               showToolbarWhenInactive={false}
                               multiTrackSelectionActive={multiTrackSelectionActive}
+                              onCursorActiveChange={(active) => setCursorSettingsLaneId((previous) => active ? laneId : previous === laneId ? null : previous)}
                               onSelectionStateChange={(selection) =>
                                 handleLaneSelectionStateChange(laneId, selection)
                               }
@@ -9373,6 +9278,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               practiceControlsVisible={false}
                               showToolbarWhenInactive={laneId === globalControlsLaneId}
                               multiTrackSelectionActive={multiTrackSelectionActive}
+                              onCursorActiveChange={(active) => setCursorSettingsLaneId((previous) => active ? laneId : previous === laneId ? null : previous)}
                               onSelectionStateChange={(selection) =>
                                 handleLaneSelectionStateChange(laneId, selection)
                               }
@@ -9935,6 +9841,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           practiceControlsVisible={false}
                           showToolbarWhenInactive={!practiceModeEnabled && laneId === globalControlsLaneId}
                           multiTrackSelectionActive={multiTrackSelectionActive}
+                          onCursorActiveChange={(active) => setCursorSettingsLaneId((previous) => active ? laneId : previous === laneId ? null : previous)}
                           onSelectionStateChange={(selection) =>
                             handleLaneSelectionStateChange(laneId, selection)
                           }
@@ -10629,6 +10536,99 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               >{t("Apply key")}</button>
             </div>
           </div>
+        </div>
+      )}
+      {!isMobileViewport && !tabViewEnabled && canvas && cursorSettingsLaneId !== null && cursorSettingsLaneId === activeLaneId && (
+        <div data-gte-floating-ui="true" data-gte-editor-control="true" role="region" aria-label={t("Editing settings")}
+          className="fixed bottom-36 left-1/2 z-[9997] grid w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 grid-cols-2 items-end gap-3 rounded-xl border border-slate-200 bg-white/95 p-3 text-slate-700 shadow-sm backdrop-blur">
+                    <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_2.25rem_minmax(0,1fr)] items-start gap-2">
+                    <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-600">{t("Add note size")}<select
+                        value={chordOnlyDefaultNoteLengthDenominator}
+                        name="editor-add-note-size"
+                        onKeyDown={blockSizeSelectKeyboardChange}
+                        onChange={(event) =>
+                          handleDefaultNoteLengthDenominatorChange(Number(event.target.value))
+                        }
+                        className="h-9 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm text-slate-700"
+                      >
+                        {(noteCursorSizesLinked
+                          ? CURSOR_SIZE_FRACTION_DENOMINATORS
+                          : NOTE_LENGTH_FRACTION_DENOMINATORS
+                        ).map((denominator) => (
+                          <option key={`desktop-note-size-${denominator}`} value={denominator}>
+                            {formatNoteLengthOption(denominator)}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="flex flex-nowrap items-center gap-0.5 whitespace-nowrap text-[10px] font-medium leading-4 text-slate-600">
+                        <kbd className="inline-flex h-4 min-w-3 shrink-0 items-center justify-center rounded-sm border border-slate-300 bg-slate-50 px-0.5 font-sans text-[10px] font-semibold leading-none text-slate-700 shadow-[0_1px_0_#cbd5e1]">,</kbd>
+                        <span>{t("smaller")}</span>
+                        <span className="text-slate-400">/</span>
+                        <kbd className="inline-flex h-4 min-w-3 shrink-0 items-center justify-center rounded-sm border border-slate-300 bg-slate-50 px-0.5 font-sans text-[10px] font-semibold leading-none text-slate-700 shadow-[0_1px_0_#cbd5e1]">.</kbd>
+                        <span>{t("larger")}</span>
+                      </span>
+                    </label>
+                    <div className="mt-5 flex h-9 items-center justify-center">
+                      <SizeLinkToggle
+                      linked={noteCursorSizesLinked}
+                      onToggle={toggleNoteCursorSizeLink}
+                      className="!h-9 !w-9 self-center !border-transparent !bg-transparent hover:!bg-slate-100"
+                      />
+                    </div>
+                    <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-600">{t("Cursor size")}<select
+                        value={chordOnlyCursorSizeDenominator}
+                        name="editor-cursor-size"
+                        onKeyDown={blockSizeSelectKeyboardChange}
+                        onChange={(event) =>
+                          handleCursorSizeDenominatorChange(Number(event.target.value))
+                        }
+                        className="h-9 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm text-slate-700"
+                      >
+                        {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
+                          <option key={`desktop-cursor-size-${denominator}`} value={denominator}>
+                            1/{denominator}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="flex flex-nowrap items-center gap-0.5 whitespace-nowrap text-[10px] font-medium leading-4 text-slate-600">
+                        <kbd className="inline-flex h-4 min-w-3 shrink-0 items-center justify-center rounded-sm border border-slate-300 bg-slate-50 px-0.5 font-sans text-[10px] font-semibold leading-none text-slate-700 shadow-[0_1px_0_#cbd5e1]">N</kbd>
+                        <span>{t("smaller")}</span>
+                        <span className="text-slate-400">/</span>
+                        <kbd className="inline-flex h-4 min-w-3 shrink-0 items-center justify-center rounded-sm border border-slate-300 bg-slate-50 px-0.5 font-sans text-[10px] font-semibold leading-none text-slate-700 shadow-[0_1px_0_#cbd5e1]">M</kbd>
+                        <span>{t("larger")}</span>
+                      </span>
+                    </label>
+                    </div>
+                    <div className="order-4 grid min-w-0 gap-1 text-xs font-medium text-slate-600">
+                      <span>{t("Snap to grid")}</span>
+                      <button
+                        type="button"
+                        onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
+                        aria-label={t("Snap to grid")}
+                        aria-pressed={globalSnapToGridEnabled}
+                        className={`flex h-9 w-full items-center justify-center rounded-md border transition-colors ${globalSnapToGridEnabled ? "border-sky-600 bg-sky-600 text-white hover:bg-sky-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                      >
+                        <svg viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <rect x="3" y="3" width="18" height="18" rx="2" />
+                          <path d="M9 3v18M15 3v18M3 9h18M3 15h18" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div className="order-5 grid min-w-0 gap-1 text-xs font-medium text-slate-600">
+                      <span>{t("Snap to key")}</span>
+                      <button
+                        type="button"
+                        onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
+                        aria-label={t("Snap to key")}
+                        aria-pressed={globalSnapToKeyEnabled}
+                        className={`flex h-9 w-full items-center justify-center gap-1.5 rounded-md border transition-colors ${globalSnapToKeyEnabled ? "border-sky-600 bg-sky-600 text-white hover:bg-sky-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                      >
+                        <span className="text-sm font-semibold" aria-hidden="true">{KEY_BASE_OPTIONS[normalizeKeyBase(canvas?.keyBase)]}</span>
+                        <svg viewBox="0 0 16 20" className="h-5 w-4 fill-current" aria-hidden="true">
+                          <path d="M11 2h1.75v12.5c0 1.8-1.9 3.25-4.25 3.25S4.25 16.7 4.25 15 6.15 11.75 8.5 11.75c.92 0 1.78.22 2.5.59V2Z" />
+                        </svg>
+                      </button>
+                    </div>
         </div>
       )}
       {!isMobileViewport && canvas && (

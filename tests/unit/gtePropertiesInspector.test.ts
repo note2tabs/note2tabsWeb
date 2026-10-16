@@ -5,11 +5,22 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { ChordFingerings, NoteFingerings } from "../../components/GtePropertiesInspector";
-import { inspectorStringFrets, placePropertiesInspector, sameInspectorFingering, type InspectorRect } from "../../lib/gtePropertiesInspector";
+import { constrainInspectorPosition, inspectorStringFrets, placePropertiesInspector, sameInspectorFingering, transposeInspectorFrets, type InspectorRect } from "../../lib/gtePropertiesInspector";
 
 const overlaps = (a: InspectorRect, b: InspectorRect) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 
 describe("properties inspector placement", () => {
+  it.each([100, 1800])("opens at the opposite viewport edge for click x=%s", (x) => {
+    const position = placePropertiesInspector({ width: 1920, height: 1080 }, [], { x, y: 400 });
+    expect(position.left).toBe(x < 960 ? 1588 : 12);
+  });
+  it("allows manual positioning across the screen but never loses the panel offscreen", () => {
+    const viewport = { width: 1200, height: 800 };
+    expect(constrainInspectorPosition(400, 150, 320, 500, viewport)).toEqual({ left: 400, top: 150 });
+    expect(constrainInspectorPosition(-100, -100, 320, 500, viewport)).toEqual({ left: 12, top: 12 });
+    expect(constrainInspectorPosition(1500, 1000, 320, 500, viewport)).toEqual({ left: 868, top: 288 });
+    expect(constrainInspectorPosition(1500, 1000, 320, 900, viewport)).toEqual({ left: 868, top: 12 });
+  });
   it.each([
     [{ left: 1400, top: 400, right: 1850, bottom: 560 }],
     [{ left: 20, top: 20, right: 1900, bottom: 190 }],
@@ -85,7 +96,7 @@ describe("fingering presentation", () => {
 });
 
 // Run the real field with a minimal hook/JSX harness: no browser or live backend.
-function fieldHarness(initialValue = "0.1234", extraProps: Record<string, unknown> = {}) {
+function componentHarness() {
   const source = readFileSync("components/GtePropertiesInspector.tsx", "utf8");
   const hookState: any[] = [];
   let cursor = 0;
@@ -94,20 +105,28 @@ function fieldHarness(initialValue = "0.1234", extraProps: Record<string, unknow
     require: (name: string) => {
       if (name === "react") return {
         forwardRef: (fn: unknown) => fn,
-        useState: (initial: unknown) => { const index = cursor++; if (!(index in hookState)) hookState[index] = initial; return [hookState[index], (next: unknown) => { hookState[index] = next; }]; },
+        useState: (initial: unknown) => { const index = cursor++; if (!(index in hookState)) hookState[index] = initial; return [hookState[index], (next: any) => { hookState[index] = typeof next === "function" ? next(hookState[index]) : next; }]; },
         useRef: (initial: unknown) => { const index = cursor++; return hookState[index] ?? (hookState[index] = { current: initial }); },
         useEffect: (fn: () => void, deps: unknown[]) => { const index = cursor++; if (!hookState[index] || deps.some((dep, i) => dep !== hookState[index][i])) { hookState[index] = deps; fn(); } },
       };
       if (name === "react/jsx-runtime") return { jsx: (type: unknown, props: unknown) => ({ type, props }), jsxs: (type: unknown, props: unknown) => ({ type, props }) };
       if (name.includes("i18n")) return { useLocale: () => ({ t: (value: string) => value }) };
+      if (name.includes("gtePropertiesInspector")) return { transposeInspectorFrets };
       return {};
     },
   };
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS } }).outputText, context);
+  return { render: (name: string, props: Record<string, unknown>) => {
+    cursor = 0; context.exports[name](props);
+    cursor = 0; return context.exports[name](props);
+  } };
+}
+
+function fieldHarness(initialValue = "0.1234", extraProps: Record<string, unknown> = {}) {
+  const component = componentHarness();
   const commit = vi.fn();
   const renderTree = (value = initialValue) => {
-    cursor = 0;
-    return context.exports.PropertyNumberField({ label: "Duration", value, onCommit: commit, ...extraProps });
+    return component.render("PropertyNumberField", { label: "Duration", value, onCommit: commit, ...extraProps });
   };
   const render = (value = initialValue) => renderTree(value).props.children[1].props.children[0].props;
   render();
@@ -161,6 +180,37 @@ describe("inspector local field drafts", () => {
   });
 });
 
+describe("chord transpose controls", () => {
+  it("moves all frets uniformly and rejects a partial out-of-range transposition", () => {
+    expect(transposeInspectorFrets([[0, 3], [2, 7]], 1, 22)).toEqual([[0, 4], [2, 8]]);
+    expect(transposeInspectorFrets([[0, 0], [2, 7]], -1, 22)).toBeNull();
+    expect(transposeInspectorFrets([[0, 3], [2, 22]], 1, 22)).toBeNull();
+  });
+  it("counts changes, follows undo/redo, and reopens at zero using the new frets", () => {
+    let tabs: [number, number][] = [[0, 3], [2, 7]];
+    const baseline = tabs.map((tab) => [...tab] as [number, number]);
+    const props = () => ({ tabs, maxFret: 22, onTranspose: (delta: number) => { const next = transposeInspectorFrets(tabs, delta, 22); if (!next) return false; tabs = next; return true; } });
+    const panel = componentHarness();
+    const controls = () => panel.render("ChordTransposeControl", props()).props.children[1].props.children;
+    expect(controls()[1].props.children).toBe(0);
+    controls()[2].props.onClick();
+    controls()[2].props.onClick();
+    expect(controls()[1].props.children).toBe("+2");
+    expect(tabs).toEqual([[0, 5], [2, 9]]);
+    const transposed = tabs;
+    tabs = baseline;
+    expect(controls()[1].props.children).toBe(0);
+    tabs = transposed;
+    expect(controls()[1].props.children).toBe("+2");
+    const reopened = componentHarness();
+    expect(reopened.render("ChordTransposeControl", props()).props.children[1].props.children[1].props.children).toBe(0);
+    expect(tabs).toEqual([[0, 5], [2, 9]]);
+  });
+  it("removes precise-duration fields from the note/chord inspector views", () => {
+    expect(readFileSync("components/GteWorkspace.tsx", "utf8")).not.toContain("<DurationField");
+  });
+});
+
 const workspaceSource = readFileSync("components/GteWorkspace.tsx", "utf8");
 const workspaceAst = ts.createSourceFile("GteWorkspace.tsx", workspaceSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 function realAction(name: string, context: Record<string, any>) {
@@ -203,6 +253,19 @@ function actionHarness() {
 }
 
 describe("existing inspector mutation contracts", () => {
+  it("transposes only the selected chord through its established mutation path", () => {
+    const h = actionHarness();
+    h.context.transposeInspectorFrets = transposeInspectorFrets;
+    const transpose = realAction("handleTransposeChordFrets", h.context);
+    expect(transpose(1)).toBe(true);
+    expect(h.snapshot.chords[0].currentTabs).toEqual([[0, 1], [2, 6], [5, 13]]);
+    expect(h.snapshot.chords[0].length).toBe(120);
+    expect(h.snapshot.notes[0].tab).toEqual([0, 3]);
+    h.commits[0]();
+    expect(h.api.setChordTabs).toHaveBeenCalledWith("test", 2, [[0, 1], [2, 6], [5, 13]]);
+    expect(transpose(-2)).toBe(false);
+    expect(h.commits).toHaveLength(1);
+  });
   it("wires the primary chord fraction selector to the existing duration action", () => {
     const h = actionHarness();
     let changeHandler: string | undefined;
@@ -346,19 +409,19 @@ describe("inspector keyboard ownership", () => {
     const blur = vi.fn();
     const handler = realAction("handleKeyDown", { isShortcutTextEntryTarget: () => false, blurFocusedShortcutControl: blur });
     // No canvas dependencies are supplied: reaching a canvas action would throw.
-    expect(() => handler({ key, target: { closest: () => ({}) } })).not.toThrow();
+    expect(() => handler({ key, target: { closest: (selector: string) => selector.includes("properties-inspector") ? {} : null } })).not.toThrow();
     expect(blur).not.toHaveBeenCalled();
   });
   it("preserves editor undo while a non-text inspector control has focus", () => {
     const undo = vi.fn();
     const handler = realAction("handleKeyDown", { isShortcutTextEntryTarget: () => false, requestUndo: undo });
-    handler({ key: "z", ctrlKey: true, preventDefault: vi.fn(), target: { closest: () => ({}) } });
+    handler({ key: "z", ctrlKey: true, preventDefault: vi.fn(), target: { closest: (selector: string) => selector.includes("properties-inspector") ? {} : null } });
     expect(undo).toHaveBeenCalledOnce();
   });
   it("keeps input undo local instead of undoing the song", () => {
     const undo = vi.fn();
     const handler = realAction("handleKeyDown", { isShortcutTextEntryTarget: () => true, requestUndo: undo });
-    handler({ key: "z", ctrlKey: true, target: { closest: () => ({}) } });
+    handler({ key: "z", ctrlKey: true, target: { closest: (selector: string) => selector.includes("properties-inspector") ? {} : null } });
     expect(undo).not.toHaveBeenCalled();
   });
 });

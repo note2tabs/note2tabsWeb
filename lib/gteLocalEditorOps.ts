@@ -152,6 +152,36 @@ export const disbandChordLocal = (snapshot: EditorSnapshot, chordId: number) => 
   return next;
 };
 
+/** Add selected standalone notes to an existing chord without disbanding it. */
+export const mergeNotesIntoChordLocal = (snapshot: EditorSnapshot, chordId: number, noteIds: number[]) => {
+  const next = cloneEditorSnapshot(snapshot);
+  if (isBassSnapshot(next)) return next;
+  const chord = next.chords.find((item) => item.id === chordId);
+  const ids = new Set(noteIds);
+  const notes = next.notes.filter((note) => ids.has(note.id));
+  if (!chord || !notes.length) return next;
+  const originalCount = chord.currentTabs.length;
+  const start = Math.min(chord.startTime, ...notes.map((note) => note.startTime));
+  const end = Math.max(chord.startTime + chord.length, ...notes.map((note) => note.startTime + note.length));
+  if (chord.velocities || notes.some((note) => note.velocity !== undefined)) {
+    chord.velocities = [...Array.from({ length: originalCount }, (_, i) => chord.velocities?.[i] ?? 100), ...notes.map((note) => note.velocity ?? 100)];
+  }
+  if (chord.pitchBends || notes.some((note) => note.pitchBend?.length)) {
+    chord.pitchBends = [...Array.from({ length: originalCount }, (_, i) => chord.pitchBends?.[i] ?? []), ...notes.map((note) => note.pitchBend ?? [])];
+  }
+  chord.currentTabs.push(...notes.map((note) => [...note.tab] as TabCoord));
+  chord.ogTabs.push(...notes.map((note) => [...note.tab] as TabCoord));
+  chord.originalMidi.push(...notes.map((note) => note.midiNum));
+  chord.startTime = start;
+  chord.length = Math.max(1, end - start);
+  // A saved diagram describes the old membership, not the newly edited chord.
+  delete chord.fingering;
+  delete chord.fingeringIndex;
+  next.notes = next.notes.filter((note) => !ids.has(note.id));
+  next.noteEffects = (next.noteEffects || []).filter((effect) => !ids.has(effect.startNoteId) && !ids.has(effect.endNoteId));
+  return next;
+};
+
 const normalizeCuts = (cuts: CutWithCoord[], totalFrames: number, stringCount = 6): CutWithCoord[] => {
   const normalized = cuts
     .map((cut): CutWithCoord => {
