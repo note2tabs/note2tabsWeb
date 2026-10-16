@@ -221,6 +221,12 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
               {session ? "Premium" : t("Pricing")}
             </Link>
           )}
+          <Link
+            href="/settings"
+            className={`nav-pill nav-mobile-settings${stripLocale(router.pathname) === "/settings" ? " nav-pill--active" : ""}`}
+            aria-current={stripLocale(router.pathname) === "/settings" ? "page" : undefined}
+            onClick={() => setMenuOpen(false)}
+          >{t("Settings")}</Link>
           <div
             className={`nav-auth-slot${
               sessionStatus === "loading"

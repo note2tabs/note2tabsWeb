@@ -4220,6 +4220,8 @@ input[type="number"] {
   margin-left: auto;
 }
 
+.nav-links .nav-mobile-settings { display: none; }
+
 .nav-auth-slot {
   display: inline-flex;
   align-items: center;
@@ -14366,6 +14368,7 @@ input[type="number"] {
     color: var(--text);
   }
   .nav-links.open { display: flex; }
+  .nav-links .nav-mobile-settings { display: inline-flex; }
   .nav-auth-slot { min-width: 0; min-height: 0; display: contents; }
   .menu-toggle { display: inline-flex; align-items: center; gap: 8px; }
 }
