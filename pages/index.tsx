@@ -1,3 +1,4 @@
+import { uploadTranscriptionFile, TranscriptionUploadError } from "../lib/transcriptionUpload";
 import MonthlyCredits from "../components/MonthlyCredits";
 import { localizedSignIn as signIn } from "../lib/i18n/auth";
 import { translatedError } from "../lib/i18n/translate";
@@ -935,64 +936,44 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         } else {
           const uploadStorageError = t("We could not securely transfer this file. Check your connection and try again; the file is still selected.");
           sendEvent(ANALYTICS_EVENTS.uploadPresignStarted, { mode, size: selectedFile.size });
-          const presignRes = await fetch("/api/uploads/presign", {
+          let uploadKey: string;
+          try {
+            uploadKey = await uploadTranscriptionFile(selectedFile, uploadFileName, uploadStorageError, (details) => {
+              sendEvent(ANALYTICS_EVENTS.uploadStorageRetry, { mode, ...details });
+            });
+          } catch (error) {
+            if (error instanceof TranscriptionUploadError) {
+              sendEvent(ANALYTICS_EVENTS.uploadStorageFailed, {
+                mode,
+                step: error.stage === "upload_presign" ? "presign" : "storage_put",
+                error_code: error.analyticsCode,
+                upload_stage: error.stage,
+                http_status_class: analyticsHttpStatusClass(error.details.http_status),
+                ...error.details,
+              });
+            }
+            throw error;
+          }
+          sendEvent(ANALYTICS_EVENTS.uploadStorageSucceeded, {
+            mode, size: selectedFile.size, type: selectedFile.type || "unknown",
+          });
+          setStatus(transcribingStatusLabel);
+          const payload: Record<string, unknown> = {
+            mode: "FILE",
+            s3Key: uploadKey,
+            fileName: uploadFileName,
+            separateGuitar,
+            multipleGuitars,
+            transcriptionModel,
+          };
+          payload.startTime = Math.max(0, fileStartTime ?? 0);
+          payload.duration = resolvedFileDuration;
+          if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
+          response = await fetch("/api/transcribe", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              fileName: uploadFileName,
-              contentType: selectedFile.type || "application/octet-stream",
-              size: selectedFile.size,
-            }),
+            body: JSON.stringify(payload),
           });
-          const presignData = await presignRes.json().catch(() => ({}));
-          if (!presignRes.ok || !presignData?.url || !presignData?.key) {
-            sendEvent(ANALYTICS_EVENTS.uploadStorageFailed, {
-              mode,
-              step: "presign",
-              error_code: categorizeAnalyticsError(
-                presignData?.error,
-                "presign_rejected"
-              ),
-              http_status_class: analyticsHttpStatusClass(presignRes.status),
-            });
-            throw new Error(presignData?.error || uploadStorageError);
-          } else {
-            try {
-              const uploadRes = await fetch(presignData.url, {
-                method: "PUT",
-                headers: { "Content-Type": selectedFile.type || "application/octet-stream" },
-                body: selectedFile,
-              });
-              if (!uploadRes.ok) {
-                throw new Error(uploadStorageError);
-              }
-              sendEvent(ANALYTICS_EVENTS.uploadStorageSucceeded, {
-                mode,
-                size: selectedFile.size,
-                type: selectedFile.type || "unknown",
-              });
-            } catch {
-              sendEvent(ANALYTICS_EVENTS.uploadStorageFailed, { mode, step: "storage_put" });
-              throw new Error(uploadStorageError);
-            }
-            setStatus(transcribingStatusLabel);
-            const payload: Record<string, unknown> = {
-              mode: "FILE",
-              s3Key: presignData.key,
-              fileName: uploadFileName,
-              separateGuitar,
-              multipleGuitars,
-              transcriptionModel,
-            };
-            payload.startTime = Math.max(0, fileStartTime ?? 0);
-            payload.duration = resolvedFileDuration;
-            if (shouldDeferEditorSync) payload.skipAutoEditorSync = true;
-            response = await fetch("/api/transcribe", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload),
-            });
-          }
         }
       } else {
         setStatus(youtubeTranscribingStatusLabel);
@@ -1080,6 +1061,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         return;
       }
       if (!response.ok) {
+        setStatus(null);
         if (data.credits) {
           setCredits(data.credits);
         }
@@ -1101,6 +1083,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         return;
       }
       if (!data.tabs || !Array.isArray(data.tabs)) {
+        setStatus(null);
         setError(t("The transcription finished without a usable tab. Try a clearer section or switch models."));
         sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
           ...researchProperties,
@@ -1166,10 +1149,12 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       setStatus(t("Tabs ready. Choose an editor below."));
       return;
     } catch (err: any) {
+      setStatus(null);
       setError(err?.message || t("We could not reach the transcription service. Check your connection and try again."));
       sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
         ...researchProperties,
-        error_code: categorizeAnalyticsError(err, "transcription_failed"),
+        error_code: err instanceof TranscriptionUploadError ? err.analyticsCode : categorizeAnalyticsError(err, "transcription_failed"),
+        ...(err instanceof TranscriptionUploadError ? { ...err.details, upload_stage: err.stage } : {}),
       });
     } finally {
       setLoading(false);
