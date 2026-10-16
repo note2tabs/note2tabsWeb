@@ -14265,7 +14265,8 @@ input[type="number"] {
 .language-selector summary .language-selector__chevron { width:12px; height:12px; }
 .language-selector[open] .language-selector__chevron { transform:rotate(180deg); }
 .language-selector__options { position:absolute; top:calc(100% + 8px); right:0; z-index:120; display:grid; width:190px; padding:6px; background:#fffdfa; border:1px solid rgba(6,17,13,.12); border-radius:14px; box-shadow:0 12px 32px rgba(6,17,13,.12); }
-.language-selector__options a { padding:10px 12px; border-radius:8px; color:inherit; text-decoration:none; }
+.language-flag { display:inline-block; flex-shrink:0; font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif; font-size:1.15rem; line-height:1; unicode-bidi:isolate; }
+.language-selector__options a { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; color:inherit; text-decoration:none; }
 .language-selector__options a:hover, .language-selector__options a:focus-visible { background:rgba(13,117,93,.08); }
 .language-selector__options a[aria-current="true"] { color:#0d755d; font-weight:700; }
 .locale-scope-note, .pricing-page__hero .locale-scope-note { max-width:560px; margin:14px auto 0; padding:0; color:rgba(6,17,13,.56); font-size:.8rem; line-height:1.5; text-align:center; text-wrap:balance; }

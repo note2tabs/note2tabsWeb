@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useRef } from "react";
 import { sendEvent } from "../lib/analytics";
-import { LOCALE_VERSION, localeSwitchHref, supportsLocalizedPath, localeEnabled, LOCALE_NAMES, LOCALE_LANGUAGE_LABELS, isEditorPath, type AppLocale } from "../lib/i18n/locale";
+import { LOCALE_VERSION, localeSwitchHref, supportsLocalizedPath, localeEnabled, LOCALE_FLAGS, LOCALE_NAMES, LOCALE_LANGUAGE_LABELS, isEditorPath, type AppLocale } from "../lib/i18n/locale";
 import { useLocale } from "../lib/i18n/react";
 
 export default function LanguageSelector() {
@@ -58,7 +58,7 @@ export default function LanguageSelector() {
       event.currentTarget.querySelector("summary")?.focus();
     }}>
     <summary title={label} aria-label={`${LOCALE_LANGUAGE_LABELS[locale]}: ${label}`}>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c5 5 5 13 0 18-5-5-5-13 0-18Z" /></svg>
+      <span className="language-flag" aria-hidden="true">{LOCALE_FLAGS[locale]}</span>
       <span>{locale === "zh-Hans" ? "ZH" : locale.toUpperCase()}</span>
       <svg className="language-selector__chevron" viewBox="0 0 12 12" aria-hidden="true"><path d="m3 4.5 3 3 3-3" /></svg>
     </summary>
@@ -70,7 +70,7 @@ export default function LanguageSelector() {
             // LocaleProvider navigates after saving. Let modified clicks use the link normally.
             event.preventDefault();
             void select(target);
-          }} dir={target === "ar" ? "rtl" : "ltr"}>{LOCALE_NAMES[target]}</Link>)}
+          }} dir={target === "ar" ? "rtl" : "ltr"}><span className="language-flag" aria-hidden="true">{LOCALE_FLAGS[target]}</span><span>{LOCALE_NAMES[target]}</span></Link>)}
     </nav>
   </details>;
 }

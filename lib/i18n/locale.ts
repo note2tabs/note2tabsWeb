@@ -73,6 +73,11 @@ export function isLocalizedPublicPath(path: string) {
 
 export const TRANSLATED_LOCALES = ["pt-BR", "es", "ja", "ko", "pl", "ar", "zh-Hans", "fr", "it"] as const;
 export const ALL_LOCALES = ["en", ...TRANSLATED_LOCALES] as const;
+/** Visual hints only: language names remain the authoritative labels. */
+export const LOCALE_FLAGS: Record<AppLocale, string> = {
+  en: "🇬🇧", "pt-BR": "🇧🇷", es: "🇪🇸", ja: "🇯🇵", ko: "🇰🇷",
+  pl: "🇵🇱", ar: "🇸🇦", "zh-Hans": "🇨🇳", fr: "🇫🇷", it: "🇮🇹",
+};
 export const LOCALE_NAMES: Record<AppLocale, string> = {en: "English", "pt-BR": "Português (Brasil)", es: "Español", ja: "日本語", ko: "한국어", pl: "Polski", ar: "العربية", "zh-Hans": "简体中文", fr: "Français", it: "Italiano"};
 export const LOCALE_LANGUAGE_LABELS: Record<AppLocale, string> = {en: "Language", "pt-BR": "Idioma", es: "Idioma", ja: "言語", ko: "언어", pl: "Język", ar: "اللغة", "zh-Hans": "语言", fr: "Langue", it: "Lingua"};
 export const LOCALE_OPEN_GRAPH: Record<AppLocale, string> = {en: "en_US", "pt-BR": "pt_BR", es: "es_ES", ja: "ja_JP", ko: "ko_KR", pl: "pl_PL", ar: "ar_AR", "zh-Hans": "zh_CN", fr: "fr_FR", it: "it_IT"};
