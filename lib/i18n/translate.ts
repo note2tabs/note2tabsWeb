@@ -1,7 +1,10 @@
+import {flowMessages} from "./flowMessages";
 import {languagePreferenceMessages} from "./languagePreferenceMessages";
 import { editorTemplate } from "./editor/messages";
 import english from "./en.json";
 import portuguese from "./pt-BR.json";
+import french from "./fr.json";
+import italian from "./it.json";
 import spanish from "./es.json";
 import japanese from "./ja.json";
 import korean from "./ko.json";
@@ -9,8 +12,8 @@ import polish from "./pl.json";
 import arabic from "./ar.json";
 import chinese from "./zh-Hans.json";
 import type { AppLocale } from "./locale";
-export const catalogs: Record<AppLocale, Record<string, string>> = {en: english, "pt-BR": portuguese, es: spanish, ja: japanese, ko: korean, pl: polish, ar: arabic, "zh-Hans": chinese};
-for(const locale of Object.keys(catalogs) as AppLocale[])catalogs[locale]={...catalogs[locale],...languagePreferenceMessages[locale]};
+export const catalogs: Record<AppLocale, Record<string, string>> = {en: english, fr: french, it: italian, "pt-BR": portuguese, es: spanish, ja: japanese, ko: korean, pl: polish, ar: arabic, "zh-Hans": chinese};
+for(const locale of Object.keys(catalogs) as AppLocale[])catalogs[locale]={...catalogs[locale],...languagePreferenceMessages[locale],...flowMessages[locale]};
 const editorDictionaries: Partial<Record<AppLocale, Record<string,string>>> = {};
 export function registerEditorCatalog(locale:AppLocale, messages:Record<string,string>) {
  if(editorDictionaries[locale] === messages)return;
@@ -41,5 +44,5 @@ export function translatedError(source: string | null | undefined, locale: AppLo
   if (!source) return source;
   if (locale !== "en" && messagePatterns(locale).some(pattern => pattern.test(source.trim()))) return source;
   if (locale === "en" || Object.prototype.hasOwnProperty.call(catalogs[locale], source.trim()) || Object.prototype.hasOwnProperty.call(catalogs.en, source.trim()) || editorTemplate(source.trim())) return translate(source, locale);
-  return locale === "ko" ? "작업을 완료하지 못했습니다. 다시 시도하거나 support@note2tabs.com으로 문의하세요." : locale === "pl" ? "Nie udało się wykonać tej czynności. Spróbuj ponownie lub napisz na support@note2tabs.com." : locale === "ar" ? "تعذّر إكمال العملية. حاول مجددًا أو تواصل مع support@note2tabs.com." : locale === "zh-Hans" ? "无法完成此操作。请重试或联系 support@note2tabs.com。" : locale === "ja" ? "処理を完了できませんでした。もう一度お試しいただくか、support@note2tabs.com までお問い合わせください。" : locale === "es" ? "No se pudo completar esta acción. Inténtalo de nuevo o contacta con support@note2tabs.com." : "Não foi possível concluir esta ação. Tente novamente ou entre em contato com support@note2tabs.com.";
+  return locale === "fr" ? "Impossible de terminer cette opération. Réessayez ou contactez support@note2tabs.com." : locale === "it" ? "Impossibile completare questa operazione. Riprova o contatta support@note2tabs.com." : locale === "ko" ? "작업을 완료하지 못했습니다. 다시 시도하거나 support@note2tabs.com으로 문의하세요." : locale === "pl" ? "Nie udało się wykonać tej czynności. Spróbuj ponownie lub napisz na support@note2tabs.com." : locale === "ar" ? "تعذّر إكمال العملية. حاول مجددًا أو تواصل مع support@note2tabs.com." : locale === "zh-Hans" ? "无法完成此操作。请重试或联系 support@note2tabs.com。" : locale === "ja" ? "処理を完了できませんでした。もう一度お試しいただくか、support@note2tabs.com までお問い合わせください。" : locale === "es" ? "No se pudo completar esta acción. Inténtalo de nuevo o contacta con support@note2tabs.com." : "Não foi possível concluir esta ação. Tente novamente ou entre em contato com support@note2tabs.com.";
 }

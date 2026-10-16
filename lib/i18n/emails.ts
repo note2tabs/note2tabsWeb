@@ -8,6 +8,18 @@ type EmailCopy = {
 };
 /** Full phrases keep languages with different word orders out of English fragments. */
 const copies: Partial<Record<AppLocale, EmailCopy>> = {
+ fr: {
+  greeting:"Bonjour",
+  verification:{subject:"Confirmez votre compte Note2Tabs",title:"Confirmez votre adresse e-mail",body:"Confirmez votre adresse e-mail pour terminer la création de votre compte et commencer à transcrire.",expiry:"Ce lien expire dans 24 heures. Si vous n’avez pas créé ce compte, ignorez cet e-mail."},
+  reset:{subject:"Réinitialisez votre mot de passe Note2Tabs",title:"Réinitialisez votre mot de passe",body:"Nous avons reçu une demande de réinitialisation de votre mot de passe. Utilisez le lien et le code ci-dessous.",code:"Code de réinitialisation",expiry:"Le lien et le code expirent dans une heure. Si vous n’êtes pas à l’origine de cette demande, ignorez cet e-mail."},
+  completion:{subject:"Votre transcription Note2Tabs est prête",title:"Votre tablature est prête",body:"La tablature de « {label} » est prête. Ouvrez-la dans l’éditeur pour l’écouter, la modifier, vous entraîner et l’exporter.",action:"Ouvrir dans l’éditeur",fallbackLabel:"Votre transcription"},
+ },
+ it: {
+  greeting:"Ciao",
+  verification:{subject:"Conferma il tuo account Note2Tabs",title:"Conferma il tuo indirizzo e-mail",body:"Conferma il tuo indirizzo e-mail per completare la creazione dell’account e iniziare a trascrivere.",expiry:"Questo link scade tra 24 ore. Se non hai creato questo account, ignora questa e-mail."},
+  reset:{subject:"Reimposta la password di Note2Tabs",title:"Reimposta la password",body:"Abbiamo ricevuto una richiesta di reimpostazione della password. Usa il link e il codice qui sotto.",code:"Codice di reimpostazione",expiry:"Il link e il codice scadono tra un’ora. Se non hai richiesto la reimpostazione, ignora questa e-mail."},
+  completion:{subject:"La tua trascrizione Note2Tabs è pronta",title:"La tua tablatura è pronta",body:"La tablatura di «{label}» è pronta. Aprila nell’editor per ascoltarla, modificarla, esercitarti ed esportarla.",action:"Apri nell’editor",fallbackLabel:"La tua trascrizione"},
+ },
  ko: {
   greeting: "안녕하세요",
   verification:{subject:"Note2Tabs 이메일을 인증해 주세요",title:"이메일 인증",body:"계정 생성을 완료하고 채보 기능을 사용하려면 이메일을 인증해 주세요.",expiry:"이 링크는 24시간 후 만료됩니다. 가입한 적이 없다면 이 이메일을 무시하세요."},

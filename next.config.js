@@ -4,6 +4,8 @@ const nextConfig = {
   // Feature branches must be reviewable without exposing unfinished plans on
   // the production deployment. Vercel replaces this at build time.
   env: {
+    NEXT_PUBLIC_IT_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_IT_REVIEWED === "true" ? "true" : "false",
+    NEXT_PUBLIC_FR_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_FR_REVIEWED === "true" ? "true" : "false",
     NEXT_PUBLIC_APP_VERSION: process.env.VERCEL_GIT_COMMIT_SHA || "development",
     NEXT_PUBLIC_KO_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_KO_REVIEWED !== "false" ? "true" : "false",
     NEXT_PUBLIC_PL_AVAILABLE: process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_PL_REVIEWED !== "false" ? "true" : "false",
@@ -19,6 +21,10 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      {source: "/it/online-guitar-tab-editor", destination: "/it/editor", permanent: true},
+      {source: "/it/transcriber", destination: "/it/transcribe", permanent: true},
+      {source: "/fr/online-guitar-tab-editor", destination: "/fr/editor", permanent: true},
+      {source: "/fr/transcriber", destination: "/fr/transcribe", permanent: true},
       {source: "/ko/online-guitar-tab-editor", destination: "/ko/editor", permanent: true},
       {source: "/ko/transcriber", destination: "/ko/transcribe", permanent: true},
       {source: "/pl/online-guitar-tab-editor", destination: "/pl/editor", permanent: true},

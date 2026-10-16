@@ -631,7 +631,7 @@ function AccountSettingsPage({ user, stripeReady, credits }: Props) {
       </div>
       {credits.remaining === 0 && (
         isPremium ? (
-          <div className="notice">{t("Your credits will be refreshed on ")}{t(resetLabel)}{t(".")}</div>
+          <div className="notice">{t("Your credits will be refreshed on {date}.", {date: resetLabel})}</div>
         ) : (
           <PremiumConversionCard
             title={t("Keep transcribing today")}
@@ -644,7 +644,7 @@ function AccountSettingsPage({ user, stripeReady, credits }: Props) {
         )
       )}
       {isPaidPremium && (
-        <p className="footnote">{t("You can cancel your ")}{t(planDefinition.name)} {t(" subscription anytime from Manage subscription.")}</p>
+        <p className="footnote">{t("You can cancel your {plan} subscription anytime from Manage subscription.", {plan: t(planDefinition.name)})}</p>
       )}
     </section>
   );
@@ -799,7 +799,7 @@ function AccountSettingsPage({ user, stripeReady, credits }: Props) {
           ) : (
             <>
               <p className="muted text-small">
-                {t("This permanently removes your account, saved tabs, transcription history, and active subscription. Type ")}<strong>{t("delete")}</strong> {t(" to confirm.")}</p>
+                {t("This permanently removes your account, saved tabs, transcription history, and active subscription. Type ")}<strong dir="ltr">delete</strong> {t(" to confirm.")}</p>
               <label className="form-group">
                 <span className="label">{t("Type delete to confirm")}</span>
                 <input
@@ -807,7 +807,7 @@ function AccountSettingsPage({ user, stripeReady, credits }: Props) {
                   className="form-input"
                   value={deleteConfirmationText}
                   onChange={(event) => setDeleteConfirmationText(event.target.value)}
-                  placeholder={t("delete")}
+                  placeholder="delete"
                   autoComplete="off"
                 />
               </label>

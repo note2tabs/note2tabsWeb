@@ -1,3 +1,5 @@
+import { useLocale } from "../lib/i18n/react";
+
 type HeavyPreviewEditorPromptProps = {
   open: boolean;
   onClose: () => void;
@@ -9,29 +11,30 @@ export default function HeavyPreviewEditorPrompt({
   onClose,
   onUpgrade,
 }: HeavyPreviewEditorPromptProps) {
+  const { t } = useLocale();
   if (!open) return null;
 
   return (
-    <aside className="heavy-preview-editor-prompt" aria-label="Keep using the Heavy model">
+    <aside className="heavy-preview-editor-prompt" aria-label={t("Keep using the Heavy model")}>
       <button
         type="button"
         className="heavy-preview-editor-prompt__close"
         onClick={onClose}
-        aria-label="Dismiss Heavy model offer"
+        aria-label={t("Dismiss Heavy model offer")}
       >
         ×
       </button>
       <div className="heavy-preview-editor-prompt__copy">
-        <strong>Keep using the Heavy model</strong>
-        <p>Your preview used our most accurate model. Continue using it with Premium or Pro.</p>
+        <strong>{t("Keep using the Heavy model")}</strong>
+        <p>{t("Your preview used our most accurate model. Continue using it with Premium or Pro.")}</p>
       </div>
       <div className="heavy-preview-editor-prompt__actions">
-        <button type="button" className="button-primary button-small" onClick={onUpgrade}>View plans</button>
+        <button type="button" className="button-primary button-small" onClick={onUpgrade}>{t("View plans")}</button>
         <button type="button" className="heavy-preview-editor-prompt__later" onClick={onClose}>
-          Continue editing
+          {t("Continue editing")}
         </button>
       </div>
-      <small className="heavy-preview-editor-prompt__reassurance">Choose a plan. Cancel anytime.</small>
+      <small className="heavy-preview-editor-prompt__reassurance">{t("Choose a plan. Cancel anytime.")}</small>
     </aside>
   );
 }

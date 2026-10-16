@@ -15,7 +15,7 @@ import {EditorLoadingState} from "../../components/EditorLoadingState";
 import {EditorTutorialTrigger} from "../../components/EditorTutorial";
 vi.mock("next/router",()=>({useRouter:()=>({asPath:"/gte/local"})}));
 beforeEach(()=>{
- for(const key of ["PT_BR","ES","JA","KO","PL","AR","ZH_HANS"])vi.stubEnv(`NEXT_PUBLIC_${key}_AVAILABLE`,"true");
+ for(const key of ["PT_BR","ES","JA","KO","PL","AR","ZH_HANS","FR","IT"])vi.stubEnv(`NEXT_PUBLIC_${key}_AVAILABLE`,"true");
 });
 afterEach(()=>vi.unstubAllEnvs());
 const english=JSON.parse(readFileSync("lib/i18n/editor/en.json","utf8")) as Record<string,string>;

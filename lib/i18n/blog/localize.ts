@@ -259,3 +259,9 @@ export function withLocalizedBlogStaticPage<P extends Record<string, unknown>>(l
   return "props" in result ? {...result, props: await localizeBlogProps(await result.props, locale)} : result;
  });
 }
+
+export const withFrenchBlogPage = <P extends Record<string, unknown>>(loader: GetServerSideProps<P>) => withLocalizedBlogPage("fr", loader);
+export const withFrenchBlogStaticPage = <P extends Record<string, unknown>>(loader: GetStaticProps<P>) => withLocalizedBlogStaticPage("fr", loader);
+
+export const withItalianBlogPage = <P extends Record<string, unknown>>(loader: GetServerSideProps<P>) => withLocalizedBlogPage("it", loader);
+export const withItalianBlogStaticPage = <P extends Record<string, unknown>>(loader: GetStaticProps<P>) => withLocalizedBlogStaticPage("it", loader);

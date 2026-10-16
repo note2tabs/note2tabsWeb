@@ -10,6 +10,8 @@ const sources=[
 ] as const;
 const translations:Record<AppLocale,readonly string[]>={
  en:sources,
+ fr:["Choisissez votre langue préférée. Votre choix est enregistré dans ce navigateur.","Langue de l’appareil : {language}","Langue enregistrée : {language}","Enregistrer la langue","Langue enregistrée.","Connectez-vous pour gérer votre compte.","Langue"],
+ it:["Scegli la tua lingua preferita. La scelta viene salvata in questo browser.","Lingua del dispositivo: {language}","Lingua salvata: {language}","Salva lingua","Lingua salvata.","Accedi per gestire il tuo account.","Lingua"],
  "pt-BR":["Escolha seu idioma preferido. Sua escolha fica salva neste navegador.","Idioma do dispositivo: {language}","Idioma salvo: {language}","Salvar idioma","Idioma salvo.","Entre para gerenciar sua conta.","Idioma"],
  es:["Elige tu idioma preferido. Tu elección se guarda en este navegador.","Idioma del dispositivo: {language}","Idioma guardado: {language}","Guardar idioma","Idioma guardado.","Inicia sesión para gestionar tu cuenta.","Idioma"],
  ja:["希望する言語を選んでください。選択はこのブラウザーに保存されます。","端末の言語：{language}","保存した言語：{language}","言語を保存","言語を保存しました。","アカウントの管理にはログインしてください。","言語"],

@@ -1,0 +1,2705 @@
+{
+  "fixture": "Local read-only public count fixture; no customer DB",
+  "checks": [
+    {
+      "locale": "en",
+      "path": "/",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "AI Guitar Tab Generator – Audio & YouTube to Tabs | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/transcribe",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Audio to Guitar Tab Transcriber | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/transcribe",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/pricing",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Pricing | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pricing",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/editor",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Online Guitar Tab Editor – Write, Play & Practise Tabs | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/editor",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/about",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "About Note2Tabs",
+      "canonical": "https://www.note2tabs.com/about",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/contact",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Contact Note2Tabs",
+      "canonical": "https://www.note2tabs.com/contact",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/terms",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Terms of Service | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/terms",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/privacy",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Privacy Policy | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/privacy",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/affiliate-program",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Note2Tabs Affiliate Program",
+      "canonical": "https://www.note2tabs.com/affiliate-program",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/internship-application",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Internship application | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/internship-application",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/features",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Guitar Tab Editor Tools & Features | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/features",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/audio-to-guitar-tab-converter",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Audio to Guitar Tab Converter – MP3, WAV & More",
+      "canonical": "https://www.note2tabs.com/audio-to-guitar-tab-converter",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/mp3-to-guitar-tabs",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "MP3 to Guitar Tabs Converter – Online & Editable",
+      "canonical": "https://www.note2tabs.com/mp3-to-guitar-tabs",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/youtube-to-guitar-tabs",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "YouTube to Guitar Tabs Converter | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/youtube-to-guitar-tabs",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/ai-guitar-tab-generator",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Free AI Guitar Tab Generator | Audio & YouTube",
+      "canonical": "https://www.note2tabs.com/ai-guitar-tab-generator",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/free-guitar-tab-maker",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Free Guitar Tab Maker | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/free-guitar-tab-maker",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/online-guitar-tab-editor",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Online Guitar Tab Editor – Write, Play & Practise Tabs | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/editor",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/auth/signup",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Create your account | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/auth/signup",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/auth/login",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Log in | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/auth/login",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/auth/verify-email",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Verify your email | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/auth/verify-email",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/reset-password",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Reset your password | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/reset-password",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Guitar Tab Fingering Optimizer | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/features/guitar-tab-fingering-optimizer",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/features/guitar-tab-key-detector",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Guitar Tab Key Detector & Snap-to-Key Tool | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/features/guitar-tab-key-detector",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Guitar Chord & Strumming Editor | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/features/guitar-chord-strumming-editor",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Guitar Tab Editor with Shortcuts | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/features/guitar-tab-editor-shortcuts",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/features/guitar-tab-import-export",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Guitar Tab Import & Export Tool | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/features/guitar-tab-import-export",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "en",
+      "path": "/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "html": "<html lang=\"en\" dir=\"ltr\">",
+      "title": "Guitar Tab Practice & Speed Trainer | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/features/guitar-tab-practice-trainer",
+      "robots": null,
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Gerador de tablaturas com IA — Áudio e YouTube | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/transcribe",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Transcrição de áudio para tablatura de guitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/transcribe",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/pricing",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Planos e preços | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/pricing",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/editor",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Editor online de tablaturas – Escreva, toque e pratique | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/about",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Sobre o Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/about",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/contact",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Entre em contato com o Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/contact",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/terms",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Termos de Serviço | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/terms",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/privacy",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Política de Privacidade | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/privacy",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/affiliate-program",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Programa de afiliados do Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/affiliate-program",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/internship-application",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Candidatura a estágio | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/internship-application",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/features",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Ferramentas e recursos do editor de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/features",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/audio-to-guitar-tab-converter",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Conversor de áudio em tablatura – MP3, WAV e mais",
+      "canonical": "https://www.note2tabs.com/pt-br/audio-to-guitar-tab-converter",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/mp3-to-guitar-tabs",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Conversor de MP3 em tablatura – Online e editável",
+      "canonical": "https://www.note2tabs.com/pt-br/mp3-to-guitar-tabs",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/youtube-to-guitar-tabs",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Conversor de YouTube em tablatura | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/youtube-to-guitar-tabs",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/ai-guitar-tab-generator",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Gerador gratuito de tablaturas com IA | Áudio e YouTube",
+      "canonical": "https://www.note2tabs.com/pt-br/ai-guitar-tab-generator",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/free-guitar-tab-maker",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Criador gratuito de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/free-guitar-tab-maker",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/online-guitar-tab-editor",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Editor online de tablaturas – Escreva, toque e pratique | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/auth/signup",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Crie sua conta | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/auth/signup",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/auth/login",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Entre na sua conta | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/auth/login",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/auth/verify-email",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Confirme seu e-mail | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/auth/verify-email",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/reset-password",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Redefina sua senha | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/reset-password",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Otimizador de digitação de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/features/guitar-tab-fingering-optimizer",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/features/guitar-tab-key-detector",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Detector de tonalidade e ajuste à escala | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/features/guitar-tab-key-detector",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Editor de acordes e batidas de guitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/features/guitar-chord-strumming-editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Editor de tablaturas com atalhos | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/features/guitar-tab-editor-shortcuts",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/features/guitar-tab-import-export",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Importação e exportação de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/features/guitar-tab-import-export",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pt-BR",
+      "path": "/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "html": "<html lang=\"pt-BR\" dir=\"ltr\">",
+      "title": "Prática de tablaturas e treino de velocidade | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pt-br/features/guitar-tab-practice-trainer",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Generador de tablaturas con IA – Audio y YouTube | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/transcribe",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Transcriptor de audio a tablaturas de guitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/transcribe",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/pricing",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Precios | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/pricing",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/editor",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Editor de tablaturas en línea – Escribe, toca y practica | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/about",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Acerca de Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/about",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/contact",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Contactar con Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/contact",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/terms",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Condiciones del servicio | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/terms",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/privacy",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Política de privacidad | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/privacy",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/affiliate-program",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Programa de afiliados de Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/affiliate-program",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/internship-application",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Solicitud de prácticas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/internship-application",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/features",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Herramientas y funciones del editor | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/features",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/audio-to-guitar-tab-converter",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Convertidor de audio a tablaturas de guitarra – MP3, WAV y más",
+      "canonical": "https://www.note2tabs.com/es/audio-to-guitar-tab-converter",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/mp3-to-guitar-tabs",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Conversor de MP3 a tablaturas – En línea y editables",
+      "canonical": "https://www.note2tabs.com/es/mp3-to-guitar-tabs",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/youtube-to-guitar-tabs",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Conversor de YouTube a tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/youtube-to-guitar-tabs",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/ai-guitar-tab-generator",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Generador gratuito de tablaturas con IA | Audio y YouTube",
+      "canonical": "https://www.note2tabs.com/es/ai-guitar-tab-generator",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/free-guitar-tab-maker",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Creador gratuito de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/free-guitar-tab-maker",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/online-guitar-tab-editor",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Editor de tablaturas en línea – Escribe, toca y practica | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/auth/signup",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Crea tu cuenta | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/auth/signup",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/auth/login",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Iniciar sesión | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/auth/login",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/auth/verify-email",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Verifica tu correo | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/auth/verify-email",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/reset-password",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Restablece tu contraseña | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/reset-password",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Optimizador de digitación de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/features/guitar-tab-fingering-optimizer",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/features/guitar-tab-key-detector",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Detector de tonalidad y ajuste a la escala | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/features/guitar-tab-key-detector",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Editor de acordes y rasgueos de guitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/features/guitar-chord-strumming-editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Editor de tablaturas con atajos | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/features/guitar-tab-editor-shortcuts",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/features/guitar-tab-import-export",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Importación y exportación de tablaturas | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/features/guitar-tab-import-export",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "es",
+      "path": "/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "html": "<html lang=\"es\" dir=\"ltr\">",
+      "title": "Práctica de tablaturas y entrenamiento de velocidad | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/es/features/guitar-tab-practice-trainer",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "AIでギターTAB譜を自動作成 — 音源・YouTube | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/transcribe",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "音源からギターTAB譜を自動採譜 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/transcribe",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/pricing",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "料金 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/pricing",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/editor",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "オンラインギターTAB譜エディター — 作成・再生・練習 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/about",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "Note2Tabsについて",
+      "canonical": "https://www.note2tabs.com/ja/about",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/contact",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "Note2Tabsへのお問い合わせ",
+      "canonical": "https://www.note2tabs.com/ja/contact",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/terms",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "利用規約 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/terms",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/privacy",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "プライバシーポリシー | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/privacy",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/affiliate-program",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "Note2Tabsアフィリエイトプログラム",
+      "canonical": "https://www.note2tabs.com/ja/affiliate-program",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/internship-application",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "インターンシップ応募 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/internship-application",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/features",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "ギターTAB譜エディターの機能 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/features",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/audio-to-guitar-tab-converter",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "音声からギターTAB譜へ — MP3・WAVなどに対応",
+      "canonical": "https://www.note2tabs.com/ja/audio-to-guitar-tab-converter",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/mp3-to-guitar-tabs",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "MP3からギターTAB譜へ — オンラインで編集可能",
+      "canonical": "https://www.note2tabs.com/ja/mp3-to-guitar-tabs",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/youtube-to-guitar-tabs",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "YouTubeからギターTAB譜へ | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/youtube-to-guitar-tabs",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/ai-guitar-tab-generator",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "無料AIギターTAB譜作成 | 音源・YouTube",
+      "canonical": "https://www.note2tabs.com/ja/ai-guitar-tab-generator",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/free-guitar-tab-maker",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "無料ギターTAB譜作成ツール | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/free-guitar-tab-maker",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/online-guitar-tab-editor",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "オンラインギターTAB譜エディター — 作成・再生・練習 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/auth/signup",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "アカウント作成 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/auth/signup",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/auth/login",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "ログイン | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/auth/login",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/auth/verify-email",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "メールアドレスの確認 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/auth/verify-email",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/reset-password",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "パスワード再設定 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/reset-password",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "ギターTAB譜の運指最適化 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/features/guitar-tab-fingering-optimizer",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/features/guitar-tab-key-detector",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "ギターTAB譜のキー検出・スケール補正 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/features/guitar-tab-key-detector",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "ギターのコード・ストロークエディター | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/features/guitar-chord-strumming-editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "ショートカット対応ギターTAB譜エディター | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/features/guitar-tab-editor-shortcuts",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/features/guitar-tab-import-export",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "ギターTAB譜の取り込み・書き出し | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/features/guitar-tab-import-export",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ja",
+      "path": "/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "html": "<html lang=\"ja\" dir=\"ltr\">",
+      "title": "ギターTAB譜の練習・スピードトレーニング | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ja/features/guitar-tab-practice-trainer",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "AI 기타 타브 악보 생성기 | 음원·YouTube 채보 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/transcribe",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "음원을 기타 타브 악보로 자동 변환 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/transcribe",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/pricing",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "요금 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/pricing",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/editor",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "온라인 기타 타브 에디터 — 제작·재생·연습 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/about",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "Note2Tabs 소개",
+      "canonical": "https://www.note2tabs.com/ko/about",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/contact",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "Note2Tabs 문의",
+      "canonical": "https://www.note2tabs.com/ko/contact",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/terms",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "이용약관 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/terms",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/privacy",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "개인정보 처리방침 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/privacy",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/affiliate-program",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "Note2Tabs 제휴 프로그램",
+      "canonical": "https://www.note2tabs.com/ko/affiliate-program",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/internship-application",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "인턴십 지원 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/internship-application",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/features",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "기타 타브 에디터 도구·기능 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/features",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/audio-to-guitar-tab-converter",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "오디오를 기타 타브로 — MP3, WAV 등",
+      "canonical": "https://www.note2tabs.com/ko/audio-to-guitar-tab-converter",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/mp3-to-guitar-tabs",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "MP3를 기타 타브로 — 온라인 편집",
+      "canonical": "https://www.note2tabs.com/ko/mp3-to-guitar-tabs",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/youtube-to-guitar-tabs",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "YouTube를 기타 타브로 변환 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/youtube-to-guitar-tabs",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/ai-guitar-tab-generator",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "무료 AI 기타 타브 생성기 | 오디오·YouTube",
+      "canonical": "https://www.note2tabs.com/ko/ai-guitar-tab-generator",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/free-guitar-tab-maker",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "무료 기타 타브 제작기 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/free-guitar-tab-maker",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/online-guitar-tab-editor",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "온라인 기타 타브 에디터 — 제작·재생·연습 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/auth/signup",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "계정 만들기 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/auth/signup",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/auth/login",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "로그인 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/auth/login",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/auth/verify-email",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "이메일 인증 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/auth/verify-email",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/reset-password",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "비밀번호 재설정 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/reset-password",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "기타 타브 운지 최적화 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/features/guitar-tab-fingering-optimizer",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/features/guitar-tab-key-detector",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "기타 타브 조성 감지·음계 정렬 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/features/guitar-tab-key-detector",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "기타 코드·스트로크 에디터 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/features/guitar-chord-strumming-editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "단축키 기타 타브 에디터 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/features/guitar-tab-editor-shortcuts",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/features/guitar-tab-import-export",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "기타 타브 가져오기·내보내기 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/features/guitar-tab-import-export",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ko",
+      "path": "/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "html": "<html lang=\"ko\" dir=\"ltr\">",
+      "title": "기타 타브 연습·속도 훈련 | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ko/features/guitar-tab-practice-trainer",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Generator tabulatur AI – audio i YouTube · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/transcribe",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Transkrypcja audio na tabulatury · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/transcribe",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/pricing",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Cennik · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/pricing",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/editor",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Edytor tabulatur online – twórz, graj i ćwicz | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/about",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "O Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/about",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/contact",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Kontakt z Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/contact",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/terms",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Regulamin usługi | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/terms",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/privacy",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Polityka prywatności | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/privacy",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/affiliate-program",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Program partnerski Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/affiliate-program",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/internship-application",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Zgłoszenie na staż | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/internship-application",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/features",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Narzędzia i funkcje edytora tabulatur | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/features",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/audio-to-guitar-tab-converter",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Konwerter audio na tabulatury – MP3, WAV i więcej",
+      "canonical": "https://www.note2tabs.com/pl/audio-to-guitar-tab-converter",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/mp3-to-guitar-tabs",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "MP3 na tabulatury gitarowe – online, do edycji",
+      "canonical": "https://www.note2tabs.com/pl/mp3-to-guitar-tabs",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/youtube-to-guitar-tabs",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "YouTube na tabulatury gitarowe | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/youtube-to-guitar-tabs",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/ai-guitar-tab-generator",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Darmowy generator tabulatur AI | Audio i YouTube",
+      "canonical": "https://www.note2tabs.com/pl/ai-guitar-tab-generator",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/free-guitar-tab-maker",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Darmowy edytor tabulatur | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/free-guitar-tab-maker",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/online-guitar-tab-editor",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Edytor tabulatur online – twórz, graj i ćwicz | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/auth/signup",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Utwórz konto · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/auth/signup",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/auth/login",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Logowanie · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/auth/login",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/auth/verify-email",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Potwierdź e-mail · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/auth/verify-email",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/reset-password",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Zresetuj hasło | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/reset-password",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Optymalizacja palcowania tabulatur | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/features/guitar-tab-fingering-optimizer",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/features/guitar-tab-key-detector",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Wykrywanie tonacji i dopasowanie nut | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/features/guitar-tab-key-detector",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Edytor akordów i bicia gitarowego | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/features/guitar-chord-strumming-editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Edytor tabulatur ze skrótami | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/features/guitar-tab-editor-shortcuts",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/features/guitar-tab-import-export",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Import i eksport tabulatur gitarowych | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/features/guitar-tab-import-export",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "pl",
+      "path": "/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "html": "<html lang=\"pl\" dir=\"ltr\">",
+      "title": "Ćwiczenia i trening prędkości tabulatur | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/pl/features/guitar-tab-practice-trainer",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "إنشاء تابلاتشر بالذكاء الاصطناعي من الصوت وYouTube · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/transcribe",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "تحويل الصوت إلى تابلاتشر للغيتار · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/transcribe",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/pricing",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "الأسعار · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/pricing",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/editor",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "محرّر تابلاتشر غيتار عبر الإنترنت – اكتب وشغّل وتدرّب | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/about",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "عن Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/about",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/contact",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "تواصل مع Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/contact",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/terms",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "شروط الخدمة | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/terms",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/privacy",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "سياسة الخصوصية | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/privacy",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/affiliate-program",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "برنامج شركاء Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/affiliate-program",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/internship-application",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "طلب تدريب | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/internship-application",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/features",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "أدوات محرّر تابلاتشر الغيتار ومزاياه | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/features",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/audio-to-guitar-tab-converter",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "تحويل الصوت إلى تابلاتشر غيتار – MP3 وWAV وغيرها",
+      "canonical": "https://www.note2tabs.com/ar/audio-to-guitar-tab-converter",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/mp3-to-guitar-tabs",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "تحويل MP3 إلى تابلاتشر غيتار قابل للتحرير عبر الإنترنت",
+      "canonical": "https://www.note2tabs.com/ar/mp3-to-guitar-tabs",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/youtube-to-guitar-tabs",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "تحويل YouTube إلى تابلاتشر غيتار | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/youtube-to-guitar-tabs",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/ai-guitar-tab-generator",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "إنشاء تابلاتشر غيتار بالذكاء الاصطناعي مجانًا | صوت وYouTube",
+      "canonical": "https://www.note2tabs.com/ar/ai-guitar-tab-generator",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/free-guitar-tab-maker",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "منشئ تابلاتشر غيتار مجاني | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/free-guitar-tab-maker",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/online-guitar-tab-editor",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "محرّر تابلاتشر غيتار عبر الإنترنت – اكتب وشغّل وتدرّب | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/auth/signup",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "إنشاء حساب · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/auth/signup",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/auth/login",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "تسجيل الدخول · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/auth/login",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/auth/verify-email",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "تأكيد البريد الإلكتروني · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/auth/verify-email",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/reset-password",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "إعادة تعيين كلمة المرور | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/reset-password",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "تحسين وضع أصابع تابلاتشر الغيتار | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/features/guitar-tab-fingering-optimizer",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/features/guitar-tab-key-detector",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "تحديد مقام تابلاتشر الغيتار ومطابقة النغمات | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/features/guitar-tab-key-detector",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "محرّر كوردات الغيتار والضربات | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/features/guitar-chord-strumming-editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "محرّر تابلاتشر باختصارات | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/features/guitar-tab-editor-shortcuts",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/features/guitar-tab-import-export",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "استيراد تابلاتشر الغيتار وتصديرها | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/features/guitar-tab-import-export",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "ar",
+      "path": "/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "html": "<html lang=\"ar\" dir=\"rtl\">",
+      "title": "تدريب تابلاتشر الغيتار وزيادة السرعة | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/ar/features/guitar-tab-practice-trainer",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "AI 吉他六线谱生成器：音频与 YouTube 转谱 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/transcribe",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "音频转吉他六线谱 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/transcribe",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/pricing",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "价格 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/pricing",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/editor",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "在线吉他六线谱编辑器：编写、播放与练习 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/about",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "关于 Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/about",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/contact",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "联系 Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/contact",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/terms",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "服务条款 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/terms",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/privacy",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "隐私政策 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/privacy",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/affiliate-program",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "Note2Tabs 推广合作计划",
+      "canonical": "https://www.note2tabs.com/zh-hans/affiliate-program",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/internship-application",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "实习申请 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/internship-application",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/features",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "吉他六线谱编辑工具与功能 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/features",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/audio-to-guitar-tab-converter",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "音频转吉他六线谱：MP3、WAV 等格式",
+      "canonical": "https://www.note2tabs.com/zh-hans/audio-to-guitar-tab-converter",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/mp3-to-guitar-tabs",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "MP3 转吉他六线谱：在线转换与编辑",
+      "canonical": "https://www.note2tabs.com/zh-hans/mp3-to-guitar-tabs",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/youtube-to-guitar-tabs",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "YouTube 转吉他六线谱工具 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/youtube-to-guitar-tabs",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/ai-guitar-tab-generator",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "免费 AI 吉他六线谱生成器：音频与 YouTube",
+      "canonical": "https://www.note2tabs.com/zh-hans/ai-guitar-tab-generator",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/free-guitar-tab-maker",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "免费吉他六线谱制作工具 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/free-guitar-tab-maker",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/online-guitar-tab-editor",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "在线吉他六线谱编辑器：编写、播放与练习 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/auth/signup",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "创建账户 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/auth/signup",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/auth/login",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "登录 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/auth/login",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/auth/verify-email",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "验证邮箱 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/auth/verify-email",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/reset-password",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "重置密码 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/reset-password",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "吉他六线谱指法优化工具 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/features/guitar-tab-fingering-optimizer",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/features/guitar-tab-key-detector",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "吉他调性检测与调内吸附工具 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/features/guitar-tab-key-detector",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "吉他和弦与扫弦编辑器 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/features/guitar-chord-strumming-editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "支持快捷键的吉他六线谱编辑器 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/features/guitar-tab-editor-shortcuts",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/features/guitar-tab-import-export",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "吉他六线谱导入与导出工具 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/features/guitar-tab-import-export",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "zh-Hans",
+      "path": "/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "html": "<html lang=\"zh-Hans\" dir=\"ltr\">",
+      "title": "吉他六线谱练习与速度训练器 · Note2Tabs",
+      "canonical": "https://www.note2tabs.com/zh-hans/features/guitar-tab-practice-trainer",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Générateur de tablatures de guitare par IA | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/transcribe",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Transcription audio en tablature de guitare | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/transcribe",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/pricing",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Tarifs | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/pricing",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/editor",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Éditeur de tablatures de guitare en ligne – Écrivez, jouez et travaillez | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/about",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "À propos de Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/about",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/contact",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Contacter Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/contact",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/terms",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Conditions d'utilisation: Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/terms",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/privacy",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Politique de confidentialité | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/privacy",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/affiliate-program",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Note2Tabs Programme d'affiliation",
+      "canonical": "https://www.note2tabs.com/fr/affiliate-program",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/internship-application",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Candidature de stage | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/internship-application",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/features",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Outils et fonctions de l’éditeur de tablatures | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/features",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/audio-to-guitar-tab-converter",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Convertisseur audio en tablatures de guitare – MP3, WAV et autres formats",
+      "canonical": "https://www.note2tabs.com/fr/audio-to-guitar-tab-converter",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/mp3-to-guitar-tabs",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Convertisseur MP3 en tablatures de guitare – En ligne et modifiables",
+      "canonical": "https://www.note2tabs.com/fr/mp3-to-guitar-tabs",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/youtube-to-guitar-tabs",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Convertisseur YouTube en tablatures de guitare | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/youtube-to-guitar-tabs",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/ai-guitar-tab-generator",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Générateur gratuit de tablatures de guitare par IA | Audio et YouTube",
+      "canonical": "https://www.note2tabs.com/fr/ai-guitar-tab-generator",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/free-guitar-tab-maker",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Créateur de tablatures de guitare gratuit | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/free-guitar-tab-maker",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/online-guitar-tab-editor",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Éditeur de tablatures de guitare en ligne – Écrivez, jouez et travaillez | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/auth/signup",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Créer un compte | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/auth/signup",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/auth/login",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Connexion | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/auth/login",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/auth/verify-email",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Confirmer mon adresse e-mail | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/auth/verify-email",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/reset-password",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Réinitialiser mon mot de passe | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/reset-password",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Optimiseur de doigtés pour tablatures de guitare | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/features/guitar-tab-fingering-optimizer",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/features/guitar-tab-key-detector",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Détecteur de tonalité et ajustement des notes | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/features/guitar-tab-key-detector",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Éditeur d’accords et de rythmiques de guitare | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/features/guitar-chord-strumming-editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Éditeur de tablatures de guitare avec raccourcis | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/features/guitar-tab-editor-shortcuts",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/features/guitar-tab-import-export",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Importation et exportation de tablatures de guitare | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/features/guitar-tab-import-export",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "fr",
+      "path": "/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "html": "<html lang=\"fr\" dir=\"ltr\">",
+      "title": "Entraînement et progression de vitesse sur tablature | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/fr/features/guitar-tab-practice-trainer",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Generatore di tablature per chitarra con IA | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/transcribe",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Trascrizione audio in tablature per chitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/transcribe",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/pricing",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Prezzi | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/pricing",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/editor",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Editor di tablature per chitarra online – Scrivi, suona ed esercitati | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/about",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Informazioni su Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/about",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/contact",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Contatta Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/contact",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/terms",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Termini di servizio | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/terms",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/privacy",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Informativa sulla privacy | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/privacy",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/affiliate-program",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Programma di affiliazione Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/affiliate-program",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/internship-application",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Candidatura per tirocinio | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/internship-application",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/features",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Strumenti e funzioni dell’editor di tablature | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/features",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/audio-to-guitar-tab-converter",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Convertitore audio in tablature per chitarra – MP3, WAV e altri formati",
+      "canonical": "https://www.note2tabs.com/it/audio-to-guitar-tab-converter",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/mp3-to-guitar-tabs",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Convertitore MP3 in tablature per chitarra – Online e modificabili",
+      "canonical": "https://www.note2tabs.com/it/mp3-to-guitar-tabs",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/youtube-to-guitar-tabs",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Convertitore da YouTube a tablature per chitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/youtube-to-guitar-tabs",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/ai-guitar-tab-generator",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Generatore IA gratuito di tablature per chitarra | Audio e YouTube",
+      "canonical": "https://www.note2tabs.com/it/ai-guitar-tab-generator",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/free-guitar-tab-maker",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Crea tablature per chitarra gratis | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/free-guitar-tab-maker",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/online-guitar-tab-editor",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Editor di tablature per chitarra online – Scrivi, suona ed esercitati | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/auth/signup",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Crea un account | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/auth/signup",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/auth/login",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Accedi | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/auth/login",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/auth/verify-email",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Conferma il tuo indirizzo e-mail | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/auth/verify-email",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/reset-password",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Reimposta la password | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/reset-password",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/features/guitar-tab-fingering-optimizer",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Ottimizzatore di diteggiature per tablature di chitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/features/guitar-tab-fingering-optimizer",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/features/guitar-tab-key-detector",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Rilevatore di tonalità e adattamento delle note | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/features/guitar-tab-key-detector",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/features/guitar-chord-strumming-editor",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Editor di accordi e ritmiche per chitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/features/guitar-chord-strumming-editor",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/features/guitar-tab-editor-shortcuts",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Editor di tablature per chitarra con scorciatoie | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/features/guitar-tab-editor-shortcuts",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/features/guitar-tab-import-export",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Importazione ed esportazione di tablature per chitarra | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/features/guitar-tab-import-export",
+      "robots": "noindex, follow",
+      "issues": []
+    },
+    {
+      "locale": "it",
+      "path": "/features/guitar-tab-practice-trainer",
+      "status": 200,
+      "html": "<html lang=\"it\" dir=\"ltr\">",
+      "title": "Esercizio e allenamento della velocità con tablature | Note2Tabs",
+      "canonical": "https://www.note2tabs.com/it/features/guitar-tab-practice-trainer",
+      "robots": "noindex, follow",
+      "issues": []
+    }
+  ]
+}

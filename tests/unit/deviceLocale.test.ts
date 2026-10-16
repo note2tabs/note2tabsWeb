@@ -11,7 +11,7 @@ describe("device language detection", () => {
     ["pt-BR,pt;q=0.9,en;q=0.8", "pt-BR"], ["pt-PT", "pt-BR"],
     ["es-MX,es;q=0.9,en;q=0.8", "es"], ["es-ES", "es"],
     ["en-US,es;q=0.8", "en"], ["es;q=0.5,en;q=0.9", "en"],
-    ["fr,es;q=0.8", "es"], ["es;q=0,en", "en"],
+    ["fr,es;q=0.8", "fr"], ["es;q=0,en", "en"],
     ["es;q=invalid,pt-BR;q=0.7", "pt-BR"], ["de-DE", "en"], ["", "en"],
   ])("uses the highest-priority supported device language: %s", (header, locale) => {
     expect(deviceLocale(header, available)).toBe(locale);

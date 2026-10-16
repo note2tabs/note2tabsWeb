@@ -77,6 +77,6 @@ export const config = {
     "/settings", "/home", "/shared", "/tabs/:path*", "/account", "/history", "/affiliate", "/auth/:path*", "/reset-password/:path*", "/job/:path*", "/premium/welcome", "/email/:path*",
     "/affiliate-program", "/internship-application", "/features/:path*", "/blog/:path*",
     "/audio-to-guitar-tab-converter", "/mp3-to-guitar-tabs", "/youtube-to-guitar-tabs", "/ai-guitar-tab-generator", "/free-guitar-tab-maker",
-    "/pt-br/:path*", "/es/:path*", "/ja/:path*", "/ko/:path*", "/pl/:path*", "/ar/:path*", "/zh-hans/:path*",
+    "/fr/:path*", "/it/:path*", "/pt-br/:path*", "/es/:path*", "/ja/:path*", "/ko/:path*", "/pl/:path*", "/ar/:path*", "/zh-hans/:path*",
   ],
 };

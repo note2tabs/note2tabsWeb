@@ -1,0 +1,162 @@
+[
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"en\",\"path\":\"/pricing\",\"width\":390,\"scrollWidth\":390,\"dir\":\"ltr\",\"overflow\":[]}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"en\",\"path\":\"/transcribe\",\"width\":390,\"scrollWidth\":390,\"dir\":\"ltr\",\"overflow\":[]}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"pt-BR\",\"path\":\"/pt-br/pricing\",\"width\":390,\"scrollWidth\":390,\"dir\":\"ltr\",\"overflow\":[]}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"pt-BR\",\"path\":\"/pt-br/transcribe\",\"width\":390,\"scrollWidth\":390,\"dir\":\"ltr\",\"overflow\":[]}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"es\",\"path\":\"/es/pricing\",\"width\":390,\"scrollWidth\":390,\"dir\":\"ltr\",\"overflow\":[]}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"es\",\"path\":\"/es/transcribe\",\"width\":390,\"scrollWidth\":390,\"dir\":\"ltr\",\"overflow\":[]}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"ja\",\"path\":\"/ja/pricing\",\"width\":390,\"scrollWidth\":390,\"dir\":\"ltr\",\"overflow\":[]}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"ja\",\"path\":\"/ja/transcribe\",\"width\":390,\"scrollWidth\":390,\"dir\":\"ltr\",\"overflow\":[]}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"ko\",\"path\":\"/ko/pricing\",\"width\":390,\"scrollWidth\":390,\"dir\":\"ltr\",\"overflow\":[]}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"ko\",\"path\":\"/ko/transcribe\",\"width\":390,\"scrollWidth\":390,\"dir\":\"ltr\",\"overflow\":[]}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"pl\",\"path\":\"/pl/pricing\",\"width\":390,\"scrollWidth\":390,\"dir\":\"ltr\",\"overflow\":[]}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"pl\",\"path\":\"/pl/transcribe\",\"width\":390,\"scrollWidth\":390,\"dir\":\"ltr\",\"overflow\":[]}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"ar\",\"path\":\"/ar/pricing\",\"width\":390,\"scrollWidth\":390,\"dir\":\"rtl\",\"overflow\":[]}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"ar\",\"path\":\"/ar/transcribe\",\"width\":390,\"scrollWidth\":390,\"dir\":\"rtl\",\"overflow\":[]}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"zh-Hans\",\"path\":\"/zh-hans/pricing\",\"width\":390,\"scrollWidth\":390,\"dir\":\"ltr\",\"overflow\":[]}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"zh-Hans\",\"path\":\"/zh-hans/transcribe\",\"width\":390,\"scrollWidth\":390,\"dir\":\"ltr\",\"overflow\":[]}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"fr\",\"path\":\"/fr/pricing\",\"width\":390,\"scrollWidth\":390,\"dir\":\"ltr\",\"overflow\":[]}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"fr\",\"path\":\"/fr/transcribe\",\"width\":390,\"scrollWidth\":390,\"dir\":\"ltr\",\"overflow\":[]}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"it\",\"path\":\"/it/pricing\",\"width\":390,\"scrollWidth\":390,\"dir\":\"ltr\",\"overflow\":[]}\n```"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Script ran on page and returned:\n```json\n{\"locale\":\"it\",\"path\":\"/it/transcribe\",\"width\":390,\"scrollWidth\":390,\"dir\":\"ltr\",\"overflow\":[]}\n```"
+      }
+    ]
+  }
+]

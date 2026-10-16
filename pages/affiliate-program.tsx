@@ -80,12 +80,12 @@ export default function AffiliateProgramPage() {
             <article>
               <strong>{DEFAULT_AFFILIATE_TERMS.commissionPercent}{t("%")}</strong>
               <h3>{t("You earn")}</h3>
-              <p>{t("Commission on a referred customer’s first ")}{DEFAULT_AFFILIATE_TERMS.commissionMonths} {t(" qualifying payments.")}</p>
+              <p>{t("Commission on a referred customer’s first {count} qualifying payments.", {count: DEFAULT_AFFILIATE_TERMS.commissionMonths})}</p>
             </article>
             <article>
               <strong>{DEFAULT_AFFILIATE_TERMS.discountPercent}{t("%")}</strong>
               <h3>{t("Your audience saves")}</h3>
-              <p>{t("On their first ")}{DEFAULT_AFFILIATE_TERMS.discountMonths} {t(" billing periods with your code.")}</p>
+              <p>{t("On their first {count} billing periods with your code.", {count: DEFAULT_AFFILIATE_TERMS.discountMonths})}</p>
             </article>
           </section>
 

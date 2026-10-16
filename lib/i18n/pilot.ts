@@ -48,3 +48,9 @@ export const withSpanishStaticPage = <P extends Record<string, unknown>>(loader:
 
 export const withJapanesePilot = <P extends Record<string, unknown>>(loader?: GetServerSideProps<P>) => withLocalizedPilot("ja", loader);
 export const withJapaneseStaticPage = <P extends Record<string, unknown>>(loader: GetStaticProps<P>) => withLocalizedStaticPage("ja", loader);
+
+export const withFrenchPilot = <P extends Record<string, unknown>>(loader?: GetServerSideProps<P>) => withLocalizedPilot("fr", loader);
+export const withFrenchStaticPage = <P extends Record<string, unknown>>(loader: GetStaticProps<P>) => withLocalizedStaticPage("fr", loader);
+
+export const withItalianPilot = <P extends Record<string, unknown>>(loader?: GetServerSideProps<P>) => withLocalizedPilot("it", loader);
+export const withItalianStaticPage = <P extends Record<string, unknown>>(loader: GetStaticProps<P>) => withLocalizedStaticPage("it", loader);

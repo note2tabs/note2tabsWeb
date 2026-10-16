@@ -1,0 +1,455 @@
+{
+  "method": "Actual components rendered to static local UTF-8 fixtures with compiled application CSS, 390px viewport. Layout only; no API calls or transcription. Component variants covered separately by unit tests.",
+  "checks": [
+    {
+      "lang": "en",
+      "path": "/__qa/en/intro",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "en",
+      "path": "/__qa/en/offer",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "en",
+      "path": "/__qa/en/upgrade",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "en",
+      "path": "/__qa/en/preview",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "en",
+      "path": "/__qa/en/paid",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "pt-BR",
+      "path": "/__qa/pt-BR/intro",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "pt-BR",
+      "path": "/__qa/pt-BR/offer",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "pt-BR",
+      "path": "/__qa/pt-BR/upgrade",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "pt-BR",
+      "path": "/__qa/pt-BR/preview",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "pt-BR",
+      "path": "/__qa/pt-BR/paid",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "es",
+      "path": "/__qa/es/intro",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "es",
+      "path": "/__qa/es/offer",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "es",
+      "path": "/__qa/es/upgrade",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "es",
+      "path": "/__qa/es/preview",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "es",
+      "path": "/__qa/es/paid",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "ja",
+      "path": "/__qa/ja/intro",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "ja",
+      "path": "/__qa/ja/offer",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "ja",
+      "path": "/__qa/ja/upgrade",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "ja",
+      "path": "/__qa/ja/preview",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "ja",
+      "path": "/__qa/ja/paid",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "ko",
+      "path": "/__qa/ko/intro",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "ko",
+      "path": "/__qa/ko/offer",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "ko",
+      "path": "/__qa/ko/upgrade",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "ko",
+      "path": "/__qa/ko/preview",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "ko",
+      "path": "/__qa/ko/paid",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "pl",
+      "path": "/__qa/pl/intro",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "pl",
+      "path": "/__qa/pl/offer",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "pl",
+      "path": "/__qa/pl/upgrade",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "pl",
+      "path": "/__qa/pl/preview",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "pl",
+      "path": "/__qa/pl/paid",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "ar",
+      "path": "/__qa/ar/intro",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "ar",
+      "path": "/__qa/ar/offer",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "ar",
+      "path": "/__qa/ar/upgrade",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "ar",
+      "path": "/__qa/ar/preview",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "ar",
+      "path": "/__qa/ar/paid",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "zh-Hans",
+      "path": "/__qa/zh-Hans/intro",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "zh-Hans",
+      "path": "/__qa/zh-Hans/offer",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "zh-Hans",
+      "path": "/__qa/zh-Hans/upgrade",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "zh-Hans",
+      "path": "/__qa/zh-Hans/preview",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "zh-Hans",
+      "path": "/__qa/zh-Hans/paid",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "fr",
+      "path": "/__qa/fr/intro",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "fr",
+      "path": "/__qa/fr/offer",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "fr",
+      "path": "/__qa/fr/upgrade",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "fr",
+      "path": "/__qa/fr/preview",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "fr",
+      "path": "/__qa/fr/paid",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "it",
+      "path": "/__qa/it/intro",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "it",
+      "path": "/__qa/it/offer",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "it",
+      "path": "/__qa/it/upgrade",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "it",
+      "path": "/__qa/it/preview",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    },
+    {
+      "lang": "it",
+      "path": "/__qa/it/paid",
+      "encoding": "UTF-8",
+      "width": 390,
+      "scroll": 390,
+      "overflow": [],
+      "outside": []
+    }
+  ]
+}

@@ -1284,7 +1284,7 @@ export default function JobPage() {
             </div>
             {!showReviewUi && (
               <button type="button" onClick={() => void router.push("/")} className="button-ghost button-small">
-                Back
+                {t("Back")}
               </button>
             )}
           </div>
