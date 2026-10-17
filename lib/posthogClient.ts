@@ -1,3 +1,4 @@
+import { resetAnalyticsIdentity } from "./analyticsV2";
 import { localeAnalytics, stripLocale } from "./i18n/locale";
 type PostHogClient = import("posthog-js").PostHog;
 type PostHogProperties = Record<string, unknown>;
@@ -332,6 +333,7 @@ export function resetPostHogIdentity() {
 
   markIdentityResetPending();
   identityResetPromise = (async () => {
+    await resetAnalyticsIdentity();
     // reset() clears PostHog's opt-out value. Leave the persistent reset
     // marker in place until analytics is permitted again instead.
     if (trackingIsDisabled()) return;
@@ -405,6 +407,7 @@ export async function setPostHogConsent(state: "granted" | "denied") {
   markIdentityResetPending();
   const posthog = client || (await initPostHog({ ignoreDeniedConsent: true }));
   if (posthog) {
+    await resetAnalyticsIdentity();
     // reset() clears PostHog's own consent value, so opt out must be last.
     posthog.reset();
     posthog.opt_out_capturing();

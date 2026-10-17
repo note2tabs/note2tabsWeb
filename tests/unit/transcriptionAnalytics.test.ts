@@ -125,3 +125,19 @@ describe("durable transcription analytics", () => {
     expect(mocks.update).not.toHaveBeenCalled();
   });
 });
+
+describe("transcription correctness regressions",()=>{
+  it("does not misclassify the legacy Medium model as new Small",()=>{
+    const medium=structuredClone(job);medium.analytics.properties.transcription_backend_method="yourmt3";
+    const names=transcriptionLifecycleEvents(medium).map(e=>e.name);
+    expect(names).toContain("transcription_started_medium_model");expect(names).not.toContain("transcription_started_msmodel_small");
+  });
+  it("does not mark an unacknowledged batch delivered",async()=>{
+    mocks.query.mockResolvedValue([structuredClone(job)]);mocks.configured.mockReturnValue(true);mocks.update.mockClear();mocks.ingest.mockResolvedValue({ok:true,reason:"posthog_not_configured"});
+    await expect(deliverTranscriptionAnalytics()).rejects.toThrow("not acknowledged");expect(mocks.update).not.toHaveBeenCalled();
+  });
+  it("keeps browser fallback disabled when a job was already registered",async()=>{
+    vi.stubEnv("NODE_ENV","production");vi.stubEnv("VERCEL_ENV","production");mocks.configured.mockReturnValue(true);mocks.update.mockResolvedValue(0);mocks.query.mockResolvedValueOnce([{pool:null}]).mockResolvedValueOnce([{tracked:true}]);
+    try{expect(await registerTranscriptionAnalytics({req:{headers:{}} as any,jobId:"job",userId:"owner",model:"light",durationSec:10,mode:"FILE",plan:"FREE",accessType:"free",preview:false,creditsUsed:1})).toBe(true);}finally{vi.unstubAllEnvs();}
+  });
+});

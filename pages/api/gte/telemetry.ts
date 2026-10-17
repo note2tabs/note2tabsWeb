@@ -7,6 +7,7 @@ import { attachFunctionTiming } from "../../../lib/functionTiming";
 type TelemetryBody = {
   event?: GteAnalyticsEvent;
   eventId?: string;
+  anonId?: string;
   editorId?: string;
   sessionId?: string;
   durationSec?: number;
@@ -98,6 +99,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       userId: session?.user?.id || null,
       event,
       eventId: typeof body.eventId === "string" && body.eventId.length <= 100 ? body.eventId : undefined,
+      anonId: typeof body.anonId === "string" && body.anonId.length <= 100 ? body.anonId : undefined,
       path,
       sessionId,
       timestamp: typeof body.ts === "string" ? body.ts : undefined,

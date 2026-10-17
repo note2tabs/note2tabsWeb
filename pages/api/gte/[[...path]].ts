@@ -300,7 +300,7 @@ async function maybeLogGteAnalyticsEvent(input: {
 }) {
   try {
     const analytics = await import("../../../lib/gteAnalytics");
-    await analytics.logGteAnalyticsEvent(input);
+    await analytics.logGteAnalyticsEvent({...input,recoverDurably:true});
   } catch {
     // Keep the GTE proxy independent from analytics/Prisma failures.
   }

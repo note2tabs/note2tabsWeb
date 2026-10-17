@@ -748,3 +748,12 @@ model AccountLanguage {
   updatedAt DateTime @default(now())
   user User @relation(fields: [accountId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }
+
+// Low-volume server business events only. Browser events and job lifecycle
+// already have their own retry queues; never mirror all PostHog events here.
+model AnalyticsDeliveryOutbox {
+  id          String    @id
+  payload     Json
+  createdAt   DateTime  @default(now()) @db.Timestamptz(6)
+  deliveredAt DateTime? @db.Timestamptz(6)
+}

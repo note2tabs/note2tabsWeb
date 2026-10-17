@@ -1,3 +1,6 @@
+import { trackTabShareEmailSignup } from "../../../lib/tabShareAnalyticsServer";
+import type { NextApiRequest, NextApiResponse } from "next";
+import { trackCreatedAccount } from "../../../lib/signupAnalytics";
 import NextAuth, { type NextAuthOptions } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import GoogleProvider from "next-auth/providers/google";
@@ -76,6 +79,7 @@ const providers: NextAuthOptions["providers"] = [
           await linkIdentityToUser({
             userId: user.id,
             source: "login",
+            req: {headers:{cookie:req.headers?.cookie}} as NextApiRequest,
             anonId: cookies.analytics_anon,
             sessionId: cookies.analytics_session,
             consent: cookies.analytics_consent,
@@ -237,4 +241,22 @@ export const authOptions: NextAuthOptions = {
   },
 };
 
-export default NextAuth(authOptions);
+export default function authHandler(req: NextApiRequest, res: NextApiResponse) {
+  return NextAuth(req,res,{...authOptions,events:{...authOptions.events,
+    async createUser({user}) {
+      try {
+        const createdAt = (user as typeof user & {createdAt?:Date}).createdAt;
+        const account = createdAt ? {id:user.id,createdAt} : await prisma.user.findUnique({where:{id:user.id},select:{id:true,createdAt:true}});
+        if(account) {
+          await trackCreatedAccount(req,account,"google");
+          const cookies = parseCookieHeader(req.headers.cookie);
+          const callback = cookies["__Secure-next-auth.callback-url"] || cookies["next-auth.callback-url"];
+          if(callback) {
+            const destination = new URL(callback,"https://note2tabs.invalid");
+            await trackTabShareEmailSignup({userId:user.id,method:"google",returnTo:destination.pathname+destination.search,req});
+          }
+        }
+      } catch { console.warn("oauth_signup_analytics_delivery_pending"); }
+    },
+  }});
+}

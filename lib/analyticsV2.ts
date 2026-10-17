@@ -1,3 +1,5 @@
+import { createAnalyticsQueue, clearAnalyticsQueues, flushAnalyticsQueues, newAnalyticsEventId as randomId } from "./analyticsQueue";
+import { businessEventIdentity, clearBusinessEventIdentities } from "./analyticsBusinessEvent";
 import { localeAnalytics } from "./i18n/locale";
 import { generateFingerprint } from "./fingerprint";
 import {
@@ -32,8 +34,6 @@ const QUEUE_MAX = 50;
 // and visibilitychange still flush immediately, so navigation delivery is unchanged.
 const FLUSH_MS = 60_000;
 
-let queue: CanonicalEvent[] = [];
-let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let fingerprintPromise: Promise<string | undefined> | null = null;
 let resolvedFingerprintId: string | undefined;
 
@@ -53,18 +53,6 @@ function setCookie(name: string, value: string, maxAgeSec: number) {
 function deleteCookie(name: string) {
   if (typeof document === "undefined") return;
   document.cookie = `${name}=; Max-Age=0; expires=${new Date(0).toUTCString()}; path=/; SameSite=Lax`;
-}
-
-function randomId() {
-  try {
-    return crypto.randomUUID();
-  } catch {
-    const bytes = new Uint8Array(16);
-    crypto.getRandomValues(bytes);
-    return Array.from(bytes)
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-  }
 }
 
 function shouldTrack() {
@@ -107,21 +95,13 @@ async function getFingerprintId() {
   return fingerprintPromise;
 }
 
-function scheduleFlush() {
-  if (flushTimer) return;
-  flushTimer = setTimeout(() => {
-    flushTimer = null;
-    void flush("timer");
-  }, FLUSH_MS);
-}
-
 async function postEvents(events: CanonicalEvent[], mode: "fetch" | "beacon") {
-  if (!events.length) return;
+  if (!events.length) return true;
   const payload = JSON.stringify({ events });
 
   if (mode === "beacon" && typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
     const blob = new Blob([payload], { type: "application/json" });
-    if (navigator.sendBeacon("/api/analytics/ingest", blob)) return;
+    if (navigator.sendBeacon("/api/analytics/ingest", blob)) return false;
   }
 
   const response = await fetch("/api/analytics/ingest", {
@@ -130,22 +110,16 @@ async function postEvents(events: CanonicalEvent[], mode: "fetch" | "beacon") {
     body: payload,
     keepalive: true,
   });
-  if (!response.ok) throw new Error("Analytics delivery failed");
+  if (!response.ok && (response.status >= 500 || response.status === 429 || !response.status)) throw new Error("Analytics delivery failed");
+  return true;
 }
 
+const delivery = createAnalyticsQueue<CanonicalEvent>({
+  key: "n2t:analytics-pending:v1", batchSize: QUEUE_MAX, delay: FLUSH_MS,
+  allowed: shouldTrack, id: e => e.event_id, timestamp: e => e.ts, send: postEvents,
+});
 export async function flush(reason: "timer" | "manual" | "pagehide" = "manual") {
-  if (!queue.length) return;
-  const pending = queue.splice(0, QUEUE_MAX);
-  try {
-    await postEvents(pending, reason === "pagehide" ? "beacon" : "fetch");
-  } catch {
-    // Reuse the same UUID and timestamp when retrying failed delivery.
-    if (shouldTrack()) {
-      queue = [...pending, ...queue].slice(0, QUEUE_MAX * 4);
-      scheduleFlush();
-    }
-  }
-  if (queue.length) scheduleFlush();
+  await delivery.flush(reason === "pagehide" ? "beacon" : "fetch");
 }
 
 export async function track(name: string, props: EventProps = {}) {
@@ -164,11 +138,12 @@ export async function track(name: string, props: EventProps = {}) {
     ...props,
   });
 
+  const businessIdentity = businessEventIdentity(name, props);
   const event: CanonicalEvent = {
-    event_id: randomId(),
+    event_id: businessIdentity.event_id || randomId(),
     schema_version: 2,
     name,
-    ts: new Date().toISOString(),
+    ts: businessIdentity.ts || new Date().toISOString(),
     props: eventProps,
     path: sanitizeAnalyticsPathname(window.location.pathname),
     referrer: document.referrer
@@ -179,12 +154,7 @@ export async function track(name: string, props: EventProps = {}) {
     fingerprint_id: resolvedFingerprintId,
   };
 
-  queue.push(event);
-  if (queue.length >= QUEUE_MAX) {
-    void flush("manual");
-    return;
-  }
-  scheduleFlush();
+  await delivery.enqueue(event);
 }
 
 export function trackPageView(path?: string) {
@@ -219,12 +189,26 @@ export function trackGteSessionEnded(props: EventProps = {}) {
   void track("gte_session_ended", props);
 }
 
+export function getAnalyticsOwnerId() {
+  try { const owner = JSON.parse(getCookie("analytics_owner") || "null"); return owner?.anonId === getCookie(ANALYTICS_ANON_COOKIE) && typeof owner?.userId === "string" ? owner.userId as string : null; }
+  catch { return null; }
+}
+
+export async function resetAnalyticsIdentity() {
+  await flushAnalyticsQueues();
+  if (!shouldTrack()) return;
+  deleteCookie("analytics_owner");
+  deleteCookie(ANALYTICS_ANON_COOKIE);
+  deleteCookie(ANALYTICS_SESSION_COOKIE);
+  if (shouldTrack()) ensureIds();
+}
+
 export function setAnalyticsConsent(state: "granted" | "denied") {
   setCookie(ANALYTICS_CONSENT_COOKIE, state, 365 * 24 * 60 * 60);
   if (state === "denied") {
-    queue = [];
-    if (flushTimer) clearTimeout(flushTimer);
-    flushTimer = null;
+    clearBusinessEventIdentities();
+    clearAnalyticsQueues();
+    deleteCookie("analytics_owner");
     deleteCookie(ANALYTICS_ANON_COOKIE);
     deleteCookie(ANALYTICS_SESSION_COOKIE);
     deleteCookie(ANALYTICS_ATTRIBUTION_COOKIE);

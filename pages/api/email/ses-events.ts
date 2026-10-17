@@ -1,14 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import crypto from "crypto";
 import { prisma } from "../../../lib/prisma";
-import { createPostHogServerClient } from "../../../lib/posthogServer";
+import { createPostHogIngestClient, stablePostHogEventUuid } from "../../../lib/posthogServer";
 import { blockTabShareEmails } from "../../../lib/tabShareEmailPreferences";
 import { reminderDeliverySuppressionIdentifier } from "../../../lib/reminderUnsubscribe";
 
 type SesNotification = {
   eventType?: "Delivery" | "Bounce" | "Complaint";
   notificationType?: "Delivery" | "Bounce" | "Complaint";
-  mail?: { messageId?: string; destination?: string[]; tags?: Record<string, string[]> };
+  mail?: { timestamp?: string; messageId?: string; destination?: string[]; tags?: Record<string, string[]> };
   bounce?: { bounceType?: string; bounceSubType?: string; bouncedRecipients?: Array<{ emailAddress?: string }> };
   complaint?: { complaintFeedbackType?: string; complainedRecipients?: Array<{ emailAddress?: string }> };
 };
@@ -64,7 +64,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         : null;
   if (!event) return res.status(200).json({ ok: true, ignored: true });
 
-  const posthog = createPostHogServerClient();
+  const posthog = createPostHogIngestClient();
+  const notificationTime = new Date(envelope.Timestamp || notification.mail?.timestamp || "");
+  if (!Number.isFinite(notificationTime.getTime())) return res.status(400).json({ error: "Missing notification timestamp" });
   for (const email of recipients(notification)) {
     if (isTabShare && (notificationType === "Complaint" || (notificationType === "Bounce" && notification.bounce?.bounceType === "Permanent"))) {
       await blockTabShareEmails(email);
@@ -89,6 +91,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     posthog?.capture({
       distinctId: user?.id || `unknown-email:${crypto.createHash("sha256").update(email).digest("hex").slice(0, 24)}`,
       event,
+      uuid: stablePostHogEventUuid(`${event}:${notification.mail?.messageId || envelope.MessageId}:${email}`),
+      timestamp: notificationTime,
+      disableGeoip: true,
       properties: {
         email_category: category,
         bounce_type: notification.bounce?.bounceType,

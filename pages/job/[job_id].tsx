@@ -13,7 +13,7 @@ import { isLocalNoDbClientMode } from "../../lib/clientDevMode";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup, type TranscriberTrack } from "../../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../../lib/gteGuestDraft";
 import { saveJobToHistory } from "../../lib/history";
-import { ANALYTICS_EVENTS, sendEvent } from "../../lib/analytics";
+import { ANALYTICS_EVENTS, sendEvent, getEditorImportFailureEvent } from "../../lib/analytics";
 import { normalizeTabSegments, tabSegmentsToStamps, tabsToTabText } from "../../lib/tabTextToStamps";
 import { getAppBaseUrl } from "../../lib/urls";
 import NoIndexHead from "../../components/NoIndexHead";
@@ -1128,6 +1128,7 @@ export default function JobPage() {
     };
     sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportStarted, eventProperties);
     const importStartedAt = Date.now();
+    let importPersisted = false;
     try {
       const result = await performJobImportToEditor(jobToImport, targetEditorChoice, quantize);
       if (!result) {
@@ -1137,6 +1138,7 @@ export default function JobPage() {
         });
         return false;
       }
+      importPersisted = true;
       sendEvent(ANALYTICS_EVENTS.transcriptionImportedToEditor, {
         ...eventProperties,
         target: result.target,
@@ -1147,7 +1149,7 @@ export default function JobPage() {
       await router.push(result.href);
       return true;
     } catch (error: any) {
-      sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportFailed, {
+      sendEvent(getEditorImportFailureEvent(importPersisted), {
         ...eventProperties,
         error_code: categorizeAnalyticsError(error, "editor_import_failed"),
         import_elapsed_sec: (Date.now() - importStartedAt) / 1000,

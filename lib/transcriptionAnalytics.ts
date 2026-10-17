@@ -78,7 +78,9 @@ export async function registerTranscriptionAnalytics(input: {
     WHERE id = ${input.jobId} AND "userId" = ${input.userId}
       AND NOT (input ? 'transcriptionAnalytics')
   `;
-  return updated > 0;
+  if (updated > 0) return true;
+  // An already registered job remains server-owned on repeated acceptance.
+  return Boolean((await getServerTranscriptionAnalytics(input.jobId, input.userId))?.tracked);
 }
 
 export async function getServerTranscriptionAnalytics(jobId: string, userId: string) {
@@ -99,7 +101,7 @@ export async function getServerTranscriptionAnalytics(jobId: string, userId: str
 
 export function transcriptionLifecycleEvents(job: AnalyticsJob) {
   const properties = job.analytics.properties;
-  const model: TranscriptionModelChoice = properties.transcription_backend_method === "msmodel" ? "super_heavy" : "light";
+  const model: TranscriptionModelChoice = properties.transcription_backend_method === "msmodel" ? "super_heavy" : properties.transcription_backend_method === "yourmt3" ? "heavy" : "light";
   const events: Array<{ name: string; ts: string; event_id: string; props: Record<string, unknown> }> = [];
   const add = (name: string, date: Date, extras: Record<string, unknown> = {}) => {
     events.push({ name, ts: date.toISOString(), event_id: `${name}:${job.id}`, props: { ...properties, ...extras } });
@@ -139,11 +141,12 @@ export async function deliverTranscriptionAnalytics() {
     const batch = transcriptionLifecycleEvents(job);
     if (!batch.length) continue;
     // The UUID, timestamp, event name and owner stay fixed across retries.
-    await ingestAnalyticsEvents({
+    const deliveredResult = await ingestAnalyticsEvents({
       accountId: job.userId, cookies: {}, source: "transcription_job_outbox",
       geo: job.analytics.geo,
       body: { events: batch.map(event => ({ ...event, session_id: job.analytics.sessionId, anon_id: job.analytics.anonId })) },
     });
+    if (deliveredResult.reason || deliveredResult.ok === false) throw new Error("Transcription analytics delivery not acknowledged");
     const delivered = {
       ...job.analytics, startDelivered: true,
       terminalDelivered: Boolean(job.finishedAt && ["succeeded", "failed"].includes(job.status)),

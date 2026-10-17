@@ -1,3 +1,4 @@
+import { trackCreatedAccount } from "../../../lib/signupAnalytics";
 import { saveAccountLanguage } from "../../../lib/i18n/accountLanguage";
 import { requestLocale } from "../../../lib/i18n/request";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -48,6 +49,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } as any,
     });
 
+    try { await trackCreatedAccount(req, user, "email"); }
+    catch { console.warn("signup_analytics_delivery_pending"); }
+
     try {
       const clickId = affiliateClickIdFromRequest(req);
       const affiliateCode = affiliateCodeFromRequest(req);
@@ -66,6 +70,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             distinctId: user.id,
             event: "affiliate_signup_completed",
             insertId: `affiliate-signup:${user.id}`,
+            occurredAt: user.createdAt,
             properties: {
               affiliate_id: affiliate.id,
               affiliate_code: affiliate.code,

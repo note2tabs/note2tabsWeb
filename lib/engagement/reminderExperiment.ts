@@ -114,6 +114,8 @@ async function dispatchEngagementReminders(req: NextApiRequest, res: NextApiResp
       await finishEngagementContact(user.id, contactId, "uncertain");
     }
   }
-  captureReminderRun(createPostHogServerClient(),{scheduler:campaign === "signup" ? "inactive_signup" : "tab_return",startedAt,scanned:counts.scanned,batchSize:100,eligible:counts.assigned,sent:counts.sent,failed:counts.failed,dryRun:req.query.dryRun === "1"});
+  const monitoring = createPostHogServerClient();
+  captureReminderRun(monitoring,{scheduler:campaign === "signup" ? "inactive_signup" : "tab_return",startedAt,scanned:counts.scanned,batchSize:100,eligible:counts.assigned,sent:counts.sent,failed:counts.failed,dryRun:req.query.dryRun === "1"});
+  if (monitoring) await monitoring.flush().catch(() => { console.warn("reminder_monitoring_delivery_failed"); });
   return res.status(200).json({ mode: req.query.dryRun === "1" ? "dry_run" : "experiment", ...counts });
 }

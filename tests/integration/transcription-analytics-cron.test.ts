@@ -13,7 +13,7 @@ describe("authenticated analytics scheduler endpoint", () => {
   it("delivers only for the scheduler's dedicated secret", async () => {
     vi.stubEnv("TRANSCRIPTION_ANALYTICS_CRON_SECRET", "secret"); deliver.mockResolvedValue({ jobs: 2, events: 8 });
     const { req, res } = createMocks({ method: "POST", headers: { authorization: "Bearer secret" } });
-    await handler(req as any, res as any); expect(res.statusCode).toBe(200); expect(res._getJSONData()).toEqual({ jobs: 2, events: 8 });
+    await handler(req as any, res as any); expect(res.statusCode).toBe(200); expect(res._getJSONData()).toEqual({ jobs: 2, events: 8, businessEventsRetried: 0 });
   });
   it("returns a retryable response when PostHog delivery fails", async () => {
     vi.stubEnv("TRANSCRIPTION_ANALYTICS_CRON_SECRET", "secret"); deliver.mockRejectedValue(new Error("Unavailable"));

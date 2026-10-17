@@ -1,3 +1,4 @@
+import { deletePostHogCapturesForAccount } from "../../../lib/posthogOutbox";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
@@ -63,6 +64,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
+    await deletePostHogCapturesForAccount(session.user.id);
     await prisma.tabJob.deleteMany({ where: { userId: session.user.id } });
     await prisma.canvases.deleteMany({ where: { user_id: session.user.id } });
     await prisma.account.deleteMany({ where: { userId: session.user.id } });

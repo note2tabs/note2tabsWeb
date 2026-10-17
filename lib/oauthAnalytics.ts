@@ -36,13 +36,13 @@ export function clearOAuthIntent() {
   }
 }
 
-export function takeOAuthIntent(): OAuthIntent | null {
+export function takeOAuthIntent(consume = true): OAuthIntent | null {
   const storage = getSessionStorage();
   if (!storage) return null;
   let raw: string | null = null;
   try {
     raw = storage.getItem(STORAGE_KEY);
-    storage.removeItem(STORAGE_KEY);
+    if (consume) storage.removeItem(STORAGE_KEY);
   } catch {
     return null;
   }

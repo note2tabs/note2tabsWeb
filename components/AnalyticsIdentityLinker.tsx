@@ -10,9 +10,8 @@ import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
 import { takeOAuthIntent } from "../lib/oauthAnalytics";
 import { categorizeAnalyticsDestination } from "../lib/analyticsPrivacy";
 import { getAcquisitionProperties } from "../lib/acquisitionAttribution";
-import { getAnalyticsTrackingIds } from "../lib/analyticsV2";
+import { getAnalyticsTrackingIds, getAnalyticsOwnerId, resetAnalyticsIdentity } from "../lib/analyticsV2";
 import { premiumFunnelProperties, readPremiumFunnelContext } from "../lib/premiumFunnel";
-import { isTabShareEmailDestination, TAB_SHARE_EMAIL_SOURCE } from "../lib/tabShareAnalytics";
 
 const IDENTITY_LINK_STORAGE_PREFIX = "note2tabs:analytics-identity-linked:";
 
@@ -46,10 +45,13 @@ export default function AnalyticsIdentityLinker() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
     const postHogConfigured = Boolean(process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN);
 
     const syncIdentity = async () => {
+      const proxyOwner = getAnalyticsOwnerId();
       if (status === "unauthenticated") {
+        if (proxyOwner) await resetAnalyticsIdentity();
         linkedIdentityRef.current = null;
         if (postHogConfigured && getPostHogIdentifiedUserId()) {
           await resetPostHogIdentity();
@@ -58,6 +60,8 @@ export default function AnalyticsIdentityLinker() {
       }
       if (status !== "authenticated" || !session?.user?.id) return;
 
+      if (proxyOwner && proxyOwner !== session.user.id) await resetAnalyticsIdentity();
+      if (cancelled) return;
       if (postHogConfigured) {
         const previouslyIdentifiedUserId = getPostHogIdentifiedUserId();
         if (
@@ -74,7 +78,7 @@ export default function AnalyticsIdentityLinker() {
           ...getAcquisitionProperties(),
         });
       }
-      const oauthIntent = takeOAuthIntent();
+      const pendingOAuthIntent = takeOAuthIntent(false);
       const trackingIds = getAnalyticsTrackingIds();
       const funnel = readPremiumFunnelContext();
       const identityLinkKey = `${session.user.id}:${trackingIds?.anonId || "no-anon"}`;
@@ -88,7 +92,7 @@ export default function AnalyticsIdentityLinker() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              source: oauthIntent?.intent === "signup" ? "signup" : "login",
+              source: pendingOAuthIntent?.intent === "signup" ? "signup" : "login",
               anonId: trackingIds?.anonId,
               sessionId: trackingIds?.sessionId,
               funnelId: funnel?.funnelId,
@@ -98,32 +102,16 @@ export default function AnalyticsIdentityLinker() {
             keepalive: true,
           });
           if (response.ok) persistIdentityLink(identityLinkKey);
+          else throw new Error("Identity link not accepted");
         } catch {
+          linkedIdentityRef.current = null;
+          retryTimer = setTimeout(() => setConsentRevision(value => value + 1), 10_000);
           // Identity measurement must never interrupt authentication.
         }
       }
       if (cancelled) return;
-      const createdAtMs = session.user.createdAt ? Date.parse(session.user.createdAt) : Number.NaN;
-      const isRecentlyCreated =
-        Number.isFinite(createdAtMs) && Date.now() - createdAtMs >= 0 && Date.now() - createdAtMs < 10 * 60 * 1000;
-      if (oauthIntent && isRecentlyCreated) {
-        const fromTabShareEmail = isTabShareEmailDestination(oauthIntent.next);
-        sendEvent(ANALYTICS_EVENTS.signupCompleted, {
-          method: "google",
-          destination: categorizeAnalyticsDestination(oauthIntent.next),
-          initiatedAs: oauthIntent.intent,
-          ...(fromTabShareEmail ? { signup_source: TAB_SHARE_EMAIL_SOURCE } : {}),
-          ...(funnel ? premiumFunnelProperties(funnel) : {}),
-        });
-        if (fromTabShareEmail) {
-          sendEvent(ANALYTICS_EVENTS.tabShareEmailSignupCompleted, {
-            method: "google",
-            landing: "signup",
-            recipient_status: "new",
-            source: TAB_SHARE_EMAIL_SOURCE,
-          });
-        }
-      } else if (oauthIntent) {
+      const oauthIntent = takeOAuthIntent();
+      if (oauthIntent) {
         sendEvent(ANALYTICS_EVENTS.loginSucceeded, {
           method: "google",
           destination: categorizeAnalyticsDestination(oauthIntent.next),
@@ -136,6 +124,7 @@ export default function AnalyticsIdentityLinker() {
     void syncIdentity();
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
     };
   }, [consentRevision, session?.user?.createdAt, session?.user?.id, session?.user?.role, status]);
 

@@ -17,6 +17,7 @@ import { useSession } from "next-auth/react";
 import {
   ANALYTICS_EVENTS,
   getAcceptedTranscriptionAccessType,
+  getTranscriptionFailureEvent,
   sendEvent,
   sendTranscriptionStartedEvents,
   trackCtaClick,
@@ -1206,7 +1207,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       if (!submissionAccepted) reportBlockedSubmission("request_failed", submissionPhase, failureDetails);
       setStatus(null);
       setError(err?.message || t("We could not reach the transcription service. Check your connection and try again."));
-      sendEvent(ANALYTICS_EVENTS.tabGenerationFailed, {
+      sendEvent(getTranscriptionFailureEvent(submissionAccepted), {
         ...researchProperties,
         error_code: err instanceof TranscriptionUploadError ? err.analyticsCode : categorizeAnalyticsError(err, "transcription_failed"),
         ...failureDetails,

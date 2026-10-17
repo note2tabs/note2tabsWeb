@@ -4,21 +4,22 @@ const {
   alias,
   identify,
   createPostHogServerClient,
-  flushPostHogServerClientInBackground,
+  flush,
 } = vi.hoisted(() => {
   const alias = vi.fn();
   const identify = vi.fn();
+  const flush = vi.fn(async () => undefined);
   return {
     alias,
     identify,
-    createPostHogServerClient: vi.fn(() => ({ alias, identify })),
-    flushPostHogServerClientInBackground: vi.fn(),
+    createPostHogServerClient: vi.fn(() => ({ alias, identify, flush })),
+    flush,
   };
 });
 
 vi.mock("../../lib/posthogServer", () => ({
   createPostHogServerClient,
-  flushPostHogServerClientInBackground,
+  flush,
 }));
 
 import { linkIdentityToUser } from "../../lib/analyticsV2/identity";
@@ -28,7 +29,7 @@ describe("server PostHog identity consent", () => {
     alias.mockClear();
     identify.mockClear();
     createPostHogServerClient.mockClear();
-    flushPostHogServerClientInBackground.mockClear();
+    flush.mockReset().mockResolvedValue(undefined);
   });
 
   it("does not identify after an explicit opt-out", async () => {
@@ -44,7 +45,7 @@ describe("server PostHog identity consent", () => {
     expect(createPostHogServerClient).not.toHaveBeenCalled();
     expect(alias).not.toHaveBeenCalled();
     expect(identify).not.toHaveBeenCalled();
-    expect(flushPostHogServerClientInBackground).not.toHaveBeenCalled();
+    expect(flush).not.toHaveBeenCalled();
   });
 
   it.each([undefined, "granted", "invalid"])(
@@ -63,7 +64,7 @@ describe("server PostHog identity consent", () => {
         distinctId: "user-1",
         properties: { last_identity_source: "signup" },
       });
-      expect(flushPostHogServerClientInBackground).toHaveBeenCalledOnce();
+      expect(flush).toHaveBeenCalledOnce();
     }
   );
 
@@ -120,4 +121,22 @@ describe("server PostHog identity consent", () => {
       }),
     });
   });
+});
+
+describe("identity delivery acknowledgement",()=>{
+ it("rejects a failed flush instead of telling the browser to stop retrying",async()=>{
+  flush.mockRejectedValueOnce(new Error("offline"));
+  await expect(linkIdentityToUser({userId:"account",source:"login",anonId:"anon"})).rejects.toThrow("offline");
+ });
+});
+
+describe("shared-browser account isolation",()=>{
+ it("rotates the anonymous ID before linking a different account",async()=>{
+  alias.mockClear();flush.mockResolvedValue(undefined);
+  const headers=new Map();const res={getHeader:(k:string)=>headers.get(k),setHeader:(k:string,v:unknown)=>headers.set(k,v)} as any;
+  await linkIdentityToUser({userId:"new-account",source:"login",req:{headers:{cookie:`analytics_anon=old-anon; analytics_owner=${encodeURIComponent(JSON.stringify({anonId:"old-anon",userId:"old-account"}))}`}} as any,res});
+  expect(alias).not.toHaveBeenCalledWith({distinctId:"old-anon",alias:"new-account"});
+  expect(alias).toHaveBeenCalledWith({distinctId:expect.any(String),alias:"new-account"});
+  expect(headers.get("Set-Cookie").join(";")).toContain("analytics_owner=");
+ });
 });

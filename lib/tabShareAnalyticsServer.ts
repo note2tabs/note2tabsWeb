@@ -9,7 +9,7 @@ import { isTabShareEmailDestination, TAB_SHARE_EMAIL_SOURCE } from "./tabShareAn
 
 export async function trackTabShareEmailSignup(input: {
   userId: string;
-  method: "email";
+  method: "email" | "google";
   returnTo: string;
   req: NextApiRequest;
 }) {

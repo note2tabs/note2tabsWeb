@@ -12,6 +12,8 @@ import { useSession } from "next-auth/react";
 import {
   ANALYTICS_EVENTS,
   getAcceptedTranscriptionAccessType,
+  getTranscriptionFailureEvent,
+  getEditorImportFailureEvent,
   sendEvent,
   sendTranscriptionStartedEvents,
   trackCtaClick,
@@ -1256,7 +1258,7 @@ export default function TranscriberPage() {
       if (!submissionAccepted) reportBlockedSubmission("request_failed", submissionPhase, failureDetails);
       setStatus(null);
       setError(err?.message || t("We could not reach the transcription service. Check your connection and try again."));
-      sendEvent("transcribe_error", {
+      sendEvent(getTranscriptionFailureEvent(submissionAccepted), {
         ...researchProperties,
         error_code: err instanceof TranscriptionUploadError ? err.analyticsCode : categorizeAnalyticsError(err, "transcription_failed"),
         ...failureDetails,
@@ -1358,6 +1360,7 @@ export default function TranscriberPage() {
       quantize,
     };
     sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportStarted, eventProperties);
+    let importPersisted = false;
     try {
       if (selectedTranscriberGroups) {
         const targetEditorId = editorChoice;
@@ -1370,6 +1373,7 @@ export default function TranscriberPage() {
           segmentGroups: selectedTranscriberGroups,
           quantize,
         });
+        importPersisted = true;
         sendEvent(ANALYTICS_EVENTS.transcriptionImportedToEditor, {
           ...eventProperties,
           editor_id: imported.editorId,
@@ -1380,6 +1384,7 @@ export default function TranscriberPage() {
       const { stamps, totalFrames } = tabSegmentsToStamps(tabsResult);
       if (stamps.length === 0) {
         setImportError(t("No tabs available to import."));
+        sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportFailed, {...eventProperties,error_code:"no_tabs"});
         return;
       }
       let targetEditorId = editorChoice;
@@ -1396,6 +1401,7 @@ export default function TranscriberPage() {
         throw new Error(t("Could not find a track to import into."));
       }
       await gteApi.appendImportTab(buildLaneEditorRef(targetEditorId, laneId), { stamps, totalFrames });
+      importPersisted = true;
       sendEvent(ANALYTICS_EVENTS.transcriptionImportedToEditor, {
         ...eventProperties,
         editor_id: targetEditorId,
@@ -1406,7 +1412,7 @@ export default function TranscriberPage() {
         err?.message ||
         t("We could not add this transcription to the editor. The transcription is still available; please try again.");
       setImportError(message);
-      sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportFailed, {
+      sendEvent(getEditorImportFailureEvent(importPersisted), {
         ...eventProperties,
         error_code: categorizeAnalyticsError(err, "editor_import_failed"),
       });
@@ -1430,6 +1436,7 @@ export default function TranscriberPage() {
       quantize,
     };
     sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportStarted, eventProperties);
+    let importPersisted = false;
     try {
       if (selectedTranscriberGroups) {
         const imported = await gteApi.importTranscriberToGuest({
@@ -1437,6 +1444,7 @@ export default function TranscriberPage() {
           editorId: GTE_GUEST_EDITOR_ID,
           quantize,
         });
+        importPersisted = true;
         sendEvent(ANALYTICS_EVENTS.transcriptionImportedToEditor, {
           ...eventProperties,
           editor_id: imported.editorId,
@@ -1445,6 +1453,7 @@ export default function TranscriberPage() {
         return;
       }
       const editorId = await openTabsInGuestEditor(tabsResult);
+      importPersisted = true;
       sendEvent(ANALYTICS_EVENTS.transcriptionImportedToEditor, {
         ...eventProperties,
         editor_id: editorId,
@@ -1455,7 +1464,7 @@ export default function TranscriberPage() {
         err?.message ||
         t("We could not open the editor. Your transcription is still available; please try again.");
       setImportError(message);
-      sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportFailed, {
+      sendEvent(getEditorImportFailureEvent(importPersisted), {
         ...eventProperties,
         error_code: categorizeAnalyticsError(err, "editor_import_failed"),
       });

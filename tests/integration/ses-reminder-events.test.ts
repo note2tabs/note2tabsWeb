@@ -11,7 +11,8 @@ vi.mock("../../lib/prisma", () => ({
   },
 }));
 vi.mock("../../lib/posthogServer", () => ({
-  createPostHogServerClient: () => ({ capture: mocks.capture, flush: mocks.flush }),
+  stablePostHogEventUuid: (v: string) => v,
+  createPostHogIngestClient: () => ({ capture: mocks.capture, flush: mocks.flush }),
 }));
 vi.mock("../../lib/tabShareEmailPreferences", () => ({ blockTabShareEmails: mocks.blockShare }));
 
@@ -34,7 +35,7 @@ describe("SES reminder lifecycle events", () => {
     };
     const { req, res } = createMocks({
       method: "POST", query: { secret: "secret" },
-      body: { Type: "Notification", Message: JSON.stringify(notification) },
+      body: { Type: "Notification", Timestamp: "2026-10-17T10:00:00Z", Message: JSON.stringify(notification) },
     });
     await handler(req, res);
     expect(res._getStatusCode()).toBe(200);
@@ -61,7 +62,7 @@ describe("SES reminder lifecycle events", () => {
     };
     const { req, res } = createMocks({
       method: "POST", query: { secret: "secret" },
-      body: { Type: "Notification", Message: JSON.stringify(notification) },
+      body: { Type: "Notification", Timestamp: "2026-10-17T10:00:00Z", Message: JSON.stringify(notification) },
     });
 
     await handler(req, res);
@@ -84,7 +85,7 @@ describe("SES reminder lifecycle events", () => {
     };
     const { req, res } = createMocks({
       method: "POST", query: { secret: "secret" },
-      body: { Type: "Notification", Message: JSON.stringify(notification) },
+      body: { Type: "Notification", Timestamp: "2026-10-17T10:00:00Z", Message: JSON.stringify(notification) },
     });
     await handler(req, res);
     expect(res._getStatusCode()).toBe(200);
@@ -109,11 +110,20 @@ describe("SES reminder lifecycle events", () => {
     };
     const { req, res } = createMocks({
       method: "POST", query: { secret: "secret" },
-      body: { Type: "Notification", Message: JSON.stringify(notification) },
+      body: { Type: "Notification", Timestamp: "2026-10-17T10:00:00Z", Message: JSON.stringify(notification) },
     });
     await handler(req, res);
     expect(res._getStatusCode()).toBe(200);
     expect(mocks.blockShare).toHaveBeenCalledWith("new@example.com");
     expect(mocks.capture).toHaveBeenCalledWith(expect.objectContaining({ event: "tab_share_email_bounced" }));
   });
+});
+
+describe("SES redelivery identity",()=>{
+ it("preserves the signed notification timestamp and recipient UUID across retries",async()=>{
+  mocks.capture.mockClear();mocks.findUser.mockResolvedValue({id:"owner"});mocks.flush.mockResolvedValue(undefined);process.env.SES_EVENT_WEBHOOK_SECRET="secret";
+  const notification={eventType:"Delivery",mail:{messageId:"message",destination:["test@example.com"],tags:{email_category:["tab_return_reminder"]}}};
+  for(let i=0;i<2;i++){const {req,res}=createMocks({method:"POST",query:{secret:"secret"},body:{Type:"Notification",Timestamp:"2026-10-17T10:00:00Z",Message:JSON.stringify(notification)}});await handler(req,res);expect(res._getStatusCode()).toBe(200);}
+  const [first,second]=mocks.capture.mock.calls.map(c=>c[0]);expect(second.uuid).toBe(first.uuid);expect(second.timestamp).toEqual(first.timestamp);expect(first.timestamp).toEqual(new Date("2026-10-17T10:00:00Z"));
+ });
 });

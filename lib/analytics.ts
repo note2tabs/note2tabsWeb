@@ -94,6 +94,7 @@ export const ANALYTICS_EVENTS = {
   heavyPreviewConfirmationDismissed: "heavy_preview_confirmation_dismissed",
   heavyPreviewStarted: "heavy_preview_started",
   heavyPreviewCompleted: "heavy_preview_completed",
+  heavyPreviewEditorOpened: "heavy_preview_editor_opened",
   heavyPreviewUpgradeShown: "heavy_preview_upgrade_shown",
   heavyPreviewUpgradeClicked: "heavy_preview_upgrade_clicked",
   heavyPreviewUpgradeDismissed: "heavy_preview_upgrade_dismissed",
@@ -194,6 +195,14 @@ export function sendTranscriptionStartedEvents(
   };
   sendEvent(ANALYTICS_EVENTS.tabGenerationStarted, properties);
   sendEvent(getTranscriptionStartedModelEvent(transcriptionModel), properties);
+}
+
+export function getEditorImportFailureEvent(imported: boolean) {
+  return imported ? "transcription_editor_navigation_failed" : ANALYTICS_EVENTS.transcriptionEditorImportFailed;
+}
+
+export function getTranscriptionFailureEvent(accepted: boolean) {
+  return accepted ? "transcription_post_acceptance_failed" : ANALYTICS_EVENTS.tabGenerationFailed;
 }
 
 export function getAcceptedTranscriptionAccessType(

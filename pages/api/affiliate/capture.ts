@@ -43,6 +43,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     distinctId: clickId,
     event: "affiliate_link_clicked",
     insertId: `affiliate-click:${clickId}`,
+    occurredAt: new Date(),
     properties: {
       affiliate_id: affiliate.id,
       affiliate_code: affiliate.code,

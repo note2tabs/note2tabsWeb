@@ -21,6 +21,7 @@ import {
   ANALYTICS_SESSION_COOKIE,
   getConsentFromCookies,
   parseRequestCookies,
+  readAnalyticsOwner,
 } from "./cookies";
 import { parseIngestBody, validatePropsSizeOrThrow } from "./schemas";
 
@@ -29,6 +30,7 @@ export type IngestContext = {
   res?: NextApiResponse;
   accountId?: string | null;
   source?: string;
+  recoverDurably?: boolean;
   body?: unknown;
   cookies?: Record<string, string>;
   geo?: { countryCode?: string; continentCode?: string };
@@ -128,9 +130,12 @@ export function isTransientPrismaConnectionError() {
 export async function ingestAnalyticsEvents(
   context: IngestContext
 ): Promise<IngestResult> {
-  const { events } = parseIngestBody(
+  const { events: parsedEvents } = parseIngestBody(
     resolveBody(context.body ?? context.req?.body)
   );
+  // Older cached clients can still report a signup from the success screen.
+  // New accounts are recorded durably by account creation, not by that screen.
+  const events = parsedEvents.filter(event => context.source !== "api_ingest" || event.name !== "signup_completed");
   const cookies =
     context.cookies || (context.req ? parseRequestCookies(context.req) : {});
 
@@ -158,7 +163,9 @@ export async function ingestAnalyticsEvents(
     };
   }
 
-  const client = createPostHogIngestClient();
+  if (!events.length) return {ok:true,received:parsedEvents.length,written:0,deduped:parsedEvents.length,dualWritten:0,blocked:0};
+
+  const client = context.recoverDurably ? createPostHogIngestClient({recoverDurably:true}) : createPostHogIngestClient();
   if (!client) {
     throw new Error("PostHog is not configured.");
   }
@@ -179,11 +186,17 @@ export async function ingestAnalyticsEvents(
     ? edgeCode(header(context.req, "x-vercel-ip-continent"))
     : undefined);
 
+  const owner = readAnalyticsOwner(cookies);
+  const ownsEvent = (event: (typeof events)[number]) => !event.anonId || ((!cookieAnonId || event.anonId === cookieAnonId) && (!owner || owner.anonId !== event.anonId || owner.userId === context.accountId));
   for (const event of events) {
     validatePropsSizeOrThrow(event.props);
+    // A queued event can outlive logout or an account switch in another tab.
+    // Preserve its original anonymous identity instead of attaching it to the
+    // account currently authenticated on a later retry.
+    const accountId = !ownsEvent(event) ? null : context.accountId;
     const distinctId =
-      context.accountId ||
-      event.anonId ||
+      (context.source === "transcription_job_outbox" ? accountId : event.anonId) ||
+      accountId ||
       cookieAnonId ||
       event.sessionId ||
       cookieSessionId ||
@@ -236,7 +249,7 @@ export async function ingestAnalyticsEvents(
         ...(event.utmContent ? { utm_content: event.utmContent } : {}),
         editor_id: event.editorId,
         job_id: event.jobId,
-        $process_person_profile: Boolean(context.accountId),
+        $process_person_profile: Boolean(accountId),
       });
     // These values are platform-authenticated and normalized above. Apply them
     // after the generic sanitizer so ISO codes retain PostHog's uppercase form.
@@ -257,7 +270,7 @@ export async function ingestAnalyticsEvents(
   // Await delivery before Vercel can freeze the request's execution.
   await client.flush();
   if (context.accountId) {
-    try { await recordEngagementEvents(context.accountId, events.map(event => ({ ...event, props: { ...event.props, content_locale: event.path && isEditorPath(event.path) ? validLocale(event.props.content_locale) ?? editorRequestLocale({ cookies, headers: { "accept-language": header(context.req, "accept-language") } }) : localeFromPath(event.path || "/") } }))); }
+    try { await recordEngagementEvents(context.accountId, events.filter(ownsEvent).map(event => ({ ...event, props: { ...event.props, content_locale: event.path && isEditorPath(event.path) ? validLocale(event.props.content_locale) ?? editorRequestLocale({ cookies, headers: { "accept-language": header(context.req, "accept-language") } }) : localeFromPath(event.path || "/") } }))); }
     catch { console.warn("engagement_signal_write_failed"); }
   }
 

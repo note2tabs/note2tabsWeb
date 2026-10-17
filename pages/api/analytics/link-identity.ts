@@ -45,9 +45,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       funnelReason: parsed?.funnelReason,
     });
 
-    return res.status(200).json({ ok: true, linked });
+    return res.status(linked.reason === "posthog_not_configured" ? 503 : 200).json({ ok: true, linked });
   } catch (error: any) {
     console.error("analytics link identity error", error);
-    return res.status(400).json({ error: error?.message || "Could not link identity" });
+    return res.status(error?.name === "ZodError" || error instanceof SyntaxError ? 400 : 503).json({ error: "Could not link identity" });
   }
 }

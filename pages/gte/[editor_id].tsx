@@ -1732,13 +1732,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       typeof router.query.heavyPreviewJobId === "string"
         ? router.query.heavyPreviewJobId
         : undefined;
-    sendEvent(ANALYTICS_EVENTS.heavyPreviewCompleted, {
+    sendEvent(ANALYTICS_EVENTS.heavyPreviewEditorOpened, {
       surface: "editor",
       editor_id: editorId,
       jobId: heavyPreviewJobId,
       $insert_id: heavyPreviewJobId
-        ? `heavy-preview-completed:${heavyPreviewJobId}`
-        : `heavy-preview-completed:editor:${editorId}`,
+        ? `heavy-preview-editor-opened:${heavyPreviewJobId}`
+        : `heavy-preview-editor-opened:editor:${editorId}`,
     });
     heavyPreviewUpgradePendingRef.current = true;
     sendEvent(ANALYTICS_EVENTS.premiumPromptDeferred, {
@@ -2151,7 +2151,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     };
 
-    const sessionId = createSessionId();
+    let sessionId = createSessionId();
     telemetrySessionRef.current = sessionId;
     telemetryStartedAtRef.current = Date.now();
     telemetryClosedRef.current = false;
@@ -2234,6 +2234,19 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       void flushGteTelemetry("beacon");
     };
 
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      sessionId = createSessionId();
+      telemetrySessionRef.current = sessionId;
+      telemetryStartedAtRef.current = Date.now();
+      telemetryClosedRef.current = false;
+      activeDurationMs = 0;
+      visibleStartedAt = document.visibilityState === "visible" ? Date.now() : null;
+      heartbeatSequence = 0;
+      void sendTelemetry("gte_editor_visit").catch(() => {});
+      void sendTelemetry("gte_editor_session_start").catch(() => {});
+    };
+    window.addEventListener("pageshow", handlePageShow);
     const handlePageHide = () => flushSessionEnd();
     window.addEventListener("pagehide", handlePageHide);
     window.addEventListener("beforeunload", handlePageHide);
@@ -2242,6 +2255,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       window.clearInterval(heartbeatId);
       flushSessionEnd();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pageshow", handlePageShow);
       window.removeEventListener("pagehide", handlePageHide);
       window.removeEventListener("beforeunload", handlePageHide);
     };

@@ -33,7 +33,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       accountId,
       source: "api_ingest",
     });
-    return res.status(200).json(result);
+    return res.status(result.reason === "posthog_not_configured" ? 503 : 200).json(result);
   } catch (error: any) {
     const invalidPayload = error?.name === "ZodError" || /^(Too many events|Event props too large)/.test(error?.message || "");
     console.warn("analytics ingest failed", { reason: invalidPayload ? "invalid_payload" : "delivery_unavailable" });

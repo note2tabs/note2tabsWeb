@@ -1,7 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import {
   createPostHogServerClient,
-  flushPostHogServerClientInBackground,
 } from "../posthogServer";
 import {
   ANALYTICS_ANON_COOKIE,
@@ -9,6 +8,7 @@ import {
   ANALYTICS_SESSION_COOKIE,
   getConsentFromCookies,
   parseRequestCookies,
+  readAnalyticsOwner, setAnalyticsOwnerCookie, ensureTrackingCookies,
 } from "./cookies";
 import {
   ANALYTICS_ATTRIBUTION_COOKIE,
@@ -38,8 +38,8 @@ type LinkIdentityInput = {
 
 export async function linkIdentityToUser(input: LinkIdentityInput) {
   const cookies = input.req ? parseRequestCookies(input.req) : {};
-  const anonId = input.anonId || cookies[ANALYTICS_ANON_COOKIE];
-  const sessionId = input.sessionId || cookies[ANALYTICS_SESSION_COOKIE];
+  let anonId = input.anonId || cookies[ANALYTICS_ANON_COOKIE];
+  let sessionId = input.sessionId || cookies[ANALYTICS_SESSION_COOKIE];
   const attribution = parseAcquisitionAttribution(cookies[ANALYTICS_ATTRIBUTION_COOKIE]);
   const funnelId = normalizePremiumFunnelId(input.funnelId);
   const consentCookies = input.consent
@@ -68,6 +68,13 @@ export async function linkIdentityToUser(input: LinkIdentityInput) {
     };
   }
 
+  const previousOwner = readAnalyticsOwner(cookies);
+  if (previousOwner && previousOwner.anonId === anonId && previousOwner.userId !== input.userId) {
+    // Never merge two accounts that happen to share a browser, including when
+    // credentials login links identity before React observes the new session.
+    if (!input.res) throw new Error("Identity rotation requires a response");
+    ({anonId, sessionId} = ensureTrackingCookies(input.res, {}));
+  }
   if (anonId && anonId !== input.userId) {
     client.alias({
       distinctId: anonId,
@@ -95,7 +102,9 @@ export async function linkIdentityToUser(input: LinkIdentityInput) {
         : {}),
     },
   });
-  flushPostHogServerClientInBackground(client);
+  // Do not persist a successful browser link marker until delivery is accepted.
+  await client.flush();
+  if (input.res && anonId) setAnalyticsOwnerCookie(input.res, anonId, input.userId);
 
   return {
     ok: true,

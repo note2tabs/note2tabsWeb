@@ -1,3 +1,6 @@
+import { waitUntil } from "@vercel/functions";
+import { enqueuePostHogCaptures, retryPostHogCaptures } from "./posthogOutbox";
+import { sanitizeAnalyticsProperties } from "./analyticsPrivacy";
 import { PostHog } from "posthog-node";
 import { createHash } from "crypto";
 
@@ -41,10 +44,10 @@ type IngestCapture = {
 
 // The batch API without sent_at preserves the exact event timestamp. SDK clock
 // skew correction changes retry timestamps and defeats PostHog deduplication.
-export function createPostHogIngestClient() {
+export function createPostHogIngestClient(options: {recoverDurably?:boolean} = {}) {
   const { token, host } = getPostHogConfig();
   if (!token) return null;
-  const batch: Array<Record<string, unknown>> = [];
+  const batch: Array<Record<string, unknown> & {uuid:string}> = [];
   return {
     capture(event: IngestCapture) {
       batch.push({
@@ -59,13 +62,22 @@ export function createPostHogIngestClient() {
     },
     async flush() {
       if (!batch.length) return;
-      const response = await fetch(`${host.replace(/\/$/, "")}/batch/`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ api_key: token, batch }),
-        signal: AbortSignal.timeout(8_000),
-      });
-      if (!response.ok) throw new Error("PostHog batch delivery failed");
-      batch.length = 0;
+      const sending = batch.splice(0);
+      try {
+        const response = await fetch(`${host.replace(/\/$/, "")}/batch/`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ api_key: token, batch: sending }),
+          signal: AbortSignal.timeout(8_000),
+        });
+        if (!response.ok) throw new Error("PostHog batch delivery failed");
+      } catch (error) {
+        if (!options.recoverDurably) { batch.unshift(...sending); throw error; }
+        // Successful GTE operations must not lose their telemetry or fail just
+        // because PostHog is unavailable. Store only these failed sends.
+        try { await enqueuePostHogCaptures(sending, sendPostHogBatch); }
+        catch (persistenceError) { batch.unshift(...sending); throw persistenceError; }
+      }
+
     },
   };
 }
@@ -77,11 +89,33 @@ export function createPostHogServerClient() {
   const clientKey = `${token}:${host}`;
   if (sharedClient && sharedClientKey === clientKey) return sharedClient;
 
-  sharedClient = new PostHog(token, {
+  const sdk = new PostHog(token, {
     host,
     flushAt: 1,
     flushInterval: 0,
-    disableGeoip: false,
+    disableGeoip: true,
+  });
+  const pending: Array<Record<string, unknown> & {uuid: string}> = [];
+  sharedClient = new Proxy(sdk, {
+    get(target, key) {
+      if (key === "capture") return (message: Parameters<PostHog["capture"]>[0]) => {
+        const insertId = message.properties?.$insert_id;
+        const uuid = message.uuid || (typeof insertId === "string" ? stablePostHogEventUuid(`${message.event}:${insertId}`) : globalThis.crypto.randomUUID());
+        pending.push({uuid, event: message.event, distinct_id: message.distinctId,
+          timestamp: (message.timestamp || new Date()).toISOString(),
+          properties: sanitizeAnalyticsProperties({...message.properties, environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "development",
+            $insert_id: typeof insertId === "string" ? insertId : uuid, $geoip_disable: message.disableGeoip ?? true, ...(message.distinctId?.startsWith("system:") ? {$process_person_profile:false} : {})})});
+      };
+      if (key === "flush") return async () => {
+        const batch = pending.splice(0);
+        try { await enqueuePostHogCaptures(batch, sendPostHogBatch); }
+        catch (error) { pending.unshift(...batch); throw error; }
+        // Identity linking and SDK feature-flag internals retain SDK semantics.
+        await target.flush();
+      };
+      const value = Reflect.get(target, key, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
   });
   sharedClientKey = clientKey;
   return sharedClient;
@@ -90,7 +124,24 @@ export function createPostHogServerClient() {
 export function flushPostHogServerClientInBackground(
   client: Pick<PostHog, "flush">
 ) {
-  void client.flush().catch(() => {
-    // Product requests must not fail or wait because analytics is unavailable.
+  const delivery = client.flush().catch(() => {
+    console.warn("posthog_business_enqueue_failed");
+    // A database failure leaves this batch in process memory for another flush.
   });
+  // waitUntil keeps the database enqueue alive after the product response.
+  try { waitUntil(delivery); } catch { /* local execution */ }
+}
+
+async function sendPostHogBatch(batch: Array<Record<string, unknown> & {uuid: string}>) {
+  const {token, host} = getPostHogConfig();
+  if (!token) throw new Error("PostHog is not configured");
+  const response = await fetch(`${host.replace(/\/$/, "")}/batch/`, {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({api_key:token,batch}), signal:AbortSignal.timeout(8000),
+  });
+  if (!response.ok) throw new Error("PostHog batch delivery failed");
+}
+export async function retryServerPostHogCaptures() {
+  if (!getPostHogConfig().token) return 0;
+  return retryPostHogCaptures(sendPostHogBatch);
 }
