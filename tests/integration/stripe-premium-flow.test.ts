@@ -118,6 +118,7 @@ vi.mock("../../lib/prisma", () => ({
 
 vi.mock("../../lib/posthogServer", () => ({
   createPostHogServerClient: vi.fn(() => posthogMock),
+  createPostHogIngestClient: vi.fn(() => posthogMock),
   flushPostHogServerClientInBackground: vi.fn(),
   stablePostHogEventUuid: vi.fn((identifier: string) => `uuid:${identifier}`),
 }));
@@ -448,7 +449,7 @@ describe("stripe premium flow", () => {
         offerMode: "seven_day_trial",
         offerVariant: "value_framing",
       });
-      expect(posthogMock.capture).toHaveBeenCalledWith({
+      expect(posthogMock.capture).toHaveBeenCalledWith(expect.objectContaining({
         distinctId: "user_1",
         event: "checkout_started",
         uuid: "uuid:checkout-started:cs_test_123",
@@ -463,7 +464,7 @@ describe("stripe premium flow", () => {
           checkout_session_id: "cs_test_123",
           $insert_id: "checkout-started:cs_test_123",
         }),
-      });
+      }));
       expect(stripeMock.customers.create).toHaveBeenCalledWith(expect.objectContaining({email:"user@example.com",preferred_locales:["en"]}),expect.objectContaining({idempotencyKey:"account-email-language-v1:user_1"}));
       expect(stripeMock.customers.create.mock.invocationCallOrder[0]).toBeLessThan(stripeMock.checkout.sessions.create.mock.invocationCallOrder[0]);
       expect(posthogMock.flush).toHaveBeenCalled();
@@ -646,14 +647,14 @@ describe("stripe premium flow", () => {
 
       expect(res._getStatusCode()).toBe(500);
       expect(res._getJSONData()).toEqual({ error: "Could not create checkout session." });
-      expect(posthogMock.capture).toHaveBeenCalledWith({
+      expect(posthogMock.capture).toHaveBeenCalledWith(expect.objectContaining({
         distinctId: "user_1",
         event: "checkout_failed",
         properties: expect.objectContaining({
           source: "settings",
           failure_stage: "stripe_session_creation",
         }),
-      });
+      }));
     });
 
     it("returns a preserved upload to the transcriber after checkout", async () => {
@@ -1345,7 +1346,7 @@ describe("stripe premium flow", () => {
       await handler(buildWebhookReq() as any, res as any);
 
       expect(res._getStatusCode()).toBe(200);
-      expect(posthogMock.capture).toHaveBeenCalledWith({
+      expect(posthogMock.capture).toHaveBeenCalledWith(expect.objectContaining({
         distinctId: "user_1",
         event: "checkout_abandoned",
         properties: expect.objectContaining({
@@ -1356,7 +1357,7 @@ describe("stripe premium flow", () => {
           payment_status: "unpaid",
           $insert_id: "checkout-abandoned:cs_expired",
         }),
-      });
+      }));
     });
 
     it("tracks safe Stripe failure codes for asynchronous checkout failures", async () => {
@@ -1387,7 +1388,7 @@ describe("stripe premium flow", () => {
       const handler = (await import("../../pages/api/stripe/webhook")).default;
       await handler(buildWebhookReq() as any, createResponse() as any);
 
-      expect(posthogMock.capture).toHaveBeenCalledWith({
+      expect(posthogMock.capture).toHaveBeenCalledWith(expect.objectContaining({
         distinctId: "user_1",
         event: "checkout_payment_failed",
         properties: expect.objectContaining({
@@ -1397,7 +1398,7 @@ describe("stripe premium flow", () => {
           failure_type: "card_error",
           $insert_id: "checkout-payment-failed:cs_failed",
         }),
-      });
+      }));
       const captured = posthogMock.capture.mock.calls.at(-1)?.[0]?.properties;
       expect(captured).not.toHaveProperty("message");
     });
@@ -1485,6 +1486,7 @@ describe("stripe premium flow", () => {
     it("upgrades FREE users to PREMIUM on checkout.session.completed", async () => {
       stripeMock.webhooks.constructEvent.mockReturnValue({
         id: "evt_checkout_premium",
+        created: 1_790_000_000,
         type: "checkout.session.completed",
         data: {
           object: {
@@ -1529,10 +1531,12 @@ describe("stripe premium flow", () => {
         where: { id: "user_1" },
         data: { role: "PREMIUM", subscriptionPlan: "PREMIUM", tokensRemaining: PREMIUM_MONTHLY_CREDITS },
       });
-      expect(posthogMock.capture).toHaveBeenCalledWith({
+      expect(posthogMock.capture).toHaveBeenCalledWith(expect.objectContaining({
         distinctId: "user_1",
         event: "subscription_started",
         uuid: "uuid:subscription-started:cs_premium",
+        timestamp: new Date(1_790_000_000 * 1000),
+        disableGeoip: true,
         properties: expect.objectContaining({
           source: "signed_home",
           reason: "signed_home_value",
@@ -1546,7 +1550,15 @@ describe("stripe premium flow", () => {
           event_source: "stripe_webhook",
           $insert_id: "subscription-started:cs_premium",
         }),
-      });
+      }));
+      const firstCapture = posthogMock.capture.mock.calls.find(([value]) => value.event === "subscription_started")?.[0];
+      await handler(buildWebhookReq() as any, createResponse() as any);
+      const subscriptionCaptures = posthogMock.capture.mock.calls.filter(([value]) => value.event === "subscription_started");
+      expect(subscriptionCaptures).toHaveLength(2);
+      expect(subscriptionCaptures[1][0].uuid).toBe(firstCapture.uuid);
+      expect(subscriptionCaptures[1][0].timestamp).toEqual(firstCapture.timestamp);
+      expect(posthogMock.flush).toHaveBeenCalled();
+
     });
 
     it("repairs a webhook activation with a paid role but a free plan and balance", async () => {
@@ -1643,13 +1655,13 @@ describe("stripe premium flow", () => {
           token: "stripe-event:evt_checkout_trial:trial-started",
         }),
       });
-      expect(posthogMock.capture).toHaveBeenCalledWith({
+      expect(posthogMock.capture).toHaveBeenCalledWith(expect.objectContaining({
         distinctId: "user_1",
         event: "subscription_trial_started_notice_sent",
         properties: expect.objectContaining({
           $insert_id: "subscription_trial_started_notice_sent:evt_checkout_trial",
         }),
-      });
+      }));
     });
 
     it("falls back to email lookup when checkout metadata does not include userId", async () => {
@@ -2004,7 +2016,7 @@ describe("stripe premium flow", () => {
       await handler(req as any, res as any);
 
       expect(res._getStatusCode()).toBe(200);
-      expect(posthogMock.capture).toHaveBeenCalledWith({
+      expect(posthogMock.capture).toHaveBeenCalledWith(expect.objectContaining({
         distinctId: "user_1",
         event: "subscription_cancel_scheduled",
         properties: expect.objectContaining({
@@ -2012,7 +2024,7 @@ describe("stripe premium flow", () => {
           cancellation_feedback: "too_expensive",
           $insert_id: "subscription_cancel_scheduled:evt_cancel_scheduled",
         }),
-      });
+      }));
     });
 
     it("attributes lifecycle events from subscription metadata when the Stripe email changed", async () => {
@@ -2042,13 +2054,13 @@ describe("stripe premium flow", () => {
       await handler(req as any, res as any);
 
       expect(res._getStatusCode()).toBe(200);
-      expect(posthogMock.capture).toHaveBeenCalledWith({
+      expect(posthogMock.capture).toHaveBeenCalledWith(expect.objectContaining({
         distinctId: "user_metadata",
         event: "subscription_cancel_scheduled",
         properties: expect.objectContaining({
           $insert_id: "subscription_cancel_scheduled:evt_cancel_metadata",
         }),
-      });
+      }));
       expect(prismaMock.user.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: "user_metadata" } })
       );
@@ -2078,14 +2090,14 @@ describe("stripe premium flow", () => {
 
       await handler(req as any, res as any);
 
-      expect(posthogMock.capture).toHaveBeenCalledWith({
+      expect(posthogMock.capture).toHaveBeenCalledWith(expect.objectContaining({
         distinctId: "user_1",
         event: "subscription_trial_ending",
         properties: expect.objectContaining({
           cancel_at_period_end: false,
           $insert_id: "subscription_trial_ending:evt_trial_ending",
         }),
-      });
+      }));
     });
 
     it("sends one custom trial reminder to the latest tab when explicitly enabled", async () => {
@@ -2130,14 +2142,14 @@ describe("stripe premium flow", () => {
           token: "stripe-event:evt_trial_reminder",
         }),
       });
-      expect(posthogMock.capture).toHaveBeenCalledWith({
+      expect(posthogMock.capture).toHaveBeenCalledWith(expect.objectContaining({
         distinctId: "user_1",
         event: "subscription_trial_reminder_sent",
         properties: expect.objectContaining({
           destination: "latest_editor_practice",
           $insert_id: "subscription_trial_reminder_sent:evt_trial_reminder",
         }),
-      });
+      }));
     });
 
     it("does not resend a custom trial reminder for the same Stripe event", async () => {
@@ -2183,14 +2195,14 @@ describe("stripe premium flow", () => {
 
       await handler(req as any, res as any);
 
-      expect(posthogMock.capture).toHaveBeenCalledWith({
+      expect(posthogMock.capture).toHaveBeenCalledWith(expect.objectContaining({
         distinctId: "user_1",
         event: "subscription_payment_failed",
         properties: expect.objectContaining({
           attempt_count: 2,
           $insert_id: "subscription_payment_failed:evt_payment_failed",
         }),
-      });
+      }));
     });
 
     it("sends one payment recovery notice on the first failed attempt", async () => {
