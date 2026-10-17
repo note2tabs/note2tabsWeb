@@ -3,7 +3,8 @@ import {reminderUnsubscribeIdentifier} from "../reminderUnsubscribe";
 
 export async function setReminderEmailPermission(accountId: string, allowed: boolean, basis: "settings_explicit_v1" | "unsubscribe_link_v1") {
   await prisma.$transaction(async tx => {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${accountId}, 0))`;
+    // Prisma cannot deserialize PostgreSQL void; cast the lock result to text.
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${accountId}, 0))::text`;
     await tx.$executeRaw`INSERT INTO "EngagementEmailPermission" ("accountId", allowed, basis, "recordedAt")
       VALUES (${accountId}, ${allowed}, ${basis}, NOW()) ON CONFLICT ("accountId")
       DO UPDATE SET allowed = EXCLUDED.allowed, basis = EXCLUDED.basis, "recordedAt" = EXCLUDED."recordedAt"`;

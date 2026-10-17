@@ -59,7 +59,8 @@ export async function reserveEngagementContact(enrollment: Enrollment, channel: 
   if (enrollment.arm === "control") return null;
   return prisma.$transaction(async tx => {
     // Serializes different campaigns/devices. Use a rolling, cross-campaign cap.
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${enrollment.accountId}, 0))`;
+    // Keep the lock in this transaction; Prisma cannot deserialize its void result.
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${enrollment.accountId}, 0))::text`;
     const recent = await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "EngagementContact"
       WHERE "accountId" = ${enrollment.accountId} AND "channel" = ${channel} AND "createdAt" > ${new Date(Date.now() - 7 * DAY)}
       UNION ALL SELECT token AS id FROM "VerificationToken" WHERE ${channel} = 'email' AND (
