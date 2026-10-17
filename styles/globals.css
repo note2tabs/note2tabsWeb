@@ -14536,3 +14536,10 @@ html[lang="ar"] [data-editor-locale="ar"] :is(input[type="text"], textarea) {
   .product-studio__item > .gte-library-row-menu { top: 140px; inset-inline-end: 4px; }
   .gte-library-row-menu .editor-actions-trigger { width: 44px; height: 44px; }
 }
+
+.pricing-plan__top > .pricing-plan__tax-note {
+  margin: 0.35rem 0 0;
+  color: #52616b;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
