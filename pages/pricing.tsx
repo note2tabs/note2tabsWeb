@@ -1,3 +1,4 @@
+import PriceTaxNote from "../components/PriceTaxNote";
 import MonthlyCredits from "../components/MonthlyCredits";
 import { localizedSignIn as signIn } from "../lib/i18n/auth";
 import { translatedError } from "../lib/i18n/translate";
@@ -287,6 +288,7 @@ export default function PricingPage() {
             <div className="pricing-plan__top"><h2>{t(plan.name)}</h2>
               <p>{plan.id === "FREE" ? t("Try short recordings.") : plan.id === "PREMIUM" ? t("For full songs.") : t("For frequent transcription.")}</p>
               <div className="pricing-plan__price"><strong>{paid ? formatLocalizedPrice(paidId, billingInterval, displayCurrency) : formatLocalizedAmount(0, displayCurrency)}</strong><span>/ {paid && billingInterval === "yearly" ? t("year") : t("month")}</span></div>
+              {paid && <PriceTaxNote />}
               <p className="pricing-plan__saving">{paid && billingInterval === "yearly" && <><span className="pricing-plan__saving-amount">{t("Save {amount} per year", {amount: localizedAnnualSaving(paidId, displayCurrency)})}</span>{t(" · Billed annually")}</>}</p>
             </div>
             {!paid ? <Link href="/transcribe" className="pricing-plan__cta pricing-plan__cta--secondary" onClick={() => trackCtaClick("pricing_start_free", { surface: "pricing_page" })}>{t("Start free")}</Link>
