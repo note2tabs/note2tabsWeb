@@ -1,3 +1,5 @@
+import { setStripeEmailLanguage, createStripeEmailCustomer } from "../../../lib/i18n/stripeEmailLanguage";
+import { accountEmailLocale } from "../../../lib/i18n/accountLanguage";
 import { verifyStripePrice } from "../../../lib/stripePriceParity";
 import { stripeLocale } from "../../../lib/i18n/checkout";
 import {localeCohort} from "../../../lib/i18n/locale";
@@ -242,10 +244,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const activeAttribution = attribution?.affiliate.status === "ACTIVE" ? attribution : null;
 
     await verifyStripePrice(stripeClient, selectedConfig.priceId, requestedPlan, billingInterval, checkoutCurrency);
-    const existingCustomer = customerState.premiumCustomer || customerState.fallbackCustomer;
+    let existingCustomer = customerState.premiumCustomer || customerState.fallbackCustomer;
+    const emailLocale = await accountEmailLocale(session.user.id, contentLocale);
+    if (!existingCustomer) existingCustomer = await createStripeEmailCustomer(session.user.id, session.user.email, emailLocale);
+    if (existingCustomer) {
+      try { await setStripeEmailLanguage(existingCustomer.id, emailLocale); }
+      catch { console.warn("stripe_email_language_sync_failed"); }
+    }
     const checkoutStateHash = createHash("sha256")
       .update(
-      `${session.user.id}|${requestedPlan}|${billingInterval}|${selectedConfig.priceId}|${checkoutCurrency}|${returnPaths.success}|${funnelId}|${
+      `email-language-v1|${existingCustomer.id}|${contentLocale}|${session.user.id}|${requestedPlan}|${billingInterval}|${selectedConfig.priceId}|${checkoutCurrency}|${returnPaths.success}|${funnelId}|${
           customerState.subscriptionState.sort().join("|") || "new"
         }|${trialIncluded ? "seven_day_trial" : "immediate_charge"}`
       )

@@ -60,7 +60,9 @@ export function LocaleProvider({ children, path, initialEditorLocale = "en", ini
     document.documentElement.lang = locale;
     document.documentElement.dir = localeDirection(locale);
     const choice=browserLanguageChoice();
-    if(!choice && locale!=="en")document.cookie=`n2t_locale=${locale}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    // Remember the route language, including English, before entering an editor.
+    // The editor URL itself has no locale and must not overwrite that choice.
+    if(!choice && !editor && supportsLocalizedPath(path))document.cookie=`n2t_locale=${routeLocale}; Path=/; Max-Age=31536000; SameSite=Lax`;
     setPreferredLocale(choice || (editor ? initialEditorLocale : routeLocale));
     setLanguageChosen(choice!==null);
   }, [path, locale, editor, initialEditorLocale, routeLocale]);

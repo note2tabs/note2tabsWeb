@@ -79,9 +79,9 @@ describe("one-time device language preference",()=>{
   expect(deviceLocale("zh-Hant-TW,en;q=0.7",available)).toBe("en");
   expect(deviceLocale("zh-CN,en;q=0.7",available)).toBe("zh-Hans");
  });
- it("makes the editor follow device language until an explicit choice",()=>{
+ it("keeps the remembered site language when entering the editor",()=>{
   vi.stubEnv("VERCEL_ENV","preview");
-  expect(editorRequestLocale({cookies:{n2t_locale:"ja"},headers:{"accept-language":"es"}})).toBe("es");
+  expect(editorRequestLocale({cookies:{n2t_locale:"ja"},headers:{"accept-language":"es"}})).toBe("ja");
   expect(editorRequestLocale({cookies:{n2t_locale:"en",n2t_locale_choice:"1"},headers:{"accept-language":"es"}})).toBe("en");
  });
  it("ignores automatic cookies and preserves country currency independently",async()=>{

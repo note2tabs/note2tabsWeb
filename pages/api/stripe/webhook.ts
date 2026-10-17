@@ -1,3 +1,5 @@
+import { setStripeEmailLanguage } from "../../../lib/i18n/stripeEmailLanguage";
+import { accountEmailLocale } from "../../../lib/i18n/accountLanguage";
 import {localeCohort} from "../../../lib/i18n/locale";
 import { normalizeLocale } from "../../../lib/i18n/locale";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -413,6 +415,7 @@ async function sendPremiumTrialReminder(
   stripeEventId: string
 ) {
   if (!customPremiumTrialReminderEnabled()) return;
+  const locale = await accountEmailLocale(userId);
   const reminderIdentifier = `reminder:premium-trial:${userId}`;
   const reminderToken = `stripe-event:${stripeEventId}`;
   try {
@@ -439,6 +442,7 @@ async function sendPremiumTrialReminder(
     }),
   ]);
   const reminder = buildPremiumTrialReminderEmail({
+    locale,
     name: user?.name,
     trialEndsAt: new Date(trialEnd * 1000),
     latestEditor: latestEditor
@@ -447,6 +451,7 @@ async function sendPremiumTrialReminder(
   });
   try {
     await sendTransactionalEmail({
+      language:{kind:"customer",template:"trial_ending",locale,accountId:userId},
       to: email,
       subject: reminder.subject,
       html: reminder.html,
@@ -477,6 +482,7 @@ async function sendPremiumTrialStartedNotice(
       : subscriptionRef;
   if (subscription.status !== "trialing" || !subscription.trial_end) return;
 
+  const locale = await accountEmailLocale(userId, normalizeLocale(session.metadata?.note2tabsLocale));
   const marker = {
     identifier: `notice:premium-trial-started:${userId}`,
     token: `stripe-event:${stripeEventId}:trial-started`,
@@ -509,6 +515,7 @@ async function sendPremiumTrialStartedNotice(
     return;
   }
   const notice = buildPremiumTrialStartedEmail({
+    locale,
     name: user.name,
     trialStartsAt: new Date((subscription.trial_start || subscription.created) * 1000),
     trialEndsAt: new Date(subscription.trial_end * 1000),
@@ -518,6 +525,7 @@ async function sendPremiumTrialStartedNotice(
   });
   try {
     await sendTransactionalEmail({
+      language:{kind:"customer",template:"trial_started",locale,accountId:userId},
       to: user.email,
       subject: notice.subject,
       html: notice.html,
@@ -533,6 +541,7 @@ async function sendPremiumTrialStartedNotice(
 }
 
 async function sendProStartedNotice(userId: string, stripeEventId: string) {
+  const locale = await accountEmailLocale(userId);
   const marker = { identifier: `notice:pro-started:${userId}`, token: `stripe-event:${stripeEventId}` };
   try {
     await prisma.verificationToken.create({
@@ -545,7 +554,7 @@ async function sendProStartedNotice(userId: string, stripeEventId: string) {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
   if (!user?.email) return;
   try {
-    await sendTransactionalEmail({ to: user.email, ...buildProStartedEmail(user.name) });
+    await sendTransactionalEmail({ language:{kind:"customer",template:"pro_started",locale,accountId:userId}, to: user.email, ...buildProStartedEmail(user.name, locale) });
   } catch (error) {
     await prisma.verificationToken.deleteMany({ where: marker });
     throw error;
@@ -775,6 +784,7 @@ async function sendPaymentFailedNotice(
   // so customers receive one recovery message rather than two.
   if (process.env.PAYMENT_RECOVERY_EMAIL_MODE === "stripe") return;
   if (attemptCount !== 1) return;
+  const locale = await accountEmailLocale(userId);
   const marker = {
     identifier: `notice:premium-payment-failed:${userId}`,
     token: `stripe-invoice:${invoiceId}`,
@@ -794,9 +804,9 @@ async function sendPaymentFailedNotice(
     where: { id: userId },
     select: { name: true },
   });
-  const notice = buildPaymentFailedEmail({ name: user?.name, planName: PLAN_CATALOG[plan].name as "Premium" | "Pro" });
+  const notice = buildPaymentFailedEmail({ locale, name: user?.name, planName: PLAN_CATALOG[plan].name as "Premium" | "Pro" });
   try {
-    await sendTransactionalEmail({ to: email, ...notice });
+    await sendTransactionalEmail({ language:{kind:"customer",template:"payment_failed",locale,accountId:userId}, to: email, ...notice });
   } catch (error) {
     await prisma.verificationToken.deleteMany({ where: marker });
     throw error;
@@ -1032,6 +1042,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (identifier) {
         const userId = await setPremiumForIdentifier(identifier, plan);
         if (userId) {
+          if (checkoutSession.customer) {
+            const customerId = typeof checkoutSession.customer === "string" ? checkoutSession.customer : checkoutSession.customer.id;
+            try { await setStripeEmailLanguage(customerId, await accountEmailLocale(userId, normalizeLocale(checkoutSession.metadata?.note2tabsLocale))); }
+            catch { console.warn("stripe_email_language_sync_failed"); }
+          }
           trackSubscriptionStarted(userId, checkoutSession, plan, event.id);
           await persistAffiliateAttribution(checkoutSession, userId);
           if (plan === "PREMIUM" && checkoutSession.metadata?.premiumTrialIncluded === "true") {

@@ -114,11 +114,11 @@ describe("Portuguese transactional messages", () => {
     await sendPasswordResetEmail("test@example.com", "reset-token", "123456", {locale:"pt-BR"});
     const reset = vi.mocked(sendTransactionalEmail).mock.calls.at(-1)![0]; expect(reset.text).toContain("/pt-br/reset-password/reset-token"); expect(reset.text).toContain("123456");
   });
-  it("localizes completion and discloses the English editor", () => {
+  it("localizes completion without an outdated English-only editor warning", () => {
     const email = buildTranscriptionCompleteEmail({jobId:"private",name:"<script>",sourceLabel:"<img>",locale:"pt-BR"});
     expect(email.subject).toBe("Sua transcrição do Note2Tabs está pronta");
     expect(email.editorUrl).toContain("/pt-br/job/private");
-    expect(email.html).toContain("&lt;img&gt;"); expect(email.html).not.toContain("<script>"); expect(email.text).toContain("O editor está em inglês.");
+    expect(email.html).toContain("&lt;img&gt;"); expect(email.html).not.toContain("<script>"); expect(email.text).not.toContain("O editor está em inglês.");
     expect(buildTranscriptionCompleteEmail({jobId:"a",editorId:"editor",locale:"pt-BR"}).editorUrl).toContain("/gte/editor");
   });
 });

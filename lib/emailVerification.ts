@@ -1,3 +1,4 @@
+import { accountEmailLocale } from "./i18n/accountLanguage";
 import { localizedEmailCopy } from "./i18n/emails";
 import { localeHref, type AppLocale } from "./i18n/locale";
 import crypto from "crypto";
@@ -60,7 +61,7 @@ export function buildVerificationUrl(
 export async function sendVerificationEmail(
   email: string,
   token: string,
-  options?: { name?: string | null; returnTo?: string; locale?: AppLocale }
+  options?: { name?: string | null; returnTo?: string; locale?: AppLocale; accountId?:string }
 ) {
   const locale = options?.locale || "en";
   const url = buildVerificationUrl(token, email, options?.returnTo, locale);
@@ -69,32 +70,10 @@ export async function sendVerificationEmail(
     const message = copy.verification;
     const name = options?.name?.trim();
     const greeting = `${copy.greeting}${name ? ` ${name}` : ""}`;
-    const details = "";
-    return sendTransactionalEmail({to: email, subject: message.subject,
-      text: `${greeting}\n\n${message.body}\n${url}\n\n${details}${message.expiry}`,
+    return sendTransactionalEmail({language:{kind:"customer",template:"verification",locale,accountId:options?.accountId},to: email, subject: message.subject,
+      text: `${greeting}\n\n${message.body}\n${url}\n\n${message.expiry}`,
       html: renderProductEmail({locale, title: message.title, preview: message.body, greeting: escapeEmailHtml(greeting),
         bodyHtml: `<p>${escapeEmailHtml(message.body)}</p>`, action: {label: message.title, url}, secondaryHtml: escapeEmailHtml(message.expiry)})});
-  }
-  if (locale === "ja") {
-    const name = options?.name?.trim();
-    const greeting = name ? `${name} 様` : "Note2Tabsへようこそ。";
-    return sendTransactionalEmail({to: email, subject: "Note2Tabsのメールアドレスを確認してください",
-      text: `${greeting}\n\nアカウントの作成を完了して採譜を利用するには、メールアドレスを確認してください：\n${url}\n\nこのリンクは24時間で無効になります。登録にお心当たりがない場合は、このメールを無視してください。`,
-      html: renderProductEmail({locale, title: "メールアドレスを確認", preview: "メールアドレスを確認してNote2Tabsの登録を完了してください。", greeting: escapeEmailHtml(greeting), bodyHtml: "<p>アカウントの作成を完了して採譜を利用するには、メールアドレスを確認してください。</p>", action: {label: "メールアドレスを確認", url}, secondaryHtml: "このリンクは24時間で無効になります。登録にお心当たりがない場合は、このメールを無視してください。"})});
-  }
-  if (locale === "es") {
-    const name = options?.name?.trim() || "";
-    const greeting = name ? `¡Hola, ${name}!` : "¡Hola!";
-    return sendTransactionalEmail({to: email, subject: "Verifica tu cuenta de Note2Tabs",
-      text: `${greeting}\n\nVerifica tu correo para terminar de crear tu cuenta y usar el transcriptor:\n${url}\n\nEste enlace caduca en 24 horas. Si no creaste esta cuenta, ignora este correo.`,
-      html: renderProductEmail({locale, title: "Verifica tu correo", preview: "Verifica tu correo para terminar de crear tu cuenta de Note2Tabs.", greeting: escapeEmailHtml(greeting), bodyHtml: "<p>Verifica tu correo para terminar de crear tu cuenta y usar el transcriptor.</p>", action: {label: "Verificar correo", url}, secondaryHtml: "Este enlace caduca en 24 horas. Si no creaste esta cuenta, ignora este correo."})});
-  }
-  if (locale === "pt-BR") {
-    const name = options?.name?.trim() || "";
-    const greeting = name ? `Olá, ${name}!` : "Olá!";
-    return sendTransactionalEmail({to: email, subject: "Confirme sua conta do Note2Tabs",
-      text: `${greeting}\n\nConfirme seu e-mail para concluir a criação da conta e usar o transcritor:\n${url}\n\nEste link expira em 24 horas. Se você não criou esta conta, ignore este e-mail.`,
-      html: renderProductEmail({locale, title: "Confirme seu e-mail", preview: "Confirme seu e-mail para concluir a criação da conta no Note2Tabs.", greeting: escapeEmailHtml(greeting), bodyHtml: "<p>Confirme seu e-mail para concluir a criação da conta e usar o transcritor.</p>", action: {label: "Confirmar e-mail", url}, secondaryHtml: "Este link expira em 24 horas. Se você não criou esta conta, ignore este e-mail."})});
   }
   const firstName = options?.name?.trim() || "there";
   const subject = "Verify your Note2Tabs account";
@@ -107,19 +86,21 @@ export async function sendVerificationEmail(
     action: { label: "Verify email", url },
     secondaryHtml: `This link expires in 24 hours. If you did not create a Note2Tabs account, you can ignore this email.<br><br><a href="${url}" style="color:#4f5a56;text-decoration:underline;word-break:break-all;">Copy verification link</a>`,
   });
-  return sendTransactionalEmail({ to: email, subject, html, text });
+  return sendTransactionalEmail({ language:{kind:"customer",template:"verification",locale,accountId:options?.accountId}, to: email, subject, html, text });
 }
 
 export async function issueAndSendVerificationEmail(user: {
   id: string;
   email: string;
   name?: string | null;
-}, options?: { returnTo?: string; locale?: AppLocale }) {
+}, options?: { returnTo?: string; locale?: AppLocale; accountId?:string }) {
+  const locale = await accountEmailLocale(user.id, options?.locale);
   const token = await createEmailVerificationToken(user.id);
   const sent = await sendVerificationEmail(user.email, token, {
+    accountId:user.id,
     name: user.name,
     returnTo: options?.returnTo,
-    locale: options?.locale,
+    locale,
   });
   return { token, sent };
 }

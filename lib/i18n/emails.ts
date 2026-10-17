@@ -7,7 +7,25 @@ type EmailCopy = {
  completion: {subject:string; title:string; body:string; action:string; fallbackLabel:string};
 };
 /** Full phrases keep languages with different word orders out of English fragments. */
-const copies: Partial<Record<AppLocale, EmailCopy>> = {
+const copies: Record<Exclude<AppLocale,"en">, EmailCopy> = {
+ es: {
+  greeting:"Hola",
+  verification:{subject:"Verifica tu cuenta de Note2Tabs",title:"Verifica tu correo",body:"Verifica tu correo para terminar de crear tu cuenta y empezar a transcribir.",expiry:"Este enlace caduca en 24 horas. Si no creaste esta cuenta, ignora este correo."},
+  reset:{subject:"Restablece tu contraseña de Note2Tabs",title:"Restablece tu contraseña",body:"Recibimos una solicitud para restablecer tu contraseña. Usa el enlace y el código que aparecen a continuación.",code:"Código de restablecimiento",expiry:"El enlace y el código caducan en una hora. Si no lo solicitaste, ignora este correo."},
+  completion:{subject:"Tu transcripción de Note2Tabs está lista",title:"Tu tablatura está lista",body:"La tablatura de «{label}» está lista. Ábrela en el editor para escucharla, editarla, practicar y exportarla.",action:"Abrir en el editor",fallbackLabel:"Tu transcripción"},
+ },
+ "pt-BR": {
+  greeting:"Olá",
+  verification:{subject:"Confirme sua conta do Note2Tabs",title:"Confirme seu e-mail",body:"Confirme seu e-mail para concluir a criação da conta e começar a transcrever.",expiry:"Este link expira em 24 horas. Se você não criou esta conta, ignore este e-mail."},
+  reset:{subject:"Redefina sua senha do Note2Tabs",title:"Redefina sua senha",body:"Recebemos uma solicitação para redefinir sua senha. Use o link e o código abaixo.",code:"Código de redefinição",expiry:"O link e o código expiram em uma hora. Se você não fez essa solicitação, ignore este e-mail."},
+  completion:{subject:"Sua transcrição do Note2Tabs está pronta",title:"Sua tablatura está pronta",body:"A tablatura de “{label}” está pronta. Abra no editor para ouvir, editar, praticar e exportar.",action:"Abrir no editor",fallbackLabel:"Sua transcrição"},
+ },
+ ja: {
+  greeting:"こんにちは",
+  verification:{subject:"Note2Tabsのメールアドレスを確認してください",title:"メールアドレスを確認",body:"アカウントの作成を完了して採譜を利用するには、メールアドレスを確認してください。",expiry:"このリンクは24時間で無効になります。登録にお心当たりがない場合は、このメールを無視してください。"},
+  reset:{subject:"Note2Tabsのパスワード再設定",title:"パスワードを再設定",body:"パスワード再設定のリクエストを受け付けました。以下のリンクとコードを使用してください。",code:"再設定コード",expiry:"リンクとコードは1時間で無効になります。お心当たりがない場合は、このメールを無視してください。"},
+  completion:{subject:"Note2Tabsの採譜が完了しました",title:"TAB譜が完成しました",body:"「{label}」のTAB譜が完成しました。エディターで開き、再生・編集・練習・書き出しができます。",action:"エディターで開く",fallbackLabel:"採譜結果"},
+ },
  fr: {
   greeting:"Bonjour",
   verification:{subject:"Confirmez votre compte Note2Tabs",title:"Confirmez votre adresse e-mail",body:"Confirmez votre adresse e-mail pour terminer la création de votre compte et commencer à transcrire.",expiry:"Ce lien expire dans 24 heures. Si vous n’avez pas créé ce compte, ignorez cet e-mail."},
@@ -45,4 +63,4 @@ const copies: Partial<Record<AppLocale, EmailCopy>> = {
   completion:{subject:"您的 Note2Tabs 转录已完成",title:"六线谱已生成",body:"《{label}》的六线谱已生成。在编辑器中打开，即可播放、编辑、练习并导出。",action:"在编辑器中打开",fallbackLabel:"您的转录结果"},
  },
 };
-export function localizedEmailCopy(locale: AppLocale) {return copies[locale];}
+export function localizedEmailCopy(locale: AppLocale) {return locale === "en" ? undefined : copies[locale];}

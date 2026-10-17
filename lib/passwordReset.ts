@@ -1,3 +1,4 @@
+import { accountEmailLocale } from "./i18n/accountLanguage";
 import { localizedEmailCopy } from "./i18n/emails";
 import { localeHref, type AppLocale } from "./i18n/locale";
 import crypto from "crypto";
@@ -71,7 +72,7 @@ export async function sendPasswordResetEmail(
   email: string,
   token: string,
   code: string,
-  options?: { name?: string | null; locale?: AppLocale }
+  options?: { name?: string | null; locale?: AppLocale; accountId?:string }
 ) {
   const locale = options?.locale || "en";
   const url = buildPasswordResetUrl(token, locale);
@@ -81,31 +82,10 @@ export async function sendPasswordResetEmail(
     const name = options?.name?.trim();
     const greeting = `${copy.greeting}${name ? ` ${name}` : ""}`;
     const details = `${message.code}: ${code}\n\n`;
-    return sendTransactionalEmail({to: email, subject: message.subject,
+    return sendTransactionalEmail({language:{kind:"customer",template:"password_reset",locale,accountId:options?.accountId},to: email, subject: message.subject,
       text: `${greeting}\n\n${message.body}\n${url}\n\n${details}${message.expiry}`,
       html: renderProductEmail({locale, title: message.title, preview: message.body, greeting: escapeEmailHtml(greeting),
         bodyHtml: `<p>${escapeEmailHtml(message.body)}</p><p>${escapeEmailHtml(message.code)}: <strong dir="ltr">${escapeEmailHtml(code)}</strong></p>`, action: {label: message.title, url}, secondaryHtml: escapeEmailHtml(message.expiry)})});
-  }
-  if (locale === "ja") {
-    const name = options?.name?.trim();
-    const greeting = name ? `${name} 様` : "Note2Tabsからのお知らせです。";
-    return sendTransactionalEmail({to: email, subject: "Note2Tabsのパスワード再設定",
-      text: `${greeting}\n\nパスワード再設定のリクエストを受け付けました。次のリンクを開いてください：\n${url}\n\n再設定コード：${code}\n\nリンクとコードは1時間で無効になります。お心当たりがない場合は、このメールを無視してください。`,
-      html: renderProductEmail({locale, title: "パスワードを再設定", preview: "リンクと6桁のコードでパスワードを再設定できます。", greeting: escapeEmailHtml(greeting), bodyHtml: `<p>パスワード再設定のリクエストを受け付けました。</p><p>再設定コード：<strong>${escapeEmailHtml(code)}</strong></p>`, action: {label: "パスワードを再設定", url}, secondaryHtml: "リンクとコードは1時間で無効になります。お心当たりがない場合は、このメールを無視してください。"})});
-  }
-  if (locale === "es") {
-    const name = options?.name?.trim() || "";
-    const greeting = name ? `¡Hola, ${name}!` : "¡Hola!";
-    return sendTransactionalEmail({to: email, subject: "Restablece tu contraseña de Note2Tabs",
-      text: `${greeting}\n\nRecibimos una solicitud para restablecer tu contraseña. Abre el enlace:\n${url}\n\nTu código: ${code}\n\nEl enlace y el código caducan en una hora. Si no hiciste esta solicitud, ignora este correo.`,
-      html: renderProductEmail({locale, title: "Restablece tu contraseña", preview: "Usa el enlace y el código de seis dígitos para restablecer tu contraseña.", greeting: escapeEmailHtml(greeting), bodyHtml: `<p>Recibimos una solicitud para restablecer tu contraseña.</p><p>Tu código: <strong>${escapeEmailHtml(code)}</strong></p>`, action: {label: "Restablecer contraseña", url}, secondaryHtml: "El enlace y el código caducan en una hora. Si no hiciste esta solicitud, ignora este correo."})});
-  }
-  if (locale === "pt-BR") {
-    const name = options?.name?.trim() || "";
-    const greeting = name ? `Olá, ${name}!` : "Olá!";
-    return sendTransactionalEmail({to: email, subject: "Redefina sua senha do Note2Tabs",
-      text: `${greeting}\n\nRecebemos um pedido para redefinir sua senha. Abra o link:\n${url}\n\nSeu código: ${code}\n\nO link e o código expiram em uma hora. Se você não fez este pedido, ignore este e-mail.`,
-      html: renderProductEmail({locale, title: "Redefina sua senha", preview: "Use o link e o código de seis dígitos para redefinir sua senha.", greeting: escapeEmailHtml(greeting), bodyHtml: `<p>Recebemos um pedido para redefinir sua senha.</p><p>Seu código: <strong>${escapeEmailHtml(code)}</strong></p>`, action: {label: "Redefinir senha", url}, secondaryHtml: "O link e o código expiram em uma hora. Se você não fez este pedido, ignore este e-mail."})});
   }
   const firstName = options?.name?.trim() || "there";
   const subject = "Reset your Note2Tabs password";
@@ -127,7 +107,7 @@ This link and code expire in 1 hour. If you didn't request this, you can ignore 
     action: { label: "Reset password", url },
     secondaryHtml: "The link and code expire in one hour. If you did not request this, you can ignore this email.",
   });
-  return sendTransactionalEmail({ to: email, subject, html, text });
+  return sendTransactionalEmail({ language:{kind:"customer",template:"password_reset",locale,accountId:options?.accountId}, to: email, subject, html, text });
 }
 
 export async function issueAndSendPasswordResetEmail(user: {
@@ -136,7 +116,8 @@ export async function issueAndSendPasswordResetEmail(user: {
   name?: string | null;
   locale?: AppLocale;
 }) {
+  const locale = await accountEmailLocale(user.id, user.locale);
   const { token, code, expires } = await createPasswordResetToken(user.id);
-  const sent = await sendPasswordResetEmail(user.email, token, code, { name: user.name, locale: user.locale });
+  const sent = await sendPasswordResetEmail(user.email, token, code, { name: user.name, locale, accountId:user.id });
   return { token, code, expires, sent };
 }

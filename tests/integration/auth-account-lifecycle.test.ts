@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   linkIdentity: vi.fn(),
   trackAffiliate: vi.fn(),
   prisma: {
+    $executeRaw: vi.fn().mockResolvedValue(1),
     user: {
       findUnique: vi.fn(),
       create: vi.fn(),
