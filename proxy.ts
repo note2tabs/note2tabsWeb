@@ -46,6 +46,7 @@ export default async function proxy(request: NextRequest) {
     const response = NextResponse.redirect(destination);
     response.headers.set("Vary", "Accept-Language, Cookie");
     response.headers.set("Cache-Control", "private, no-store");
+    response.headers.set("x-middleware-cache", "no-cache");
     return withCurrencyPreference(request, response);
   }
   if (localeFromPath(request.nextUrl.pathname) !== "en" || request.nextUrl.pathname === "/pricing") {

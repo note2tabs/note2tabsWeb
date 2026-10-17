@@ -88,7 +88,9 @@ export function LocaleProvider({ children, path, initialEditorLocale = "en", ini
   useEffect(()=>{
     if(!router?.isReady || !languageReady || !languageChosen || editor || !supportsLocalizedPath(path))return;
     const target=localeSwitchDestination(path,localeEnabled(preferredLocale) ? preferredLocale : "en");
-    if(target)void router.replace(target);
+    // Route data can contain a redirect fetched before the preference changed.
+    // Request the document with the new cookies instead of reusing that data.
+    if(target)window.location.replace(target);
   }, [languageReady,languageChosen,editor,path,preferredLocale,router]);
   const navigationLocale = localeEnabled(preferredLocale)
     ? languageChosen ? preferredLocale : navigationLocaleForPath(path, preferredLocale) : "en";

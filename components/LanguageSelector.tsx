@@ -64,7 +64,7 @@ export default function LanguageSelector() {
     </summary>
     <nav className="language-selector__options" aria-label={LOCALE_LANGUAGE_LABELS[locale]}>
       {options.map(target =>
-        <Link key={target} href={localeSwitchHref(router.asPath, target)} prefetch={isEditorPath(router.asPath) ? false : undefined} hrefLang={target} lang={target}
+        <Link key={target} href={localeSwitchHref(router.asPath, target)} prefetch={false} hrefLang={target} lang={target}
           aria-current={locale === target ? "true" : undefined} onClick={(event) => {
             if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
             // LocaleProvider navigates after saving. Let modified clicks use the link normally.
