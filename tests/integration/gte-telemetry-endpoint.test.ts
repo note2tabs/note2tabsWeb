@@ -139,3 +139,11 @@ describe("gte telemetry endpoint", () => {
     ]);
   });
 });
+
+it("returns a retryable status and preserves the client event identity on delivery failure",async()=>{
+  sessionMock.mockResolvedValue({user:{id:'owner'}});logMock.mockResolvedValue(false);
+  const handler=(await import('../../pages/api/gte/telemetry')).default;
+  const {req,res}=createMocks({method:'POST',body:{event:'gte_editor_session_end',eventId:'original-event-uuid',editorId:'test',ts:'2026-10-17T10:00:00.000Z'}});
+  await handler(req as any,res as any);expect(res.statusCode).toBe(503);
+  expect(logMock).toHaveBeenCalledWith([expect.objectContaining({eventId:'original-event-uuid',timestamp:'2026-10-17T10:00:00.000Z'})]);
+});

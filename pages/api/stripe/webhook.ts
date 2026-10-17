@@ -27,6 +27,7 @@ import {
 } from "../../../lib/subscriptionPlans";
 import {
   createPostHogServerClient,
+  createPostHogIngestClient,
   flushPostHogServerClientInBackground,
   stablePostHogEventUuid,
 } from "../../../lib/posthogServer";
@@ -210,13 +211,14 @@ async function setPremiumForIdentifier(identifier: UserIdentifier, plan: PaidSub
   return user.id;
 }
 
-function trackSubscriptionStarted(
+async function trackSubscriptionStarted(
   userId: string,
   session: Stripe.Checkout.Session,
   plan: PaidSubscriptionPlan,
-  stripeEventId: string
+  stripeEventId: string,
+  occurredAt: number
 ) {
-  const client = createPostHogServerClient();
+  const client = createPostHogIngestClient();
   if (!client) return;
   const funnelId =
     normalizePremiumFunnelId(session.metadata?.premiumFunnelId) ||
@@ -230,6 +232,8 @@ function trackSubscriptionStarted(
     distinctId: userId,
     event: "subscription_started",
     uuid: stablePostHogEventUuid(`subscription-started:${session.id}`),
+    timestamp: new Date(occurredAt * 1000),
+    disableGeoip: true,
     properties: {
       environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "development",
       plan: PLAN_CATALOG[plan].analyticsId,
@@ -249,7 +253,9 @@ function trackSubscriptionStarted(
       $insert_id: `subscription-started:${session.id}`,
     },
   });
-  flushPostHogServerClientInBackground(client);
+  // Await the timestamp-preserving transport. A failed delivery lets Stripe retry
+  // the same signed event without creating a new conversion timestamp.
+  await client.flush();
 }
 
 type SubscriptionLifecycleEvent =
@@ -292,17 +298,22 @@ function unixDaysRemaining(timestamp?: number | null) {
   return Math.max(0, Math.ceil((timestamp * 1000 - Date.now()) / 86_400_000));
 }
 
-function trackSubscriptionLifecycle(
+async function trackSubscriptionLifecycle(
   userId: string,
   lifecycleEvent: SubscriptionLifecycleEvent,
   stripeEventId: string,
-  properties: Record<string, string | number | boolean | null | undefined> = {}
+  properties: Record<string, string | number | boolean | null | undefined> = {},
+  occurredAt?: number
 ) {
-  const client = createPostHogServerClient();
+  const stableTime = typeof occurredAt === "number" && Number.isFinite(occurredAt);
+  const client = stableTime ? createPostHogIngestClient() : createPostHogServerClient();
   if (!client) return;
   client.capture({
     distinctId: userId,
     event: lifecycleEvent,
+    uuid: stablePostHogEventUuid(`${lifecycleEvent}:${stripeEventId}`),
+    timestamp: new Date(stableTime ? occurredAt! * 1000 : Date.now()),
+    disableGeoip: true,
     properties: {
       environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "development",
       plan: "premium_monthly",
@@ -311,7 +322,8 @@ function trackSubscriptionLifecycle(
       $insert_id: `${lifecycleEvent}:${stripeEventId}`,
     },
   });
-  flushPostHogServerClientInBackground(client);
+  if (stableTime) await client.flush();
+  else flushPostHogServerClientInBackground(client);
 }
 
 type SafePaymentFailure = {
@@ -1047,7 +1059,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             try { await setStripeEmailLanguage(customerId, await accountEmailLocale(userId, normalizeLocale(checkoutSession.metadata?.note2tabsLocale))); }
             catch { console.warn("stripe_email_language_sync_failed"); }
           }
-          trackSubscriptionStarted(userId, checkoutSession, plan, event.id);
+          if (Number.isFinite(event.created)) {
+            await trackSubscriptionStarted(userId, checkoutSession, plan, event.id, event.created);
+          } else {
+            console.error("stripe_analytics_missing_event_timestamp");
+          }
           await persistAffiliateAttribution(checkoutSession, userId);
           if (plan === "PREMIUM" && checkoutSession.metadata?.premiumTrialIncluded === "true") {
             await trackAffiliateTrialStarted(userId, checkoutSession);
@@ -1075,12 +1091,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const email = await resolveEmailFromCustomerRef(subscription.customer);
       const userId = await resolveUserIdFromSubscription(subscription, email);
       if (userId) {
-        trackSubscriptionLifecycle(userId, "subscription_ended", event.id, {
+        await trackSubscriptionLifecycle(userId, "subscription_ended", event.id, {
           status: subscription.status,
           plan: PLAN_CATALOG[plan].analyticsId,
           cancellation_reason: subscription.cancellation_details?.reason || undefined,
           cancellation_feedback: subscription.cancellation_details?.feedback || undefined,
-        });
+        }, event.created);
       }
       if (email) {
         await downgradePremiumByEmail(
@@ -1103,7 +1119,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         | Partial<Stripe.Subscription>
         | undefined;
       if (userId && previous && "cancel_at_period_end" in previous) {
-        trackSubscriptionLifecycle(
+        await trackSubscriptionLifecycle(
           userId,
           subscription.cancel_at_period_end
             ? "subscription_cancel_scheduled"
@@ -1118,7 +1134,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             ),
             cancellation_reason: subscription.cancellation_details?.reason || undefined,
             cancellation_feedback: subscription.cancellation_details?.feedback || undefined,
-          }
+          },
+          event.created
         );
       }
       if (ENTITLED_SUBSCRIPTION_STATUSES.has(subscription.status)) {
@@ -1143,12 +1160,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const email = await resolveEmailFromCustomerRef(subscription.customer);
       const userId = await resolveUserIdFromSubscription(subscription, email);
       if (userId) {
-        trackSubscriptionLifecycle(userId, "subscription_trial_ending", event.id, {
+        await trackSubscriptionLifecycle(userId, "subscription_trial_ending", event.id, {
           status: subscription.status,
           plan: PLAN_CATALOG[plan].analyticsId,
           days_remaining: unixDaysRemaining(subscription.trial_end),
           cancel_at_period_end: subscription.cancel_at_period_end,
-        });
+        }, event.created);
         if (email && subscription.trial_end && !subscription.cancel_at_period_end) {
           try {
             await sendPremiumTrialReminder(userId, email, subscription.trial_end, event.id);
@@ -1182,7 +1199,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (!identifier) return res.status(200).json({ received: true, ignored: "user_not_found" });
       const isRenewal = invoice.billing_reason === "subscription_cycle";
       if (userId && invoice.amount_paid > 0) {
-        trackSubscriptionLifecycle(userId, "subscription_payment_succeeded", event.id, {
+        await trackSubscriptionLifecycle(userId, "subscription_payment_succeeded", event.id, {
           ...localeCohort(normalizeLocale(premiumSubscription.metadata?.note2tabsLocale), premiumSubscription.metadata?.note2tabsVisitorCountry),
           device_type: premiumSubscription.metadata?.note2tabsDeviceType,
           billing_interval: premiumSubscription.metadata?.note2tabsBillingInterval,
@@ -1192,7 +1209,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           billing_reason: invoice.billing_reason,
           stripe_invoice_id: invoice.id,
           is_renewal: isRenewal,
-        });
+        }, event.created);
       }
       await createAffiliateCommission(invoice, premiumSubscription);
       if (userId) await trackAffiliatePayment(invoice, premiumSubscription, userId, isRenewal);
@@ -1209,10 +1226,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           plan,
         });
         if (userId && result === "granted") {
-          trackSubscriptionLifecycle(userId, "subscription_renewed", event.id, {
+          await trackSubscriptionLifecycle(userId, "subscription_renewed", event.id, {
             billing_reason: invoice.billing_reason || undefined,
             plan: PLAN_CATALOG[plan].analyticsId,
-          });
+          }, event.created);
         }
         return res.status(200).json({ received: true, renewal: result });
       }
@@ -1250,13 +1267,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const userId = await resolveUserIdFromSubscription(premiumSubscription, email);
       if (userId) {
         const failure = await paymentFailureForReference(invoice.payment_intent);
-        trackSubscriptionLifecycle(userId, "subscription_payment_failed", event.id, {
+        await trackSubscriptionLifecycle(userId, "subscription_payment_failed", event.id, {
           status: premiumSubscription.status,
           attempt_count: invoice.attempt_count || 0,
           billing_reason: invoice.billing_reason || undefined,
           plan: PLAN_CATALOG[plan].analyticsId,
           ...failure,
-        });
+        }, event.created);
         if (email && invoice.id) {
           await sendPaymentFailedNotice(
             userId,

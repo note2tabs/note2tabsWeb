@@ -16,6 +16,7 @@ export type GteAnalyticsEvent =
 type LogGteAnalyticsInput = {
   userId?: string | null;
   event: GteAnalyticsEvent;
+  eventId?: string;
   path?: string;
   sessionId?: string;
   timestamp?: string;
@@ -29,7 +30,7 @@ export async function logGteAnalyticsEvent(input: LogGteAnalyticsInput) {
 }
 
 export async function logGteAnalyticsEvents(inputs: LogGteAnalyticsInput[]) {
-  if (!inputs.length) return;
+  if (!inputs.length) return true;
   const first = inputs[0];
   const { userId, req, res } = first;
   try {
@@ -39,7 +40,8 @@ export async function logGteAnalyticsEvents(inputs: LogGteAnalyticsInput[]) {
       accountId: userId,
       source: "gte_server_log",
       body: {
-        events: inputs.map(({ event, path, sessionId, timestamp, payload }) => ({
+        events: inputs.map(({ event, eventId, path, sessionId, timestamp, payload }) => ({
+          event_id: eventId,
           event,
           path,
           sessionId,
@@ -58,6 +60,7 @@ export async function logGteAnalyticsEvents(inputs: LogGteAnalyticsInput[]) {
         blocked: result.blocked,
       }));
     }
+    return result.reason !== "posthog_not_configured";
   } catch (error) {
     console.error(JSON.stringify({
       level: "error",
@@ -65,5 +68,6 @@ export async function logGteAnalyticsEvents(inputs: LogGteAnalyticsInput[]) {
       event: inputs.length === 1 ? inputs[0].event : "gte_batch",
       error_type: error instanceof Error ? error.name : "UnknownError",
     }));
+    return false;
   }
 }
