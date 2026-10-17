@@ -5,7 +5,7 @@ type Stamp = [number, TabCoord, number];
 type SignedSegment = [number, number];
 
 const BACKEND_BLUR_SIZE = 80;
-const BACKEND_CUT_MARGIN = 5;
+const BACKEND_CUT_MARGIN = 4.5;
 const BACKEND_BARS_PER_CHUNK = 4;
 const backendAnchorString = (stringCount: number) => Math.max(0, Math.min(2, stringCount - 1));
 

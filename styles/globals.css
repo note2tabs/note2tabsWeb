@@ -13842,6 +13842,15 @@ input[type="number"] {
   visibility: hidden;
 }
 
+[data-gte-coordinate-preview="true"] [data-gte-playing-coordinate="true"] {
+  visibility: visible;
+}
+
+[data-gte-coordinate-preview="true"] [data-gte-playhead],
+[data-gte-coordinate-preview="true"] [data-gte-add-bars="true"] {
+  display: none;
+}
+
 /* Desktop score editor: restrained application chrome around a paper-like score. */
 @media (min-width: 781px) {
   main.page-tight {

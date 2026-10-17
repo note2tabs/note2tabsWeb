@@ -54,6 +54,8 @@ import {
 import { cloneEditorSnapshot, mergeNotesIntoChordLocal, nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
 import { buildSubdivisionPlan, subdivideSelection, MAX_SUBDIVISION_PARTS } from "../lib/gteSubdivision";
 import { getTransposeBounds, transposeSelectionFrets } from "../lib/gteTranspose";
+import { optimizeSelection, type OptimizeOptions, type OptimizeSelection } from "../lib/gteOptimization";
+import GteOptimizeDialog from "./GteOptimizeDialog";
 import { generatePlayingCoordinatesInSnapshot } from "../lib/gtePlayingCoordinates";
 import {
   finalizeOptimizedTrackFingeringInSnapshot as finalizeOptimizedTrackFingeringCore,
@@ -125,10 +127,9 @@ const TOOL_HELP_SECTIONS = [
     tools: [
       ["Merge to Chord", "Combines selected notes or chords into one chord."],
       ["Disband Chord", "Turns the selected chord back into separate notes."],
-      ["Optimize to Coordinates", "Moves selected notes to their best existing playing coordinates."],
       [
-        "Optimize Fingering",
-        "Builds chords from simultaneous notes, generates playing coordinates, and chooses playable fingerings for the whole track.",
+        "Optimize",
+        "Builds chords and optimizes fingerings using automatic or chosen fret positions, for the selection or whole track.",
       ],
       ["Snap to Key", "Moves selected notes to the nearest notes in the detected key."],
       ["Snap to beat", "Aligns selected notes or chords to a rhythmic grid."],
@@ -193,6 +194,9 @@ type Props = {
     options?: { recordHistory?: boolean; markDirty?: boolean }
   ) => void;
   allowBackend?: boolean;
+  coordinateEditorMode?: boolean;
+  coordinateEditorCut?: boolean;
+  coordinateEditorEnd?: number;
   embedded?: boolean;
   isActive?: boolean;
   onFocusWorkspace?: () => void;
@@ -2859,6 +2863,7 @@ function ChordLaneWorkspace({
     if (!isActive) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-gte-optimization-dialog='true']")) return;
       if (isShortcutTextEntryTarget(target)) return;
       if ((event.ctrlKey || event.metaKey) && (event.key === "z" || event.key === "Z")) {
         event.preventDefault();
@@ -5025,10 +5030,13 @@ export default function GteWorkspace({
   onRequestBarDrop,
   mobileViewport = false,
   mobileMode,
+  coordinateEditorMode = false,
+  coordinateEditorCut = false,
+  coordinateEditorEnd,
 }: Props) {
   const { t, locale } = useLocale();
   useGteRenderInstrumentation("GteWorkspace", `${editorId}:tab`);
-  if (isChordEditorSnapshot(snapshot)) {
+  if (isChordEditorSnapshot(snapshot) && !coordinateEditorMode) {
     return (
       <ChordLaneWorkspace
         editorId={editorId}
@@ -5159,6 +5167,8 @@ export default function GteWorkspace({
   const [localSnapToKeyEnabled, setLocalSnapToKeyEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [optimizingFingering, setOptimizingFingering] = useState(false);
+  const [optimizeDialog, setOptimizeDialog] = useState<{ snapshot: EditorSnapshot; selection: OptimizeSelection } | null>(null);
+  const [optimizeDialogError, setOptimizeDialogError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [playbackVolume, setPlaybackVolume] = useState(0.6);
   const [localPracticeLoopEnabled, setLocalPracticeLoopEnabled] = useState(false);
@@ -5262,6 +5272,9 @@ export default function GteWorkspace({
   const [toolHelpOpen, setToolHelpOpen] = useState(false);
   const [tabPreviewOpen, setTabPreviewOpen] = useState(false);
   const [sliceToolActive, setSliceToolActive] = useState(false);
+  useEffect(() => {
+    if (coordinateEditorMode) setCutToolActive(coordinateEditorCut);
+  }, [coordinateEditorMode, coordinateEditorCut]);
   const [transposeToolActive, setTransposeToolActive] = useState(false);
   const [transposeOffset, setTransposeOffset] = useState(0);
   const [transposeInput, setTransposeInput] = useState("0");
@@ -6773,11 +6786,11 @@ export default function GteWorkspace({
       const availableWidth = isMobileEditMode
         ? Math.max(1, visibleContainerWidth - 2)
         : Math.max(240, visibleContainerWidth - 16);
-      const fittedBars = mobileViewport
+      const fittedBars = coordinateEditorMode ? Math.max(1, Math.min(4, normalizedSharedViewportBars)) : mobileViewport
         ? Math.max(1, Math.min(2, normalizedSharedViewportBars))
         : TARGET_VISIBLE_BARS;
       const rawScale = availableWidth / Math.max(1, framesPerMeasure * fittedBars);
-      const nextScale = isMobileEditMode
+      const nextScale = isMobileEditMode || coordinateEditorMode
         ? Math.max(0.05, Math.min(4, rawScale))
         : Math.max(0.5, Math.min(4, rawScale));
       setAutoBaseScale((prev) => (Math.abs(prev - nextScale) < 0.01 ? prev : nextScale));
@@ -6792,7 +6805,7 @@ export default function GteWorkspace({
       observer.disconnect();
       window.visualViewport?.removeEventListener("resize", computeScale);
     };
-  }, [framesPerMeasure, isMobileEditMode, mobileViewport, normalizedSharedViewportBars, sharedTimelineBaseScale]);
+  }, [framesPerMeasure, isMobileEditMode, mobileViewport, normalizedSharedViewportBars, sharedTimelineBaseScale, coordinateEditorMode]);
 
   useEffect(() => {
     const container = tabViewEnabled ? tabViewScrollRef.current : timelineOuterRef.current;
@@ -8914,6 +8927,7 @@ export default function GteWorkspace({
   const insertCutAtPointer = (clientX: number, clientY: number) => {
     const target = getPointerCutTarget(clientX, clientY);
     if (!target) return false;
+    if (coordinateEditorMode && (target.time <= 0 || target.time >= (coordinateEditorEnd ?? snapshot.totalFrames))) return false;
     void runMutation(() => gteApi.insertCutAt(editorId, target.time), {
       localApply: (draft) => {
         insertCutAtInSnapshot(draft, target.time);
@@ -9700,7 +9714,7 @@ export default function GteWorkspace({
       const x = clamp(event.clientX - rect.left, 0, rowWidth);
       const rawTime = rowStart + Math.round(x / scale);
       const minTime = left.start + 1;
-      const maxTime = right.end - 1;
+      const maxTime = Math.min(right.end, coordinateEditorMode ? coordinateEditorEnd ?? right.end : right.end) - 1;
       const newTime = clamp(rawTime, minTime, maxTime);
 
       setSegmentEdits((prev) => {
@@ -10310,59 +10324,36 @@ export default function GteWorkspace({
   };
 
 
-  const handleOptimizeFingering = () => {
-    if (snapshotRef.current.notes.length === 0 && snapshotRef.current.chords.length === 0) return;
-    setOptimizingFingering(true);
-    void runMutation(
-      async () => {
-        const optimized = cloneSnapshot(snapshotRef.current);
-        generatePlayingCoordinatesInSnapshot(optimized);
-        optimizeTrackFingeringInSnapshot(optimized);
-        finalizeOptimizedTrackFingeringInSnapshot(optimized);
-        mergeRedundantCutRegionsInSnapshot(optimized);
-        return gteApi.applySnapshot(editorId, optimized);
-      },
-      {
-        serverMode: "immediate",
-        unavailableMessage: "Fingering optimization is available after saving this draft to an account.",
-      }
-    ).finally(() => setOptimizingFingering(false));
-    setSelectedNoteIds([]);
-    setSelectedChordIds([]);
+  const openOptimizeDialog = () => {
+    const current = snapshotRef.current;
+    if (selectionActionsLocked || current.notes.length + current.chords.length === 0) return;
+    deactivateScaleTool(); deactivateMoveTool(); deactivateQuantizeTool();
+    setSliceToolActive(false); setTransposeToolActive(false); setCutToolActive(false); setPendingSelectionTool(null);
+    setOptimizeDialogError(null);
+    setOptimizeDialog({ snapshot: cloneSnapshot(current), selection: {
+      noteIds: selectedNoteIds.map(resolveNoteId), chordIds: activeChordIds.map(resolveChordId),
+    } });
   };
 
-  const handleOptimizeToCoordinates = (noteIds: number[] = selectedNoteIds) => {
-    if (!noteIds.length) return;
-    void runMutation(
-      async () => ({}),
-      {
-        localApply: (draft) => {
-          const resolvedIds = noteIds
-            .map((id) => (id < 0 ? noteIdMapRef.current.get(id) ?? id : id))
-            .filter((id) => id >= 0);
-          if (!resolvedIds.length) return;
-          const selectedIdSet = new Set(resolvedIds);
+  const handleOptimizeFingering = openOptimizeDialog;
+  const handleOptimizeToCoordinates = (_noteIds?: number[]) => openOptimizeDialog();
 
-          draft.notes
-            .filter((note) => selectedIdSet.has(note.id))
-            .sort(
-              (left, right) =>
-                left.startTime - right.startTime || left.tab[0] - right.tab[0] || left.id - right.id
-            )
-            .forEach((note) => {
-              const alternates = computeNoteAlternatesForSnapshot(draft, note);
-              const nextTab = alternates.possibleTabs[0];
-              note.optimals = alternates.possibleTabs.map((tab) => cloneTabCoord(tab));
-              if (!nextTab) return;
-              applyNoteFingeringUpdates(
-                draft,
-                getEffectAwareFingeringUpdates(draft, [{ noteId: note.id, tab: nextTab }])
-              );
-            });
-        },
-        serverMode: "local-first",
-      }
-    );
+  const applyOptimization = (options: OptimizeOptions) => {
+    if (!optimizeDialog || optimizingFingering) return;
+    setOptimizeDialogError(null);
+    try {
+      const selection = { noteIds: optimizeDialog.selection.noteIds.map(resolveNoteId), chordIds: optimizeDialog.selection.chordIds.map(resolveChordId) };
+      const optimized = optimizeSelection(snapshotRef.current, selection, options);
+      setOptimizingFingering(true);
+      void runMutation(async () => gteApi.applySnapshot(editorId, optimized), {
+        localApply: (draft) => { Object.assign(draft, optimized); },
+      }).then(() => {
+        setOptimizeDialog(null);
+        setSelectedNoteIds([]); setSelectedChordIds([]);
+      }).finally(() => setOptimizingFingering(false));
+    } catch (error) {
+      setOptimizeDialogError(error instanceof Error ? error.message : "Could not optimize this selection.");
+    }
   };
 
   const handleSnapSelectedNotesToKey = (noteIds: number[] = selectedNoteIds) => {
@@ -11498,6 +11489,20 @@ export default function GteWorkspace({
     });
     setSelectedCutBoundaryIndex(null);
   };
+
+  useEffect(() => {
+    if (!coordinateEditorMode || selectedCutBoundaryIndex === null) return;
+    const handleBoundaryDelete = (event: KeyboardEvent) => {
+      if (event.key !== "Delete" && event.key !== "Backspace") return;
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      handleMergeCutBoundary();
+    };
+    window.addEventListener("keydown", handleBoundaryDelete);
+    return () => window.removeEventListener("keydown", handleBoundaryDelete);
+  }, [coordinateEditorMode, selectedCutBoundaryIndex, handleMergeCutBoundary]);
 
   const handleDeleteChord = () => {
     if (!selectedChord) return;
@@ -13491,6 +13496,7 @@ export default function GteWorkspace({
       // This listener runs in capture phase. Inspector controls own their keys,
       // including Tab; editor undo/redo remains available outside text fields.
       const insidePropertiesInspector = Boolean(target?.closest("[data-gte-properties-inspector='true']"));
+      if (target?.closest("[data-gte-optimization-dialog='true']")) return;
       if (insidePropertiesInspector && (isTyping || !((event.ctrlKey || event.metaKey) && /^[zy]$/i.test(event.key)))) return;
       const scaleModeSelect = target?.closest<HTMLElement>("[data-scale-mode-select='true']");
       if (!isTyping && !insidePropertiesInspector) {
@@ -14333,10 +14339,8 @@ export default function GteWorkspace({
       if (event.key === "o" || event.key === "O") {
         if (isTyping) return;
         if (guardSingleTrackSelectionAction("Optimize")) return;
-        if (selectedNoteIds.length > 0) {
-          event.preventDefault();
-          handleOptimizeToCoordinates();
-        }
+        event.preventDefault();
+        handleOptimizeToCoordinates();
         return;
       }
       if (event.key === "h" || event.key === "H") {
@@ -14994,8 +14998,7 @@ export default function GteWorkspace({
           onMouseDown={(event) => event.stopPropagation()}
           onTouchStart={(event) => event.stopPropagation()}
         >
-          <button type="button" onClick={() => void handleOptimizeFingering()} disabled={optimizingFingering || allTrackEventsEmpty} className={mobileButtonClass}>{t("Optimize fingering")}</button>
-          <button type="button" onClick={() => runMobileWholeTrackTool("coordinates")} disabled={snapshot.notes.length === 0} className={mobileButtonClass}>{t("Optimize to coordinates")}</button>
+          <button type="button" onClick={openOptimizeDialog} disabled={optimizingFingering || allTrackEventsEmpty} className={mobileButtonClass}>{t("Optimize")}</button>
           <button type="button" onClick={() => runMobileWholeTrackTool("snap-key")} disabled={snapshot.notes.length === 0} className={mobileButtonClass}>{t("Snap to key")}</button>
           <button type="button" onClick={() => void handleMakeChord()} disabled={chordizeCandidateCount < 2 || selectionActionsLocked} className={mobileButtonClass}>{t("Merge to chord")}</button>
           <button type="button" onClick={handleDisbandChord} disabled={!selectedChord || selectionActionsLocked} className={mobileButtonClass}>{t("Disband chord")}</button>
@@ -15123,19 +15126,6 @@ export default function GteWorkspace({
               {renderToolHelp("Disband Chord")}
               </>}
 
-              <button
-                type="button"
-                onClick={() => {
-                  void handleOptimizeToCoordinates();
-                }}
-                disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
-                title={
-                  selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Moves selected notes to their best playing coordinates - Shortcut: O")
-                }
-                className={textButtonClass}
-              >
-                <span className={shortcutClass}>{t("O")}</span>{t("Optimize to Coordinates")}</button>
-              {renderToolHelp("Optimize to Coordinates")}
 
               <button
                 type="button"
@@ -15148,11 +15138,11 @@ export default function GteWorkspace({
                   selectionActionsLocked
                 }
                 title={
-                  optimizingFingering ? t("Optimizing fingering") : selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Chordizes simultaneous notes and optimizes the whole track")
+                  optimizingFingering ? t("Optimizing fingering") : selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Optimize selected notes/chords or the whole track - Shortcut: O")
                 }
                 className={textButtonClass}
-              >{t("Optimize Fingering")}</button>
-              {renderToolHelp("Optimize Fingering")}
+              >{t("Optimize")}</button>
+              {renderToolHelp("Optimize")}
 
               <button
                 type="button"
@@ -15603,6 +15593,16 @@ export default function GteWorkspace({
           <InspectorDelete label={t("Delete note")} onClick={deleteChordNote} />
         </PropertiesInspectorShell>
       )}
+      {coordinateEditorMode && (
+        <div data-gte-coordinate-editor-control="true" className="mb-2 flex justify-end">
+          <button type="button" onClick={handleMergeCutBoundary}
+            disabled={selectedCutBoundaryIndex === null}
+            title={t("Delete selected boundary")}
+            className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-40">
+            {t("Delete boundary")}<kbd className="rounded border border-slate-200 px-1 text-[10px]">Del</kbd>
+          </button>
+        </div>
+      )}
       {pendingSelectionTool && (
         <div
           data-gte-floating-ui="true"
@@ -15631,7 +15631,7 @@ export default function GteWorkspace({
           >{t("Apply")}</button>
         </div>
       )}
-      {directCanvasTool && (
+      {directCanvasTool && !coordinateEditorMode && (
         <div
           data-gte-floating-ui="true"
           data-gte-editor-control="true"
@@ -15659,6 +15659,17 @@ export default function GteWorkspace({
             title={t("Return to normal editing (Escape)")}
           >{t("Done")}</button>
         </div>
+      )}
+      {optimizeDialog && typeof document !== "undefined" && createPortal(
+        <GteOptimizeDialog snapshot={optimizeDialog.snapshot} selection={optimizeDialog.selection}
+          error={optimizeDialogError} busy={optimizingFingering} onCancel={() => setOptimizeDialog(null)} onApply={applyOptimization}
+          renderCoordinateEditor={(draft, onChange, cutting, end) => (
+            <GteWorkspace editorId={`${editorId}-coordinate-preview`} snapshot={draft} onSnapshotChange={onChange}
+              allowBackend={false} embedded isActive={false} playbackUiVisible={false}
+              coordinateEditorMode coordinateEditorCut={cutting} coordinateEditorEnd={end}
+              globalSnapToGridEnabled={false} sharedViewportBarCount={Math.max(1, Math.min(4, Math.ceil(end / Math.max(1, draft.framesPerMessure))))} />
+          )} />,
+        document.body
       )}
       {transposeToolActive && (
         <div data-transpose-hud="true" data-gte-floating-ui="true" data-gte-editor-control="true"
@@ -15920,6 +15931,7 @@ export default function GteWorkspace({
                 setSelectedChordIds([]);
               }, disabled: activeChordIds.length === 0 || selectionActionsLocked },
             ] : []),
+            { label: "Optimize", path: "M4 20 17 7M14 4l6 6M5 3v4M3 5h4M18 15v6M15 18h6", onClick: openOptimizeDialog, disabled: optimizingFingering || selectionActionsLocked || (snapshot.notes.length === 0 && snapshot.chords.length === 0) },
             { label: "Snap to Key", path: "M14 3v12M14 6l5 2M14 15c0 2-2 4-4 4s-4-1-4-3 2-3 4-3 4 0 4 2M3 4v5M1 6h5", onClick: handleSnapSelectedNotesToKey, disabled: selectedNoteIds.length === 0 || selectionActionsLocked },
             { label: "Snap to beat", path: "M5 3h4v9a3 3 0 0 0 6 0V3h4v9a7 7 0 0 1-14 0V3ZM5 7h4M15 7h4", onClick: activateQuantizeTool, disabled: selectedNoteIds.length + activeChordIds.length === 0 || selectionActionsLocked, active: quantizeDialogOpen },
             { label: "Merge Notes", path: "M3 3h6v1l2 1.5L9 7l1 1H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM21 3h-6v1l2 1.5L14 7l1 1h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1ZM6 10c0 2 2 2 3 2s3 1 3 3M18 10c0 2-2 2-3 2s-3 1-3 3M10 14l2 2 2-2M3 19a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-2Z", onClick: () => { void handleJoinSelectedNotes(); }, disabled: selectedNoteIds.length < 2 || selectionActionsLocked },
@@ -15991,6 +16003,7 @@ export default function GteWorkspace({
       {contextMenu && (
         <div
           ref={contextMenuRef}
+          data-gte-coordinate-editor-control={coordinateEditorMode ? "true" : undefined}
           className={`fixed z-[9999] rounded-md border border-slate-200 bg-white/95 py-1 text-xs shadow-lg backdrop-blur ${
             contextMenu.kind === "note"
               ? "max-h-[calc(100vh-1.5rem)] w-64 overflow-y-auto"
@@ -16054,6 +16067,7 @@ export default function GteWorkspace({
             </>
           ) : contextMenu.kind === "playingCoordinates" ? (
             <>
+              {!coordinateEditorMode && <>
               <div className="px-3 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">{t("Playing Coordinates")}</div>
               <button
                 type="button"
@@ -16072,7 +16086,8 @@ export default function GteWorkspace({
                 disabled={!hasRedundantCutRegions}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
               >{t("Clean Playing-Coordinates")}</button>
-              <button
+              </>}
+              {!coordinateEditorMode && <button
                 type="button"
                 onClick={() => {
                   toggleCutTool();
@@ -16082,7 +16097,7 @@ export default function GteWorkspace({
               >
                 <span>{t("Cut")}</span>
                 <span className="text-[10px] text-slate-400">{t("K")}</span>
-              </button>
+              </button>}
               <button
                 type="button"
                 onClick={() => {
@@ -16128,18 +16143,6 @@ export default function GteWorkspace({
                     <span>{t("Merge to Chord")}</span>
                     <span className="text-[10px] text-slate-400">{t("C")}</span>
                   </button>}
-                  {!bassLane && <button
-                    type="button"
-                    onClick={() => {
-                      void handleOptimizeToCoordinates();
-                      setContextMenu(null);
-                    }}
-                    disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
-                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
-                  >
-                    <span>{t("Optimize to Coordinates")}</span>
-                    <span className="text-[10px] text-slate-400">{t("O")}</span>
-                  </button>}
                   <button
                     type="button"
                     onClick={() => {
@@ -16181,7 +16184,7 @@ export default function GteWorkspace({
                     }
                     className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
                   >
-                    <span>{t("Optimize Fingering")}</span>
+                    <span>{t("Optimize")}</span>
                   </button>
                   <button
                     type="button"
@@ -17772,7 +17775,7 @@ export default function GteWorkspace({
           }`}
           style={{
             columnGap: GTE_TIMELINE_COLUMN_GAP,
-            paddingRight: !mobileViewport && !tabViewEnabled && !practiceMode ? GTE_EDITOR_TOOLBAR_GUTTER : undefined,
+            paddingRight: !coordinateEditorMode && !mobileViewport && !tabViewEnabled && !practiceMode ? GTE_EDITOR_TOOLBAR_GUTTER : undefined,
             transform: isMobileEditMode ? "translateX(-12px)" : undefined,
           }}
         >
@@ -17785,7 +17788,7 @@ export default function GteWorkspace({
               flex: `0 0 ${GTE_TIMELINE_LABEL_COLUMN_WIDTH}px`,
               ...(!mobileViewport ? {
                 position: "absolute" as const,
-                left: `calc(50% - ${timelineWidth / 2 + GTE_TIMELINE_LABEL_COLUMN_WIDTH + GTE_TIMELINE_COLUMN_GAP + (!tabViewEnabled && !practiceMode ? GTE_EDITOR_TOOLBAR_GUTTER / 2 : 0)}px)`,
+                left: `calc(50% - ${timelineWidth / 2 + GTE_TIMELINE_LABEL_COLUMN_WIDTH + GTE_TIMELINE_COLUMN_GAP + (!coordinateEditorMode && !tabViewEnabled && !practiceMode ? GTE_EDITOR_TOOLBAR_GUTTER / 2 : 0)}px)`,
                 top: 0,
               } : {}),
             }}
@@ -17937,6 +17940,7 @@ export default function GteWorkspace({
                 <button
                   type="button"
                   onClick={openAddBarsDialog}
+                  data-gte-add-bars="true"
                   onMouseDown={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
@@ -18284,7 +18288,7 @@ export default function GteWorkspace({
                   );
                 })()}
 
-                {showPlayingCoordinates && cutBoundaries.map((boundary) => {
+                {showPlayingCoordinates && cutBoundaries.filter((boundary) => !coordinateEditorMode || boundary.time < (coordinateEditorEnd ?? Infinity)).map((boundary) => {
                   if (framesPerMeasure <= 0) return null;
                   const rowIndex = Math.floor(boundary.time / rowFrames);
                   if (rowIndex < 0 || rowIndex >= rows) return null;
@@ -18336,8 +18340,10 @@ export default function GteWorkspace({
 
                 {showPlayingCoordinates && segmentEdits.map((segment, segIndex) => {
                   if (framesPerMeasure <= 0) return null;
+                  const displayEnd = coordinateEditorMode ? Math.min(segment.end, coordinateEditorEnd ?? segment.end) : segment.end;
+                  if (segment.start >= displayEnd) return null;
                   const startRow = Math.floor(segment.start / rowFrames);
-                  const endRow = Math.floor((Math.max(segment.end - 1, segment.start)) / rowFrames);
+                  const endRow = Math.floor((Math.max(displayEnd - 1, segment.start)) / rowFrames);
                   const pieces = [];
                   for (let rowIdx = startRow; rowIdx <= endRow; rowIdx += 1) {
                     if (rowIdx < 0 || rowIdx >= rows) continue;
@@ -18346,7 +18352,7 @@ export default function GteWorkspace({
                     const rowStart = rowIdx * rowFrames;
                     const rowEnd = rowStart + availableFrames;
                     const segStart = Math.max(segment.start, rowStart);
-                    const segEnd = Math.min(segment.end, rowEnd);
+                    const segEnd = Math.min(displayEnd, rowEnd);
                     if (segEnd <= segStart) continue;
                     const left = (segStart - rowStart) * scale;
                     const width = Math.max(CUT_SEGMENT_MIN_WIDTH, (segEnd - segStart) * scale);
@@ -19189,7 +19195,7 @@ export default function GteWorkspace({
                   onClick={() => handleOptimizeToCoordinates()}
                   disabled={selectedNoteIds.length === 0}
                   className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm active:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                >{t("Optimize to coordinates")}</button>
+                >{t("Optimize")}</button>
               </div>
               <label className="mt-2 block rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                 <span className="flex items-center justify-between text-[9px] font-semibold uppercase tracking-wide text-slate-500">

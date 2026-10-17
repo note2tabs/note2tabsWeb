@@ -7705,8 +7705,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                 items: [
                                   ["Merge to Chord", "C"],
                                   ["Disband Chord", "Shift+L"],
-                                  ["Optimize to Coordinates", "O"],
-                                  ["Optimize Fingering", ""],
+                                  ["Optimize", "O"],
                                   ["Snap to Key", ""],
                                   ["Snap to beat", ""],
                                   ["Merge Notes", "J"],
