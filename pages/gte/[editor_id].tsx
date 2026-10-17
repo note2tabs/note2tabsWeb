@@ -154,6 +154,7 @@ import { appendBoundedHistory, replaceCanvasLane } from "../../lib/gteEditorPerf
 import { createPlaybackLookaheadScheduler } from "../../lib/gtePlaybackLookahead";
 import { getPlaybackScrollTarget } from "../../lib/gtePlaybackScroll";
 import {
+  GTE_EDITOR_TOOLBAR_GUTTER,
   GTE_TIMELINE_END_PADDING,
   GTE_TIMELINE_GUTTER_WIDTH,
   getTimelineBaseScale,
@@ -2607,7 +2608,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const keyDetectionMatches = useMemo<RelativeScaleMatch[]>(() => {
     if (!findKeyDialogOpen || !canvas) return [];
     const detected = detectGteScale(canvas);
-    return detected ? getRelativeScaleMatches(detected, 5) : [];
+    if (!detected) return [];
+    const matches = getRelativeScaleMatches(detected, detected.candidates.length);
+    const common = (match: RelativeScaleMatch) => match.scaleType === "Major" || match.scaleType === "Minor";
+    return [...matches.filter(common).slice(0, 5), ...matches.filter((match) => !common(match)).slice(0, 5)];
   }, [canvas, findKeyDialogOpen]);
 
   useEffect(() => {
@@ -3874,7 +3878,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         : Math.max(container.clientWidth, viewportAvailableWidth);
       const availableWidth = Math.max(
         240,
-        measuredWidth - GTE_TIMELINE_GUTTER_WIDTH - GTE_TIMELINE_END_PADDING
+        measuredWidth - GTE_TIMELINE_GUTTER_WIDTH - GTE_TIMELINE_END_PADDING -
+          (!practiceModeEnabled && !tabViewEnabled ? GTE_EDITOR_TOOLBAR_GUTTER : 0)
       );
       // Fit each bar to the selected bars-per-row capacity, even when the song
       // currently contains fewer bars. The unused row width then stays empty.
@@ -3903,7 +3908,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       observer.disconnect();
       window.removeEventListener("resize", scheduleScaleComputation);
     };
-  }, [activeLaneId, canvas, desktopBarsPerRow, isMobileViewport, practiceModeEnabled, sharedViewportBarCount]);
+  }, [activeLaneId, canvas, desktopBarsPerRow, isMobileViewport, practiceModeEnabled, sharedViewportBarCount, tabViewEnabled]);
 
   const synchronizeSharedTimelineScroll = useCallback((next: number, scrollLeft?: number) => {
     const clamped = Math.max(0, Math.min(1, next));
@@ -7511,7 +7516,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   </button>
                 )}
               </span>
-                  <div className="shrink-0 xl:absolute xl:left-1/2 xl:top-1/2 xl:-translate-x-1/2 xl:-translate-y-1/2">
+                  <div className="relative shrink-0 xl:absolute xl:left-1/2 xl:top-1/2 xl:-translate-x-1/2 xl:-translate-y-1/2">
                     {renderViewModeSwitch()}
                   </div>
                   <div className={`ml-auto shrink-0 items-center gap-2 ${
@@ -7558,6 +7563,41 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     practiceModeEnabled ? "[&>details]:hidden" : ""
                   }`}
                 >
+                    {!isMobileViewport && !tabViewEnabled && canvas && (
+                      <div data-gte-floating-ui="true" data-gte-editor-control="true" role="group" aria-label={t("Snapping")}
+                        className="order-6 mx-auto flex items-center gap-4 whitespace-nowrap px-3 text-slate-700 xl:absolute xl:left-1/2 xl:top-1/2 xl:-translate-x-1/2 xl:-translate-y-1/2">
+                    <div className="flex flex-col items-center gap-0.5 text-center text-[10px] font-medium leading-3 text-slate-600">
+                      <span>{t("Snap to grid")}</span>
+                      <button
+                        type="button"
+                        onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
+                        aria-label={t("Snap to grid")}
+                        aria-pressed={globalSnapToGridEnabled}
+                        className={`flex h-7 w-14 items-center justify-center rounded-md border transition-colors ${globalSnapToGridEnabled ? "border-sky-600 bg-sky-600 text-white hover:bg-sky-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <rect x="3" y="3" width="18" height="18" rx="2" />
+                          <path d="M9 3v18M15 3v18M3 9h18M3 15h18" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div className="flex flex-col items-center gap-0.5 text-center text-[10px] font-medium leading-3 text-slate-600">
+                      <span>{t("Snap to key")}</span>
+                      <button
+                        type="button"
+                        onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
+                        aria-label={t("Snap to key")}
+                        aria-pressed={globalSnapToKeyEnabled}
+                        className={`flex h-7 w-14 items-center justify-center gap-1 rounded-md border transition-colors ${globalSnapToKeyEnabled ? "border-sky-600 bg-sky-600 text-white hover:bg-sky-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                      >
+                        <span className="text-sm font-semibold" aria-hidden="true">{KEY_BASE_OPTIONS[normalizeKeyBase(canvas?.keyBase)]}</span>
+                        <svg viewBox="0 0 16 20" className="h-5 w-4 fill-current" aria-hidden="true">
+                          <path d="M11 2h1.75v12.5c0 1.8-1.9 3.25-4.25 3.25S4.25 16.7 4.25 15 6.15 11.75 8.5 11.75c.92 0 1.78.22 2.5.59V2Z" />
+                        </svg>
+                      </button>
+                    </div>
+                      </div>
+                    )}
                   <details
                     className="group relative order-1"
                     open={openTopMenu === "file"}
@@ -7668,11 +7708,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                   ["Optimize to Coordinates", "O"],
                                   ["Optimize Fingering", ""],
                                   ["Snap to Key", ""],
-                                  ["Quantize", ""],
+                                  ["Snap to beat", ""],
                                   ["Merge Notes", "J"],
                                   ["Length scaling", "D"],
                                   ["Scale", "S"],
-                                  ["Slicing Tool", "Shift+S"],
+                                  ["Subdivide", "Shift+S"],
                                   ["Move", "M"],
                                 ],
                               },
@@ -10495,7 +10535,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             role="dialog"
             aria-modal="true"
             aria-labelledby="find-key-dialog-title"
-            className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 shadow-2xl"
+            className="max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-xl border border-slate-200 bg-white p-5 shadow-2xl"
             onMouseDown={(event) => event.stopPropagation()}
             onKeyDown={(event) => {
               if (event.key === "Escape") setFindKeyDialogOpen(false);
@@ -10505,7 +10545,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             <p className="mt-1 text-sm text-slate-600">{t("Note2Tabs compares the notes and chords in this project. Relative match scores rank these choices only; they are not probabilities.")}</p>
             <div className="mt-4 grid gap-2" role="radiogroup" aria-label={t("Likely song keys")}>
               {keyDetectionMatches.length ? (
-                keyDetectionMatches.map((candidate, index) => {
+                [false, true].map((otherKeys) => {
+                  const choices = keyDetectionMatches.filter((candidate) =>
+                    (candidate.scaleType !== "Major" && candidate.scaleType !== "Minor") === otherKeys
+                  ).map((candidate) => {
                   const value = `${candidate.rootKey}:${candidate.scaleType}`;
                   const selected = selectedKeyCandidate === value;
                   return (
@@ -10529,10 +10572,18 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         {candidate.root} {t(candidate.scaleType)}
                       </span>
                       <span className="text-right text-[10px] font-medium text-slate-500">
-                        {index === 0 ? t("Closest match") : t("Relative match {value1}/100", {value1: candidate.relativeMatch})}
+                        {candidate.rmsDifference === Math.min(...keyDetectionMatches.map((match) => match.rmsDifference)) ? t("Closest match") : t("Relative match {value1}/100", {value1: candidate.relativeMatch})}
                       </span>
                     </label>
                   );
+                  });
+                  if (!choices.length) return null;
+                  return otherKeys ? (
+                    <details key="other-keys" className="mt-1 border-t border-slate-100 pt-2">
+                      <summary className="cursor-pointer py-1 text-xs font-medium text-slate-500">{t("Other keys")}</summary>
+                      <div className="mt-2 grid gap-2">{choices}</div>
+                    </details>
+                  ) : <div key="major-minor-keys" className="grid gap-2">{choices}</div>;
                 })
               ) : (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-600">{t("Add some notes or chords before detecting the key.")}</div>
@@ -10615,36 +10666,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         <span>{t("larger")}</span>
                       </span>
                     </label>
-                    </div>
-                    <div className="order-4 grid min-w-0 gap-1 text-xs font-medium text-slate-600">
-                      <span>{t("Snap to grid")}</span>
-                      <button
-                        type="button"
-                        onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
-                        aria-label={t("Snap to grid")}
-                        aria-pressed={globalSnapToGridEnabled}
-                        className={`flex h-7 w-full items-center justify-center rounded-md border transition-colors ${globalSnapToGridEnabled ? "border-sky-600 bg-sky-600 text-white hover:bg-sky-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
-                      >
-                        <svg viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <rect x="3" y="3" width="18" height="18" rx="2" />
-                          <path d="M9 3v18M15 3v18M3 9h18M3 15h18" />
-                        </svg>
-                      </button>
-                    </div>
-                    <div className="order-5 grid min-w-0 gap-1 text-xs font-medium text-slate-600">
-                      <span>{t("Snap to key")}</span>
-                      <button
-                        type="button"
-                        onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
-                        aria-label={t("Snap to key")}
-                        aria-pressed={globalSnapToKeyEnabled}
-                        className={`flex h-7 w-full items-center justify-center gap-1.5 rounded-md border transition-colors ${globalSnapToKeyEnabled ? "border-sky-600 bg-sky-600 text-white hover:bg-sky-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
-                      >
-                        <span className="text-sm font-semibold" aria-hidden="true">{KEY_BASE_OPTIONS[normalizeKeyBase(canvas?.keyBase)]}</span>
-                        <svg viewBox="0 0 16 20" className="h-5 w-4 fill-current" aria-hidden="true">
-                          <path d="M11 2h1.75v12.5c0 1.8-1.9 3.25-4.25 3.25S4.25 16.7 4.25 15 6.15 11.75 8.5 11.75c.92 0 1.78.22 2.5.59V2Z" />
-                        </svg>
-                      </button>
                     </div>
         </div>
       )}

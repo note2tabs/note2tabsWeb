@@ -50,3 +50,5 @@ export const getScaledDrumHitSize = (
     )
   );
 };
+/** Space reserved beside the desktop Canvas for its fixed tool rail. */
+export const GTE_EDITOR_TOOLBAR_GUTTER = 24;
