@@ -53,6 +53,7 @@ import {
 } from "../lib/gteNoteEffects";
 import { cloneEditorSnapshot, mergeNotesIntoChordLocal, nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
 import { buildSubdivisionPlan, subdivideSelection, MAX_SUBDIVISION_PARTS } from "../lib/gteSubdivision";
+import { getTransposeBounds, transposeSelectionFrets } from "../lib/gteTranspose";
 import { generatePlayingCoordinatesInSnapshot } from "../lib/gtePlayingCoordinates";
 import {
   finalizeOptimizedTrackFingeringInSnapshot as finalizeOptimizedTrackFingeringCore,
@@ -135,6 +136,7 @@ const TOOL_HELP_SECTIONS = [
       ["Scale", "Proportionally changes selected start times, lengths, or both."],
       ["Subdivide", "Splits overlapping selections together into equally spaced subdivisions."],
       ["Move", "Moves selected notes or chords together along the timeline."],
+      ["Transpose", "Shifts selected frets up or down by semitones without changing timing."],
     ],
   },
   {
@@ -5260,6 +5262,12 @@ export default function GteWorkspace({
   const [toolHelpOpen, setToolHelpOpen] = useState(false);
   const [tabPreviewOpen, setTabPreviewOpen] = useState(false);
   const [sliceToolActive, setSliceToolActive] = useState(false);
+  const [transposeToolActive, setTransposeToolActive] = useState(false);
+  const [transposeOffset, setTransposeOffset] = useState(0);
+  const [transposeInput, setTransposeInput] = useState("0");
+  const [transposeSelection, setTransposeSelection] = useState<{ noteIds: number[]; chordIds: number[] }>({ noteIds: [], chordIds: [] });
+  const [transposeHud, setTransposeHud] = useState({ x: 20, y: 20 });
+  const transposeTypingRef = useRef({ text: "", at: 0 });
   const [subdivisionParts, setSubdivisionParts] = useState(2);
   const [subdivisionInput, setSubdivisionInput] = useState("2");
   const [subdivisionSelection, setSubdivisionSelection] = useState<{ noteIds: number[]; chordIds: number[] }>({ noteIds: [], chordIds: [] });
@@ -8709,6 +8717,100 @@ export default function GteWorkspace({
       window.removeEventListener("mousedown", click, true);
     };
   }, [sliceToolActive, isActive, subdivisionInput, subdivisionParts, subdivisionSelection, resolveNoteId, resolveChordId]);
+
+  const transposeNoteIds = useMemo(() => new Set(transposeSelection.noteIds.map(resolveNoteId)), [transposeSelection, resolveNoteId]);
+  const transposeChordIds = useMemo(() => new Set(transposeSelection.chordIds.map(resolveChordId)), [transposeSelection, resolveChordId]);
+  const transposeBounds = useMemo(() => getTransposeBounds(snapshot, [...transposeNoteIds], [...transposeChordIds], maxFret),
+    [snapshot, transposeNoteIds, transposeChordIds, maxFret]);
+
+  const toggleTransposeTool = () => {
+    if (transposeToolActive) { setTransposeToolActive(false); return; }
+    if (selectionActionsLocked || selectedNoteIds.length + activeChordIds.length === 0) return;
+    setTransposeSelection({ noteIds: [...selectedNoteIds], chordIds: [...activeChordIds] });
+    setTransposeOffset(0); setTransposeInput("0");
+    transposeTypingRef.current = { text: "", at: 0 };
+    const pointer = mousePosRef.current;
+    setTransposeHud({ x: Math.max(12, Math.min(pointer.x + 12, window.innerWidth - 188)), y: Math.max(12, Math.min(pointer.y + 12, window.innerHeight - 120)) });
+    deactivateScaleTool(); deactivateMoveTool(); deactivateQuantizeTool();
+    setSliceToolActive(false); setCutToolActive(false); setPendingSelectionTool(null);
+    setTransposeToolActive(true);
+  };
+
+  const updateTransposeInput = (text: string) => {
+    if (!/^[+-]?\d{0,2}$/.test(text)) return;
+    setTransposeInput(text);
+    const value = Number(text);
+    if (transposeBounds && /^[+-]?\d+$/.test(text) && Number.isInteger(value) && value >= transposeBounds.min && value <= transposeBounds.max) setTransposeOffset(value);
+  };
+  const stepTranspose = (direction: number) => {
+    if (!transposeBounds) return;
+    const value = Math.max(transposeBounds.min, Math.min(transposeBounds.max, transposeOffset + direction));
+    setTransposeOffset(value); setTransposeInput(String(value));
+    transposeTypingRef.current = { text: "", at: 0 };
+  };
+  const commitTranspose = () => {
+    if (!/^[+-]?\d+$/.test(transposeInput)) return;
+    const value = Number(transposeInput);
+    const noteIds = [...transposeNoteIds], chordIds = [...transposeChordIds];
+    if (!transposeSelectionFrets(snapshotRef.current, noteIds, chordIds, value, maxFret)) return;
+    setTransposeToolActive(false);
+    if (value === 0) return;
+    void runMutation(async () => ({}), { localApply: (draft) => {
+      const transposed = transposeSelectionFrets(draft, noteIds, chordIds, value, maxFret);
+      if (transposed) Object.assign(draft, transposed);
+    } });
+  };
+
+  useEffect(() => {
+    if (transposeToolActive && (!isActive || effectiveIsPlaying || tabViewEnabled || practiceMode || sliceToolActive || scaleToolActive || moveToolActive || cutToolActive || quantizeDialogOpen)) setTransposeToolActive(false);
+  }, [transposeToolActive, isActive, effectiveIsPlaying, tabViewEnabled, practiceMode, sliceToolActive, scaleToolActive, moveToolActive, cutToolActive, quantizeDialogOpen]);
+
+  useEffect(() => {
+    if (!transposeToolActive || !isActive) return;
+    const keydown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      const ownInput = Boolean(target?.closest("[data-transpose-hud]"));
+      if (!ownInput && target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      if (ownInput && target?.closest("button")) return;
+      if (event.key === "Escape" || event.key === "Enter") {
+        event.preventDefault(); event.stopImmediatePropagation();
+        if (event.key === "Escape") setTransposeToolActive(false); else commitTranspose();
+      } else if (event.key === "ArrowUp" || event.key === "ArrowDown" || (!ownInput && (event.key === "+" || event.key === "=" || event.key === "-"))) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        stepTranspose(event.key === "ArrowDown" || event.key === "-" ? -1 : 1);
+        if (event.key === "-") transposeTypingRef.current = { text: "-", at: Date.now() };
+      } else if (!ownInput && /^\d$/.test(event.key)) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        const previous = transposeTypingRef.current;
+        const text = (Date.now() - previous.at < KEYBOARD_FRET_TYPE_TIMEOUT_MS ? previous.text : "") + event.key;
+        if (/^-?\d{1,2}$/.test(text)) {
+          transposeTypingRef.current = { text, at: Date.now() }; updateTransposeInput(text);
+        }
+      } else if (!ownInput && event.key === "Backspace") {
+        event.preventDefault(); event.stopImmediatePropagation();
+        const text = transposeInput.slice(0, -1);
+        transposeTypingRef.current = { text, at: Date.now() }; updateTransposeInput(text);
+      }
+    };
+    const wheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey || event.deltaY === 0) return;
+      event.preventDefault(); event.stopImmediatePropagation(); stepTranspose(event.deltaY < 0 ? 1 : -1);
+    };
+    const click = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (event.button !== 0 || target?.closest("[data-gte-floating-ui='true'], input, select, a")) return;
+      event.preventDefault(); event.stopImmediatePropagation(); commitTranspose();
+    };
+    window.addEventListener("keydown", keydown, true);
+    window.addEventListener("wheel", wheel, { capture: true, passive: false });
+    window.addEventListener("mousedown", click, true);
+    return () => {
+      window.removeEventListener("keydown", keydown, true);
+      window.removeEventListener("wheel", wheel, true);
+      window.removeEventListener("mousedown", click, true);
+    };
+  }, [transposeToolActive, isActive, transposeInput, transposeOffset, transposeBounds, transposeNoteIds, transposeChordIds, maxFret]);
 
   const toggleScaleTool = useCallback(() => {
     if (scaleToolActive) {
@@ -14548,7 +14650,7 @@ export default function GteWorkspace({
     timelineEnd,
   ]);
 
-  const showSelectedFretCaret = isActive && !mobileViewport && !effectiveIsPlaying &&
+  const showSelectedFretCaret = isActive && !mobileViewport && !effectiveIsPlaying && !transposeToolActive &&
     !scaleToolActive && !moveToolActive && !cutToolActive && !sliceToolActive && !quantizeDialogOpen;
 
   const cursorGridLineMask = (rowIndex: number, x: number) => {
@@ -15185,6 +15287,13 @@ export default function GteWorkspace({
                 />{t("Subdivide")}</button>
               {renderToolHelp("Subdivide")}
 
+              <button type="button" onClick={toggleTransposeTool}
+                disabled={selectionActionsLocked || (!transposeToolActive && selectedNoteIds.length + activeChordIds.length === 0)}
+                className={transposeToolActive ? `${activeButtonClass} bg-sky-600` : textButtonClass}>
+                {t("Transpose")}
+              </button>
+              {renderToolHelp("Transpose")}
+
               <button
                 type="button"
                 onClick={() => {
@@ -15551,6 +15660,27 @@ export default function GteWorkspace({
           >{t("Done")}</button>
         </div>
       )}
+      {transposeToolActive && (
+        <div data-transpose-hud="true" data-gte-floating-ui="true" data-gte-editor-control="true"
+          className="fixed z-[10020] w-44 rounded-lg border border-sky-200 bg-white px-3 py-2 text-slate-700 shadow-lg"
+          style={{ left: transposeHud.x, top: transposeHud.y }} onMouseDown={(event) => event.stopPropagation()}>
+          <label className="grid gap-1 text-[11px] font-medium">
+            {t("Transpose")}
+            <span className="flex items-center gap-1">
+              <button type="button" aria-label={t("Transpose down")} disabled={!transposeBounds || transposeOffset <= transposeBounds.min}
+                onClick={() => stepTranspose(-1)} className="h-7 w-7 shrink-0 rounded border border-slate-200 hover:bg-slate-50 disabled:opacity-30">−</button>
+              <input type="text" inputMode="text" aria-label={t("Semitones")} value={transposeInput}
+                onFocus={(event) => event.currentTarget.select()} onChange={(event) => updateTransposeInput(event.target.value)}
+                className="h-7 min-w-0 w-full rounded border border-slate-200 px-1 text-center text-sm outline-none focus:border-sky-400" />
+              <button type="button" aria-label={t("Transpose up")} disabled={!transposeBounds || transposeOffset >= transposeBounds.max}
+                onClick={() => stepTranspose(1)} className="h-7 w-7 shrink-0 rounded border border-slate-200 hover:bg-slate-50 disabled:opacity-30">+</button>
+            </span>
+          </label>
+          <div className="mt-1 text-[10px] leading-4 text-slate-500">{t("Type or scroll to adjust")}</div>
+          <div className="text-[10px] leading-4 text-slate-500">{t("Enter or click to apply")}</div>
+          <button type="button" onClick={() => setTransposeToolActive(false)} className="mt-1 text-[10px] text-slate-500 hover:text-slate-800">{t("Cancel")}</button>
+        </div>
+      )}
       {sliceToolActive && (
         <div data-subdivision-hud="true" data-gte-floating-ui="true" data-gte-editor-control="true"
           className="fixed z-[10020] w-44 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-slate-700 shadow-lg"
@@ -15796,9 +15926,10 @@ export default function GteWorkspace({
             { label: "Subdivide", path: "M3 6h18v12H3zM9 6v12M15 6v12", onClick: toggleSliceTool, disabled: selectionActionsLocked || (!sliceToolActive && selectedNoteIds.length + activeChordIds.length === 0), active: sliceToolActive },
             { label: "Scale", path: "M9 12H2m3-3-3 3 3 3M15 12h7m-3-3 3 3-3 3", onClick: toggleScaleTool, disabled: !scaleToolActive && selectedNoteIds.length + activeChordIds.length === 0, active: scaleToolActive, separator: true },
             { label: "Move", path: "M12 9V2m-3 3 3-3 3 3M12 15v7m-3-3 3 3 3-3M9 12H2m3-3-3 3 3 3M15 12h7m-3-3 3 3-3 3", onClick: () => { if (moveToolActive) deactivateMoveTool(); else activateMoveTool(); }, disabled: !moveToolActive && selectedNoteIds.length + activeChordIds.length === 0, active: moveToolActive },
+            { label: "Transpose", path: "M8 20V4M4 8l4-4 4 4M17 4v16M13 16l4 4 4-4", onClick: toggleTransposeTool, disabled: selectionActionsLocked || (!transposeToolActive && selectedNoteIds.length + activeChordIds.length === 0), active: transposeToolActive },
             { label: "Hammer/Pull", path: "", letter: "H", onClick: () => handleAddNoteEffect(1), disabled: !canCreateNoteEffect, separator: true },
             { label: "Bend", path: "", letter: "B", onClick: () => handleAddNoteEffect(0), disabled: !canCreateNoteEffect },
-            { label: "Slide", path: "", letter: "L", onClick: () => handleAddNoteEffect(2), disabled: !canCreateNoteEffect },
+            { label: "Slide", path: "", letter: "/", onClick: () => handleAddNoteEffect(2), disabled: !canCreateNoteEffect },
           ] as Array<{ label: string; path: string; letter?: string; onClick: () => void; disabled?: boolean; active?: boolean; separator?: boolean }>).map((tool) => (
             <div key={tool.label} className={`flex items-center ${tool.separator ? "border-t border-slate-200 pt-1" : ""}`}>
               <button type="button" title={t(tool.label)} aria-label={t(tool.label)} aria-pressed={tool.active}
@@ -16133,6 +16264,11 @@ export default function GteWorkspace({
                   >
                     <span>{t("Subdivide")}</span>
                     <span className="text-[10px] text-slate-400">{t("Shift+S")}</span>
+                  </button>
+                  <button type="button" onClick={() => { toggleTransposeTool(); setContextMenu(null); }}
+                    disabled={selectionActionsLocked || (!transposeToolActive && selectedNoteIds.length + activeChordIds.length === 0)}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400">
+                    {t("Transpose")}
                   </button>
                   <button
                     type="button"
@@ -18601,7 +18737,7 @@ export default function GteWorkspace({
                         }}
                       >
                         {idx === 0 ? <span className="relative inline-flex items-center">
-                          {note.tab[1]}
+                          {note.tab[1] + (transposeToolActive && transposeNoteIds.has(note.id) ? transposeOffset : 0)}
                           {showSelectedFretCaret && selectedNoteIds.length === 1 && selectedNoteIds[0] === note.id && selectedChordIds.length === 0 && (
                             <span aria-hidden="true" className="gte-input-caret pointer-events-none absolute left-full top-1/2 ml-0.5 h-3 -translate-y-1/2 border-l border-current" />
                           )}
@@ -18810,7 +18946,7 @@ export default function GteWorkspace({
                           }}
                         >
                           <span className="relative inline-flex items-center">
-                            {tab[1]}
+                            {tab[1] + (transposeToolActive && transposeChordIds.has(chord.id) ? transposeOffset : 0)}
                             {showSelectedFretCaret && isEditingThisChord && chordNoteMenuIndex === idx && selectedNoteIds.length === 0 && activeChordIds.length === 1 && (
                               <span aria-hidden="true" className="gte-input-caret pointer-events-none absolute left-full top-1/2 ml-0.5 h-3 -translate-y-1/2 border-l border-current" />
                             )}

@@ -7714,6 +7714,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                   ["Scale", "S"],
                                   ["Subdivide", "Shift+S"],
                                   ["Move", "M"],
+                                  ["Transpose", ""],
                                 ],
                               },
                               {
