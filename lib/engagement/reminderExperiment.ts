@@ -9,6 +9,7 @@ import { ENGAGEMENT_EXPERIMENT, getEngagementEnrollment, reserveEngagementContac
 import { createPostHogServerClient } from "../posthogServer";
 import {captureReminderDeliveryFailure,captureReminderFailure,captureReminderRun} from "../reminderMonitoring";
 import { buildContextualReminder } from "./reminderCopy";
+import {legacyReminderMarkers,claimLegacyReminderMarkers,releaseLegacyReminderMarkers} from "./legacyReminderMarkers";
 
 type Candidate = { id: string; email: string; name: string | null; editorId: string | null; editorName: string | null };
 export async function runEngagementReminders(req: NextApiRequest, res: NextApiResponse, campaign: "signup" | "tab") {
@@ -56,11 +57,11 @@ async function dispatchEngagementReminders(req: NextApiRequest, res: NextApiResp
   for (const user of candidates) {
     // Recheck suppression, permission, verification, activity, billing and editor
     // ownership just before reserving a contact, identically in every arm.
-    const readEligibility = () => prisma.$queryRaw<Array<{ id: string }>>`SELECT u.id
+    const readEligibility = (checkCooldown=true) => prisma.$queryRaw<Array<{ id: string }>>`SELECT u.id
       FROM "User" u INNER JOIN "EngagementEmailPermission" p ON p."accountId" = u.id AND p.allowed = TRUE
       WHERE u.id = ${user.id} AND u."subscriptionPlan" = 'FREE' AND u.role = 'FREE'
         AND (u."emailVerified" IS NOT NULL OR u."emailVerifiedBool" = TRUE)
-        AND NOT EXISTS (SELECT 1 FROM "VerificationToken" v WHERE v.expires > ${now} AND v.identifier IN ('email:reminders-unsubscribed:' || u.id, 'email:reminders-delivery-suppressed:' || u.id, 'reminder:return-to-tab-cooldown:' || u.id))
+        AND NOT EXISTS (SELECT 1 FROM "VerificationToken" v WHERE v.expires > ${now} AND (v.identifier IN ('email:reminders-unsubscribed:' || u.id, 'email:reminders-delivery-suppressed:' || u.id) OR (${checkCooldown} AND v.identifier='reminder:return-to-tab-cooldown:' || u.id)))
         AND (${campaign} <> 'tab' OR (u."lastActiveAt" <= ${inactive} AND EXISTS (SELECT 1 FROM canvases c WHERE c.user_id = u.id AND c.canvas_id = ${user.editorId} AND c.updated_at <= ${inactive})))
         AND (${campaign} <> 'signup' OR (NOT EXISTS (SELECT 1 FROM "TabJob" t WHERE t."userId" = u.id) AND NOT EXISTS (SELECT 1 FROM canvases c WHERE c.user_id = u.id)))`;
     const valid = await readEligibility();
@@ -87,6 +88,12 @@ async function dispatchEngagementReminders(req: NextApiRequest, res: NextApiResp
     if (!contactId) {await recordExperimentDecision(enrollment,"email",campaign,false,{reason:"contact_cap"});continue;}
     try {
       if (!(await readEligibility()).length) { await finishEngagementContact(user.id, contactId, "cancelled"); continue; }
+      // Preserve the existing once-per-tab marker and fourteen-day cooldown,
+      // including when the experiment is later switched off. Deterministic
+      // legacy tokens also conflict with an in-flight classic scheduler claim.
+      const markers=legacyReminderMarkers(user.id,campaign,user.editorId,now);
+      if(!(await claimLegacyReminderMarkers(markers))){await finishEngagementContact(user.id,contactId,"cancelled");continue;}
+      if(!(await readEligibility(false)).length){await releaseLegacyReminderMarkers(markers);await finishEngagementContact(user.id,contactId,"cancelled");continue;}
       const accepted = await sendTransactionalEmail({ language:{kind:"customer",template:enrollment.arm === "contextual" ? "contextual_reminder" : campaign === "signup" ? "inactive_signup" : "tab_return",locale,accountId:user.id}, to: user.email, ...email, analyticsCategory: "engagement_reminder_experiment" });
       await finishEngagementContact(user.id, contactId, accepted ? "accepted" : "failed");
       if (accepted) {
@@ -95,6 +102,7 @@ async function dispatchEngagementReminders(req: NextApiRequest, res: NextApiResp
         ph?.capture({ distinctId: user.id, event: "engagement_reminder_sent", properties: { ...experimentProperties(enrollment.arm), contact_id: contactId, action, campaign } });
         if (ph) await ph.flush().catch(() => { console.warn("engagement_reminder_analytics_failed"); });
       } else {
+        await releaseLegacyReminderMarkers(markers);
         counts.failed++;
         captureReminderDeliveryFailure(createPostHogServerClient(),campaign === "signup" ? "inactive_signup" : "tab_return",user.id,null);
       }
