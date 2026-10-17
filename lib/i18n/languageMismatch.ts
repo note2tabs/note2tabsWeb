@@ -1,5 +1,12 @@
 import { deviceLocale } from "./detection";
 import { localeEnabled, type AppLocale } from "./locale";
+import {validLocale} from "./preference";
+
+/** Development-only interactive preview; never changes production routing. */
+export function languagePromptPreview(path: string): AppLocale | null {
+  return process.env.NODE_ENV === "development"
+    ? validLocale(new URL(path, "http://localhost").searchParams.get("languagePromptPreview")) : null;
+}
 
 /** Unsupported browser languages use English; URL language remains independently measurable. */
 export function languageMismatchTarget(page: AppLocale, browserLanguages: string, enabled = localeEnabled): AppLocale | null {

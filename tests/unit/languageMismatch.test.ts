@@ -1,8 +1,16 @@
-import {describe, it, expect} from "vitest";
-import {languageMismatchTarget, mismatchCopy} from "../../lib/i18n/languageMismatch";
+import {afterEach, describe, it, expect, vi} from "vitest";
+import {languageMismatchTarget, languagePromptPreview, mismatchCopy} from "../../lib/i18n/languageMismatch";
 import {ALL_LOCALES} from "../../lib/i18n/locale";
 const enabled = () => true;
+afterEach(() => vi.unstubAllEnvs());
 describe("language mismatch recommendations", () => {
+  it("allows interactive previews only in development", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    expect(languagePromptPreview("/fr?languagePromptPreview=en")).toBeNull();
+    vi.stubEnv("NODE_ENV", "development");
+    expect(languagePromptPreview("/fr?languagePromptPreview=en")).toBe("en");
+    expect(languagePromptPreview("/fr?languagePromptPreview=invalid")).toBeNull();
+  });
   it.each(ALL_LOCALES)("does not flag a matching %s page", locale => {
     expect(languageMismatchTarget(locale, locale, enabled)).toBeNull();
     expect(mismatchCopy[locale].continue).toBeTruthy();

@@ -6,6 +6,7 @@ import { DISPLAY_CURRENCY_COOKIE, displayCurrencyForCountry } from "./lib/locali
 import { localeFromPath } from "./lib/i18n/locale";
 import { detectedLocaleDestination } from "./lib/i18n/detection";
 import { localizedPilotAvailable } from "./lib/i18n/pilot";
+import {languagePromptPreview} from "./lib/i18n/languageMismatch";
 
 const withCurrencyPreference = (request: NextRequest, response: NextResponse) => {
   const country = request.headers.get("x-vercel-ip-country");
@@ -34,7 +35,7 @@ export default async function proxy(request: NextRequest) {
     console.info("note2tabs.api_request", { request_id: requestId, endpoint, method: request.method });
     return response;
   }
-  const localizedPath = ["GET", "HEAD"].includes(request.method) ? detectedLocaleDestination(
+  const localizedPath = ["GET", "HEAD"].includes(request.method) && !languagePromptPreview(request.url) ? detectedLocaleDestination(
     `${request.nextUrl.pathname}${request.nextUrl.search}`,
     request.headers.get("accept-language") || "",
     request.cookies.get(LANGUAGE_CHOICE_COOKIE)?.value === "1" ? request.cookies.get("n2t_locale")?.value : undefined,
