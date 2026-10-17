@@ -1,0 +1,10 @@
+import {it,expect,vi,beforeEach} from 'vitest';import {createMocks} from 'node-mocks-http';
+const m=vi.hoisted(()=>({session:vi.fn(),qa:vi.fn(),query:vi.fn(),send:vi.fn()}));
+vi.mock('next-auth/next',()=>({getServerSession:m.session}));vi.mock('../../../pages/api/auth/[...nextauth]',()=>({authOptions:{}}));
+vi.mock('../../../lib/engagement/experiment',()=>({engagementQaAccount:m.qa,getEngagementEnrollment:vi.fn(),reserveEngagementContact:vi.fn(),finishEngagementContact:vi.fn()}));
+vi.mock('../../../lib/prisma',()=>({prisma:{$queryRaw:m.query}}));vi.mock('../../../lib/email',()=>({sendTransactionalEmail:m.send}));
+import handler from '../../../pages/api/engagement/qa';
+beforeEach(()=>{vi.clearAllMocks();m.session.mockResolvedValue({user:{id:'owner'}});m.qa.mockReturnValue(true);});
+it('does not expose QA to any account outside the server allowlist',async()=>{m.qa.mockReturnValue(false);const {req,res}=createMocks({method:'POST',body:{operation:'send_test',accountId:'owner'}});await handler(req as any,res as any);expect(res.statusCode).toBe(404);expect(m.query).not.toHaveBeenCalled();expect(m.send).not.toHaveBeenCalled();});
+it('rejects cross-origin QA actions before database or delivery access',async()=>{const {req,res}=createMocks({method:'POST',headers:{host:'www.note2tabs.com',origin:'https://evil.example'},body:{operation:'send_test'}});await handler(req as any,res as any);expect(res.statusCode).toBe(403);expect(m.query).not.toHaveBeenCalled();expect(m.send).not.toHaveBeenCalled();});
+it('refuses test sends without production permission and ignores request recipients',async()=>{m.query.mockResolvedValue([]);const {req,res}=createMocks({method:'POST',headers:{host:'www.note2tabs.com',origin:'https://www.note2tabs.com'},body:{operation:'send_test',to:'someone-else@example.com'}});await handler(req as any,res as any);expect(res.statusCode).toBe(409);expect(m.query.mock.calls[0].slice(1)).toContain('owner');expect(m.send).not.toHaveBeenCalled();});

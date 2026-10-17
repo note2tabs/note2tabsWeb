@@ -3,7 +3,7 @@ import { stripLocale } from "../lib/i18n/locale";
 import { useLocale } from "../lib/i18n/react";
 import Link from "./LocaleLink";
 import { useLocaleRouter as useRouter } from "../lib/i18n/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type Ref } from "react";
 import { useSession } from "next-auth/react";
 import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../lib/analytics";
 import {
@@ -69,6 +69,7 @@ type PremiumPromptCardProps = {
   onDismiss: () => void;
   onClick?: () => void;
   preview?: boolean;
+  visibilityRef?: Ref<HTMLElement>;
 };
 
 export function PremiumPromptCard({
@@ -77,11 +78,12 @@ export function PremiumPromptCard({
   onDismiss,
   onClick,
   preview = false,
+  visibilityRef,
 }: PremiumPromptCardProps) {
   const { t, locale } = useLocale();
   const copy = promptCopy[reason];
   return (
-    <aside className={`premium-upgrade-prompt${preview ? " premium-upgrade-prompt--preview" : ""}`} aria-label={t("Premium subscription")}>
+    <aside ref={visibilityRef} className={`premium-upgrade-prompt${preview ? " premium-upgrade-prompt--preview" : ""}`} aria-label={t("Premium subscription")}>
       <button type="button" className="premium-upgrade-prompt__close" onClick={onDismiss} aria-label={t("Dismiss Premium offer")}>
         <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="m5.5 5.5 9 9m0-9-9 9" /></svg>
       </button>
