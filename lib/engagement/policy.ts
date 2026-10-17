@@ -11,12 +11,13 @@ export type EngagementEvent = {
   source?: string;
   reason?: string;
   action?: string;
+  contentLocale?: string;
 };
 export const ENGAGEMENT_EVENTS = new Set([
   "signup_completed", "login_succeeded", "product_home_viewed", "gte_session_started",
   "transcription_started", "transcription_succeeded", "transcription_failed",
   "transcription_imported_to_editor", "gte_editor_imported", "gte_file_import_completed",
-  "gte_editor_action", "gte_editor_saved", "gte_practice_started", "gte_playback_completed",
+  "gte_editor_action", "gte_editor_saved", "gte_practice_started", "gte_playback_completed", "gte_playback_paused",
   "gte_export_download_initiated", "gte_export_failed", "gte_file_import_failed",
   "pricing_viewed", "pricing_billing_selected", "transcription_submission_blocked",
   "checkout_started", "checkout_failed", "checkout_client_failed", "checkout_cancelled",
@@ -25,7 +26,7 @@ export const ENGAGEMENT_EVENTS = new Set([
 ]);
 const VALUE_EVENTS = new Set([
   "transcription_imported_to_editor", "gte_file_import_completed", "gte_editor_action",
-  "gte_editor_saved", "gte_practice_started", "gte_playback_completed", "gte_export_download_initiated",
+  "gte_editor_saved", "gte_practice_started", "gte_playback_completed", "gte_playback_paused", "gte_export_download_initiated",
 ]);
 const ACTIVITY_EVENTS = new Set([
   ...VALUE_EVENTS, "gte_editor_imported", "transcription_started", "transcription_succeeded",

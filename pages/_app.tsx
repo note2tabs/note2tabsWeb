@@ -1,3 +1,4 @@
+import EngagementExperimentProvider from "../components/EngagementExperimentProvider";
 import { stripLocale } from "../lib/i18n/locale";
 import SkipLink from "../components/SkipLink";
 import { DisplayCurrencyContext } from "../lib/useDisplayCurrency";
@@ -101,7 +102,7 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
   }, [router.events]);
 
   return (
-    <DisplayCurrencyContext.Provider value={pageProps.initialDisplayCurrency || "USD"}><LocaleProvider path={router.asPath} initialEditorLocale={pageProps.initialEditorLocale} initialEditorMessages={pageProps.initialEditorMessages}><SessionProvider session={session} refetchInterval={0} refetchOnWindowFocus={false}>
+    <DisplayCurrencyContext.Provider value={pageProps.initialDisplayCurrency || "USD"}><LocaleProvider path={router.asPath} initialEditorLocale={pageProps.initialEditorLocale} initialEditorMessages={pageProps.initialEditorMessages}><SessionProvider session={session} refetchInterval={0} refetchOnWindowFocus={false}><EngagementExperimentProvider>
       <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
@@ -125,6 +126,6 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         <AffiliateAttributionCapture />
         <CheckoutCancellationTracker />
       </div>
-    </SessionProvider></LocaleProvider></DisplayCurrencyContext.Provider>
+    </EngagementExperimentProvider></SessionProvider></LocaleProvider></DisplayCurrencyContext.Provider>
   );
 }

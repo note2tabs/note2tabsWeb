@@ -1,3 +1,5 @@
+import { experimentEnabled } from "../../../lib/engagement/experiment";
+import { runEngagementReminders } from "../../../lib/engagement/reminderExperiment";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { sendTransactionalEmail } from "../../../lib/email";
 import { prisma } from "../../../lib/prisma";
@@ -58,6 +60,8 @@ async function runHandler(req: NextApiRequest, res: NextApiResponse, startedAt: 
       ? true
       : await isAuthorizedSchedulerRequest(req.headers.authorization);
   if (!authorized) return res.status(401).json({ error: "Unauthorized" });
+
+  if (experimentEnabled()) return runEngagementReminders(req, res, "tab");
 
   const now = new Date();
   const inactiveBefore = new Date(now.getTime() - TAB_RETURN_REMINDER_DELAY_HOURS * 60 * 60 * 1000);

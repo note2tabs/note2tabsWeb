@@ -8,7 +8,7 @@ function text(value: unknown) { return typeof value === "string" && /^[a-z0-9_:-
 export function toEngagementEvent(e: NormalizedIngestEvent): EngagementEvent {
   return { id: stablePostHogEventUuid(e.eventId), at: e.ts.getTime(), name: e.name,
     project: text(e.editorId), job: text(e.jobId), session: text(e.sessionId),
-    source: text(e.props.source), reason: text(e.props.blocked_reason ?? e.props.reason), action: text(e.props.action) };
+    contentLocale: text(e.props.content_locale), source: text(e.props.source), reason: text(e.props.blocked_reason ?? e.props.reason), action: text(e.props.action) };
 }
 /** Consent is checked by ingest before this call. No names, files, or raw URLs stored. */
 export async function recordEngagementEvents(accountId: string, events: NormalizedIngestEvent[]) {
