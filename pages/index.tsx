@@ -2346,6 +2346,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 }
 
 export const getStaticProps: GetStaticProps<HomePageProps> = async () => {
+  // Trust counters are optional. A UI-only local checkout has no database;
+  // do not queue requests in the database adapter while rendering its homepage.
+  if (!process.env.DATABASE_URL) return { props: { trustMetrics: null }, revalidate: 60 * 60 };
   try {
     const { prisma } = await import("../lib/prisma");
     const [transcriptionsCompleted, editorsCreated] = await Promise.all([

@@ -9,6 +9,7 @@ import {restoreLanguageChoice, browserLanguageChoice, LANGUAGE_STORAGE_KEY} from
 import {localeSwitchDestination, supportsLocalizedPath} from "./locale";
 import {loadPublicCatalog} from "./publicCatalogs";
 import {hasPublicCatalog} from "./translate";
+import {languagePromptPreview} from "./languageMismatch";
 import { translate, registerEditorCatalog } from "./translate";
 const LocaleContext = createContext<{ locale: AppLocale; navigationLocale: AppLocale; deviceLanguage:AppLocale; languageChosen:boolean; languageReady:boolean }>({ locale: "en", navigationLocale: "en", deviceLanguage:"en", languageChosen:false, languageReady:false });
 export function LocaleProvider({ children, path, initialEditorLocale = "en", initialEditorMessages }: { children: ReactNode; path: string; initialEditorLocale?: AppLocale; initialEditorMessages?: Record<string,string> }) {
@@ -86,9 +87,11 @@ export function LocaleProvider({ children, path, initialEditorLocale = "en", ini
     };
   }, []);
   useEffect(()=>{
-    if(!router?.isReady || !languageReady || !languageChosen || editor || !supportsLocalizedPath(path))return;
+    if(!router?.isReady || !languageReady || !languageChosen || editor || !supportsLocalizedPath(path) || languagePromptPreview(path))return;
     const target=localeSwitchDestination(path,localeEnabled(preferredLocale) ? preferredLocale : "en");
-    if(target)void router.replace(target);
+    // Route data can contain a redirect fetched before the preference changed.
+    // Request the document with the new cookies instead of reusing that data.
+    if(target)window.location.replace(target);
   }, [languageReady,languageChosen,editor,path,preferredLocale,router]);
   const navigationLocale = localeEnabled(preferredLocale)
     ? languageChosen ? preferredLocale : navigationLocaleForPath(path, preferredLocale) : "en";

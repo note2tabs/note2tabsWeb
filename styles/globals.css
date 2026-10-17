@@ -14258,6 +14258,12 @@ input[type="number"] {
 }
 
 /* Language options open on demand without adding a row above the page. */
+.language-mismatch { position:fixed; inset-block-start:78px; inset-inline-end:20px; z-index:150; max-width:calc(100vw - 32px); box-sizing:border-box; padding:6px 12px; border:1px solid #dce4df; border-radius:12px; background:#fffefa; color:#17221c; box-shadow:0 6px 24px rgba(6,17,13,.1); }
+.language-mismatch__continue { display:flex; align-items:center; gap:9px; min-height:44px; padding:0 4px; border-radius:6px; color:#0d624b; text-decoration:none; font-weight:600; font-size:.875rem; }
+.language-mismatch__continue:hover { background:#f0f5f1; }
+.language-mismatch__stay { display:block; min-height:32px; padding:0 4px 4px; border:0; background:transparent; color:#657169; font-size:.75rem; text-align:start; cursor:pointer; }
+@media(max-width:600px) { .language-mismatch { inset-block-start:auto; inset-block-end:16px; inset-inline-end:16px; } }
+.language-mismatch a:focus-visible,.language-mismatch button:focus-visible { outline:2px solid #0d755d; outline-offset:3px; }
 .language-selector { position:relative; flex-shrink:0; font-size:.78rem; }
 .language-selector summary { display:flex; align-items:center; gap:6px; padding:8px 10px; border:1px solid rgba(6,17,13,.12); border-radius:12px; color:#17221c; cursor:pointer; list-style:none; }
 .language-selector summary::-webkit-details-marker { display:none; }

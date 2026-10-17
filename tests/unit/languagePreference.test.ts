@@ -92,5 +92,6 @@ describe("one-time device language preference",()=>{
   const locked=await proxy(new NextRequest("https://www.note2tabs.com/es/pricing",{headers:{cookie:"n2t_locale=en; n2t_locale_choice=1","accept-language":"es"}}));
   expect(locked.headers.get("location")).toBe("https://www.note2tabs.com/pricing");
   expect(locked.headers.get("cache-control")).toBe("private, no-store");
+  expect(locked.headers.get("x-middleware-cache")).toBe("no-cache");
  });
 });
