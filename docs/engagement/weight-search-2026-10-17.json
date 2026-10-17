@@ -1,0 +1,400 @@
+{
+  "method": "Prespecified six binary features, integer weights 0/1/2/4, all nonempty combinations and thresholds; choose using Sep 1-21 only, report Sep 22-Oct 7 separately. Previously inspected data: exploratory, not independent validation. No email/CTA effectiveness inference.",
+  "features": [
+    "successful_transcription",
+    "practice",
+    "deliberate_edit",
+    "saved_project",
+    "recent_voluntary_pricing",
+    "multiple_successes"
+  ],
+  "candidates": 4095,
+  "trainPeople": 1316,
+  "laterPeople": 964,
+  "results": [
+    {
+      "budget": 0.05,
+      "validCandidates": 4048,
+      "nearOptimalCandidates": 440,
+      "nearOptimalWeightRanges": [
+        {
+          "name": "successful_transcription",
+          "min": 0,
+          "max": 4
+        },
+        {
+          "name": "practice",
+          "min": 1,
+          "max": 4
+        },
+        {
+          "name": "deliberate_edit",
+          "min": 0,
+          "max": 4
+        },
+        {
+          "name": "saved_project",
+          "min": 0,
+          "max": 4
+        },
+        {
+          "name": "recent_voluntary_pricing",
+          "min": 1,
+          "max": 4
+        },
+        {
+          "name": "multiple_successes",
+          "min": 1,
+          "max": 4
+        }
+      ],
+      "weights": [
+        1,
+        2,
+        1,
+        1,
+        1,
+        2
+      ],
+      "threshold": 6,
+      "train": {
+        "people": 1316,
+        "returners": 51,
+        "flagged": 65,
+        "caught": 10,
+        "precision": 0.15384615384615385,
+        "recall": 0.19607843137254902,
+        "flagRate": 0.04939209726443769
+      },
+      "later": {
+        "people": 964,
+        "returners": 41,
+        "flagged": 55,
+        "caught": 6,
+        "precision": 0.10909090909090909,
+        "recall": 0.14634146341463414,
+        "flagRate": 0.05705394190871369
+      }
+    },
+    {
+      "budget": 0.1,
+      "validCandidates": 3319,
+      "nearOptimalCandidates": 451,
+      "nearOptimalWeightRanges": [
+        {
+          "name": "successful_transcription",
+          "min": 0,
+          "max": 4
+        },
+        {
+          "name": "practice",
+          "min": 0,
+          "max": 4
+        },
+        {
+          "name": "deliberate_edit",
+          "min": 0,
+          "max": 2
+        },
+        {
+          "name": "saved_project",
+          "min": 0,
+          "max": 2
+        },
+        {
+          "name": "recent_voluntary_pricing",
+          "min": 1,
+          "max": 4
+        },
+        {
+          "name": "multiple_successes",
+          "min": 1,
+          "max": 4
+        }
+      ],
+      "weights": [
+        2,
+        1,
+        0,
+        0,
+        2,
+        1
+      ],
+      "threshold": 4,
+      "train": {
+        "people": 1316,
+        "returners": 51,
+        "flagged": 116,
+        "caught": 14,
+        "precision": 0.1206896551724138,
+        "recall": 0.27450980392156865,
+        "flagRate": 0.08814589665653495
+      },
+      "later": {
+        "people": 964,
+        "returners": 41,
+        "flagged": 74,
+        "caught": 7,
+        "precision": 0.0945945945945946,
+        "recall": 0.17073170731707318,
+        "flagRate": 0.07676348547717843
+      }
+    },
+    {
+      "budget": 0.2,
+      "validCandidates": 3897,
+      "nearOptimalCandidates": 316,
+      "nearOptimalWeightRanges": [
+        {
+          "name": "successful_transcription",
+          "min": 0,
+          "max": 4
+        },
+        {
+          "name": "practice",
+          "min": 1,
+          "max": 4
+        },
+        {
+          "name": "deliberate_edit",
+          "min": 0,
+          "max": 2
+        },
+        {
+          "name": "saved_project",
+          "min": 1,
+          "max": 4
+        },
+        {
+          "name": "recent_voluntary_pricing",
+          "min": 0,
+          "max": 4
+        },
+        {
+          "name": "multiple_successes",
+          "min": 1,
+          "max": 4
+        }
+      ],
+      "weights": [
+        0,
+        4,
+        1,
+        1,
+        2,
+        2
+      ],
+      "threshold": 6,
+      "train": {
+        "people": 1316,
+        "returners": 51,
+        "flagged": 242,
+        "caught": 20,
+        "precision": 0.08264462809917356,
+        "recall": 0.39215686274509803,
+        "flagRate": 0.1838905775075988
+      },
+      "later": {
+        "people": 964,
+        "returners": 41,
+        "flagged": 180,
+        "caught": 13,
+        "precision": 0.07222222222222222,
+        "recall": 0.3170731707317073,
+        "flagRate": 0.18672199170124482
+      }
+    },
+    {
+      "budget": 0.4,
+      "validCandidates": 7536,
+      "nearOptimalCandidates": 153,
+      "nearOptimalWeightRanges": [
+        {
+          "name": "successful_transcription",
+          "min": 0,
+          "max": 4
+        },
+        {
+          "name": "practice",
+          "min": 1,
+          "max": 2
+        },
+        {
+          "name": "deliberate_edit",
+          "min": 1,
+          "max": 2
+        },
+        {
+          "name": "saved_project",
+          "min": 1,
+          "max": 4
+        },
+        {
+          "name": "recent_voluntary_pricing",
+          "min": 1,
+          "max": 4
+        },
+        {
+          "name": "multiple_successes",
+          "min": 1,
+          "max": 4
+        }
+      ],
+      "weights": [
+        0,
+        1,
+        2,
+        1,
+        4,
+        4
+      ],
+      "threshold": 3,
+      "train": {
+        "people": 1316,
+        "returners": 51,
+        "flagged": 484,
+        "caught": 28,
+        "precision": 0.05785123966942149,
+        "recall": 0.5490196078431373,
+        "flagRate": 0.3677811550151976
+      },
+      "later": {
+        "people": 964,
+        "returners": 41,
+        "flagged": 451,
+        "caught": 26,
+        "precision": 0.057649667405764965,
+        "recall": 0.6341463414634146,
+        "flagRate": 0.4678423236514523
+      }
+    }
+  ],
+  "singleSignals": [
+    {
+      "name": "successful_transcription",
+      "train": {
+        "people": 1316,
+        "returners": 51,
+        "flagged": 1126,
+        "caught": 41,
+        "precision": 0.03641207815275311,
+        "recall": 0.803921568627451,
+        "flagRate": 0.8556231003039514
+      },
+      "later": {
+        "people": 964,
+        "returners": 41,
+        "flagged": 681,
+        "caught": 31,
+        "precision": 0.04552129221732746,
+        "recall": 0.7560975609756098,
+        "flagRate": 0.7064315352697096
+      }
+    },
+    {
+      "name": "practice",
+      "train": {
+        "people": 1316,
+        "returners": 51,
+        "flagged": 637,
+        "caught": 26,
+        "precision": 0.04081632653061224,
+        "recall": 0.5098039215686274,
+        "flagRate": 0.48404255319148937
+      },
+      "later": {
+        "people": 964,
+        "returners": 41,
+        "flagged": 395,
+        "caught": 25,
+        "precision": 0.06329113924050633,
+        "recall": 0.6097560975609756,
+        "flagRate": 0.40975103734439833
+      }
+    },
+    {
+      "name": "deliberate_edit",
+      "train": {
+        "people": 1316,
+        "returners": 51,
+        "flagged": 539,
+        "caught": 23,
+        "precision": 0.04267161410018553,
+        "recall": 0.45098039215686275,
+        "flagRate": 0.4095744680851064
+      },
+      "later": {
+        "people": 964,
+        "returners": 41,
+        "flagged": 695,
+        "caught": 33,
+        "precision": 0.04748201438848921,
+        "recall": 0.8048780487804879,
+        "flagRate": 0.720954356846473
+      }
+    },
+    {
+      "name": "saved_project",
+      "train": {
+        "people": 1316,
+        "returners": 51,
+        "flagged": 298,
+        "caught": 19,
+        "precision": 0.06375838926174497,
+        "recall": 0.37254901960784315,
+        "flagRate": 0.22644376899696048
+      },
+      "later": {
+        "people": 964,
+        "returners": 41,
+        "flagged": 208,
+        "caught": 12,
+        "precision": 0.057692307692307696,
+        "recall": 0.2926829268292683,
+        "flagRate": 0.2157676348547718
+      }
+    },
+    {
+      "name": "recent_voluntary_pricing",
+      "train": {
+        "people": 1316,
+        "returners": 51,
+        "flagged": 54,
+        "caught": 6,
+        "precision": 0.1111111111111111,
+        "recall": 0.11764705882352941,
+        "flagRate": 0.041033434650455926
+      },
+      "later": {
+        "people": 964,
+        "returners": 41,
+        "flagged": 34,
+        "caught": 3,
+        "precision": 0.08823529411764706,
+        "recall": 0.07317073170731707,
+        "flagRate": 0.035269709543568464
+      }
+    },
+    {
+      "name": "multiple_successes",
+      "train": {
+        "people": 1316,
+        "returners": 51,
+        "flagged": 113,
+        "caught": 10,
+        "precision": 0.08849557522123894,
+        "recall": 0.19607843137254902,
+        "flagRate": 0.0858662613981763
+      },
+      "later": {
+        "people": 964,
+        "returners": 41,
+        "flagged": 71,
+        "caught": 7,
+        "precision": 0.09859154929577464,
+        "recall": 0.17073170731707318,
+        "flagRate": 0.07365145228215768
+      }
+    }
+  ]
+}

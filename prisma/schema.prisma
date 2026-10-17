@@ -62,6 +62,11 @@ model User {
   heavyPreviewUsedAt          DateTime?
   heavyPreviewJobId           String?
   passedTutorial              Boolean              @default(false)
+  engagementEnrollments       EngagementEnrollment[]
+  engagementContacts          EngagementContact[]
+  engagementEmailPermission   EngagementEmailPermission?
+  engagementSignals           EngagementSignal[]
+  engagementDecisions         EngagementDecision[]
   accountLanguage             AccountLanguage?
   accounts                    Account[]
   feedbackSubmissions         FeedbackSubmission[]
@@ -686,6 +691,55 @@ enum JobStatus {
   running
   succeeded
   failed
+}
+
+model EngagementSignal {
+  id        String   @id
+  accountId String
+  at        DateTime
+  payload   Json
+  account   User     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  @@index([accountId, at])
+  @@index([at])
+}
+
+model EngagementDecision {
+  id        String   @id
+  accountId String
+  at        DateTime
+  channel   String
+  payload   Json
+  account   User     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  @@index([accountId, at])
+  @@index([at])
+}
+
+model EngagementEnrollment {
+  accountId String
+  version String
+  arm String
+  enrolledAt DateTime @default(now())
+  account User @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  @@id([accountId, version])
+}
+model EngagementContact {
+  id String @id
+  accountId String
+  version String
+  arm String
+  channel String
+  action String
+  state String
+  createdAt DateTime @default(now())
+  account User @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  @@index([accountId, channel, createdAt])
+}
+model EngagementEmailPermission {
+  accountId String @id
+  allowed Boolean @default(false)
+  basis String
+  recordedAt DateTime @default(now())
+  account User @relation(fields: [accountId], references: [id], onDelete: Cascade)
 }
 
 model AccountLanguage {

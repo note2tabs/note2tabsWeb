@@ -1,9 +1,11 @@
+import { acknowledgeEngagementContact } from "../lib/engagement/react";
 import { useLocale } from "../lib/i18n/react";
 import { useEffect, useRef } from "react";
 import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
 
 type PostValuePremiumPromptProps = {
   open: boolean;
+  contactId?: string | null;
   onClose: () => void;
   onUpgrade: () => void;
   editorId: string;
@@ -12,6 +14,7 @@ type PostValuePremiumPromptProps = {
 
 export default function PostValuePremiumPrompt({
   open,
+  contactId,
   onClose,
   onUpgrade,
   editorId,
@@ -31,6 +34,7 @@ export default function PostValuePremiumPrompt({
     const observer = new IntersectionObserver(([entry]) => {
       if (!entry?.isIntersecting || entry.intersectionRatio < 0.5 || viewedRef.current) return;
       viewedRef.current = true;
+      acknowledgeEngagementContact(contactId || null);
       sendEvent(ANALYTICS_EVENTS.premiumPromptViewed, {
         reason: "post_value_interaction",
         trigger,
@@ -42,7 +46,7 @@ export default function PostValuePremiumPrompt({
     }, { threshold: 0.5 });
     observer.observe(element);
     return () => observer.disconnect();
-  }, [editorId, open, trigger]);
+  }, [contactId, editorId, open, trigger]);
 
   if (!open) return null;
   return (

@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../lib/prisma";
+import {setReminderEmailPermission} from "../../../lib/engagement/emailPermission";
 import { createPostHogServerClient, flushPostHogServerClientInBackground } from "../../../lib/posthogServer";
 import { readReminderUnsubscribeToken, reminderUnsubscribeIdentifier } from "../../../lib/reminderUnsubscribe";
 
@@ -14,6 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     update: { expires: new Date("9999-12-31T00:00:00.000Z") },
   });
   const posthog = createPostHogServerClient();
+  if (process.env.ENGAGEMENT_SIGNALS_ENABLED === "true") await setReminderEmailPermission(userId, false, "unsubscribe_link_v1");
   posthog?.capture({ distinctId: userId, event: "reminder_email_unsubscribed", properties: { email_category: "retention_reminders" } });
   if (posthog) flushPostHogServerClientInBackground(posthog);
   return res.status(200).json({ ok: true });

@@ -1,3 +1,4 @@
+import { beginTransfer } from "../lib/engagement/transferTracking";
 import { useLocale } from "../lib/i18n/react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -44,6 +45,7 @@ type ImportTrack = {
 type SelectableImportFormat = "MIDI" | "MusicXML";
 
 type PendingTrackSelection = {
+  transfer: ReturnType<typeof beginTransfer>;
   format: SelectableImportFormat;
   parsed: ParsedTabFileImport;
   tracks: ImportTrack[];
@@ -242,6 +244,7 @@ export default function GteFileImportButton({
     onError("");
     let createdEditorId: string | null = null;
     let importPersisted = false;
+    const transfer = preparedSelection?.transfer || beginTransfer("import", getTabImportExtension(file?.name || ""), "file_picker", editorId);
     const addedLaneIds: string[] = [];
     try {
       if (file && /\.json$/i.test(file.name)) {
@@ -284,6 +287,7 @@ export default function GteFileImportButton({
         }
         await gteApi.importEditorJson(targetEditorId, laneId, payload);
         importPersisted = true;
+        transfer.completed(targetEditorId);
         await onImported(targetEditorId);
         return;
       }
@@ -305,7 +309,9 @@ export default function GteFileImportButton({
             ];
       const selectableFormat = getSelectableImportFormat(parsed.fileName);
       if (!preparedSelection && selectableFormat) {
+        transfer.prepared();
         setPendingTrackSelection({
+          transfer,
           format: selectableFormat,
           parsed,
           tracks: availableTracks,
@@ -362,6 +368,7 @@ export default function GteFileImportButton({
       };
       await gteApi.applySnapshot(targetEditorId, nextCanvas);
       importPersisted = true;
+      transfer.completed(targetEditorId);
       try {
         // applySnapshot advances the canvas version. Reload it before the
         // optimization save so a successful import is never mistaken for a
@@ -378,6 +385,7 @@ export default function GteFileImportButton({
       }
       await onImported(targetEditorId);
     } catch (err: unknown) {
+      transfer.failed();
       if (!importPersisted && editorId && addedLaneIds.length) {
         await Promise.all(addedLaneIds.map((laneId) => gteApi.deleteCanvasEditor(editorId, laneId).catch(() => {})));
       } else if (!importPersisted && createdEditorId) {
@@ -402,6 +410,7 @@ export default function GteFileImportButton({
   };
 
   const cancelTrackSelection = () => {
+    pendingTrackSelection?.transfer.cancelled();
     stopTrackPreview();
     setPendingTrackSelection(null);
     if (inputRef.current) inputRef.current.value = "";

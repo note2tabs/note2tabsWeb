@@ -1,3 +1,4 @@
+import { useEngagementExperiment, acknowledgeEngagementContact } from "../lib/engagement/react";
 import { stripLocale } from "../lib/i18n/locale";
 import { useLocale } from "../lib/i18n/react";
 import Link from "./LocaleLink";
@@ -114,13 +115,15 @@ function isLaterCalendarDay(timestamp: number) {
 export default function PremiumUpgradePrompt() {
   const { t, locale, href: localePath } = useLocale();
   const router = useRouter();
+  const { allowLegacy, claimLegacy } = useEngagementExperiment();
   const { data: session, status } = useSession();
   const [reason, setReason] = useState<PromptReason | null>(null);
   const [funnelContext, setFunnelContext] = useState<PremiumFunnelContext | null>(null);
+  const contactRef = useRef<string | null>(null);
   const promptRef = useRef<HTMLDivElement | null>(null);
   const viewedRef = useRef(false);
   const role = session?.user?.role;
-  const isEligible = status === "authenticated" &&
+  const isEligible = allowLegacy && status === "authenticated" &&
     !hasPremiumAccess(role, session?.user?.subscriptionPlan) &&
     !EXCLUDED_ROUTES.has(stripLocale(router.pathname)) && !router.pathname.startsWith("/gte");
 
@@ -130,6 +133,7 @@ export default function PremiumUpgradePrompt() {
     viewedRef.current = false;
     if (!isEligible) return;
 
+    let disposed = false;
     let timeout: number | null = null;
     let activityCleanup: (() => void) | null = null;
     const schedule = (nextReason: PromptReason, delay: number) => {
@@ -164,10 +168,20 @@ export default function PremiumUpgradePrompt() {
           window.removeEventListener("keydown", deferForActivity);
         };
       }
-      timeout = window.setTimeout(() => {
+      timeout = window.setTimeout(async () => {
+        const ticket = await claimLegacy();
+        if (!ticket || disposed) return;
+        contactRef.current = ticket.contactId;
         activityCleanup?.();
         activityCleanup = null;
         try { window.localStorage.setItem(storageKey("shown", nextReason), String(Date.now())); } catch {}
+        // Compare server rules with the existing policy without changing UI.
+        if (process.env.NEXT_PUBLIC_ENGAGEMENT_SHADOW_ENABLED === "true") {
+          void fetch("/api/engagement/decision", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ safeMoment: true }),
+          }).catch(() => {});
+        }
         const nextFunnel = getOrCreatePremiumFunnelContext({ source: "premium_prompt", reason: nextReason });
         setFunnelContext(nextFunnel);
         setReason(nextReason);
@@ -200,11 +214,12 @@ export default function PremiumUpgradePrompt() {
     };
     window.addEventListener(PREMIUM_PROMPT_SIGNAL_EVENT, onSignal);
     return () => {
+      disposed = true;
       if (timeout !== null) window.clearTimeout(timeout);
       activityCleanup?.();
       window.removeEventListener(PREMIUM_PROMPT_SIGNAL_EVENT, onSignal);
     };
-  }, [isEligible, router.asPath, router.pathname]);
+  }, [isEligible, router.asPath, router.pathname, claimLegacy]);
 
   useEffect(() => {
     const element = promptRef.current;
@@ -212,6 +227,7 @@ export default function PremiumUpgradePrompt() {
     const observer = new IntersectionObserver(([entry]) => {
       if (!entry?.isIntersecting || entry.intersectionRatio < 0.5 || viewedRef.current) return;
       viewedRef.current = true;
+      acknowledgeEngagementContact(contactRef.current);
       sendEvent(ANALYTICS_EVENTS.premiumPromptViewed, {
         trigger: reason, placement: "nonmodal_corner", surface: "contextual_prompt",
         ...premiumFunnelProperties(funnelContext),

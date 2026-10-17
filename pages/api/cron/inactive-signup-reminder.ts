@@ -1,3 +1,5 @@
+import { experimentEnabled as engagementExperimentEnabled } from "../../../lib/engagement/experiment";
+import { runEngagementReminders } from "../../../lib/engagement/reminderExperiment";
 import { accountEmailLocale } from "../../../lib/i18n/accountLanguage";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../lib/prisma";
@@ -49,6 +51,7 @@ async function runHandler(req: NextApiRequest, res: NextApiResponse, startedAt: 
     return res.status(401).json({ error: "Unauthorized" });
   }
 
+  if (engagementExperimentEnabled()) return runEngagementReminders(req, res, "signup");
 
   const now = new Date();
   const earliestDelayHours = 6;

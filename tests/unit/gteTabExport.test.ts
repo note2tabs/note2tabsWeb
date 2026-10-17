@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { buildMidiFromSnapshot, buildMusicXmlFromSnapshot, buildGteExportFile, sanitizeExportFilename } from "../../lib/gteTabExport";
+import { describe, expect, it, vi } from "vitest";
+const { track } = vi.hoisted(() => ({ track: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("../../lib/analyticsV2", () => ({ track }));
+import { buildMidiFromSnapshot, buildMusicXmlFromSnapshot, buildGteExportFile, sanitizeExportFilename, exportGteTrack } from "../../lib/gteTabExport";
 import type { EditorSnapshot, TimingMapV2 } from "../../types/gte";
 
 const snapshot = (): EditorSnapshot => ({
@@ -38,6 +40,20 @@ const snapshot = (): EditorSnapshot => ({
 });
 
 describe("gteTabExport", () => {
+  it("tracks all four actual export formats without filenames or file content", () => {
+    const click = vi.fn(), remove = vi.fn();
+    vi.stubGlobal("document", { createElement: () => ({ click, remove }), body: { appendChild: vi.fn() } });
+    const create = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:export");
+    const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    track.mockClear();
+    try {
+      for (const format of ["txt", "json", "midi", "musicxml"] as const) exportGteTrack(snapshot(), format, undefined, { surface: "library", project: "p" });
+      expect(click).toHaveBeenCalledTimes(4);
+      expect(track.mock.calls.filter(c => c[0] === "gte_export_download_initiated")).toHaveLength(4);
+      expect(JSON.stringify(track.mock.calls)).not.toContain("My Song");
+      expect(JSON.stringify(track.mock.calls)).not.toContain("content");
+    } finally { create.mockRestore(); revoke.mockRestore(); vi.unstubAllGlobals(); }
+  });
   const variableTimingMap: TimingMapV2 = {
     version: 2,
     framesPerBar: 480,

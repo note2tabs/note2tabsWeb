@@ -1,3 +1,4 @@
+import { useEngagementExperiment, announceEngagementPlayback, ENGAGEMENT_PLAYBACK_ACTIVE_EVENT, acknowledgeEngagementContact } from "../../lib/engagement/react";
 import {editorInstrumentName} from "../../lib/i18n/editor/instruments";
 import { editorName } from "../../lib/i18n/editor/names";
 import { editorCount } from "../../lib/i18n/editor/counts";
@@ -108,8 +109,7 @@ import { useHeavyPreviewCountryEligibility } from "../../lib/useHeavyPreviewCoun
 import { prisma } from "../../lib/prisma";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
-  buildGteExportFile,
-  downloadGteExportFile,
+  exportGteTrack,
   type GteExportFormat,
 } from "../../lib/gteTabExport";
 import {
@@ -1673,6 +1673,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const postLightPromptHandledRef = useRef(false);
   const [heavyPreviewUpgradeOpen, setHeavyPreviewUpgradeOpen] = useState(false);
   const [postLightPromptOpen, setPostLightPromptOpen] = useState(false);
+  const { allowLegacy, claimLegacy } = useEngagementExperiment();
+  const [postValueContactId, setPostValueContactId] = useState<string | null>(null);
+  const experimentPlaybackSeen = useRef(false);
+  useEffect(() => {
+    if (globalPlaybackIsPlaying) { experimentPlaybackSeen.current = true; window.dispatchEvent(new Event(ENGAGEMENT_PLAYBACK_ACTIVE_EVENT)); return; }
+    if (experimentPlaybackSeen.current) { experimentPlaybackSeen.current = false; announceEngagementPlayback(editorId); }
+  }, [globalPlaybackIsPlaying, editorId]);
   const [postValuePromptOpen, setPostValuePromptOpen] = useState(false);
   const [postValueTrigger, setPostValueTrigger] = useState<"playback_completed" | "practice_started">("playback_completed");
   const [postValueFunnel, setPostValueFunnel] = useState<PremiumFunnelContext | null>(null);
@@ -1766,7 +1773,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   }, [editorId, globalPlaybackIsPlaying, heavyPreviewUpgradeOpen]);
 
   useEffect(() => {
-    if (!router.isReady || loading || !canvas || postLightPromptHandledRef.current) return;
+    if (!allowLegacy || !router.isReady || loading || !canvas || postLightPromptHandledRef.current) return;
     if (router.query.transcriptionModel !== "light") return;
     if (router.query.heavyPreviewComplete === "1") return;
     if (canCheckHeavyPreview && !heavyPreviewCountryResolved) return;
@@ -1793,6 +1800,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     } = router.query;
     void router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
   }, [
+    allowLegacy,
     canCheckHeavyPreview,
     canvas,
     editorId,
@@ -1803,7 +1811,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   ]);
 
   useEffect(() => {
-    if (!postLightPromptPendingRef.current) return;
+    if (!allowLegacy || !postLightPromptPendingRef.current) return;
     if (globalPlaybackIsPlaying) {
       postLightPlaybackSeenRef.current = true;
       return;
@@ -1813,6 +1821,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     postLightPromptPendingRef.current = false;
     const recommendation = heavyPreviewEligible ? "heavy_preview" : "heavy";
     const transcriptionJobId = postLightJobIdRef.current;
+    let cancelled = false;
+    void claimLegacy().then(ticket => {
+      if (!ticket || cancelled) return;
+      acknowledgeEngagementContact(ticket.contactId);
     setPostLightPromptOpen(true);
     sendEvent(ANALYTICS_EVENTS.postLightModelPromptShown, {
       surface: "editor",
@@ -1825,7 +1837,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         ? `post-light-prompt-shown:${transcriptionJobId}`
         : `post-light-prompt-shown:editor:${editorId}`,
     });
+    });
+    return () => { cancelled = true; };
   }, [
+    allowLegacy,
+    claimLegacy,
     editorId,
     globalPlaybackIsPlaying,
     heavyPreviewCountryResolved,
@@ -1835,7 +1851,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   ]);
 
   useEffect(() => {
-    if (!router.isReady || loading || !canvas || !hasAccount || isPaidUser) return;
+    if (!allowLegacy || !router.isReady || loading || !canvas || !hasAccount || isPaidUser) return;
     if (globalPlaybackIsPlaying) {
       postValuePlaybackSeenRef.current = true;
       return;
@@ -1891,7 +1907,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       editor_id: editorId,
       ...premiumFunnelProperties(funnel),
     });
-    const timeout = window.setTimeout(() => {
+    let disposed = false;
+    const timeout = window.setTimeout(async () => {
+      const ticket = await claimLegacy();
+      if (!ticket || disposed) return;
+      setPostValueContactId(ticket.contactId);
       try { window.localStorage.setItem(storageKey, String(Date.now())); } catch {}
       setPostValuePromptOpen(true);
       const properties = {
@@ -1904,8 +1924,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       sendEvent(ANALYTICS_EVENTS.premiumPromptRendered, properties);
       sendEvent(ANALYTICS_EVENTS.premiumPromptShown, properties);
     }, 1200);
-    return () => window.clearTimeout(timeout);
+    return () => { disposed = true; window.clearTimeout(timeout); };
   }, [
+    allowLegacy,
+    claimLegacy,
     canvas,
     editorId,
     globalPlaybackIsPlaying,
@@ -2989,14 +3011,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     setExportMenuOpen(false);
     setError(null);
     try {
-      const file = buildGteExportFile(lane, format, canvas?.timingMap);
-      downloadGteExportFile(file);
+      exportGteTrack(lane, format, canvas?.timingMap, { surface: "gte", project: editorId });
     } catch (err: any) {
       setError(err?.message || "We could not prepare this track for export. Your tab is unchanged; please try again.");
     } finally {
       setExportingTrack(false);
     }
-  }, [canvas?.timingMap, exportingTrack, getExportLane]);
+  }, [canvas?.timingMap, exportingTrack, getExportLane, editorId]);
 
   const openTimingEditor = useCallback(() => {
     if (!canvas) return;
@@ -11064,7 +11085,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         }}
       />
       <PostLightModelPrompt
-        open={postLightPromptOpen}
+        open={allowLegacy && postLightPromptOpen}
         recommendation={heavyPreviewEligible ? "heavy_preview" : "heavy"}
         hasHeavyAccess={isPaidUser}
         onClose={() => {
@@ -11095,7 +11116,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         }}
       />
       <PostValuePremiumPrompt
-        open={postValuePromptOpen && !heavyPreviewUpgradeOpen && !postLightPromptOpen}
+        contactId={postValueContactId}
+        open={allowLegacy && postValuePromptOpen && !heavyPreviewUpgradeOpen && !postLightPromptOpen}
         editorId={editorId}
         trigger={postValueTrigger}
         onClose={() => {

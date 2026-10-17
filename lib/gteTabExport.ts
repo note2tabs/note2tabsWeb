@@ -1,3 +1,4 @@
+import { beginTransfer } from "./engagement/transferTracking";
 import { buildTabTextFromSnapshot } from "./gteTabText";
 import type { EditorSnapshot, TabCoord, TimingMapV2 } from "../types/gte";
 import { normalizeTimingMap } from "./gteTiming";
@@ -410,4 +411,19 @@ export function downloadGteExportFile(file: GteExportFile) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+/** Tracks preparation separately from browser handoff; never claims a disk save. */
+export function exportGteTrack(snapshot: EditorSnapshot, format: GteExportFormat, timingMap: TimingMapV2 | undefined, context: { surface: string; project?: string }) {
+  const transfer = beginTransfer("export", format, context.surface, context.project);
+  try {
+    const file = buildGteExportFile(snapshot, format, timingMap);
+    transfer.prepared();
+    downloadGteExportFile(file);
+    transfer.completed();
+    return file;
+  } catch (error) {
+    transfer.failed();
+    throw error;
+  }
 }

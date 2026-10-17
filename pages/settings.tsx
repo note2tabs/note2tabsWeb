@@ -1,4 +1,5 @@
 import LanguagePreference from "../components/LanguagePreference";
+import ReminderEmailPreference from "../components/ReminderEmailPreference";
 import { translatedError } from "../lib/i18n/translate";
 import { useLocale } from "../lib/i18n/react";
 import { GetServerSideProps } from "next";
@@ -709,6 +710,7 @@ function AccountSettingsPage({ user, stripeReady, credits }: Props) {
         </SettingRow>
       </div>
       {consentMessage && <div className="notice">{t(consentMessage)}</div>}
+      <ReminderEmailPreference />
     </section>
   );
 
