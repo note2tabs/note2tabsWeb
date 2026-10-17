@@ -28,7 +28,7 @@ Hard gates override scores: free account, complete data, safe moment, demonstrat
 
 One contextual CTA timing only: **1,200 ms after playback stops or finishes**, at a visible, non-editing pause. Further interaction, playback restart, navigation or backgrounding cancels the pending opportunity. This is not proof of listening to a whole track. All variants record the playback event identically. Optional promotional failures do not block the editor.
 
-Common cap: one reserved contact opportunity per account **per channel per rolling seven days**, across campaigns and devices. Reservations (including cancelled, failed or uncertain deliveries) count toward the cap; the experiment prioritizes avoiding duplicates over maximizing impressions. Email and CTA are separate channels. Existing-policy behavior is therefore the existing policy under these common safeguards, not a byte-for-byte historical baseline.
+Common cap: one reserved contact opportunity per account **per channel per rolling seven days**, across campaigns and devices. Reservations (including cancelled, failed or uncertain deliveries) count toward the cap; the experiment prioritizes avoiding duplicates over maximizing impressions. Email and CTA are separate channels. Classic reminder markers remain a shared safeguard: saved-tab emails also retain the existing fourteen-day account cooldown and once-per-tab marker, across both contacted arms and after switching the experiment off. Existing-policy behavior is therefore the existing policy under these common safeguards, not a byte-for-byte historical baseline.
 
 Actual limit explanations, functional upgrade requirements, pricing links and user-requested checkout remain available in every arm. No coupons or free credits are issued.
 

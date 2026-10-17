@@ -2,7 +2,7 @@ import {beforeAll,afterAll,beforeEach,afterEach,describe,it,expect,vi} from "vit
 import {createMocks} from "node-mocks-http";
 import {Pool, type PoolClient} from "pg";
 import {readFile} from "node:fs/promises";
-const m=vi.hoisted(()=>({db:null as any,sessionId:"test-existing",send:vi.fn(),capture:vi.fn(),flush:vi.fn().mockResolvedValue(undefined)}));
+const m=vi.hoisted(()=>({db:null as any,sessionId:"test-existing",afterCommit:null as null|(()=>Promise<void>),send:vi.fn(),capture:vi.fn(),flush:vi.fn().mockResolvedValue(undefined)}));
 vi.mock("../../lib/prisma",()=>({prisma:new Proxy({}, {get:(_,key)=>m.db[key]})}));
 vi.mock("next-auth/next",()=>({getServerSession:async()=>m.sessionId?{user:{id:m.sessionId}}:null}));
 vi.mock("../../pages/api/auth/[...nextauth]",()=>({authOptions:{}}));
@@ -27,7 +27,7 @@ describe.skipIf(!url)("engagement readiness against real PostgreSQL",()=>{
   return {$queryRaw:async(...args:any[])=> (await (query as any)(...args)).rows,$executeRaw:async(...args:any[])=>(await (query as any)(...args)).rowCount,
    user:{findUnique:async({where}:any)=>(await client.query('SELECT role,"subscriptionPlan","emailVerified","emailVerifiedBool" FROM "User" WHERE id=$1',[where.id])).rows[0]||null},
    verificationToken:{upsert:async({create}:any)=>client.query('INSERT INTO "VerificationToken" (identifier,token,expires) VALUES ($1,$2,$3) ON CONFLICT (identifier,token) DO UPDATE SET expires=EXCLUDED.expires',[create.identifier,create.token,create.expires])},
-   $transaction:async(fn:any)=>{const c=await pool.connect();try{await c.query('BEGIN');const result=await fn(adapter(c));await c.query('COMMIT');return result;}catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}}};
+   $transaction:async(fn:any)=>{const c=await pool.connect();try{await c.query('BEGIN');const result=await fn(adapter(c));await c.query('COMMIT');if(m.afterCommit)await m.afterCommit();return result;}catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}}};
  }
  beforeAll(async()=>{pool=new Pool({connectionString:url,max:12});m.db=adapter(pool);
   await pool.query('DROP TABLE IF EXISTS "EngagementEmailPermission","EngagementContact","EngagementEnrollment","EngagementSignal","EngagementDecision" CASCADE');
@@ -37,7 +37,7 @@ describe.skipIf(!url)("engagement readiness against real PostgreSQL",()=>{
  beforeEach(async()=>{
   vi.stubEnv("ENGAGEMENT_SIGNALS_ENABLED","true");vi.stubEnv("ENGAGEMENT_EXPERIMENT_ENABLED","true");vi.stubEnv("NEXT_PUBLIC_ENGAGEMENT_EXPERIMENT_ENABLED","true");vi.stubEnv("ENGAGEMENT_REMINDERS_ENABLED","true");vi.stubEnv("EMAIL_UNSUBSCRIBE_SECRET","local-only-test-secret");vi.stubEnv("NEXT_PUBLIC_APP_URL","http://localhost:3111");
   await pool.query('TRUNCATE "User","VerificationToken",canvases,canvas_lanes,lane_notes CASCADE');
-  m.sessionId="test-existing";m.send.mockReset().mockResolvedValue(true);m.capture.mockClear();
+  m.sessionId="test-existing";m.afterCommit=null;m.send.mockReset().mockResolvedValue(true);m.capture.mockClear();
  });
  afterEach(()=>vi.unstubAllEnvs());
  async function seed(arm="existing",work=false){
@@ -121,5 +121,21 @@ describe.skipIf(!url)("engagement readiness against real PostgreSQL",()=>{
  it("reports uncertain delivery to the existing error alert pipeline",async()=>{
   const id=await seed();await setReminderEmailPermission(id,true,'settings_explicit_v1');m.send.mockRejectedValue(new Error('SMTP timeout'));await dispatch();
   expect(m.capture).toHaveBeenCalledWith(expect.objectContaining({event:'reminder_email_delivery_failed',distinctId:id}));expect(m.capture).toHaveBeenCalledWith(expect.objectContaining({event:'reminder_scheduler_run_completed',properties:expect.objectContaining({status:'completed_with_delivery_errors'})}));
+ });
+ it.each(["existing","contextual"])("preserves classic saved-tab markers beyond the experimental cap in %s",async arm=>{
+  const id=await seed(arm,true);await setReminderEmailPermission(id,true,'settings_explicit_v1');expect((await dispatch('tab')).sent).toBe(1);
+  const markers=(await pool.query('SELECT identifier,expires FROM "VerificationToken" ORDER BY identifier')).rows;expect(markers).toHaveLength(2);expect(markers.some(m=>m.identifier===`reminder:return-to-tab-cooldown:${id}`)).toBe(true);
+  await pool.query('UPDATE "EngagementContact" SET "createdAt"=NOW()-INTERVAL \'8 days\'');await pool.query('DELETE FROM "EngagementDecision"');expect((await dispatch('tab')).sent).toBe(0);expect(m.send).toHaveBeenCalledTimes(1);
+ });
+ it("releases classic markers after a definite non-send but retains the experimental cap",async()=>{
+  const id=await seed('existing',true);await setReminderEmailPermission(id,true,'settings_explicit_v1');m.send.mockResolvedValue(false);expect((await dispatch('tab')).failed).toBe(1);expect((await pool.query('SELECT * FROM "VerificationToken"')).rows).toHaveLength(0);expect((await pool.query('SELECT state FROM "EngagementContact"')).rows[0].state).toBe('failed');
+ });
+ it("retains classic markers after an uncertain transport result",async()=>{
+  const id=await seed('existing',true);await setReminderEmailPermission(id,true,'settings_explicit_v1');m.send.mockRejectedValue(new Error('SMTP timeout'));expect((await dispatch('tab')).failed).toBe(1);expect((await pool.query('SELECT * FROM "VerificationToken"')).rows).toHaveLength(2);
+ });
+ it("honors revocation after reserving contact and classic markers, before SMTP",async()=>{
+  const id=await seed('existing',true);await setReminderEmailPermission(id,true,'settings_explicit_v1');
+  m.afterCommit=async()=>{if((await pool.query('SELECT * FROM "VerificationToken"')).rows.length===2){m.afterCommit=null;await pool.query('UPDATE "EngagementEmailPermission" SET allowed=FALSE WHERE "accountId"=$1',[id]);}};
+  expect((await dispatch('tab')).sent).toBe(0);expect(m.send).not.toHaveBeenCalled();expect((await pool.query('SELECT state FROM "EngagementContact"')).rows[0].state).toBe('cancelled');
  });
 });

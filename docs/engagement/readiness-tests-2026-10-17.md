@@ -4,8 +4,8 @@ Updated the experiment branch against main, including released email localizatio
 
 ## Validation
 
-- Full suite: 1,518 tests pass across 209 files. The 22 local PostgreSQL cases are intentionally skipped in this ordinary run.
-- Explicit PostgreSQL run: all 22 cases pass against a disposable `engagement_test` database on loopback. The actual two engagement SQL migrations are applied by the test suite. Tests execute real parameterized SQL and transaction locks, with only authentication, PostHog and email transport intercepted.
+- Full suite: 1,518 tests pass across 209 files. The 27 local PostgreSQL cases are intentionally skipped in this ordinary run.
+- Explicit PostgreSQL run: all 27 cases pass against a disposable `engagement_test` database on loopback. The actual two engagement SQL migrations are applied by the test suite. Tests execute real parameterized SQL and transaction locks, with only authentication, PostHog and email transport intercepted.
 - TypeScript and a complete production build pass.
 - Client lifecycle tests mount the actual experiment provider in a browser DOM: three groups, the 1,200 ms timing, visible acknowledgement, dismissal, pointer/keyboard cancellation, backgrounding, navigation, restart, late responses and network failure.
 - Chrome checks use development-only synthetic accounts and intercepted experiment responses: control allows no optional prompt; existing uses the legacy checkpoint; contextual renders the actual Premium card after the pause. Arabic card checked at 390 × 844 and viewport restored. These fixtures do not prove server authorization; the separate database/API tests cover it.
@@ -38,3 +38,7 @@ The test refuses non-loopback hosts or any database name other than `engagement_
 The code is designed to merge with flags disabled. Before activating treatment, apply the two engagement migrations through the release workflow, enable signal collection, verify incoming account-linked outcomes and the permission workflow in the deployed environment, and allow a useful observation window. Then coordinate server/client/reminder flags with the native PostHog gate. Do not claim the experiment is running or sending reminders from a merge alone. Existing customers are not opted in automatically. No coupon or free-credit treatments are added.
 
 Existing real French transactional-email inbox delivery was confirmed separately; these tests do not claim that a new contextual campaign email was delivered through the provider. A controlled operational smoke test remains a launch check, not a reason to contact customers during code verification.
+
+## Classic reminder compatibility follow-up
+
+Five additional PostgreSQL regression cases verify that both contacted arms preserve the classic once-per-tab marker and fourteen-day account cooldown after the experimental seven-day minimum cap has elapsed. Claims use the same deterministic legacy tokens, so an in-flight classic scheduler and the experimental path cannot both win that marker. Definite non-sends release classic markers while retaining the experimental reservation; uncertain SMTP outcomes retain both. Permission/verification/entitlement/activity are checked again after marker creation, excluding only the newly claimed cooldown, and revocation at that boundary cancels delivery. This also preserves protection when the experiment is subsequently switched off.
