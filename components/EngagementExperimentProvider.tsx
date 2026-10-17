@@ -79,7 +79,7 @@ export default function EngagementExperimentProvider({ children, request = reque
       router.events.off("routeChangeStart", onNavigate);
     };
   }, [state, router.events, request]);
-  const element = useRef<HTMLDivElement>(null);
+  const element = useRef<HTMLElement>(null);
   useEffect(() => {
     if (!prompt || !element.current) return;
     const observer = new IntersectionObserver(([entry]) => {
@@ -93,10 +93,10 @@ export default function EngagementExperimentProvider({ children, request = reque
   }, [prompt, request]);
   return <EngagementExperimentContext.Provider value={{ arm: state.arm || null, allowLegacy, claimLegacy }}>
     {children}
-    {prompt && prompt.path === router.asPath.split("?")[0] && <div ref={element}>
-      <PremiumPromptCard reason="returning_user" href="/pricing?source=engagement_contextual" onDismiss={() => {
+    {prompt && prompt.path === router.asPath.split("?")[0] &&
+      <PremiumPromptCard visibilityRef={element} reason="returning_user" href="/pricing?source=engagement_contextual" onDismiss={() => {
         void track("premium_prompt_dismissed", { contact_id: prompt.id, surface: "contextual_experiment" }); setPrompt(null);
       }} onClick={() => { void track("premium_prompt_clicked", { contact_id: prompt.id, surface: "contextual_experiment" }); }} />
-    </div>}
+    }
   </EngagementExperimentContext.Provider>;
 }
