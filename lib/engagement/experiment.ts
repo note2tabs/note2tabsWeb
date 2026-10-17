@@ -74,8 +74,12 @@ export async function reserveEngagementContact(enrollment: Enrollment, channel: 
   });
 }
 export async function finishEngagementContact(accountId: string, id: string, state: "visible" | "accepted" | "failed" | "cancelled" | "uncertain") {
-  await prisma.$executeRaw`UPDATE "EngagementContact" SET "state" = ${state}
+  const changed = await prisma.$executeRaw`UPDATE "EngagementContact" SET "state" = ${state}
     WHERE "id" = ${id} AND "accountId" = ${accountId} AND "state" = 'reserved'`;
+  if (!changed) {
+    const existing = await prisma.$queryRaw<Array<{state:string}>>`SELECT "state" FROM "EngagementContact" WHERE "id" = ${id} AND "accountId" = ${accountId}`;
+    if (existing[0]?.state !== state) return;
+  }
   const ph = createPostHogServerClient();
   ph?.capture({ distinctId: accountId, event: "engagement_contact_outcome", properties: { engagement_experiment: ENGAGEMENT_EXPERIMENT, contact_id: id, state }, uuid: stablePostHogEventUuid(`${id}:${state}`) });
   if (ph) await ph.flush().catch(() => { console.warn("engagement_outcome_delivery_failed"); });

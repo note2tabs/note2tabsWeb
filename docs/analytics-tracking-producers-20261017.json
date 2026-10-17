@@ -330,52 +330,28 @@
     "argument": "event"
   },
   {
-    "file": "pages/shared.tsx",
-    "line": 103,
+    "file": "pages/_app.tsx",
+    "line": 44,
     "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.tabShareEmailClicked"
+    "argument": "ANALYTICS_EVENTS.staleChunkRecoveryFailed"
   },
   {
-    "file": "pages/pricing.tsx",
-    "line": 145,
+    "file": "pages/_app.tsx",
+    "line": 69,
     "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.pricingViewed"
+    "argument": "ANALYTICS_EVENTS.pageView"
   },
   {
-    "file": "pages/pricing.tsx",
-    "line": 157,
+    "file": "pages/premium/welcome.tsx",
+    "line": 155,
     "producer": "sendEvent",
-    "argument": "resumed ? ANALYTICS_EVENTS.pricingCheckoutResumed : ANALYTICS_EVENTS.pricingCtaClicked"
+    "argument": "ANALYTICS_EVENTS.premiumWelcomeViewed"
   },
   {
-    "file": "pages/pricing.tsx",
-    "line": 170,
+    "file": "pages/premium/welcome.tsx",
+    "line": 163,
     "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.pricingAuthHandoff"
-  },
-  {
-    "file": "pages/pricing.tsx",
-    "line": 205,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.checkoutRedirected"
-  },
-  {
-    "file": "pages/pricing.tsx",
-    "line": 229,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.checkoutClientFailed"
-  },
-  {
-    "file": "pages/pricing.tsx",
-    "line": 271,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.pricingBillingSelected"
-  },
-  {
-    "file": "pages/pricing.tsx",
-    "line": 292,
-    "producer": "trackCtaClick",
-    "argument": "\"pricing_start_free\""
+    "argument": "ANALYTICS_EVENTS.premiumWelcomeCtaClicked"
   },
   {
     "file": "pages/home.tsx",
@@ -456,340 +432,154 @@
     "argument": "ANALYTICS_EVENTS.retentionIntentPromptDismissed"
   },
   {
-    "file": "pages/_app.tsx",
-    "line": 44,
+    "file": "lib/transcriptionSubmission.ts",
+    "line": 57,
     "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.staleChunkRecoveryFailed"
+    "argument": "ANALYTICS_EVENTS.transcriptionSubmissionBlocked"
   },
   {
-    "file": "pages/_app.tsx",
-    "line": 69,
+    "file": "lib/analyticsV2/ingest.ts",
+    "line": 259,
+    "producer": "capture",
+    "argument": "{\n      uuid: analyticsEventUuid(event.eventId),\n      distinctId,\n      event: event.name === \"page_viewed\" ? \"$pageview\" : event.name,\n      timestamp: event.ts,\n      properties,\n      // Outbox calls have no visitor IP. Never geolocate Vercel's datacenter.\n      ...(context.source === \"transcrip"
+  },
+  {
+    "file": "lib/gteTabExport.ts",
+    "line": 418,
+    "producer": "beginTransfer",
+    "argument": "\"export\""
+  },
+  {
+    "file": "lib/tabShareAnalyticsServer.ts",
+    "line": 21,
+    "producer": "capture",
+    "argument": "{\n    distinctId: input.userId,\n    event: \"tab_share_email_signup_completed\",\n    properties: {\n      method: input.method,\n      landing: \"signup\",\n      recipient_status: \"new\",\n      source: TAB_SHARE_EMAIL_SOURCE,\n      $anon_distinct_id: cookies[ANALYTICS_ANON_COOKIE],\n      $insert_id: `tab-s"
+  },
+  {
+    "file": "lib/checkoutTracking.ts",
+    "line": 57,
     "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.pageView"
+    "argument": "ANALYTICS_EVENTS.checkoutCancelled"
   },
   {
-    "file": "pages/premium/welcome.tsx",
-    "line": 155,
+    "file": "lib/analytics.ts",
+    "line": 196,
     "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.premiumWelcomeViewed"
+    "argument": "ANALYTICS_EVENTS.tabGenerationStarted"
   },
   {
-    "file": "pages/premium/welcome.tsx",
-    "line": 163,
+    "file": "lib/analytics.ts",
+    "line": 197,
     "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.premiumWelcomeCtaClicked"
+    "argument": "getTranscriptionStartedModelEvent(transcriptionModel)"
   },
   {
-    "file": "pages/transcriber.tsx",
-    "line": 337,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.inactiveSignupReminderLanded"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 365,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.heavyPreviewConfirmationShown"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 380,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.heavyPreviewShown"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 610,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.authHandoffResumed"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 856,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.uploadValidationFailed"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 889,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.authHandoffRequired"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 890,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.authHandoffSaved"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 907,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.verificationGateShown"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 989,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.heavyPreviewConfirmationShown"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1040,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.uploadPresignStarted"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1045,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.uploadStorageRetry"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1051,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.uploadStorageFailed"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1062,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.uploadStorageSucceeded"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1112,
-    "producer": "sendTranscriptionStartedEvents",
-    "argument": "transcriptionModel"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1130,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.heavyPreviewStarted"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1139,
-    "producer": "sendEvent",
-    "argument": "\"transcribe_queued\""
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1185,
-    "producer": "sendEvent",
-    "argument": "\"transcribe_error\""
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1196,
-    "producer": "sendEvent",
-    "argument": "\"transcribe_error\""
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1208,
-    "producer": "sendTranscriptionStartedEvents",
-    "argument": "transcriptionModel"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1223,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.heavyPreviewStarted"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1231,
-    "producer": "sendEvent",
-    "argument": "\"transcribe_success\""
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1261,
-    "producer": "sendEvent",
-    "argument": "getTranscriptionFailureEvent(submissionAccepted)"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1275,
-    "producer": "trackCtaClick",
-    "argument": "\"choose_audio_file\""
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1279,
-    "producer": "trackCtaClick",
-    "argument": "\"convert_to_tabs\""
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1314,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.checkoutRedirected"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1334,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.checkoutClientFailed"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1362,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.transcriptionEditorImportStarted"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1377,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.transcriptionImportedToEditor"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1387,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.transcriptionEditorImportFailed"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1405,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.transcriptionImportedToEditor"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1415,
-    "producer": "sendEvent",
-    "argument": "getEditorImportFailureEvent(importPersisted)"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1438,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.transcriptionEditorImportStarted"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1448,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.transcriptionImportedToEditor"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1457,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.transcriptionImportedToEditor"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1467,
-    "producer": "sendEvent",
-    "argument": "getEditorImportFailureEvent(importPersisted)"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1529,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.heavyPreviewConfirmationDismissed"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1539,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.heavyPreviewSelected"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1545,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.heavyPreviewSelected"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1619,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.heavyPreviewConfirmationShown"
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1623,
-    "producer": "trackCtaClick",
-    "argument": "\"use_free_heavy_preview\""
-  },
-  {
-    "file": "pages/transcriber.tsx",
-    "line": 1638,
-    "producer": "trackCtaClick",
-    "argument": "isPremiumUser ? \"use_heavy_model\" : \"see_heavy_plans\""
-  },
-  {
-    "file": "pages/auth/verify-email.tsx",
-    "line": 59,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.emailVerified"
-  },
-  {
-    "file": "pages/auth/signup.tsx",
-    "line": 51,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.tabShareEmailClicked"
-  },
-  {
-    "file": "pages/auth/signup.tsx",
-    "line": 69,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.signupStarted"
-  },
-  {
-    "file": "pages/auth/signup.tsx",
-    "line": 100,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.signupFailed"
-  },
-  {
-    "file": "pages/auth/signup.tsx",
-    "line": 121,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.signupFailed"
-  },
-  {
-    "file": "pages/auth/signup.tsx",
-    "line": 135,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.signupStarted"
-  },
-  {
-    "file": "pages/auth/signup.tsx",
-    "line": 140,
-    "producer": "trackCtaClick",
-    "argument": "\"signup_google\""
-  },
-  {
-    "file": "pages/auth/signup.tsx",
-    "line": 143,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.signupFailed"
-  },
-  {
-    "file": "pages/auth/login.tsx",
-    "line": 77,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.loginSucceeded"
-  },
-  {
-    "file": "pages/auth/login.tsx",
-    "line": 103,
+    "file": "lib/analytics.ts",
+    "line": 220,
     "producer": "sendEvent",
     "argument": "ANALYTICS_EVENTS.ctaClicked"
   },
   {
-    "file": "pages/auth/login.tsx",
-    "line": 110,
+    "file": "lib/premiumEntitlement.ts",
+    "line": 43,
     "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.loginFailed"
+    "argument": "ANALYTICS_EVENTS.subscriptionCheckoutConfirmed"
+  },
+  {
+    "file": "lib/reminderMonitoring.ts",
+    "line": 19,
+    "producer": "capture",
+    "argument": "{\n    distinctId: `system:reminder-scheduler:${input.scheduler}`,\n    event: \"reminder_scheduler_run_completed\",\n    properties: {\n      scheduler: input.scheduler,\n      status: input.failed > 0 ? \"completed_with_delivery_errors\" : \"healthy\",\n      scanned: input.scanned,\n      eligible: input.elig"
+  },
+  {
+    "file": "lib/reminderMonitoring.ts",
+    "line": 36,
+    "producer": "capture",
+    "argument": "{\n      distinctId: `system:reminder-scheduler:${input.scheduler}`,\n      event: \"reminder_scheduler_backlog_detected\",\n      properties: { scheduler: input.scheduler, scanned: input.scanned, batch_size: input.batchSize },\n    }"
+  },
+  {
+    "file": "lib/reminderMonitoring.ts",
+    "line": 50,
+    "producer": "capture",
+    "argument": "{\n    distinctId: `system:reminder-scheduler:${scheduler}`,\n    event: \"reminder_scheduler_failed\",\n    properties: {\n      scheduler,\n      runtime_ms: Math.max(0, Date.now() - startedAt),\n      error_type: error instanceof Error ? error.name : \"UnknownError\",\n    },\n  }"
+  },
+  {
+    "file": "lib/reminderMonitoring.ts",
+    "line": 67,
+    "producer": "capture",
+    "argument": "{\n    distinctId: userId,\n    event: \"reminder_email_delivery_failed\",\n    properties: {\n      scheduler,\n      error_type: error instanceof Error ? error.name : \"DeliveryDisabled\",\n    },\n  }"
+  },
+  {
+    "file": "lib/engagement/reminderExperiment.ts",
+    "line": 19,
+    "producer": "captureReminderFailure",
+    "argument": "ph"
+  },
+  {
+    "file": "lib/engagement/reminderExperiment.ts",
+    "line": 102,
+    "producer": "capture",
+    "argument": "{ distinctId: user.id, event: \"engagement_reminder_sent\", properties: { ...experimentProperties(enrollment.arm), contact_id: contactId, action, campaign } }"
+  },
+  {
+    "file": "lib/engagement/reminderExperiment.ts",
+    "line": 107,
+    "producer": "captureReminderDeliveryFailure",
+    "argument": "createPostHogServerClient()"
+  },
+  {
+    "file": "lib/engagement/reminderExperiment.ts",
+    "line": 113,
+    "producer": "captureReminderDeliveryFailure",
+    "argument": "createPostHogServerClient()"
+  },
+  {
+    "file": "lib/engagement/reminderExperiment.ts",
+    "line": 118,
+    "producer": "captureReminderRun",
+    "argument": "monitoring"
+  },
+  {
+    "file": "lib/engagement/react.ts",
+    "line": 13,
+    "producer": "track",
+    "argument": "\"gte_playback_paused\""
+  },
+  {
+    "file": "lib/engagement/experiment.ts",
+    "line": 52,
+    "producer": "capture",
+    "argument": "{ distinctId: accountId, event: \"engagement_policy_assigned\",\n    uuid: stablePostHogEventUuid(`${ENGAGEMENT_EXPERIMENT}:${accountId}:assignment`),\n    timestamp: enrollment.enrolledAt, disableGeoip: true, properties: { ...experimentProperties(enrollment.arm), environment: process.env.VERCEL_ENV || "
+  },
+  {
+    "file": "lib/engagement/experiment.ts",
+    "line": 84,
+    "producer": "capture",
+    "argument": "{ distinctId: accountId, event: \"engagement_contact_outcome\", properties: { engagement_experiment: ENGAGEMENT_EXPERIMENT, contact_id: id, state }, uuid: stablePostHogEventUuid(`${id}:${state}`) }"
+  },
+  {
+    "file": "lib/engagement/transferTracking.ts",
+    "line": 10,
+    "producer": "track",
+    "argument": "name"
+  },
+  {
+    "file": "lib/affiliateTracking.ts",
+    "line": 21,
+    "producer": "capture",
+    "argument": "{\n    distinctId: input.distinctId,\n    event: input.event,\n    uuid: stablePostHogEventUuid(input.insertId),\n    timestamp: input.occurredAt,\n    disableGeoip: true,\n    properties: {\n      ...input.properties,\n      event_source: \"note2tabs_server\",\n      $insert_id: input.insertId,\n    },\n  }"
+  },
+  {
+    "file": "lib/signupAnalytics.ts",
+    "line": 18,
+    "producer": "capture",
+    "argument": "{distinctId:user.id,event:\"signup_completed\",timestamp:user.createdAt,disableGeoip:true,properties}"
+  },
+  {
+    "file": "lib/gteAnalytics.ts",
+    "line": 30,
+    "producer": "logGteAnalyticsEvents",
+    "argument": "[input]"
   },
   {
     "file": "pages/gte/[editor_id].tsx",
@@ -912,352 +702,184 @@
     "argument": "ANALYTICS_EVENTS.premiumPromptClicked"
   },
   {
-    "file": "pages/internship-application.tsx",
-    "line": 43,
+    "file": "pages/settings.tsx",
+    "line": 351,
     "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.internshipApplicationSubmitted"
+    "argument": "ANALYTICS_EVENTS.checkoutClientFailed"
   },
   {
-    "file": "lib/transcriptionSubmission.ts",
-    "line": 57,
+    "file": "pages/settings.tsx",
+    "line": 358,
     "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.transcriptionSubmissionBlocked"
+    "argument": "ANALYTICS_EVENTS.checkoutRedirected"
   },
   {
-    "file": "lib/checkoutTracking.ts",
-    "line": 57,
+    "file": "pages/settings.tsx",
+    "line": 378,
     "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.checkoutCancelled"
+    "argument": "ANALYTICS_EVENTS.checkoutClientFailed"
   },
   {
-    "file": "lib/analytics.ts",
-    "line": 196,
+    "file": "pages/settings.tsx",
+    "line": 398,
     "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.tabGenerationStarted"
+    "argument": "intent === \"cancellation\"\n        ? ANALYTICS_EVENTS.subscriptionCancellationContinued\n        : ANALYTICS_EVENTS.subscriptionManagementOpened"
   },
   {
-    "file": "lib/analytics.ts",
-    "line": 197,
+    "file": "pages/settings.tsx",
+    "line": 460,
     "producer": "sendEvent",
-    "argument": "getTranscriptionStartedModelEvent(transcriptionModel)"
+    "argument": "ANALYTICS_EVENTS.accountDeletionConfirmed"
   },
   {
-    "file": "lib/analytics.ts",
-    "line": 220,
+    "file": "pages/settings.tsx",
+    "line": 734,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.accountDeletionStarted"
+  },
+  {
+    "file": "pages/settings.tsx",
+    "line": 767,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.accountDeletionAlternativeClicked"
+  },
+  {
+    "file": "pages/settings.tsx",
+    "line": 791,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.accountDeletionGoalSelected"
+  },
+  {
+    "file": "pages/settings.tsx",
+    "line": 844,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.subscriptionCancellationIntentStarted"
+  },
+  {
+    "file": "pages/settings.tsx",
+    "line": 850,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.subscriptionCancellationGoalSelected"
+  },
+  {
+    "file": "pages/settings.tsx",
+    "line": 855,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.subscriptionCancellationAlternativeClicked"
+  },
+  {
+    "file": "pages/auth/verify-email.tsx",
+    "line": 59,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.emailVerified"
+  },
+  {
+    "file": "pages/auth/signup.tsx",
+    "line": 51,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.tabShareEmailClicked"
+  },
+  {
+    "file": "pages/auth/signup.tsx",
+    "line": 69,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.signupStarted"
+  },
+  {
+    "file": "pages/auth/signup.tsx",
+    "line": 100,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.signupFailed"
+  },
+  {
+    "file": "pages/auth/signup.tsx",
+    "line": 121,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.signupFailed"
+  },
+  {
+    "file": "pages/auth/signup.tsx",
+    "line": 135,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.signupStarted"
+  },
+  {
+    "file": "pages/auth/signup.tsx",
+    "line": 140,
+    "producer": "trackCtaClick",
+    "argument": "\"signup_google\""
+  },
+  {
+    "file": "pages/auth/signup.tsx",
+    "line": 143,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.signupFailed"
+  },
+  {
+    "file": "pages/auth/login.tsx",
+    "line": 77,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.loginSucceeded"
+  },
+  {
+    "file": "pages/auth/login.tsx",
+    "line": 103,
     "producer": "sendEvent",
     "argument": "ANALYTICS_EVENTS.ctaClicked"
   },
   {
-    "file": "lib/premiumEntitlement.ts",
-    "line": 43,
+    "file": "pages/auth/login.tsx",
+    "line": 110,
     "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.subscriptionCheckoutConfirmed"
+    "argument": "ANALYTICS_EVENTS.loginFailed"
   },
   {
-    "file": "lib/reminderMonitoring.ts",
-    "line": 19,
-    "producer": "capture",
-    "argument": "{\n    distinctId: `system:reminder-scheduler:${input.scheduler}`,\n    event: \"reminder_scheduler_run_completed\",\n    properties: {\n      scheduler: input.scheduler,\n      status: input.failed > 0 ? \"completed_with_delivery_errors\" : \"healthy\",\n      scanned: input.scanned,\n      eligible: input.elig"
-  },
-  {
-    "file": "lib/reminderMonitoring.ts",
-    "line": 36,
-    "producer": "capture",
-    "argument": "{\n      distinctId: `system:reminder-scheduler:${input.scheduler}`,\n      event: \"reminder_scheduler_backlog_detected\",\n      properties: { scheduler: input.scheduler, scanned: input.scanned, batch_size: input.batchSize },\n    }"
-  },
-  {
-    "file": "lib/reminderMonitoring.ts",
-    "line": 50,
-    "producer": "capture",
-    "argument": "{\n    distinctId: `system:reminder-scheduler:${scheduler}`,\n    event: \"reminder_scheduler_failed\",\n    properties: {\n      scheduler,\n      runtime_ms: Math.max(0, Date.now() - startedAt),\n      error_type: error instanceof Error ? error.name : \"UnknownError\",\n    },\n  }"
-  },
-  {
-    "file": "lib/reminderMonitoring.ts",
-    "line": 67,
-    "producer": "capture",
-    "argument": "{\n    distinctId: userId,\n    event: \"reminder_email_delivery_failed\",\n    properties: {\n      scheduler,\n      error_type: error instanceof Error ? error.name : \"DeliveryDisabled\",\n    },\n  }"
-  },
-  {
-    "file": "pages/job/[job_id].tsx",
-    "line": 749,
+    "file": "pages/shared.tsx",
+    "line": 103,
     "producer": "sendEvent",
-    "argument": "\"transcription_result_viewed\""
+    "argument": "ANALYTICS_EVENTS.tabShareEmailClicked"
   },
   {
-    "file": "pages/job/[job_id].tsx",
-    "line": 751,
+    "file": "pages/pricing.tsx",
+    "line": 145,
     "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.jobCompleted"
+    "argument": "ANALYTICS_EVENTS.pricingViewed"
   },
   {
-    "file": "pages/job/[job_id].tsx",
-    "line": 755,
+    "file": "pages/pricing.tsx",
+    "line": 157,
     "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.tabGenerationSucceeded"
+    "argument": "resumed ? ANALYTICS_EVENTS.pricingCheckoutResumed : ANALYTICS_EVENTS.pricingCtaClicked"
   },
   {
-    "file": "pages/job/[job_id].tsx",
-    "line": 760,
+    "file": "pages/pricing.tsx",
+    "line": 170,
     "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.heavyPreviewCompleted"
+    "argument": "ANALYTICS_EVENTS.pricingAuthHandoff"
   },
   {
-    "file": "pages/job/[job_id].tsx",
-    "line": 1129,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.transcriptionEditorImportStarted"
-  },
-  {
-    "file": "pages/job/[job_id].tsx",
-    "line": 1135,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.transcriptionEditorImportFailed"
-  },
-  {
-    "file": "pages/job/[job_id].tsx",
-    "line": 1142,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.transcriptionImportedToEditor"
-  },
-  {
-    "file": "pages/job/[job_id].tsx",
-    "line": 1152,
-    "producer": "sendEvent",
-    "argument": "getEditorImportFailureEvent(importPersisted)"
-  },
-  {
-    "file": "pages/api/stripe/change-plan.ts",
-    "line": 86,
-    "producer": "capture",
-    "argument": "{\n      distinctId: session.user.id,\n      event: currentPlan === \"PREMIUM\" ? \"subscription_upgraded\" : \"subscription_downgrade_scheduled\",\n      properties: {\n        from_plan: PLAN_CATALOG[currentPlan].analyticsId,\n        to_plan: PLAN_CATALOG[requestedPlan].analyticsId,\n        to_billing_inter"
-  },
-  {
-    "file": "pages/api/stripe/webhook.ts",
-    "line": 230,
-    "producer": "capture",
-    "argument": "{\n    distinctId: userId,\n    event: \"subscription_started\",\n    uuid: stablePostHogEventUuid(`subscription-started:${session.id}`),\n    timestamp: new Date(occurredAt * 1000),\n    disableGeoip: true,\n    properties: {\n      environment: process.env.VERCEL_ENV || process.env.NODE_ENV || \"development"
-  },
-  {
-    "file": "pages/api/stripe/webhook.ts",
-    "line": 310,
-    "producer": "capture",
-    "argument": "{\n    distinctId: userId,\n    event: lifecycleEvent,\n    uuid: stablePostHogEventUuid(`${lifecycleEvent}:${stripeEventId}`),\n    timestamp: new Date(stableTime ? occurredAt! * 1000 : Date.now()),\n    disableGeoip: true,\n    properties: {\n      environment: process.env.VERCEL_ENV || process.env.NODE_"
-  },
-  {
-    "file": "pages/api/stripe/webhook.ts",
-    "line": 395,
-    "producer": "capture",
-    "argument": "{\n    distinctId,\n    event,\n    uuid: stablePostHogEventUuid(`${event}:${stripeEventId}`),\n    timestamp: new Date(stableTime ? occurredAt! * 1000 : Date.now()),\n    disableGeoip: true,\n    properties: {\n      environment: process.env.VERCEL_ENV || process.env.NODE_ENV || \"development\",\n      check"
-  },
-  {
-    "file": "pages/api/stripe/webhook.ts",
-    "line": 723,
-    "producer": "trackAffiliateEvent",
-    "argument": "{\n    distinctId: userId,\n    event: renewal ? \"affiliate_subscription_renewed\" : \"affiliate_payment_succeeded\",\n    insertId: `affiliate-payment:${invoice.id}`,\n    occurredAt: new Date(invoice.created * 1000),\n    properties: {\n      affiliate_id: attribution.affiliate.id,\n      affiliate_code: at"
-  },
-  {
-    "file": "pages/api/stripe/webhook.ts",
-    "line": 748,
-    "producer": "trackAffiliateEvent",
-    "argument": "{\n    distinctId: userId,\n    event: \"affiliate_trial_started\",\n    insertId: `affiliate-trial:${session.id}`,\n    occurredAt: new Date(session.created * 1000),\n    properties: {\n      affiliate_id: attribution.affiliate.id,\n      affiliate_code: attribution.affiliate.code,\n      checkout_session_id"
-  },
-  {
-    "file": "pages/api/stripe/webhook.ts",
-    "line": 781,
-    "producer": "trackAffiliateEvent",
-    "argument": "{\n      distinctId: commission.attribution.referredUserId,\n      event: \"affiliate_payment_refunded\",\n      insertId: `affiliate-refund:${commission.id}`,\n      occurredAt: reversedAt,\n      properties: {\n        affiliate_id: commission.affiliate.id,\n        affiliate_code: commission.affiliate.cod"
-  },
-  {
-    "file": "pages/api/stripe/create-checkout-session.ts",
-    "line": 45,
-    "producer": "capture",
-    "argument": "{\n    distinctId,\n    event,\n    timestamp: new Date(occurredAt ? occurredAt * 1000 : Date.now()),\n    disableGeoip: true,\n    properties: {...properties, environment: process.env.VERCEL_ENV || process.env.NODE_ENV || \"development\"},\n    uuid: insertId ? stablePostHogEventUuid(insertId) : globalThis"
-  },
-  {
-    "file": "pages/api/stripe/create-checkout-session.ts",
-    "line": 344,
-    "producer": "trackAffiliateEvent",
-    "argument": "{\n        distinctId: session.user.id,\n        event: \"affiliate_checkout_started\",\n        insertId: `affiliate-checkout:${checkout.id}`,\n        occurredAt: new Date(checkout.created * 1000),\n        properties: {\n          affiliate_id: activeAttribution.affiliateId,\n          affiliate_code: act"
-  },
-  {
-    "file": "lib/engagement/reminderExperiment.ts",
-    "line": 19,
-    "producer": "captureReminderFailure",
-    "argument": "ph"
-  },
-  {
-    "file": "lib/engagement/reminderExperiment.ts",
-    "line": 102,
-    "producer": "capture",
-    "argument": "{ distinctId: user.id, event: \"engagement_reminder_sent\", properties: { ...experimentProperties(enrollment.arm), contact_id: contactId, action, campaign } }"
-  },
-  {
-    "file": "lib/engagement/reminderExperiment.ts",
-    "line": 107,
-    "producer": "captureReminderDeliveryFailure",
-    "argument": "createPostHogServerClient()"
-  },
-  {
-    "file": "lib/engagement/reminderExperiment.ts",
-    "line": 113,
-    "producer": "captureReminderDeliveryFailure",
-    "argument": "createPostHogServerClient()"
-  },
-  {
-    "file": "lib/engagement/reminderExperiment.ts",
-    "line": 118,
-    "producer": "captureReminderRun",
-    "argument": "monitoring"
-  },
-  {
-    "file": "lib/engagement/react.ts",
-    "line": 13,
-    "producer": "track",
-    "argument": "\"gte_playback_paused\""
-  },
-  {
-    "file": "lib/engagement/experiment.ts",
-    "line": 52,
-    "producer": "capture",
-    "argument": "{ distinctId: accountId, event: \"engagement_policy_assigned\",\n    uuid: stablePostHogEventUuid(`${ENGAGEMENT_EXPERIMENT}:${accountId}:assignment`),\n    timestamp: enrollment.enrolledAt, disableGeoip: true, properties: { ...experimentProperties(enrollment.arm), environment: process.env.VERCEL_ENV || "
-  },
-  {
-    "file": "lib/engagement/experiment.ts",
-    "line": 80,
-    "producer": "capture",
-    "argument": "{ distinctId: accountId, event: \"engagement_contact_outcome\", properties: { engagement_experiment: ENGAGEMENT_EXPERIMENT, contact_id: id, state }, uuid: stablePostHogEventUuid(`${id}:${state}`) }"
-  },
-  {
-    "file": "lib/engagement/transferTracking.ts",
-    "line": 10,
-    "producer": "track",
-    "argument": "name"
-  },
-  {
-    "file": "lib/affiliateTracking.ts",
-    "line": 21,
-    "producer": "capture",
-    "argument": "{\n    distinctId: input.distinctId,\n    event: input.event,\n    uuid: stablePostHogEventUuid(input.insertId),\n    timestamp: input.occurredAt,\n    disableGeoip: true,\n    properties: {\n      ...input.properties,\n      event_source: \"note2tabs_server\",\n      $insert_id: input.insertId,\n    },\n  }"
-  },
-  {
-    "file": "lib/signupAnalytics.ts",
-    "line": 18,
-    "producer": "capture",
-    "argument": "{distinctId:user.id,event:\"signup_completed\",timestamp:user.createdAt,disableGeoip:true,properties}"
-  },
-  {
-    "file": "lib/gteAnalytics.ts",
-    "line": 30,
-    "producer": "logGteAnalyticsEvents",
-    "argument": "[input]"
-  },
-  {
-    "file": "lib/analyticsV2/ingest.ts",
-    "line": 259,
-    "producer": "capture",
-    "argument": "{\n      uuid: analyticsEventUuid(event.eventId),\n      distinctId,\n      event: event.name === \"page_viewed\" ? \"$pageview\" : event.name,\n      timestamp: event.ts,\n      properties,\n      // Outbox calls have no visitor IP. Never geolocate Vercel's datacenter.\n      ...(context.source === \"transcrip"
-  },
-  {
-    "file": "lib/gteTabExport.ts",
-    "line": 418,
-    "producer": "beginTransfer",
-    "argument": "\"export\""
-  },
-  {
-    "file": "lib/tabShareAnalyticsServer.ts",
-    "line": 21,
-    "producer": "capture",
-    "argument": "{\n    distinctId: input.userId,\n    event: \"tab_share_email_signup_completed\",\n    properties: {\n      method: input.method,\n      landing: \"signup\",\n      recipient_status: \"new\",\n      source: TAB_SHARE_EMAIL_SOURCE,\n      $anon_distinct_id: cookies[ANALYTICS_ANON_COOKIE],\n      $insert_id: `tab-s"
-  },
-  {
-    "file": "pages/api/cron/inactive-signup-reminder.ts",
-    "line": 87,
-    "producer": "captureReminderRun",
-    "argument": "posthog"
-  },
-  {
-    "file": "pages/api/cron/inactive-signup-reminder.ts",
-    "line": 131,
-    "producer": "capture",
-    "argument": "{\n          distinctId: user.id,\n          event: \"inactive_signup_reminder_assigned\",\n          properties: {\n            timing_variant: variant,\n            experiment_group: \"holdout\",\n            experiment_version: INACTIVE_SIGNUP_REMINDER_EXPERIMENT_VERSION,\n            $insert_id: `inactive-"
-  },
-  {
-    "file": "pages/api/cron/inactive-signup-reminder.ts",
-    "line": 198,
-    "producer": "captureReminderDeliveryFailure",
-    "argument": "deliveryPosthog"
-  },
-  {
-    "file": "pages/api/cron/inactive-signup-reminder.ts",
+    "file": "pages/pricing.tsx",
     "line": 205,
-    "producer": "capture",
-    "argument": "{\n        distinctId: user.id,\n        event: \"inactive_signup_reminder_assigned\",\n        properties: {\n          timing_variant: variant,\n          delay_hours: delayHours,\n          experiment_group: \"treatment\",\n          experiment_version: INACTIVE_SIGNUP_REMINDER_EXPERIMENT_VERSION,\n         "
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.checkoutRedirected"
   },
   {
-    "file": "pages/api/cron/inactive-signup-reminder.ts",
-    "line": 216,
-    "producer": "capture",
-    "argument": "{\n        distinctId: user.id,\n        event: \"inactive_signup_reminder_sent\",\n        properties: {\n          timing_variant: variant,\n          delay_hours: delayHours,\n          experiment_version: INACTIVE_SIGNUP_REMINDER_EXPERIMENT_VERSION,\n          $insert_id: `inactive-signup-reminder:${user"
+    "file": "pages/pricing.tsx",
+    "line": 229,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.checkoutClientFailed"
   },
   {
-    "file": "pages/api/cron/inactive-signup-reminder.ts",
-    "line": 231,
-    "producer": "captureReminderDeliveryFailure",
-    "argument": "posthog"
-  },
-  {
-    "file": "pages/api/cron/inactive-signup-reminder.ts",
-    "line": 243,
-    "producer": "captureReminderRun",
-    "argument": "posthog"
-  },
-  {
-    "file": "pages/api/cron/inactive-signup-reminder.ts",
+    "file": "pages/pricing.tsx",
     "line": 271,
-    "producer": "captureReminderFailure",
-    "argument": "posthog"
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.pricingBillingSelected"
   },
   {
-    "file": "pages/api/cron/tab-return-reminder.ts",
-    "line": 147,
-    "producer": "capture",
-    "argument": "{\n      distinctId: canvas.user_id,\n      event: \"tab_return_reminder_assigned\",\n      properties: {\n        experiment_group: included ? \"treatment\" : \"holdout\",\n        rollout_percent: rollout,\n        $insert_id: `tab-return-reminder-assigned:${canvas.user_id}:${canvas.canvas_id}`,\n      },\n    "
-  },
-  {
-    "file": "pages/api/cron/tab-return-reminder.ts",
-    "line": 213,
-    "producer": "captureReminderDeliveryFailure",
-    "argument": "posthog"
-  },
-  {
-    "file": "pages/api/cron/tab-return-reminder.ts",
-    "line": 220,
-    "producer": "capture",
-    "argument": "{\n        distinctId: canvas.user_id,\n        event: \"tab_return_reminder_sent\",\n        properties: {\n          rollout_percent: rollout,\n          delay_hours: TAB_RETURN_REMINDER_DELAY_HOURS,\n          $insert_id: `tab-return-reminder-sent:${canvas.user_id}:${canvas.canvas_id}`,\n        },\n      "
-  },
-  {
-    "file": "pages/api/cron/tab-return-reminder.ts",
-    "line": 231,
-    "producer": "captureReminderDeliveryFailure",
-    "argument": "posthog"
-  },
-  {
-    "file": "pages/api/cron/tab-return-reminder.ts",
-    "line": 239,
-    "producer": "captureReminderRun",
-    "argument": "posthog"
-  },
-  {
-    "file": "pages/api/cron/tab-return-reminder.ts",
-    "line": 266,
-    "producer": "captureReminderFailure",
-    "argument": "posthog"
-  },
-  {
-    "file": "pages/api/auth/signup.ts",
-    "line": 69,
-    "producer": "trackAffiliateEvent",
-    "argument": "{\n            distinctId: user.id,\n            event: \"affiliate_signup_completed\",\n            insertId: `affiliate-signup:${user.id}`,\n            occurredAt: user.createdAt,\n            properties: {\n              affiliate_id: affiliate.id,\n              affiliate_code: affiliate.code,\n         "
+    "file": "pages/pricing.tsx",
+    "line": 292,
+    "producer": "trackCtaClick",
+    "argument": "\"pricing_start_free\""
   },
   {
     "file": "pages/index.tsx",
@@ -1518,6 +1140,366 @@
     "argument": "\"mode_youtube\""
   },
   {
+    "file": "pages/internship-application.tsx",
+    "line": 43,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.internshipApplicationSubmitted"
+  },
+  {
+    "file": "pages/api/stripe/change-plan.ts",
+    "line": 86,
+    "producer": "capture",
+    "argument": "{\n      distinctId: session.user.id,\n      event: currentPlan === \"PREMIUM\" ? \"subscription_upgraded\" : \"subscription_downgrade_scheduled\",\n      properties: {\n        from_plan: PLAN_CATALOG[currentPlan].analyticsId,\n        to_plan: PLAN_CATALOG[requestedPlan].analyticsId,\n        to_billing_inter"
+  },
+  {
+    "file": "pages/api/stripe/webhook.ts",
+    "line": 230,
+    "producer": "capture",
+    "argument": "{\n    distinctId: userId,\n    event: \"subscription_started\",\n    uuid: stablePostHogEventUuid(`subscription-started:${session.id}`),\n    timestamp: new Date(occurredAt * 1000),\n    disableGeoip: true,\n    properties: {\n      environment: process.env.VERCEL_ENV || process.env.NODE_ENV || \"development"
+  },
+  {
+    "file": "pages/api/stripe/webhook.ts",
+    "line": 310,
+    "producer": "capture",
+    "argument": "{\n    distinctId: userId,\n    event: lifecycleEvent,\n    uuid: stablePostHogEventUuid(`${lifecycleEvent}:${stripeEventId}`),\n    timestamp: new Date(stableTime ? occurredAt! * 1000 : Date.now()),\n    disableGeoip: true,\n    properties: {\n      environment: process.env.VERCEL_ENV || process.env.NODE_"
+  },
+  {
+    "file": "pages/api/stripe/webhook.ts",
+    "line": 395,
+    "producer": "capture",
+    "argument": "{\n    distinctId,\n    event,\n    uuid: stablePostHogEventUuid(`${event}:${stripeEventId}`),\n    timestamp: new Date(stableTime ? occurredAt! * 1000 : Date.now()),\n    disableGeoip: true,\n    properties: {\n      environment: process.env.VERCEL_ENV || process.env.NODE_ENV || \"development\",\n      check"
+  },
+  {
+    "file": "pages/api/stripe/webhook.ts",
+    "line": 723,
+    "producer": "trackAffiliateEvent",
+    "argument": "{\n    distinctId: userId,\n    event: renewal ? \"affiliate_subscription_renewed\" : \"affiliate_payment_succeeded\",\n    insertId: `affiliate-payment:${invoice.id}`,\n    occurredAt: new Date(invoice.created * 1000),\n    properties: {\n      affiliate_id: attribution.affiliate.id,\n      affiliate_code: at"
+  },
+  {
+    "file": "pages/api/stripe/webhook.ts",
+    "line": 748,
+    "producer": "trackAffiliateEvent",
+    "argument": "{\n    distinctId: userId,\n    event: \"affiliate_trial_started\",\n    insertId: `affiliate-trial:${session.id}`,\n    occurredAt: new Date(session.created * 1000),\n    properties: {\n      affiliate_id: attribution.affiliate.id,\n      affiliate_code: attribution.affiliate.code,\n      checkout_session_id"
+  },
+  {
+    "file": "pages/api/stripe/webhook.ts",
+    "line": 781,
+    "producer": "trackAffiliateEvent",
+    "argument": "{\n      distinctId: commission.attribution.referredUserId,\n      event: \"affiliate_payment_refunded\",\n      insertId: `affiliate-refund:${commission.id}`,\n      occurredAt: reversedAt,\n      properties: {\n        affiliate_id: commission.affiliate.id,\n        affiliate_code: commission.affiliate.cod"
+  },
+  {
+    "file": "pages/api/stripe/create-checkout-session.ts",
+    "line": 45,
+    "producer": "capture",
+    "argument": "{\n    distinctId,\n    event,\n    timestamp: new Date(occurredAt ? occurredAt * 1000 : Date.now()),\n    disableGeoip: true,\n    properties: {...properties, environment: process.env.VERCEL_ENV || process.env.NODE_ENV || \"development\"},\n    uuid: insertId ? stablePostHogEventUuid(insertId) : globalThis"
+  },
+  {
+    "file": "pages/api/stripe/create-checkout-session.ts",
+    "line": 344,
+    "producer": "trackAffiliateEvent",
+    "argument": "{\n        distinctId: session.user.id,\n        event: \"affiliate_checkout_started\",\n        insertId: `affiliate-checkout:${checkout.id}`,\n        occurredAt: new Date(checkout.created * 1000),\n        properties: {\n          affiliate_id: activeAttribution.affiliateId,\n          affiliate_code: act"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 337,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.inactiveSignupReminderLanded"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 365,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.heavyPreviewConfirmationShown"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 380,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.heavyPreviewShown"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 610,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.authHandoffResumed"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 856,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.uploadValidationFailed"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 889,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.authHandoffRequired"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 890,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.authHandoffSaved"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 907,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.verificationGateShown"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 989,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.heavyPreviewConfirmationShown"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1040,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.uploadPresignStarted"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1045,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.uploadStorageRetry"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1051,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.uploadStorageFailed"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1062,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.uploadStorageSucceeded"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1112,
+    "producer": "sendTranscriptionStartedEvents",
+    "argument": "transcriptionModel"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1130,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.heavyPreviewStarted"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1139,
+    "producer": "sendEvent",
+    "argument": "\"transcribe_queued\""
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1185,
+    "producer": "sendEvent",
+    "argument": "\"transcribe_error\""
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1196,
+    "producer": "sendEvent",
+    "argument": "\"transcribe_error\""
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1208,
+    "producer": "sendTranscriptionStartedEvents",
+    "argument": "transcriptionModel"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1223,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.heavyPreviewStarted"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1231,
+    "producer": "sendEvent",
+    "argument": "\"transcribe_success\""
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1261,
+    "producer": "sendEvent",
+    "argument": "getTranscriptionFailureEvent(submissionAccepted)"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1275,
+    "producer": "trackCtaClick",
+    "argument": "\"choose_audio_file\""
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1279,
+    "producer": "trackCtaClick",
+    "argument": "\"convert_to_tabs\""
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1314,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.checkoutRedirected"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1334,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.checkoutClientFailed"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1362,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.transcriptionEditorImportStarted"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1377,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.transcriptionImportedToEditor"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1387,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.transcriptionEditorImportFailed"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1405,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.transcriptionImportedToEditor"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1415,
+    "producer": "sendEvent",
+    "argument": "getEditorImportFailureEvent(importPersisted)"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1438,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.transcriptionEditorImportStarted"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1448,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.transcriptionImportedToEditor"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1457,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.transcriptionImportedToEditor"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1467,
+    "producer": "sendEvent",
+    "argument": "getEditorImportFailureEvent(importPersisted)"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1529,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.heavyPreviewConfirmationDismissed"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1539,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.heavyPreviewSelected"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1545,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.heavyPreviewSelected"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1619,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.heavyPreviewConfirmationShown"
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1623,
+    "producer": "trackCtaClick",
+    "argument": "\"use_free_heavy_preview\""
+  },
+  {
+    "file": "pages/transcriber.tsx",
+    "line": 1638,
+    "producer": "trackCtaClick",
+    "argument": "isPremiumUser ? \"use_heavy_model\" : \"see_heavy_plans\""
+  },
+  {
+    "file": "pages/job/[job_id].tsx",
+    "line": 749,
+    "producer": "sendEvent",
+    "argument": "\"transcription_result_viewed\""
+  },
+  {
+    "file": "pages/job/[job_id].tsx",
+    "line": 751,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.jobCompleted"
+  },
+  {
+    "file": "pages/job/[job_id].tsx",
+    "line": 755,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.tabGenerationSucceeded"
+  },
+  {
+    "file": "pages/job/[job_id].tsx",
+    "line": 760,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.heavyPreviewCompleted"
+  },
+  {
+    "file": "pages/job/[job_id].tsx",
+    "line": 1129,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.transcriptionEditorImportStarted"
+  },
+  {
+    "file": "pages/job/[job_id].tsx",
+    "line": 1135,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.transcriptionEditorImportFailed"
+  },
+  {
+    "file": "pages/job/[job_id].tsx",
+    "line": 1142,
+    "producer": "sendEvent",
+    "argument": "ANALYTICS_EVENTS.transcriptionImportedToEditor"
+  },
+  {
+    "file": "pages/job/[job_id].tsx",
+    "line": 1152,
+    "producer": "sendEvent",
+    "argument": "getEditorImportFailureEvent(importPersisted)"
+  },
+  {
+    "file": "pages/api/auth/signup.ts",
+    "line": 69,
+    "producer": "trackAffiliateEvent",
+    "argument": "{\n            distinctId: user.id,\n            event: \"affiliate_signup_completed\",\n            insertId: `affiliate-signup:${user.id}`,\n            occurredAt: user.createdAt,\n            properties: {\n              affiliate_id: affiliate.id,\n              affiliate_code: affiliate.code,\n         "
+  },
+  {
     "file": "pages/api/gte/[[...path]].ts",
     "line": 303,
     "producer": "logGteAnalyticsEvent",
@@ -1542,75 +1524,93 @@
     "argument": "{ distinctId: userId, event: \"reminder_email_unsubscribed\", properties: { email_category: \"retention_reminders\" } }"
   },
   {
+    "file": "pages/api/cron/tab-return-reminder.ts",
+    "line": 147,
+    "producer": "capture",
+    "argument": "{\n      distinctId: canvas.user_id,\n      event: \"tab_return_reminder_assigned\",\n      properties: {\n        experiment_group: included ? \"treatment\" : \"holdout\",\n        rollout_percent: rollout,\n        $insert_id: `tab-return-reminder-assigned:${canvas.user_id}:${canvas.canvas_id}`,\n      },\n    "
+  },
+  {
+    "file": "pages/api/cron/tab-return-reminder.ts",
+    "line": 213,
+    "producer": "captureReminderDeliveryFailure",
+    "argument": "posthog"
+  },
+  {
+    "file": "pages/api/cron/tab-return-reminder.ts",
+    "line": 220,
+    "producer": "capture",
+    "argument": "{\n        distinctId: canvas.user_id,\n        event: \"tab_return_reminder_sent\",\n        properties: {\n          rollout_percent: rollout,\n          delay_hours: TAB_RETURN_REMINDER_DELAY_HOURS,\n          $insert_id: `tab-return-reminder-sent:${canvas.user_id}:${canvas.canvas_id}`,\n        },\n      "
+  },
+  {
+    "file": "pages/api/cron/tab-return-reminder.ts",
+    "line": 231,
+    "producer": "captureReminderDeliveryFailure",
+    "argument": "posthog"
+  },
+  {
+    "file": "pages/api/cron/tab-return-reminder.ts",
+    "line": 239,
+    "producer": "captureReminderRun",
+    "argument": "posthog"
+  },
+  {
+    "file": "pages/api/cron/tab-return-reminder.ts",
+    "line": 266,
+    "producer": "captureReminderFailure",
+    "argument": "posthog"
+  },
+  {
+    "file": "pages/api/cron/inactive-signup-reminder.ts",
+    "line": 87,
+    "producer": "captureReminderRun",
+    "argument": "posthog"
+  },
+  {
+    "file": "pages/api/cron/inactive-signup-reminder.ts",
+    "line": 131,
+    "producer": "capture",
+    "argument": "{\n          distinctId: user.id,\n          event: \"inactive_signup_reminder_assigned\",\n          properties: {\n            timing_variant: variant,\n            experiment_group: \"holdout\",\n            experiment_version: INACTIVE_SIGNUP_REMINDER_EXPERIMENT_VERSION,\n            $insert_id: `inactive-"
+  },
+  {
+    "file": "pages/api/cron/inactive-signup-reminder.ts",
+    "line": 198,
+    "producer": "captureReminderDeliveryFailure",
+    "argument": "deliveryPosthog"
+  },
+  {
+    "file": "pages/api/cron/inactive-signup-reminder.ts",
+    "line": 205,
+    "producer": "capture",
+    "argument": "{\n        distinctId: user.id,\n        event: \"inactive_signup_reminder_assigned\",\n        properties: {\n          timing_variant: variant,\n          delay_hours: delayHours,\n          experiment_group: \"treatment\",\n          experiment_version: INACTIVE_SIGNUP_REMINDER_EXPERIMENT_VERSION,\n         "
+  },
+  {
+    "file": "pages/api/cron/inactive-signup-reminder.ts",
+    "line": 216,
+    "producer": "capture",
+    "argument": "{\n        distinctId: user.id,\n        event: \"inactive_signup_reminder_sent\",\n        properties: {\n          timing_variant: variant,\n          delay_hours: delayHours,\n          experiment_version: INACTIVE_SIGNUP_REMINDER_EXPERIMENT_VERSION,\n          $insert_id: `inactive-signup-reminder:${user"
+  },
+  {
+    "file": "pages/api/cron/inactive-signup-reminder.ts",
+    "line": 231,
+    "producer": "captureReminderDeliveryFailure",
+    "argument": "posthog"
+  },
+  {
+    "file": "pages/api/cron/inactive-signup-reminder.ts",
+    "line": 243,
+    "producer": "captureReminderRun",
+    "argument": "posthog"
+  },
+  {
+    "file": "pages/api/cron/inactive-signup-reminder.ts",
+    "line": 271,
+    "producer": "captureReminderFailure",
+    "argument": "posthog"
+  },
+  {
     "file": "pages/api/affiliate/capture.ts",
     "line": 42,
     "producer": "trackAffiliateEvent",
     "argument": "{\n    distinctId: clickId,\n    event: \"affiliate_link_clicked\",\n    insertId: `affiliate-click:${clickId}`,\n    occurredAt: new Date(),\n    properties: {\n      affiliate_id: affiliate.id,\n      affiliate_code: affiliate.code,\n      affiliate_click_id: clickId,\n      landing_path: landingPath,\n      "
-  },
-  {
-    "file": "pages/settings.tsx",
-    "line": 351,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.checkoutClientFailed"
-  },
-  {
-    "file": "pages/settings.tsx",
-    "line": 358,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.checkoutRedirected"
-  },
-  {
-    "file": "pages/settings.tsx",
-    "line": 378,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.checkoutClientFailed"
-  },
-  {
-    "file": "pages/settings.tsx",
-    "line": 398,
-    "producer": "sendEvent",
-    "argument": "intent === \"cancellation\"\n        ? ANALYTICS_EVENTS.subscriptionCancellationContinued\n        : ANALYTICS_EVENTS.subscriptionManagementOpened"
-  },
-  {
-    "file": "pages/settings.tsx",
-    "line": 460,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.accountDeletionConfirmed"
-  },
-  {
-    "file": "pages/settings.tsx",
-    "line": 734,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.accountDeletionStarted"
-  },
-  {
-    "file": "pages/settings.tsx",
-    "line": 767,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.accountDeletionAlternativeClicked"
-  },
-  {
-    "file": "pages/settings.tsx",
-    "line": 791,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.accountDeletionGoalSelected"
-  },
-  {
-    "file": "pages/settings.tsx",
-    "line": 844,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.subscriptionCancellationIntentStarted"
-  },
-  {
-    "file": "pages/settings.tsx",
-    "line": 850,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.subscriptionCancellationGoalSelected"
-  },
-  {
-    "file": "pages/settings.tsx",
-    "line": 855,
-    "producer": "sendEvent",
-    "argument": "ANALYTICS_EVENTS.subscriptionCancellationAlternativeClicked"
   }
 ]

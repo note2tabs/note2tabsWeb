@@ -65,3 +65,11 @@ describe("production QA isolation", () => {
     } finally {vi.unstubAllEnvs();}
   });
 });
+
+describe("contact outcome matches operational state",()=>{
+ it("does not capture a contradictory late outcome",async()=>{
+  const {prisma}=await import("../../../lib/prisma");const {finishEngagementContact}=await import("../../../lib/engagement/experiment");
+  const execute=vi.fn().mockResolvedValue(0);Object.assign(prisma,{$executeRaw:execute});raw.mockResolvedValueOnce([{state:"cancelled"}]);capture.mockClear();
+  await finishEngagementContact("account","contact","visible");expect(capture).not.toHaveBeenCalled();
+ });
+});
