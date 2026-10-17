@@ -1,6 +1,10 @@
+import { localeHref, type AppLocale } from "./i18n/locale";
+import { serviceEmails, emailPhrase } from "./i18n/serviceEmails";
+import { renderServiceEmail } from "./i18n/renderServiceEmail";
 import { escapeEmailHtml, renderProductEmail } from "./emailTemplate";
 
 type PremiumTrialReminderInput = {
+  locale?: AppLocale;
   name?: string | null;
   trialEndsAt: Date;
   latestEditor?: { id: string; name?: string | null } | null;
@@ -41,6 +45,7 @@ const destinationFor = (input: PremiumTrialReminderInput, source: string) => {
 };
 
 export function buildPremiumTrialStartedEmail(input: PremiumTrialStartedInput) {
+  if (input.locale && input.locale !== "en") return localizedTrialEmail(input,true);
   const firstName = input.name?.trim().split(/\s+/)[0] || "there";
   const startDate = formatBillingDate(input.trialStartsAt);
   const endDate = formatBillingDate(input.trialEndsAt);
@@ -71,6 +76,7 @@ Note2Tabs`;
 }
 
 export function buildPremiumTrialReminderEmail(input: PremiumTrialReminderInput) {
+  if (input.locale && input.locale !== "en") return localizedTrialEmail(input,false);
   const firstName = input.name?.trim().split(/\s+/)[0] || "there";
   const endDate = formatBillingDate(input.trialEndsAt);
   const destination = destinationFor(input, "trial_reminder");
@@ -99,4 +105,17 @@ Note2Tabs`;
   });
 
   return { subject, text, html, continueUrl, settingsUrl };
+}
+
+function localizedTrialEmail(input: PremiumTrialReminderInput & {trialStartsAt?:Date}, started: boolean) {
+  const locale = input.locale || "en", c = serviceEmails[locale];
+  const format = (date:Date) => new Intl.DateTimeFormat(locale,{month:"long",day:"numeric",year:"numeric",timeZone:"UTC"}).format(date);
+  const values = {end:format(input.trialEndsAt),start:input.trialStartsAt ? format(input.trialStartsAt) : ""};
+  const message = started ? c.trialStarted : c.trialEnding;
+  const source = started ? "trial_welcome" : "trial_reminder";
+  const continueUrl = input.latestEditor ? `${appBaseUrl()}/gte/${encodeURIComponent(input.latestEditor.id)}?mode=practice&source=${source}`
+    : `${appBaseUrl()}${localeHref(`/transcribe?source=${source}`,locale)}`;
+  const settingsUrl = `${appBaseUrl()}/settings`;
+  return {...renderServiceEmail({locale,name:input.name,subject:emailPhrase(message[0],values),body:emailPhrase(message[1],values)+(started ? `\n\n${c.features}` : ""),
+    action:input.latestEditor ? c.continue : c.transcribe,url:continueUrl,footer:{label:c.settings,url:settingsUrl}}),continueUrl,settingsUrl};
 }

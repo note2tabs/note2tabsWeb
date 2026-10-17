@@ -62,7 +62,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const email = buildInternshipApplicationEmail(result.application);
-    await sendTransactionalEmail({ to: "admin@note2tabs.com", ...email });
+    await sendTransactionalEmail({ language:{kind:"internal"}, to: "admin@note2tabs.com", ...email });
     return res.status(200).json({ ok: true });
   } catch (error) {
     console.error("internship application delivery failed", error);

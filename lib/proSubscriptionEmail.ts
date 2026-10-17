@@ -1,7 +1,14 @@
+import { localeHref, type AppLocale } from "./i18n/locale";
+import { serviceEmails } from "./i18n/serviceEmails";
+import { renderServiceEmail } from "./i18n/renderServiceEmail";
 import { getConfiguredSiteUrl } from "./siteUrl";
 import { escapeEmailHtml, renderProductEmail } from "./emailTemplate";
 
-export function buildProStartedEmail(name?: string | null) {
+export function buildProStartedEmail(name?: string | null, locale: AppLocale = "en") {
+  if (locale !== "en") {
+    const c = serviceEmails[locale];
+    return renderServiceEmail({locale,name,subject:c.pro[0],body:c.pro[1],action:c.transcribe,url:`${getConfiguredSiteUrl()}${localeHref("/transcribe",locale)}`});
+  }
   const greeting = name?.trim() ? `Hi ${name.trim()},` : "Hi there,";
   const transcriberUrl = `${getConfiguredSiteUrl()}/transcribe`;
   const subject = "Your Note2Tabs Pro plan is active";

@@ -59,6 +59,14 @@ describe("editor localization",()=>{
   const redirect=await withEditorLocale(async()=>({redirect:{destination:"/auth/login?next=%2Fgte%2Fproject",permanent:false}}))({req,res:{setHeader:headers}} as any);
   expect((redirect as any).redirect.destination).toBe(localeHref("/auth/login?next=%2Fgte%2Fproject",locale));
  });
+ it.each(TRANSLATED_LOCALES)("retains the %s landing-page language in the local editor without an explicit picker choice",async locale=>{
+  const req={cookies:{n2t_locale:locale},headers:{"accept-language":"en-US,en;q=0.9"}};
+  expect(editorRequestLocale(req)).toBe(locale);
+  expect(editorRequestLocale({headers:{cookie:`n2t_locale=${locale}`,"accept-language":"en-US"}})).toBe(locale);
+  const result=await withEditorLocale(async()=>({props:{editorId:"local",isGuestMode:true}}))({req,res:{setHeader:vi.fn()},resolvedUrl:"/gte/local"} as any);
+  expect((result as any).props.initialEditorLocale).toBe(locale);
+  expect((result as any).props.initialEditorMessages["Keep your work safe"]).toBe(JSON.parse(readFileSync(`lib/i18n/editor/${locale}.json`,"utf8"))["Keep your work safe"]);
+ });
  it("honors device preferences, explicit English and disabled releases",()=>{
   expect(editorRequestLocale({headers:{"accept-language":"ko-KR,en;q=0.8"}})).toBe("ko");
   expect(editorRequestLocale({headers:{"accept-language":"zh-Hant,en;q=0.8"}})).toBe("en");

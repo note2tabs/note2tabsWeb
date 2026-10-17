@@ -1,9 +1,15 @@
+import { accountEmailLocale } from "./i18n/accountLanguage";
+import { prisma } from "./prisma";
+import { localeHref, type AppLocale } from "./i18n/locale";
+import { serviceEmails, emailPhrase, sharePermissions } from "./i18n/serviceEmails";
+import { renderServiceEmail, localizedEmailUrl, defaultTabLabel, anonymousInviter } from "./i18n/renderServiceEmail";
 import { sendTransactionalEmail } from "./email";
 import { escapeEmailHtml, renderProductEmail } from "./emailTemplate";
 import { tabShareBlockUrl } from "./tabShareEmailPreferences";
 import { TAB_SHARE_EMAIL_SOURCE } from "./tabShareAnalytics";
 
 export type TabShareEmailInput = {
+  locale?: AppLocale;
   to: string;
   inviterName?: string | null;
   tabName?: string | null;
@@ -20,6 +26,19 @@ function appBaseUrl() {
 }
 
 export function buildTabShareEmail(input: TabShareEmailInput) {
+  if (input.locale && input.locale !== "en") {
+    const locale = input.locale, c = serviceEmails[locale];
+    const values = {inviter:input.inviterName?.trim() || anonymousInviter[locale],label:input.tabName?.trim() || defaultTabLabel[locale],permission:sharePermissions[locale][input.role === "editor" ? 1 : 0]};
+    const sharedPath = `/shared?source=${TAB_SHARE_EMAIL_SOURCE}&utm_source=note2tabs&utm_medium=email&utm_campaign=tab_sharing&editor=${encodeURIComponent(input.editorId)}`;
+    const sharedUrl = `${appBaseUrl()}${localeHref(sharedPath,locale)}`;
+    const signupUrl = `${appBaseUrl()}${localeHref(`/auth/signup?next=${encodeURIComponent(sharedPath)}&utm_source=note2tabs&utm_medium=email&utm_campaign=tab_sharing`,locale)}`;
+    const blockUrl = localizedEmailUrl(tabShareBlockUrl(input.to),locale);
+    const privacyUrl = `${appBaseUrl()}${localeHref("/privacy",locale)}`;
+    return {...renderServiceEmail({locale,subject:emailPhrase(c.share[0],values),body:emailPhrase(c.share[1],values)+(input.recipientHasAccount ? "" : `\n\n${c.shareNew}`),
+      action:input.recipientHasAccount ? c.continue : c.createAccount,url:input.recipientHasAccount ? sharedUrl : signupUrl,
+      secondary:`${input.recipientHasAccount ? c.signIn : c.shareNotice}\n${c.privacy}: ${privacyUrl}`,
+      footer:!input.recipientHasAccount && blockUrl ? {label:c.block,url:blockUrl} : undefined}),sharedUrl,signupUrl};
+  }
   const inviter = input.inviterName?.trim() || "Someone";
   const tabName = input.tabName?.trim() || "a tab";
   const permission = input.role === "editor" ? "view and edit" : "view";
@@ -63,8 +82,11 @@ Note2Tabs`;
 }
 
 export async function sendTabShareEmail(input: TabShareEmailInput) {
-  const email = buildTabShareEmail(input);
+  const recipient = await prisma.user.findUnique({where:{email:input.to.toLowerCase().trim()},select:{id:true}});
+  const locale = recipient ? await accountEmailLocale(recipient.id, input.locale) : "en";
+  const email = buildTabShareEmail({...input,locale});
   return sendTransactionalEmail({
+    language:{kind:"customer",template:"tab_share",locale,accountId:recipient?.id},
     to: input.to,
     subject: email.subject,
     html: email.html,

@@ -1,7 +1,11 @@
+import { accountEmailLocale } from "./i18n/accountLanguage";
+import { createPostHogServerClient } from "./posthogServer";
+import { emailLanguageProblems, EmailLanguageMismatchError, type EmailLanguage } from "./emailLanguage";
 import { SendEmailCommand, SESClient } from "@aws-sdk/client-ses";
 import nodemailer from "nodemailer9";
 
 type SendEmailInput = {
+  language: EmailLanguage;
   to: string;
   subject: string;
   html: string;
@@ -98,6 +102,29 @@ export function isEmailDeliveryConfigured() {
 }
 
 export async function sendTransactionalEmail(input: SendEmailInput): Promise<boolean> {
+  if (input.language?.kind !== "internal") {
+    const language = input.language;
+    let expected = language?.locale;
+    let problems:string[];
+    try {
+      if (language?.accountId) expected = await accountEmailLocale(language.accountId, language.locale);
+      problems = language?.kind === "customer" ? emailLanguageProblems(input, language, expected) : ["language_context_missing"];
+    } catch { problems = ["preference_lookup_failed"]; }
+    if (problems.length) {
+      const error = new EmailLanguageMismatchError(problems);
+      // No address, subject, user-entered title, token, link or email body in logs.
+      const properties = { alert_eligible:true, error_classification:"email_language_mismatch", email_template:language?.template || "unknown",
+        expected_locale:expected || "unknown", rendered_locale:language?.locale || "unknown", validation_reasons:problems, delivery_stage:"blocked_before_send",
+        environment:process.env.VERCEL_ENV || process.env.NODE_ENV || "development", test_event:language?.test === true };
+      console.error("email_language_mismatch", properties);
+      try {
+        const ph = createPostHogServerClient();
+        if (ph) { await ph.captureExceptionImmediate(error, language?.accountId || "system:email-language", properties); }
+      } catch { console.warn("email_language_alert_delivery_failed"); }
+      throw error;
+    }
+  }
+
   const smtp = getSmtpTransporter();
   const client = getSesClient();
   const from = getFromAddress();
@@ -109,9 +136,10 @@ export async function sendTransactionalEmail(input: SendEmailInput): Promise<boo
       subject: input.subject,
       html: input.html,
       ...(input.text ? { text: input.text } : {}),
-      ...(input.analyticsCategory
-        ? { headers: { "X-SES-MESSAGE-TAGS": `email_category=${input.analyticsCategory}` } }
-        : {}),
+      ...((input.analyticsCategory || input.language.kind === "customer") ? {headers: {
+        ...(input.analyticsCategory ? { "X-SES-MESSAGE-TAGS": `email_category=${input.analyticsCategory}` } : {}),
+        ...(input.language.kind === "customer" ? { "Content-Language":input.language.locale, "X-Note2Tabs-Template":input.language.template } : {}),
+      }} : {}),
     });
     return true;
   }

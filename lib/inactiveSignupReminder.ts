@@ -1,3 +1,6 @@
+import { localeHref, type AppLocale } from "./i18n/locale";
+import { serviceEmails, emailPhrase } from "./i18n/serviceEmails";
+import { renderServiceEmail, localizedEmailUrl, defaultTabLabel } from "./i18n/renderServiceEmail";
 import crypto from "crypto";
 import { reminderUnsubscribeUrl } from "./reminderUnsubscribe";
 import { escapeEmailHtml, renderProductEmail } from "./emailTemplate";
@@ -18,6 +21,7 @@ export const INACTIVE_SIGNUP_REMINDER_DELAYS: Record<InactiveSignupReminderVaria
 };
 
 type BuildReminderEmailInput = {
+  locale?: AppLocale;
   name?: string | null;
   variant?: Exclude<InactiveSignupReminderVariant, "holdout">;
   userId?: string;
@@ -57,6 +61,13 @@ export function assignInactiveSignupReminderVariant(userId: string): InactiveSig
 }
 
 export function buildInactiveSignupReminderEmail(input: BuildReminderEmailInput = {}) {
+  if (input.locale && input.locale !== "en") {
+    const locale = input.locale, c = serviceEmails[locale];
+    const transcriberUrl = `${baseUrl()}${localeHref(`/transcribe?source=inactive_signup_reminder&timing=${input.variant || "6h"}`, locale)}`;
+    const unsubscribeUrl = input.userId ? localizedEmailUrl(reminderUnsubscribeUrl(input.userId),locale) : null;
+    return { ...renderServiceEmail({locale, name:input.name, subject:c.signup[0], body:c.signup[1], action:c.transcribe, url:transcriberUrl,
+      footer:unsubscribeUrl ? {label:c.unsubscribe,url:unsubscribeUrl} : undefined}), transcriberUrl, unsubscribeUrl };
+  }
   const firstName = (input.name || "").trim() || "there";
   const safeName = escapeEmailHtml(firstName);
   const variant = input.variant || "6h";

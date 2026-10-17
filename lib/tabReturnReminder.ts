@@ -1,3 +1,6 @@
+import { localeHref, type AppLocale } from "./i18n/locale";
+import { serviceEmails, emailPhrase } from "./i18n/serviceEmails";
+import { renderServiceEmail, localizedEmailUrl, defaultTabLabel } from "./i18n/renderServiceEmail";
 import crypto from "crypto";
 import { reminderUnsubscribeUrl } from "./reminderUnsubscribe";
 import { escapeEmailHtml, renderProductEmail } from "./emailTemplate";
@@ -9,6 +12,7 @@ export const TAB_RETURN_REMINDER_PREFIX = "reminder:return-to-tab:";
 export const TAB_RETURN_REMINDER_COOLDOWN_PREFIX = "reminder:return-to-tab-cooldown:";
 
 type BuildTabReturnReminderInput = {
+  locale?: AppLocale;
   name?: string | null;
   editorId: string;
   editorName?: string | null;
@@ -43,6 +47,13 @@ export function isInTabReturnReminderRollout(userId: string, editorId: string, p
 }
 
 export function buildTabReturnReminderEmail(input: BuildTabReturnReminderInput) {
+  if (input.locale && input.locale !== "en") {
+    const locale = input.locale, c = serviceEmails[locale], values = {label:input.editorName?.trim() || defaultTabLabel[locale]};
+    const editorUrl = `${appBaseUrl()}/gte/${encodeURIComponent(input.editorId)}?source=tab_return_email`;
+    const unsubscribeUrl = input.userId ? localizedEmailUrl(reminderUnsubscribeUrl(input.userId),locale) : null;
+    return { ...renderServiceEmail({locale, name:input.name, subject:emailPhrase(c.saved[0],values), body:emailPhrase(c.saved[1],values), action:c.continue, url:editorUrl,
+      footer:unsubscribeUrl ? {label:c.unsubscribe,url:unsubscribeUrl} : undefined}), editorUrl, unsubscribeUrl };
+  }
   const firstName = input.name?.trim().split(/\s+/)[0] || "there";
   const editorName = input.editorName?.trim() || "your tab";
   const subjectName = editorName.replace(/[\r\n]+/g, " ").slice(0, 120);

@@ -1,3 +1,4 @@
+import { accountEmailLocale } from "../../../lib/i18n/accountLanguage";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { sendTransactionalEmail } from "../../../lib/email";
 import { prisma } from "../../../lib/prisma";
@@ -58,6 +59,7 @@ async function runHandler(req: NextApiRequest, res: NextApiResponse, startedAt: 
       ? true
       : await isAuthorizedSchedulerRequest(req.headers.authorization);
   if (!authorized) return res.status(401).json({ error: "Unauthorized" });
+
 
   const now = new Date();
   const inactiveBefore = new Date(now.getTime() - TAB_RETURN_REMINDER_DELAY_HOURS * 60 * 60 * 1000);
@@ -185,7 +187,9 @@ async function runHandler(req: NextApiRequest, res: NextApiResponse, startedAt: 
       throw error;
     }
 
+    const locale = await accountEmailLocale(canvas.user_id);
     const email = buildTabReturnReminderEmail({
+      locale,
       name: canvas.user_name,
       editorId: canvas.canvas_id,
       editorName: canvas.name,
@@ -193,6 +197,7 @@ async function runHandler(req: NextApiRequest, res: NextApiResponse, startedAt: 
     });
     try {
       const delivered = await sendTransactionalEmail({
+        language:{kind:"customer",template:"tab_return",locale,accountId:canvas.user_id},
         to: canvas.email,
         subject: email.subject,
         html: email.html,

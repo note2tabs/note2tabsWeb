@@ -1,3 +1,4 @@
+import { saveAccountLanguage } from "../../../lib/i18n/accountLanguage";
 import { requestLocale } from "../../../lib/i18n/request";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { hash } from "bcryptjs";
@@ -106,6 +107,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     let sent = false;
     try {
+      await saveAccountLanguage(user.id, requestLocale(req));
       const result = await issueAndSendVerificationEmail({
         id: user.id,
         email: user.email,

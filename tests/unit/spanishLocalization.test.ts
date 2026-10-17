@@ -114,7 +114,7 @@ describe("Spanish website",()=>{
   await sendVerificationEmail("test@example.com","opaque",{locale:"es",name:"<script>"});let mail=vi.mocked(sendTransactionalEmail).mock.calls.at(-1)![0];
   expect(mail.html).toContain('lang="es"');expect(mail.html).toContain("&lt;script&gt;");expect(mail.text).toContain("/es/auth/verify-email");
   await sendPasswordResetEmail("test@example.com","opaque","123456",{locale:"es"});mail=vi.mocked(sendTransactionalEmail).mock.calls.at(-1)![0];expect(mail.text).toContain("/es/reset-password/opaque");expect(mail.text).toContain("123456");
-  const done=buildTranscriptionCompleteEmail({jobId:"job",sourceLabel:"<img>",locale:"es"});expect(done.html).toContain("&lt;img&gt;");expect(done.text).toContain("El editor está en inglés.");expect(done.editorUrl).toContain("/es/job/job");
+  const done=buildTranscriptionCompleteEmail({jobId:"job",sourceLabel:"<img>",locale:"es"});expect(done.html).toContain("&lt;img&gt;");expect(done.text).not.toContain("El editor está en inglés.");expect(done.editorUrl).toContain("/es/job/job");
  });
  it("emits three reciprocal public alternates including article paths only after release",()=>{
   vi.stubEnv("NODE_ENV","production");vi.stubEnv("VERCEL_ENV","production");vi.stubEnv("NEXT_PUBLIC_PT_BR_REVIEWED","true");vi.stubEnv("NEXT_PUBLIC_ES_REVIEWED","true");
