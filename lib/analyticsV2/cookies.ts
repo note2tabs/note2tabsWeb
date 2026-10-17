@@ -4,6 +4,7 @@ import { randomBytes, randomUUID } from "crypto";
 export const ANALYTICS_CONSENT_COOKIE = "analytics_consent";
 export const ANALYTICS_SESSION_COOKIE = "analytics_session";
 export const ANALYTICS_ANON_COOKIE = "analytics_anon";
+export const ANALYTICS_OWNER_COOKIE = "analytics_owner";
 export const ANALYTICS_ATTRIBUTION_COOKIE = "analytics_first_touch";
 
 export type ConsentCookieState = "granted" | "denied";
@@ -91,6 +92,7 @@ export function setConsentCookie(res: NextApiResponse, value: ConsentCookieState
 }
 
 export function clearAnalyticsIdentifierCookies(res: NextApiResponse) {
+  appendSetCookie(res, serializeCookie(ANALYTICS_OWNER_COOKIE, "", {maxAgeSec:0}));
   appendSetCookie(
     res,
     serializeCookie(ANALYTICS_SESSION_COOKIE, "", {
@@ -146,4 +148,14 @@ export function ensureTrackingCookies(
   }
 
   return { sessionId, anonId };
+}
+
+export function readAnalyticsOwner(cookies: Record<string, string>): {anonId: string; userId: string} | null {
+  try {
+    const value = JSON.parse(cookies[ANALYTICS_OWNER_COOKIE] || "null");
+    return value && typeof value.anonId === "string" && typeof value.userId === "string" ? value : null;
+  } catch { return null; }
+}
+export function setAnalyticsOwnerCookie(res: NextApiResponse, anonId: string, userId: string) {
+  appendSetCookie(res, serializeCookie(ANALYTICS_OWNER_COOKIE, JSON.stringify({anonId,userId}), {maxAgeSec:90*86400}));
 }

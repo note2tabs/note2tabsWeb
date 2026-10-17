@@ -36,7 +36,8 @@ const PREMIUM_ACCESS_ROLES = new Set(["PREMIUM", "ADMIN", "MODERATOR", "MOD"]);
 async function trackCheckoutEvent(
   distinctId: string,
   event: "checkout_session_requested" | "checkout_started" | "checkout_failed",
-  properties: Record<string, unknown>
+  properties: Record<string, unknown>,
+  occurredAt?: number
 ) {
   const client = createPostHogServerClient();
   if (!client) return;
@@ -44,8 +45,10 @@ async function trackCheckoutEvent(
   client.capture({
     distinctId,
     event,
+    timestamp: new Date(occurredAt ? occurredAt * 1000 : Date.now()),
+    disableGeoip: true,
     properties: {...properties, environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "development"},
-    ...(insertId ? { uuid: stablePostHogEventUuid(insertId) } : {}),
+    uuid: insertId ? stablePostHogEventUuid(insertId) : globalThis.crypto.randomUUID(),
   });
   try {
     // Checkout is a low-volume, business-critical funnel. Awaiting this flush
@@ -336,12 +339,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       local_currency_eligible: true,
       site_display_currency: siteDisplayCurrency,
       $insert_id: `checkout-started:${checkout.id}`,
-    });
+    }, checkout.created);
     if (activeAttribution) {
       await trackAffiliateEvent({
         distinctId: session.user.id,
         event: "affiliate_checkout_started",
         insertId: `affiliate-checkout:${checkout.id}`,
+        occurredAt: new Date(checkout.created * 1000),
         properties: {
           affiliate_id: activeAttribution.affiliateId,
           affiliate_code: activeAttribution.affiliate.code,

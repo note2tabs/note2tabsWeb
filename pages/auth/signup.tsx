@@ -103,12 +103,7 @@ export default function SignupPage() {
         });
         return;
       }
-      sendEvent(ANALYTICS_EVENTS.signupCompleted, {
-        method: "email",
-        destination,
-        ...(fromTabShareEmail ? { signup_source: TAB_SHARE_EMAIL_SOURCE } : {}),
-        ...(premiumFunnel ? premiumFunnelProperties(premiumFunnel) : {}),
-      });
+      // The account-creation endpoint owns signup_completed.
       // Keep the newly created account signed in and take them directly to
       // their intended destination. New accounts may complete one standard
       // transcription before verification; Heavy preview access still

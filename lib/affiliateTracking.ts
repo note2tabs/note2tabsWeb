@@ -1,4 +1,4 @@
-import { createPostHogServerClient } from "./posthogServer";
+import { createPostHogServerClient, stablePostHogEventUuid } from "./posthogServer";
 
 export type AffiliateEvent =
   | "affiliate_link_clicked"
@@ -13,6 +13,7 @@ export async function trackAffiliateEvent(input: {
   distinctId: string;
   event: AffiliateEvent;
   insertId: string;
+  occurredAt: Date;
   properties: Record<string, unknown>;
 }) {
   const client = createPostHogServerClient();
@@ -20,6 +21,9 @@ export async function trackAffiliateEvent(input: {
   client.capture({
     distinctId: input.distinctId,
     event: input.event,
+    uuid: stablePostHogEventUuid(input.insertId),
+    timestamp: input.occurredAt,
+    disableGeoip: true,
     properties: {
       ...input.properties,
       event_source: "note2tabs_server",

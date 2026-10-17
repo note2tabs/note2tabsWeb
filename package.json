@@ -24,6 +24,7 @@
     "@prisma/adapter-neon": "^6.19.3",
     "@prisma/client": "^6.19.3",
     "@stripe/stripe-js": "^3.0.10",
+    "@vercel/functions": "^3.10.1",
     "@vercel/og": "^0.6.3",
     "bcryptjs": "^2.4.3",
     "canvas-confetti": "^1.9.4",

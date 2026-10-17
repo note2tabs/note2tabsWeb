@@ -74,9 +74,12 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
       });
     };
 
+    const trackRestoredPage = (event: PageTransitionEvent) => { if (event.persisted) trackPageView(); };
+    window.addEventListener("pageshow", trackRestoredPage);
     trackPageView();
     router.events.on("routeChangeComplete", trackPageView);
     return () => {
+      window.removeEventListener("pageshow", trackRestoredPage);
       router.events.off("routeChangeComplete", trackPageView);
     };
   }, [router.events]);

@@ -286,3 +286,11 @@ describe("PostHog analytics ingestion", () => {
     expect(properties).not.toHaveProperty("error");
   });
 });
+
+describe("queued event ownership across account boundaries",()=>{
+  it("does not attach an old tab's events to a newly signed-in account",async()=>{
+    capture.mockClear();
+    await ingestAnalyticsEvents({accountId:"new-account",cookies:{analytics_anon:"new-anon"},body:{event_id:"old-event",name:"gte_editor_saved",anon_id:"old-anon",ts:"2026-10-17T12:00:00.000Z"}});
+    expect(capture).toHaveBeenCalledWith(expect.objectContaining({distinctId:"old-anon",properties:expect.objectContaining({$process_person_profile:false})}));
+  });
+});

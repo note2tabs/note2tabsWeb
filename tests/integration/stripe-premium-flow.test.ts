@@ -49,6 +49,7 @@ const { sessionMock, stripeMock, prismaMock, posthogMock, sendEmailMock } = vi.h
       },
     },
     prismaMock: {
+      $executeRaw: vi.fn().mockResolvedValue(1),
       $queryRaw: vi.fn().mockResolvedValue([]),
       affiliate: {
         findFirst: vi.fn(),

@@ -27,7 +27,6 @@ import {
 } from "../../../lib/subscriptionPlans";
 import {
   createPostHogServerClient,
-  createPostHogIngestClient,
   flushPostHogServerClientInBackground,
   stablePostHogEventUuid,
 } from "../../../lib/posthogServer";
@@ -218,7 +217,7 @@ async function trackSubscriptionStarted(
   stripeEventId: string,
   occurredAt: number
 ) {
-  const client = createPostHogIngestClient();
+  const client = createPostHogServerClient();
   if (!client) return;
   const funnelId =
     normalizePremiumFunnelId(session.metadata?.premiumFunnelId) ||
@@ -253,8 +252,8 @@ async function trackSubscriptionStarted(
       $insert_id: `subscription-started:${session.id}`,
     },
   });
-  // Await the timestamp-preserving transport. A failed delivery lets Stripe retry
-  // the same signed event without creating a new conversion timestamp.
+  // Persist the immutable event before acknowledging Stripe. PostHog outages
+  // retry from the outbox without rerunning payment fulfillment.
   await client.flush();
 }
 
@@ -306,7 +305,7 @@ async function trackSubscriptionLifecycle(
   occurredAt?: number
 ) {
   const stableTime = typeof occurredAt === "number" && Number.isFinite(occurredAt);
-  const client = stableTime ? createPostHogIngestClient() : createPostHogServerClient();
+  const client = createPostHogServerClient();
   if (!client) return;
   client.capture({
     distinctId: userId,
@@ -380,7 +379,8 @@ async function trackCheckoutLifecycle(
   session: Stripe.Checkout.Session,
   event: "checkout_abandoned" | "checkout_payment_failed",
   stripeEventId: string,
-  additionalProperties: SafePaymentFailure = {}
+  additionalProperties: SafePaymentFailure = {},
+  occurredAt?: number
 ) {
   const identifier = await resolveUserIdentifierFromCheckoutSession(session);
   const distinctId = identifier && "id" in identifier
@@ -389,11 +389,15 @@ async function trackCheckoutLifecycle(
       ? await resolveUserIdFromEmail(identifier.email)
       : null;
   if (!distinctId) return;
+  const stableTime = typeof occurredAt === "number" && Number.isFinite(occurredAt);
   const client = createPostHogServerClient();
   if (!client) return;
   client.capture({
     distinctId,
     event,
+    uuid: stablePostHogEventUuid(`${event}:${stripeEventId}`),
+    timestamp: new Date(stableTime ? occurredAt! * 1000 : Date.now()),
+    disableGeoip: true,
     properties: {
       environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "development",
       checkout_session_id: session.id,
@@ -417,7 +421,8 @@ async function trackCheckoutLifecycle(
       stripe_event_id: stripeEventId,
     },
   });
-  flushPostHogServerClientInBackground(client);
+  if (stableTime) await client.flush();
+  else flushPostHogServerClientInBackground(client);
 }
 
 async function sendPremiumTrialReminder(
@@ -719,6 +724,7 @@ async function trackAffiliatePayment(
     distinctId: userId,
     event: renewal ? "affiliate_subscription_renewed" : "affiliate_payment_succeeded",
     insertId: `affiliate-payment:${invoice.id}`,
+    occurredAt: new Date(invoice.created * 1000),
     properties: {
       affiliate_id: attribution.affiliate.id,
       affiliate_code: attribution.affiliate.code,
@@ -726,7 +732,7 @@ async function trackAffiliatePayment(
       stripe_subscription_id: subscriptionId || undefined,
       revenue_amount: invoice.amount_paid,
       currency: invoice.currency,
-      payment_number: attribution.commissions.length + 1,
+      payment_number: attribution.commissions.length,
     },
   });
 }
@@ -743,6 +749,7 @@ async function trackAffiliateTrialStarted(userId: string, session: Stripe.Checko
     distinctId: userId,
     event: "affiliate_trial_started",
     insertId: `affiliate-trial:${session.id}`,
+    occurredAt: new Date(session.created * 1000),
     properties: {
       affiliate_id: attribution.affiliate.id,
       affiliate_code: attribution.affiliate.code,
@@ -766,14 +773,16 @@ async function reverseAffiliateCommission(chargeId: string) {
         metadata: { note2tabsCommissionId: commission.id },
       }, { idempotencyKey: `affiliate-reversal-${commission.id}` });
     }
+    const reversedAt = new Date();
     await prisma.affiliateCommission.update({
       where: { id: commission.id },
-      data: { status: "REVERSED", reversedAt: new Date() },
+      data: { status: "REVERSED", reversedAt },
     });
     await trackAffiliateEvent({
       distinctId: commission.attribution.referredUserId,
       event: "affiliate_payment_refunded",
       insertId: `affiliate-refund:${commission.id}`,
+      occurredAt: reversedAt,
       properties: {
         affiliate_id: commission.affiliate.id,
         affiliate_code: commission.affiliate.code,
@@ -999,7 +1008,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (event.type === "checkout.session.expired") {
       const checkoutSession = event.data.object as Stripe.Checkout.Session;
       if (checkoutSession.metadata?.userId && checkoutSession.metadata?.note2tabsPlan) {
-        await trackCheckoutLifecycle(checkoutSession, "checkout_abandoned", event.id);
+        await trackCheckoutLifecycle(checkoutSession, "checkout_abandoned", event.id, {}, event.created);
       }
     }
 
@@ -1007,7 +1016,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const checkoutSession = event.data.object as Stripe.Checkout.Session;
       if (checkoutSession.metadata?.userId && checkoutSession.metadata?.note2tabsPlan) {
         const failure = await paymentFailureForReference(checkoutSession.payment_intent);
-        await trackCheckoutLifecycle(checkoutSession, "checkout_payment_failed", event.id, failure);
+        await trackCheckoutLifecycle(checkoutSession, "checkout_payment_failed", event.id, failure, event.created);
       }
     }
 
@@ -1023,7 +1032,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           checkoutSession,
           "checkout_payment_failed",
           event.id,
-          safePaymentFailure(paymentIntent.last_payment_error)
+          safePaymentFailure(paymentIntent.last_payment_error),
+          event.created
         );
       }
     }

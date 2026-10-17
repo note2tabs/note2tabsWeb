@@ -52,3 +52,17 @@ describe("transcription model analytics", () => {
     expect(getAcceptedTranscriptionAccessType(false, false, true)).toBe("staff");
   });
 });
+
+describe("transcription failure semantics",()=>{
+ it("does not label a post-acceptance navigation/UI failure as a failed transcription",async()=>{
+  const {getTranscriptionFailureEvent}=await import("../../lib/analytics");
+  expect(getTranscriptionFailureEvent(false)).toBe("transcription_failed");
+  expect(getTranscriptionFailureEvent(true)).toBe("transcription_post_acceptance_failed");
+ });
+});
+
+describe("persisted import versus navigation",()=>{
+ it("preserves a successful import when opening its destination fails",async()=>{
+  const {getEditorImportFailureEvent}=await import("../../lib/analytics");expect(getEditorImportFailureEvent(false)).toBe("transcription_editor_import_failed");expect(getEditorImportFailureEvent(true)).toBe("transcription_editor_navigation_failed");
+ });
+});

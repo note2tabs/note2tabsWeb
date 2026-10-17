@@ -32,6 +32,7 @@ function installBrowserGlobals(consent: "granted" | "denied" | "missing" = "gran
   const localStorage = new MemoryStorage();
   const sessionStorage = new MemoryStorage();
   const windowMock = {
+    location: { protocol: "https:", pathname: "/" },
     localStorage,
     sessionStorage,
     setTimeout: vi.fn(() => 1),
@@ -43,6 +44,7 @@ function installBrowserGlobals(consent: "granted" | "denied" | "missing" = "gran
 
   vi.stubGlobal("window", windowMock);
   vi.stubGlobal("document", {
+    addEventListener: vi.fn(),
     cookie: consent === "missing" ? "" : `analytics_consent=${consent}`,
   });
   vi.stubGlobal(
@@ -177,9 +179,9 @@ describe("PostHog client identity lifecycle", () => {
         },
       })
     );
-    expect(posthog.capture).toHaveBeenCalledWith("pre_consent_event", {
+    expect(posthog.capture).toHaveBeenCalledWith("pre_consent_event", expect.objectContaining({
       $current_url: "https://note2tabs.com/auth/verify-email",
-    });
+    }));
     expect(localStorage.length).toBe(0);
     expect(sessionStorage.length).toBe(0);
   });

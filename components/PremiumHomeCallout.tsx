@@ -48,6 +48,7 @@ export default function PremiumHomeCallout({ show = false }: { show?: boolean })
       hasPremiumAccess(session?.user?.role, session?.user?.subscriptionPlan)
     ) {
       shownRef.current = false;
+      viewedRef.current = false;
       setVisible(false);
       return;
     }
