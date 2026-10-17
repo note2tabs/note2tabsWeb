@@ -1,3 +1,4 @@
+import { PRICE_TAX_NOTE_COOKIE, showPriceTaxNoteForCountry } from "./lib/priceTaxNote";
 import { diagnosticEndpoint } from "./lib/diagnosticEndpoint";
 import {LANGUAGE_CHOICE_COOKIE} from "./lib/i18n/preference";
 import { getToken } from "next-auth/jwt";
@@ -18,6 +19,12 @@ const withCurrencyPreference = (request: NextRequest, response: NextResponse) =>
     secure: process.env.NODE_ENV === "production",
     maxAge: 30 * 24 * 60 * 60,
     path: "/",
+  });
+  response.cookies.set({
+    name: PRICE_TAX_NOTE_COOKIE,
+    value: showPriceTaxNoteForCountry(country) ? "1" : "0",
+    httpOnly: false, sameSite: "lax",
+    secure: process.env.NODE_ENV === "production", path: "/",
   });
   return response;
 };
