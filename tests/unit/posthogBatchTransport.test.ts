@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+const durable = vi.hoisted(()=>vi.fn().mockResolvedValue(undefined));
+vi.mock("../../lib/posthogOutbox",()=>({enqueuePostHogCaptures:durable,retryPostHogCaptures:vi.fn()}));
 import { createPostHogIngestClient } from "../../lib/posthogServer";
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 describe("stable PostHog batch transport", () => {
@@ -21,4 +23,11 @@ describe("stable PostHog batch transport", () => {
     await expect(client.flush()).rejects.toThrow("delivery failed");
     await client.flush(); expect(fetch.mock.calls[0][1].body).toBe(fetch.mock.calls[1][1].body);
   });
+  it("persists an immutable failed server-save capture without turning the save into an error",async()=>{
+    vi.stubEnv("POSTHOG_PROJECT_TOKEN","capture-token");vi.stubGlobal("fetch",vi.fn().mockResolvedValue({ok:false}));durable.mockClear();
+    const client=createPostHogIngestClient({recoverDurably:true})!;
+    client.capture({distinctId:"account",event:"gte_editor_saved",uuid:"00000000-0000-4000-a000-000000000001",timestamp:new Date("2026-10-17T12:00:00Z"),properties:{editor_id:"test-editor"}});
+    await client.flush();expect(durable).toHaveBeenCalledWith([expect.objectContaining({event:"gte_editor_saved",timestamp:"2026-10-17T12:00:00.000Z",uuid:"00000000-0000-4000-a000-000000000001"})],expect.any(Function));
+  });
+
 });

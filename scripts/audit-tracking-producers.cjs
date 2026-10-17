@@ -1,0 +1,6 @@
+const ts=require('typescript');const fs=require('fs');const cp=require('child_process');
+const cwd=require('path').resolve(__dirname,'..');const files=cp.execFileSync('rg',['--files','lib','pages','components'],{cwd,encoding:'utf8'}).trim().split('\n').filter(f=>/\.tsx?$/.test(f)).sort();
+const names=new Set(['sendEvent','capture','capturePostHogEvent','track','trackCtaClick','queueGteTelemetry','logGteAnalyticsEvent','logGteAnalyticsEvents','trackAffiliateEvent','beginTransfer','captureReminderRun','captureReminderFailure','captureReminderDeliveryFailure','sendTranscriptionStartedEvents']);
+let rows=[];
+for(const file of files){const source=ts.createSourceFile(file,fs.readFileSync(cwd+'/'+file,'utf8'),ts.ScriptTarget.Latest,true);function visit(n){if(ts.isCallExpression(n)){const name=ts.isPropertyAccessExpression(n.expression)?n.expression.name.text:n.expression.getText(source);if(names.has(name)){rows.push({file,line:source.getLineAndCharacterOfPosition(n.getStart()).line+1,producer:name,argument:n.arguments[0]?.getText(source).slice(0,300)});}}ts.forEachChild(n,visit);}visit(source);}
+process.stdout.write(JSON.stringify({callSites:rows.length,files:new Set(rows.map(r=>r.file)).size,producers:rows},null,2)+'\n');

@@ -30,6 +30,7 @@ export type IngestContext = {
   res?: NextApiResponse;
   accountId?: string | null;
   source?: string;
+  recoverDurably?: boolean;
   body?: unknown;
   cookies?: Record<string, string>;
   geo?: { countryCode?: string; continentCode?: string };
@@ -164,7 +165,7 @@ export async function ingestAnalyticsEvents(
 
   if (!events.length) return {ok:true,received:parsedEvents.length,written:0,deduped:parsedEvents.length,dualWritten:0,blocked:0};
 
-  const client = createPostHogIngestClient();
+  const client = context.recoverDurably ? createPostHogIngestClient({recoverDurably:true}) : createPostHogIngestClient();
   if (!client) {
     throw new Error("PostHog is not configured.");
   }

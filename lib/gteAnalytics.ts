@@ -18,6 +18,7 @@ type LogGteAnalyticsInput = {
   event: GteAnalyticsEvent;
   eventId?: string;
   anonId?: string;
+  recoverDurably?: boolean;
   path?: string;
   sessionId?: string;
   timestamp?: string;
@@ -40,6 +41,7 @@ export async function logGteAnalyticsEvents(inputs: LogGteAnalyticsInput[]) {
       res,
       accountId: userId,
       source: "gte_server_log",
+      recoverDurably: first.recoverDurably,
       body: {
         events: inputs.map(({ event, eventId, anonId, path, sessionId, timestamp, payload }) => ({
           event_id: eventId,

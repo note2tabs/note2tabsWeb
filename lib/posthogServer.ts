@@ -44,10 +44,10 @@ type IngestCapture = {
 
 // The batch API without sent_at preserves the exact event timestamp. SDK clock
 // skew correction changes retry timestamps and defeats PostHog deduplication.
-export function createPostHogIngestClient() {
+export function createPostHogIngestClient(options: {recoverDurably?:boolean} = {}) {
   const { token, host } = getPostHogConfig();
   if (!token) return null;
-  const batch: Array<Record<string, unknown>> = [];
+  const batch: Array<Record<string, unknown> & {uuid:string}> = [];
   return {
     capture(event: IngestCapture) {
       batch.push({
@@ -62,13 +62,22 @@ export function createPostHogIngestClient() {
     },
     async flush() {
       if (!batch.length) return;
-      const response = await fetch(`${host.replace(/\/$/, "")}/batch/`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ api_key: token, batch }),
-        signal: AbortSignal.timeout(8_000),
-      });
-      if (!response.ok) throw new Error("PostHog batch delivery failed");
-      batch.length = 0;
+      const sending = batch.splice(0);
+      try {
+        const response = await fetch(`${host.replace(/\/$/, "")}/batch/`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ api_key: token, batch: sending }),
+          signal: AbortSignal.timeout(8_000),
+        });
+        if (!response.ok) throw new Error("PostHog batch delivery failed");
+      } catch (error) {
+        if (!options.recoverDurably) { batch.unshift(...sending); throw error; }
+        // Successful GTE operations must not lose their telemetry or fail just
+        // because PostHog is unavailable. Store only these failed sends.
+        try { await enqueuePostHogCaptures(sending, sendPostHogBatch); }
+        catch (persistenceError) { batch.unshift(...sending); throw persistenceError; }
+      }
+
     },
   };
 }
@@ -84,7 +93,7 @@ export function createPostHogServerClient() {
     host,
     flushAt: 1,
     flushInterval: 0,
-    disableGeoip: false,
+    disableGeoip: true,
   });
   const pending: Array<Record<string, unknown> & {uuid: string}> = [];
   sharedClient = new Proxy(sdk, {

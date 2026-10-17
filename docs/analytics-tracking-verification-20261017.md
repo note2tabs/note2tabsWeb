@@ -1,6 +1,6 @@
 # Tracking correctness verification
 
-This audit covers the repository's event producers and delivery paths, not just whether dashboard queries execute. The accompanying producer inventory records source locations. Generated event names, aliases, transport callbacks and separate lifecycle stages are included; they must not be added together as if they were independent conversions.
+This audit covers the repository's event producers and delivery paths, not just whether dashboard queries execute. Run `node scripts/audit-tracking-producers.cjs` to regenerate the source-location inventory (269 call sites across 56 files at verification). Generated event names, aliases, transport callbacks and separate lifecycle stages are included; they must not be added together as if they were independent conversions.
 
 ## Counting contracts
 
@@ -27,7 +27,7 @@ This audit covers the repository's event producers and delivery paths, not just 
 
 - Browser and editor queues share acknowledged delivery, refused-beacon fallback, per-tab crash recovery, stable retries, concurrent-flush protection, keepalive byte limits and consent-generation guards. An accepted beacon remains unconfirmed until fetch acknowledgement or replay after reload.
 - Explicit browser business keys preserve identity/time across remounts. Ordinary actions are not globally suppressed. Unsupported randomUUID uses the cryptographic random-byte fallback.
-- Server capture uses an immutable delivery outbox. It stores only low-volume server events; browser events and job lifecycle are not mirrored into it. The existing authenticated analytics cron drains pending rows. Delivered identities are retained for 90 days; cleanup never deletes pending rows. Account deletion removes that account's queued captures.
+- Server capture uses an immutable delivery outbox. Successful GTE proxy telemetry remains direct; failed sends after a successful editor operation recover durably without turning the save into a product error. It stores only low-volume server events; browser events and job lifecycle are not mirrored into it. The existing authenticated analytics cron drains pending rows. Delivered identities are retained for 90 days; cleanup never deletes pending rows. Account deletion removes that account's queued captures.
 - Server business captures have explicit environment metadata, disable datacenter geolocation by default and avoid creating person profiles for system scheduler identities.
 - Identity linking waits for delivery acknowledgement before storing success, retries failures, rotates identities between accounts and avoids attributing old queued events to the new authenticated account. Proxy events retain their original anonymous distinct ID across retries; the server-owned job outbox retains its account identity.
 - Fixed Medium being emitted under the Small model's dedicated start-event name and corrected affiliate payment numbering.
@@ -41,3 +41,5 @@ Delivery is at least once, with stable identity and time for PostHog deduplicati
 This is not a mathematical guarantee that every possible browser, SDK, extension or infrastructure failure is tested. Browser recovery is bounded (24-hour pending-event retention and finite queue capacity) and depends on usable browser storage; an event lost before it can be persisted cannot be reconstructed. Server delivery still requires a successful database enqueue. SDK identity/diagnostic delivery remains subject to provider behaviour. These boundaries are not evidence that missing observations are zero usage.
 
 New signup counts have broader coverage because account creation no longer depends on loading the success screen. Mark the rollout when comparing cohorts. Historical duplicate timestamps, missing events, identity merges or old model-event labels are not rewritten by these code fixes. First-touch acquisition in browser events describes the recorded attribution, not a proven causal source.
+
+Background persistence is registered with the platform using the documented [Vercel waitUntil helper](https://vercel.com/docs/functions/functions-api-reference/vercel-functions-package#waituntil); it remains subject to the function timeout.
