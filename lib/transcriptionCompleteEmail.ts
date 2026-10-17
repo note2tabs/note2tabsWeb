@@ -1,3 +1,4 @@
+import { accountEmailLocale } from "./i18n/accountLanguage";
 import { localizedEmailCopy } from "./i18n/emails";
 import { localeHref, type AppLocale } from "./i18n/locale";
 import crypto from "crypto";
@@ -38,27 +39,6 @@ export function buildTranscriptionCompleteEmail(input: TranscriptionCompleteEmai
     return {subject: message.subject, editorUrl, text: `${greeting}\n\n${body}\n\n${editorUrl}`,
       html: renderProductEmail({locale, title: message.title, preview: message.title, greeting: escapeEmailHtml(greeting),
         bodyHtml: `<p>${escapeEmailHtml(body)}</p>`, action: {label: message.action, url: editorUrl}})};
-  }
-  if (input.locale === "ja") {
-    const label = input.sourceLabel?.trim() || "採譜結果";
-    const greeting = input.name?.trim() ? `${input.name.trim()} 様` : "Note2Tabsからのお知らせです。";
-    return {subject: "Note2Tabsの採譜が完了しました", editorUrl,
-      text: `${greeting}\n\n「${label}」のTAB譜が完成しました。エディターで開き、再生・編集・練習・書き出しができます。\n\n${editorUrl}`,
-      html: renderProductEmail({locale: "ja", title: "TAB譜が完成しました", preview: "エディターでTAB譜を開けます。", greeting: escapeEmailHtml(greeting), bodyHtml: `<p>「<strong>${escapeEmailHtml(label)}</strong>」のTAB譜が完成しました。エディターで開き、再生・編集・練習・書き出しができます。</p>`, action: {label: "エディターで開く", url: editorUrl}})};
-  }
-  if (input.locale === "es") {
-    const label = input.sourceLabel?.trim() || "Tu transcripción";
-    const greeting = input.name?.trim() ? `¡Hola, ${input.name.trim().split(/\s+/)[0]}!` : "¡Hola!";
-    return {subject: "Tu transcripción de Note2Tabs está lista", editorUrl,
-      text: `${greeting}\n\n${label} está lista. Ábrela en el editor para escuchar, editar, practicar y exportar tu tablatura. El editor está en inglés.\n\n${editorUrl}`,
-      html: renderProductEmail({locale: "es", title: "Tu transcripción está lista", preview: "Abre tu tablatura en el editor.", greeting: escapeEmailHtml(greeting), bodyHtml: `<p><strong>${escapeEmailHtml(label)}</strong> está lista. Ábrela en el editor para escuchar, editar, practicar y exportar tu tablatura.</p><p>El editor está en inglés.</p>`, action: {label: "Abrir en el editor", url: editorUrl}})};
-  }
-  if (input.locale === "pt-BR") {
-    const label = input.sourceLabel?.trim() || "Sua transcrição";
-    const greeting = input.name?.trim() ? `Olá, ${input.name.trim().split(/\s+/)[0]}!` : "Olá!";
-    return {subject: "Sua transcrição do Note2Tabs está pronta", editorUrl,
-      text: `${greeting}\n\n${label} está pronta. Abra no editor para ouvir, editar, praticar e exportar sua tablatura. O editor está em inglês.\n\n${editorUrl}`,
-      html: renderProductEmail({locale: "pt-BR", title: "Sua transcrição está pronta", preview: "Abra sua tablatura no editor.", greeting: escapeEmailHtml(greeting), bodyHtml: `<p><strong>${escapeEmailHtml(label)}</strong> está pronta. Abra no editor para ouvir, editar, praticar e exportar sua tablatura.</p><p>O editor está em inglês.</p>`, action: {label: "Abrir no editor", url: editorUrl}})};
   }
   const subject = "Your Note2Tabs transcription is ready";
   const text = `Hi ${firstName},
@@ -108,6 +88,7 @@ export async function sendTranscriptionCompleteEmailOnce(input: {
   });
   if (!result?.user.email) return false;
 
+  const locale = await accountEmailLocale(input.userId, input.locale);
   const marker = {
     identifier: `notice:transcription-complete:${input.jobId}`,
     token: markerToken(input.userId, input.jobId),
@@ -129,10 +110,11 @@ export async function sendTranscriptionCompleteEmailOnce(input: {
     jobId: input.jobId,
     sourceLabel: result.sourceLabel,
     editorId: result.gteEditorId,
-    locale: input.locale,
+    locale,
   });
   try {
     const delivered = await sendTransactionalEmail({
+      language:{kind:"customer",template:"transcription_complete",locale,accountId:input.userId},
       to: result.user.email,
       subject: email.subject,
       html: email.html,

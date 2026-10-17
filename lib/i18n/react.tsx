@@ -9,6 +9,7 @@ import {restoreLanguageChoice, browserLanguageChoice, LANGUAGE_STORAGE_KEY} from
 import {localeSwitchDestination, supportsLocalizedPath} from "./locale";
 import {loadPublicCatalog} from "./publicCatalogs";
 import {hasPublicCatalog} from "./translate";
+import {languagePromptPreview} from "./languageMismatch";
 import { translate, registerEditorCatalog } from "./translate";
 const LocaleContext = createContext<{ locale: AppLocale; navigationLocale: AppLocale; deviceLanguage:AppLocale; languageChosen:boolean; languageReady:boolean }>({ locale: "en", navigationLocale: "en", deviceLanguage:"en", languageChosen:false, languageReady:false });
 export function LocaleProvider({ children, path, initialEditorLocale = "en", initialEditorMessages }: { children: ReactNode; path: string; initialEditorLocale?: AppLocale; initialEditorMessages?: Record<string,string> }) {
@@ -60,7 +61,9 @@ export function LocaleProvider({ children, path, initialEditorLocale = "en", ini
     document.documentElement.lang = locale;
     document.documentElement.dir = localeDirection(locale);
     const choice=browserLanguageChoice();
-    if(!choice && locale!=="en")document.cookie=`n2t_locale=${locale}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    // Remember the route language, including English, before entering an editor.
+    // The editor URL itself has no locale and must not overwrite that choice.
+    if(!choice && !editor && supportsLocalizedPath(path))document.cookie=`n2t_locale=${routeLocale}; Path=/; Max-Age=31536000; SameSite=Lax`;
     setPreferredLocale(choice || (editor ? initialEditorLocale : routeLocale));
     setLanguageChosen(choice!==null);
   }, [path, locale, editor, initialEditorLocale, routeLocale]);
@@ -84,9 +87,11 @@ export function LocaleProvider({ children, path, initialEditorLocale = "en", ini
     };
   }, []);
   useEffect(()=>{
-    if(!router?.isReady || !languageReady || !languageChosen || editor || !supportsLocalizedPath(path))return;
+    if(!router?.isReady || !languageReady || !languageChosen || editor || !supportsLocalizedPath(path) || languagePromptPreview(path))return;
     const target=localeSwitchDestination(path,localeEnabled(preferredLocale) ? preferredLocale : "en");
-    if(target)void router.replace(target);
+    // Route data can contain a redirect fetched before the preference changed.
+    // Request the document with the new cookies instead of reusing that data.
+    if(target)window.location.replace(target);
   }, [languageReady,languageChosen,editor,path,preferredLocale,router]);
   const navigationLocale = localeEnabled(preferredLocale)
     ? languageChosen ? preferredLocale : navigationLocaleForPath(path, preferredLocale) : "en";

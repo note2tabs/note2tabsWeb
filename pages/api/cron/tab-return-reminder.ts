@@ -1,5 +1,6 @@
 import { experimentEnabled } from "../../../lib/engagement/experiment";
 import { runEngagementReminders } from "../../../lib/engagement/reminderExperiment";
+import { accountEmailLocale } from "../../../lib/i18n/accountLanguage";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { sendTransactionalEmail } from "../../../lib/email";
 import { prisma } from "../../../lib/prisma";
@@ -165,6 +166,15 @@ async function runHandler(req: NextApiRequest, res: NextApiResponse, startedAt: 
       continue;
     }
 
+    // A failed locale lookup must not consume an unsent reminder or its cooldown.
+    const locale = await accountEmailLocale(canvas.user_id);
+    const email = buildTabReturnReminderEmail({
+      locale,
+      name: canvas.user_name,
+      editorId: canvas.canvas_id,
+      editorName: canvas.name,
+      userId: canvas.user_id,
+    });
     const token = buildTabReturnMarkerToken(canvas.user_id, canvas.canvas_id);
     try {
       await prisma.verificationToken.createMany({
@@ -189,14 +199,9 @@ async function runHandler(req: NextApiRequest, res: NextApiResponse, startedAt: 
       throw error;
     }
 
-    const email = buildTabReturnReminderEmail({
-      name: canvas.user_name,
-      editorId: canvas.canvas_id,
-      editorName: canvas.name,
-      userId: canvas.user_id,
-    });
     try {
       const delivered = await sendTransactionalEmail({
+        language:{kind:"customer",template:"tab_return",locale,accountId:canvas.user_id},
         to: canvas.email,
         subject: email.subject,
         html: email.html,

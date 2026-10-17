@@ -1,3 +1,6 @@
+import { type AppLocale } from "./i18n/locale";
+import { serviceEmails, emailPhrase } from "./i18n/serviceEmails";
+import { renderServiceEmail } from "./i18n/renderServiceEmail";
 import { getConfiguredSiteUrl } from "./siteUrl";
 import { escapeEmailHtml, renderProductEmail } from "./emailTemplate";
 
@@ -8,8 +11,12 @@ export function paymentRecoveryExpired(failedAt: Date, now = new Date()) {
   return now.getTime() - failedAt.getTime() >= PREMIUM_PAYMENT_GRACE_MS;
 }
 
-export function buildPaymentFailedEmail(input: { name?: string | null; planName?: "Premium" | "Pro" }) {
+export function buildPaymentFailedEmail(input: { locale?: AppLocale; name?: string | null; planName?: "Premium" | "Pro" }) {
   const planName = input.planName || "Premium";
+  if (input.locale && input.locale !== "en") {
+    const c = serviceEmails[input.locale];
+    return renderServiceEmail({locale:input.locale,name:input.name,subject:c.payment[0],body:emailPhrase(c.payment[1],{plan:planName}),action:c.updatePayment,url:`${getConfiguredSiteUrl()}/settings?billing=payment_failed`});
+  }
   const greeting = input.name?.trim() ? `Hi ${input.name.trim()},` : "Hi there,";
   const settingsUrl = `${getConfiguredSiteUrl()}/settings?billing=payment_failed`;
   const subject = "Please update your Note2Tabs payment method";

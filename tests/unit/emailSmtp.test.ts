@@ -44,7 +44,7 @@ describe("SMTP email delivery", () => {
     vi.stubEnv("EMAIL_FROM", "Note2Tabs <no-reply@note2tabs.com>");
 
     await expect(
-      sendTransactionalEmail({
+      sendTransactionalEmail({language:{kind:"internal"},
         to: "customer@example.com",
         subject: "Your transcription",
         html: "<p>Your transcription is ready.</p>",
@@ -77,7 +77,7 @@ describe("SMTP email delivery", () => {
     vi.stubEnv("SES_SMTP_USERNAME", "smtp-user");
     vi.stubEnv("SES_SMTP_PASSWORD", "smtp-password");
 
-    await sendTransactionalEmail({
+    await sendTransactionalEmail({language:{kind:"internal"},
       to: "customer@example.com",
       subject: "Continue your tab",
       html: "<p>Continue</p>",

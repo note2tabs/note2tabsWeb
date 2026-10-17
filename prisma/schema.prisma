@@ -67,6 +67,7 @@ model User {
   engagementEmailPermission   EngagementEmailPermission?
   engagementSignals           EngagementSignal[]
   engagementDecisions         EngagementDecision[]
+  accountLanguage             AccountLanguage?
   accounts                    Account[]
   feedbackSubmissions         FeedbackSubmission[]
   gteTrackPlaybackSettings    GteTrackPlaybackSetting[]
@@ -739,4 +740,11 @@ model EngagementEmailPermission {
   basis String
   recordedAt DateTime @default(now())
   account User @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+model AccountLanguage {
+  accountId String @id
+  locale String
+  updatedAt DateTime @default(now())
+  user User @relation(fields: [accountId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }

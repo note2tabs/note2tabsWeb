@@ -102,6 +102,23 @@ describe("tab return reminder cron", () => {
     );
   });
 
+  it("keeps a reminder retryable when language lookup fails before delivery", async () => {
+    process.env.TAB_RETURN_REMINDER_ENABLED = "true";
+    process.env.TAB_RETURN_REMINDER_ROLLOUT_PERCENT = "100";
+    mocks.queryRaw.mockResolvedValueOnce([{user_id:"user-1",canvas_id:"tab-1",name:"Song",updated_at:new Date(),email:"player@example.com",user_name:"Player"}])
+      .mockRejectedValueOnce(new Error("temporary language lookup failure"));
+    const first=createMocks({method:"POST",headers:{authorization:"Bearer cron-test"}});
+    await handler(first.req,first.res);
+    expect(first.res._getStatusCode()).toBe(500);
+    expect(mocks.createMarkers).not.toHaveBeenCalled();
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
+    const retry=createMocks({method:"POST",headers:{authorization:"Bearer cron-test"}});
+    await handler(retry.req,retry.res);
+    expect(retry.res._getStatusCode()).toBe(200);
+    expect(mocks.createMarkers).toHaveBeenCalledOnce();
+    expect(mocks.sendEmail).toHaveBeenCalledOnce();
+  });
+
   it("keeps excluded users as a measurable holdout", async () => {
     process.env.TAB_RETURN_REMINDER_ENABLED = "true";
     process.env.TAB_RETURN_REMINDER_ROLLOUT_PERCENT = "0";

@@ -1,5 +1,6 @@
 import { experimentEnabled as engagementExperimentEnabled } from "../../../lib/engagement/experiment";
 import { runEngagementReminders } from "../../../lib/engagement/reminderExperiment";
+import { accountEmailLocale } from "../../../lib/i18n/accountLanguage";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../lib/prisma";
 import { sendTransactionalEmail } from "../../../lib/email";
@@ -152,7 +153,8 @@ async function runHandler(req: NextApiRequest, res: NextApiResponse, startedAt: 
       continue;
     }
 
-    const email = buildInactiveSignupReminderEmail({ name: user.name, variant, userId: user.id });
+    const locale = await accountEmailLocale(user.id);
+    const email = buildInactiveSignupReminderEmail({ name: user.name, variant, userId: user.id, locale });
     wouldSend += 1;
     if (dryRun) continue;
 
@@ -183,6 +185,7 @@ async function runHandler(req: NextApiRequest, res: NextApiResponse, startedAt: 
         },
       });
       const delivered = await sendTransactionalEmail({
+        language:{kind:"customer",template:"inactive_signup",locale,accountId:user.id},
         to: user.email,
         subject: email.subject,
         html: email.html,

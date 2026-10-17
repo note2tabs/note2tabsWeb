@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sendEmail = vi.fn();
+vi.mock("../../lib/prisma", () => ({ prisma: { user: { findUnique: vi.fn().mockResolvedValue(null) }, $queryRaw:vi.fn().mockResolvedValue([]) } }));
 
 vi.mock("../../lib/email", () => ({
   sendTransactionalEmail: (...args: unknown[]) => sendEmail(...args),
 }));
 
+import { prisma } from "../../lib/prisma";
 import { buildTabShareEmail, sendTabShareEmail } from "../../lib/tabShareEmail";
 
 describe("tab sharing email", () => {
@@ -13,6 +15,8 @@ describe("tab sharing email", () => {
     vi.clearAllMocks();
     vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://www.note2tabs.com/");
     sendEmail.mockResolvedValue(true);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
   });
 
   it("links recipients to the shared-tab acceptance page", () => {
@@ -65,6 +69,18 @@ describe("tab sharing email", () => {
         analyticsCategory: "tab_share",
       })
     );
+  });
+
+  it("uses the recipient account preference instead of the sender's locale", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({id:"recipient"} as any);
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([{locale:"pl"}]);
+    await sendTabShareEmail({to:"player@example.com",locale:"ja",inviterName:"Noel",editorId:"editor",role:"viewer",recipientHasAccount:true});
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({html:expect.stringContaining('lang="pl"')}));
+  });
+
+  it("does not assume an unknown recipient speaks the sender's language", async () => {
+    await sendTabShareEmail({to:"new@example.com",locale:"ja",editorId:"editor",role:"viewer",recipientHasAccount:false});
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({html:expect.stringContaining('lang="en"')}));
   });
 
   it("uses a separate, non-promotional invitation for recipients without accounts", () => {

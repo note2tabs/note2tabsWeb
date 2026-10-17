@@ -24,6 +24,8 @@ const { sessionMock, stripeMock, prismaMock, posthogMock, sendEmailMock } = vi.h
         constructEvent: vi.fn(),
       },
       customers: {
+        update: vi.fn().mockImplementation(async (_id,params)=>({preferred_locales:params.preferred_locales})),
+        create: vi.fn().mockImplementation(async params=>({id:"cus_localized",...params})),
         list: vi.fn(),
         retrieve: vi.fn(),
       },
@@ -47,6 +49,7 @@ const { sessionMock, stripeMock, prismaMock, posthogMock, sendEmailMock } = vi.h
       },
     },
     prismaMock: {
+      $queryRaw: vi.fn().mockResolvedValue([]),
       affiliate: {
         findFirst: vi.fn(),
       },
@@ -461,10 +464,12 @@ describe("stripe premium flow", () => {
           $insert_id: "checkout-started:cs_test_123",
         }),
       });
+      expect(stripeMock.customers.create).toHaveBeenCalledWith(expect.objectContaining({email:"user@example.com",preferred_locales:["en"]}),expect.objectContaining({idempotencyKey:"account-email-language-v1:user_1"}));
+      expect(stripeMock.customers.create.mock.invocationCallOrder[0]).toBeLessThan(stripeMock.checkout.sessions.create.mock.invocationCallOrder[0]);
       expect(posthogMock.flush).toHaveBeenCalled();
       expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          customer_email: "user@example.com",
+          customer: "cus_localized",
           mode: "subscription",
           payment_method_collection: "always",
           line_items: [{ price: "price_test_premium", quantity: 1 }],

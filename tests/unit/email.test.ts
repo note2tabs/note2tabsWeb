@@ -28,7 +28,7 @@ describe("email delivery configuration", () => {
 
     expect(isEmailDeliveryConfigured()).toBe(false);
     await expect(
-      sendTransactionalEmail({
+      sendTransactionalEmail({language:{kind:"internal"},
         to: "user@example.com",
         subject: "Test",
         html: "<p>Test</p>",

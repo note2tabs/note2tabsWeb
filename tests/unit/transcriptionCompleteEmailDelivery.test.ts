@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  language: vi.fn(),
   findFirst: vi.fn(),
   createMarker: vi.fn(),
   deleteMarkers: vi.fn(),
@@ -9,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../../lib/prisma", () => ({
   prisma: {
+    $queryRaw: mocks.language,
     tabJob: { findFirst: mocks.findFirst },
     verificationToken: {
       create: mocks.createMarker,
@@ -26,6 +28,7 @@ import { sendTranscriptionCompleteEmailOnce } from "../../lib/transcriptionCompl
 describe("transcription completion email delivery", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.language.mockResolvedValue([]);
     mocks.findFirst.mockResolvedValue({
       sourceLabel: "Autumn fall",
       gteEditorId: null,
@@ -49,6 +52,18 @@ describe("transcription completion email delivery", () => {
         subject: "Your Note2Tabs transcription is ready",
       })
     );
+  });
+
+  it("uses the account preference rather than a different polling browser language", async () => {
+    mocks.language.mockResolvedValue([{locale:"ja"}]);
+    await sendTranscriptionCompleteEmailOnce({userId:"user-1",jobId:"job-1",tabJobId:"tab-1",locale:"en"});
+    expect(mocks.sendEmail).toHaveBeenCalledWith(expect.objectContaining({subject:"Note2Tabsの採譜が完了しました",html:expect.stringContaining('lang="ja"')}));
+  });
+
+  it("does not claim a sent marker if the preference lookup fails", async () => {
+    mocks.language.mockRejectedValue(new Error("database unavailable"));
+    await expect(sendTranscriptionCompleteEmailOnce({userId:"user-1",jobId:"job-1",tabJobId:"tab-1"})).rejects.toThrow("database unavailable");
+    expect(mocks.createMarker).not.toHaveBeenCalled(); expect(mocks.sendEmail).not.toHaveBeenCalled();
   });
 
   it("does not send again when another completion poll already claimed the marker", async () => {
