@@ -4,14 +4,15 @@ import { authOptions } from "../auth/[...nextauth]";
 import { prisma } from "../../../lib/prisma";
 import { getConsentFromCookies, parseRequestCookies } from "../../../lib/analyticsV2/cookies";
 import { decideForAccount } from "../../../lib/engagement/server";
-import { experimentEnabled, getEngagementEnrollment, reserveEngagementContact, finishEngagementContact, recordExperimentDecision } from "../../../lib/engagement/experiment";
+import { experimentEnabled, engagementQaConfigured, engagementQaAccount, getEngagementEnrollment, reserveEngagementContact, finishEngagementContact, recordExperimentDecision } from "../../../lib/engagement/experiment";
 import { contextualPremiumAllowed, contextualValueScore } from "../../../lib/engagement/experimentConfig";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   res.setHeader("Cache-Control", "private, no-store");
   if (req.method !== "POST") { res.setHeader("Allow", "POST"); return res.status(405).end(); }
-  if (!experimentEnabled()) return res.status(200).json({ mode: "disabled" });
+  if (!experimentEnabled() && !engagementQaConfigured()) return res.status(200).json({ mode: "disabled" });
   const session = await getServerSession(req, res, authOptions);
+  if (!experimentEnabled() && (!session?.user?.id || !engagementQaAccount(session.user.id))) return res.status(200).json({ mode: "disabled" });
   if (!session?.user?.id) return res.status(401).end();
   if (getConsentFromCookies(parseRequestCookies(req)) !== "granted") return res.status(200).json({ mode: "excluded" });
   const id = session.user.id;

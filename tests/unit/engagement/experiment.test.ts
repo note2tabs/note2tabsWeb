@@ -43,3 +43,25 @@ describe("three-arm engagement experiment", () => {
     expect(contextualValueScore({ ...s, exports: 100 })).toBe(contextualValueScore(s));
   });
 });
+
+describe("production QA isolation", () => {
+  it("allows only an exact listed account while public enrollment remains off", async () => {
+    const {engagementQaAccount,experimentEnabled}=await import("../../../lib/engagement/experiment");
+    vi.stubEnv("ENGAGEMENT_SIGNALS_ENABLED","true");vi.stubEnv("NEXT_PUBLIC_ENGAGEMENT_EXPERIMENT_ENABLED","true");vi.stubEnv("ENGAGEMENT_EXPERIMENT_ENABLED","false");vi.stubEnv("ENGAGEMENT_QA_ACCOUNT_IDS"," own-account ");
+    try {
+      expect(experimentEnabled()).toBe(false);
+      expect(engagementQaAccount("own-account")).toBe(true);
+      expect(engagementQaAccount("own")).toBe(false);
+      expect(engagementQaAccount("customer")).toBe(false);
+      capture.mockClear();
+      raw.mockResolvedValueOnce([{accountId:"own-account",version:"engagement-policy-v1-qa",arm:"contextual",enrolledAt:new Date()}]);
+      expect((await getEngagementEnrollment("own-account")).version).toBe("engagement-policy-v1-qa");
+      expect(capture).not.toHaveBeenCalled();
+      expect(raw.mock.calls.at(-1)?.slice(1)).toContain("engagement-policy-v1-qa");
+      vi.stubEnv("ENGAGEMENT_EXPERIMENT_ENABLED","true");
+      expect(engagementQaAccount("own-account")).toBe(false);
+      vi.stubEnv("ENGAGEMENT_SIGNALS_ENABLED","false");
+      expect(engagementQaAccount("own-account")).toBe(false);
+    } finally {vi.unstubAllEnvs();}
+  });
+});

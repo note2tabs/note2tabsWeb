@@ -1,16 +1,27 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { createMocks } from "node-mocks-http";
-const m = vi.hoisted(() => ({ enabled: vi.fn(), session: vi.fn(), user: vi.fn(), enrollment: vi.fn(), reserve: vi.fn(), finish: vi.fn(), decision: vi.fn() }));
+const m = vi.hoisted(() => ({ enabled: vi.fn(), qaConfigured: vi.fn(), qaAccount: vi.fn(), session: vi.fn(), user: vi.fn(), enrollment: vi.fn(), reserve: vi.fn(), finish: vi.fn(), decision: vi.fn() }));
 vi.mock("next-auth/next", () => ({ getServerSession: m.session }));
 vi.mock("../../../pages/api/auth/[...nextauth]", () => ({ authOptions: {} }));
 vi.mock("../../../lib/prisma", () => ({ prisma: { user: { findUnique: m.user } } }));
-vi.mock("../../../lib/engagement/experiment", () => ({ experimentEnabled: m.enabled, getEngagementEnrollment: m.enrollment, reserveEngagementContact: m.reserve, recordExperimentDecision: vi.fn(), finishEngagementContact: m.finish }));
+vi.mock("../../../lib/engagement/experiment", () => ({ experimentEnabled: m.enabled, engagementQaConfigured: m.qaConfigured, engagementQaAccount: m.qaAccount, getEngagementEnrollment: m.enrollment, reserveEngagementContact: m.reserve, recordExperimentDecision: vi.fn(), finishEngagementContact: m.finish }));
 vi.mock("../../../lib/engagement/server", () => ({ decideForAccount: m.decision }));
 import handler from "../../../pages/api/engagement/experiment";
 import { buildEngagementSnapshot, DAY } from "../../../lib/engagement/policy";
 const setup = (arm: string) => { m.enabled.mockReturnValue(true); m.session.mockResolvedValue({ user: { id: "actual-account" } }); m.user.mockResolvedValue({ role: "FREE", subscriptionPlan: "FREE" }); m.enrollment.mockResolvedValue({ arm }); };
 describe("live experiment authorization", () => {
   afterEach(() => vi.resetAllMocks());
+  it("leaves non-QA accounts disabled even when their request claims the QA account", async () => {
+    setup("contextual");m.enabled.mockReturnValue(false);m.qaConfigured.mockReturnValue(true);m.qaAccount.mockReturnValue(false);
+    const {req,res}=createMocks({method:"POST",body:{operation:"enroll",accountId:"qa-account"}});
+    await handler(req as any,res as any);
+    expect(m.qaAccount).toHaveBeenCalledWith("actual-account");expect(res._getJSONData().mode).toBe("disabled");expect(m.enrollment).not.toHaveBeenCalled();
+  });
+  it("allows authenticated QA without public enrollment", async () => {
+    setup("control");m.enabled.mockReturnValue(false);m.qaConfigured.mockReturnValue(true);m.qaAccount.mockReturnValue(true);
+    const {req,res}=createMocks({method:"POST",body:{operation:"enroll"}});await handler(req as any,res as any);
+    expect(res._getJSONData()).toMatchObject({mode:"active",arm:"control"});
+  });
   it("counts the control assignment without evaluating or reserving a prompt", async () => {
     setup("control"); const { req, res } = createMocks({ method: "POST", body: { operation: "claim", checkpoint: "legacy", safeMoment: true } });
     await handler(req as any, res as any); expect(res._getJSONData()).toMatchObject({ arm: "control", show: false }); expect(m.enrollment).toHaveBeenCalledWith("actual-account"); expect(m.reserve).not.toHaveBeenCalled(); expect(m.decision).not.toHaveBeenCalled();

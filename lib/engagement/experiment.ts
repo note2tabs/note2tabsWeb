@@ -8,6 +8,13 @@ export { ENGAGEMENT_EXPERIMENT, ENGAGEMENT_EXPERIMENT_ARMS };
 export type { EngagementArm };
 export type Enrollment = { accountId: string; version: string; arm: EngagementArm; enrolledAt: Date };
 export function experimentEnabled() { return process.env.ENGAGEMENT_EXPERIMENT_ENABLED === "true" && process.env.ENGAGEMENT_SIGNALS_ENABLED === "true" && process.env.NEXT_PUBLIC_ENGAGEMENT_EXPERIMENT_ENABLED === "true"; }
+/** Server-only, exact account allowlist for production QA before public launch. */
+export function engagementQaAccount(accountId: string) {
+  return !experimentEnabled() && process.env.ENGAGEMENT_SIGNALS_ENABLED === "true"
+    && process.env.NEXT_PUBLIC_ENGAGEMENT_EXPERIMENT_ENABLED === "true"
+    && (process.env.ENGAGEMENT_QA_ACCOUNT_IDS || "").split(",").map(id => id.trim()).filter(Boolean).includes(accountId);
+}
+export function engagementQaConfigured() { return Boolean(process.env.ENGAGEMENT_QA_ACCOUNT_IDS?.trim()); }
 export function assignEngagementArm(accountId: string): EngagementArm {
   const bucket = createHash("sha256").update(`${ENGAGEMENT_EXPERIMENT}:${accountId}`).digest().readUInt32BE(0) % 100;
   return bucket < 34 ? "control" : bucket < 67 ? "existing" : "contextual";
@@ -17,21 +24,27 @@ export function experimentProperties(arm: EngagementArm) {
     [`$feature/${ENGAGEMENT_EXPERIMENT}`]: arm, engagement_cta_timing: "playback_pause_1200ms" };
 }
 export async function getEngagementEnrollment(accountId: string): Promise<Enrollment> {
+  const qa = engagementQaAccount(accountId);
   // The native flag is the launch/stop gate. Its SDK bucket is deliberately
   // not used for assignment: custom exposure + persisted application bucket
   // are authoritative, as supported by PostHog's external-assignment workflow.
-  const gateClient = createPostHogServerClient();
-  const gate = await gateClient?.getFeatureFlag(ENGAGEMENT_EXPERIMENT, accountId, { sendFeatureFlagEvents: false });
-  if (!ENGAGEMENT_EXPERIMENT_ARMS.includes(gate as EngagementArm)) throw new Error("Engagement experiment is not active");
+  if (!qa) {
+    const gateClient = createPostHogServerClient();
+    const gate = await gateClient?.getFeatureFlag(ENGAGEMENT_EXPERIMENT, accountId, { sendFeatureFlagEvents: false });
+    if (!ENGAGEMENT_EXPERIMENT_ARMS.includes(gate as EngagementArm)) throw new Error("Engagement experiment is not active");
+  }
   // Assignment is persisted before any send/display. Hash does not include tab,
   // browser, campaign, checkpoint or channel. No nested campaign randomization.
   const arm = assignEngagementArm(accountId);
+  const version = qa ? `${ENGAGEMENT_EXPERIMENT}-qa` : ENGAGEMENT_EXPERIMENT;
   const inserted = await prisma.$queryRaw<Enrollment[]>`INSERT INTO "EngagementEnrollment" ("accountId", "version", "arm", "enrolledAt")
-    VALUES (${accountId}, ${ENGAGEMENT_EXPERIMENT}, ${arm}, NOW())
+    VALUES (${accountId}, ${version}, ${arm}, NOW())
     ON CONFLICT ("accountId", "version") DO UPDATE SET "accountId" = EXCLUDED."accountId"
     RETURNING "accountId", "version", "arm", "enrolledAt"`;
   const enrollment = inserted[0];
   if (!enrollment || !ENGAGEMENT_EXPERIMENT_ARMS.includes(enrollment.arm)) throw new Error("Invalid engagement assignment");
+  // QA has a separate persisted version and never emits a real experiment exposure.
+  if (qa) return enrollment;
   const ph = createPostHogIngestClient();
   if (!ph) throw new Error("Experiment analytics unavailable");
   // Exact original time + stable UUID make retries safe. Emitted for ALL arms,
