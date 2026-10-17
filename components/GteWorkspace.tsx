@@ -1,3 +1,4 @@
+import { beginTransfer } from "../lib/engagement/transferTracking";
 import { editorCount } from "../lib/i18n/editor/counts";
 import { translatedError } from "../lib/i18n/translate";
 import { useLocale } from "../lib/i18n/react";
@@ -96,8 +97,7 @@ import {
 } from "../lib/gteTimelineGeometry";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
-  buildGteExportFile,
-  downloadGteExportFile,
+  exportGteTrack,
   type GteExportFormat,
 } from "../lib/gteTabExport";
 import {
@@ -10092,8 +10092,7 @@ export default function GteWorkspace({
         const data = await gteApi.exportTab(editorId);
         setIoPayload(JSON.stringify(data, null, 2));
       }
-      const file = buildGteExportFile(snapshot, exportFormat, timingMap);
-      downloadGteExportFile(file);
+      const file = exportGteTrack(snapshot, exportFormat, timingMap, { surface: "workspace", project: editorId });
       setIoMessage(`Exported ${file.filename}.`);
     } catch (err: any) {
       setError(err?.message || "We could not prepare this tab for export. Your work is unchanged; please try again.");
@@ -10110,6 +10109,7 @@ export default function GteWorkspace({
     setBusy(true);
     setError(null);
     setIoMessage(null);
+    const transfer = beginTransfer("import", "json", "workspace", editorId);
     try {
       const parsed = JSON.parse(ioPayload || "{}");
       if (!parsed?.stamps || !Array.isArray(parsed.stamps)) {
@@ -10122,9 +10122,11 @@ export default function GteWorkspace({
         totalFrames: parsed.totalFrames,
       };
       const res = await gteApi.importTab(editorId, payload);
+      transfer.completed(editorId);
       applySnapshot(res.snapshot);
       setIoMessage("Import complete.");
     } catch (err: any) {
+      transfer.failed();
       setError(err?.message || "We could not import this tab file. Check that it is a valid Note2Tabs JSON export.");
     } finally {
       setBusy(false);

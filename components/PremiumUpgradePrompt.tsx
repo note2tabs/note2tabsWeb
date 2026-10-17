@@ -168,6 +168,13 @@ export default function PremiumUpgradePrompt() {
         activityCleanup?.();
         activityCleanup = null;
         try { window.localStorage.setItem(storageKey("shown", nextReason), String(Date.now())); } catch {}
+        // Compare server rules with the existing policy without changing UI.
+        if (process.env.NEXT_PUBLIC_ENGAGEMENT_SHADOW_ENABLED === "true") {
+          void fetch("/api/engagement/decision", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ safeMoment: true }),
+          }).catch(() => {});
+        }
         const nextFunnel = getOrCreatePremiumFunnelContext({ source: "premium_prompt", reason: nextReason });
         setFunnelContext(nextFunnel);
         setReason(nextReason);

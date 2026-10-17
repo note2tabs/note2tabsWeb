@@ -62,6 +62,8 @@ model User {
   heavyPreviewUsedAt          DateTime?
   heavyPreviewJobId           String?
   passedTutorial              Boolean              @default(false)
+  engagementSignals           EngagementSignal[]
+  engagementDecisions         EngagementDecision[]
   accounts                    Account[]
   feedbackSubmissions         FeedbackSubmission[]
   gteTrackPlaybackSettings    GteTrackPlaybackSetting[]
@@ -685,4 +687,25 @@ enum JobStatus {
   running
   succeeded
   failed
+}
+
+model EngagementSignal {
+  id        String   @id
+  accountId String
+  at        DateTime
+  payload   Json
+  account   User     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  @@index([accountId, at])
+  @@index([at])
+}
+
+model EngagementDecision {
+  id        String   @id
+  accountId String
+  at        DateTime
+  channel   String
+  payload   Json
+  account   User     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  @@index([accountId, at])
+  @@index([at])
 }

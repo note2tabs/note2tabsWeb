@@ -1,0 +1,314 @@
+{
+  "version": "engagement_rules_v1",
+  "observedUntilExclusive": "2026-10-16T00:00:00Z",
+  "rawPeople": 2841,
+  "rawEvents": 39566,
+  "earlyValueReturn": {
+    "people": 2280,
+    "positive": 92,
+    "flagged": 1819,
+    "caught": 76,
+    "missed": 16,
+    "flaggedWithoutOutcome": 1743,
+    "recall": 0.8260869565217391,
+    "precision": 0.04178119846069269,
+    "recall95": [
+      0.7360155731778752,
+      0.8900183033749816
+    ],
+    "precision95": [
+      0.03351086452387557,
+      0.05198283437493989
+    ],
+    "flagRate": 0.7978070175438596,
+    "baseRate": 0.04035087719298246
+  },
+  "emailBeforeFirstReturn": {
+    "people": 2280,
+    "positive": 92,
+    "flagged": 1681,
+    "caught": 37,
+    "missed": 55,
+    "flaggedWithoutOutcome": 1644,
+    "recall": 0.40217391304347827,
+    "precision": 0.022010707911957167,
+    "recall95": [
+      0.30784958792618733,
+      0.5043402491079556
+    ],
+    "precision95": [
+      0.016010551158697393,
+      0.030190507352279128
+    ],
+    "flagRate": 0.737280701754386,
+    "baseRate": 0.04035087719298246
+  },
+  "premiumBeforeFirstTrackedSubscription": {
+    "people": 2841,
+    "positive": 12,
+    "flagged": 25,
+    "caught": 0,
+    "missed": 12,
+    "flaggedWithoutOutcome": 25,
+    "recall": 0,
+    "precision": 0,
+    "recall95": [
+      0,
+      0.24249400665523077
+    ],
+    "precision95": [
+      0,
+      0.13319225093904213
+    ],
+    "flagRate": 0.008799718409010912,
+    "baseRate": 0.004223864836325237
+  },
+  "valueObservedBeforeTrackedSubscription": {
+    "people": 2841,
+    "positive": 12,
+    "flagged": 1570,
+    "caught": 6,
+    "missed": 6,
+    "flaggedWithoutOutcome": 1564,
+    "recall": 0.5,
+    "precision": 0.003821656050955414,
+    "recall95": [
+      0.2537815976337112,
+      0.7462184023662888
+    ],
+    "precision95": [
+      0.0017526404503756432,
+      0.008312832619932332
+    ],
+    "flagRate": 0.5526223160858853,
+    "baseRate": 0.004223864836325237
+  },
+  "emailActionCounts": {
+    "email_try_another_transcription": 1189,
+    "email_resume_practice": 342,
+    "email_resume_editing": 150
+  },
+  "signalComparisons": {
+    "practice_in_first_6h": {
+      "early": {
+        "people": 1316,
+        "positive": 51,
+        "flagged": 637,
+        "caught": 26,
+        "missed": 25,
+        "flaggedWithoutOutcome": 611,
+        "recall": 0.5098039215686274,
+        "precision": 0.04081632653061224,
+        "recall95": [
+          0.37680923894570034,
+          0.6414251410562892
+        ],
+        "precision95": [
+          0.02800417742341537,
+          0.05913353511387263
+        ],
+        "flagRate": 0.48404255319148937,
+        "baseRate": 0.03875379939209726
+      },
+      "later": {
+        "people": 964,
+        "positive": 41,
+        "flagged": 395,
+        "caught": 25,
+        "missed": 16,
+        "flaggedWithoutOutcome": 370,
+        "recall": 0.6097560975609756,
+        "precision": 0.06329113924050633,
+        "recall95": [
+          0.45726856934124205,
+          0.7434385493987617
+        ],
+        "precision95": [
+          0.04323414633374348,
+          0.09176049283915977
+        ],
+        "flagRate": 0.40975103734439833,
+        "baseRate": 0.04253112033195021
+      }
+    },
+    "deliberate_edit_in_first_6h": {
+      "early": {
+        "people": 1316,
+        "positive": 51,
+        "flagged": 539,
+        "caught": 23,
+        "missed": 28,
+        "flaggedWithoutOutcome": 516,
+        "recall": 0.45098039215686275,
+        "precision": 0.04267161410018553,
+        "recall95": [
+          0.3226751854937434,
+          0.5861529144963085
+        ],
+        "precision95": [
+          0.028600212959900003,
+          0.06321565336868316
+        ],
+        "flagRate": 0.4095744680851064,
+        "baseRate": 0.03875379939209726
+      },
+      "later": {
+        "people": 964,
+        "positive": 41,
+        "flagged": 695,
+        "caught": 33,
+        "missed": 8,
+        "flaggedWithoutOutcome": 662,
+        "recall": 0.8048780487804879,
+        "precision": 0.04748201438848921,
+        "recall95": [
+          0.6598641481293702,
+          0.897655626148418
+        ],
+        "precision95": [
+          0.03400706247662065,
+          0.06593185491181319
+        ],
+        "flagRate": 0.720954356846473,
+        "baseRate": 0.04253112033195021
+      }
+    },
+    "multiple_successes_in_first_6h": {
+      "early": {
+        "people": 1316,
+        "positive": 51,
+        "flagged": 113,
+        "caught": 10,
+        "missed": 41,
+        "flaggedWithoutOutcome": 103,
+        "recall": 0.19607843137254902,
+        "precision": 0.08849557522123894,
+        "recall95": [
+          0.11015342512466866,
+          0.3245807948136522
+        ],
+        "precision95": [
+          0.04877938009471964,
+          0.1552702702719474
+        ],
+        "flagRate": 0.0858662613981763,
+        "baseRate": 0.03875379939209726
+      },
+      "later": {
+        "people": 964,
+        "positive": 41,
+        "flagged": 71,
+        "caught": 7,
+        "missed": 34,
+        "flaggedWithoutOutcome": 64,
+        "recall": 0.17073170731707318,
+        "precision": 0.09859154929577464,
+        "recall95": [
+          0.0852525197759516,
+          0.3126261240040373
+        ],
+        "precision95": [
+          0.048582823723970256,
+          0.18980722240592546
+        ],
+        "flagRate": 0.07365145228215768,
+        "baseRate": 0.04253112033195021
+      }
+    },
+    "pricing_in_first_6h": {
+      "early": {
+        "people": 1316,
+        "positive": 51,
+        "flagged": 54,
+        "caught": 6,
+        "missed": 45,
+        "flaggedWithoutOutcome": 48,
+        "recall": 0.11764705882352941,
+        "precision": 0.1111111111111111,
+        "recall95": [
+          0.05505073677918283,
+          0.2338084431432208
+        ],
+        "precision95": [
+          0.051930224969996566,
+          0.22194701021180907
+        ],
+        "flagRate": 0.041033434650455926,
+        "baseRate": 0.03875379939209726
+      },
+      "later": {
+        "people": 964,
+        "positive": 41,
+        "flagged": 34,
+        "caught": 3,
+        "missed": 38,
+        "flaggedWithoutOutcome": 31,
+        "recall": 0.07317073170731707,
+        "precision": 0.08823529411764706,
+        "recall95": [
+          0.025197830633910637,
+          0.19427448537718606
+        ],
+        "precision95": [
+          0.03046594367464936,
+          0.22960486562808377
+        ],
+        "flagRate": 0.035269709543568464,
+        "baseRate": 0.04253112033195021
+      }
+    }
+  },
+  "returnPeriods": {
+    "early": {
+      "people": 1316,
+      "positive": 51,
+      "flagged": 1090,
+      "caught": 41,
+      "missed": 10,
+      "flaggedWithoutOutcome": 1049,
+      "recall": 0.803921568627451,
+      "precision": 0.03761467889908257,
+      "recall95": [
+        0.6754192051863478,
+        0.8898465748753314
+      ],
+      "precision95": [
+        0.027847000277415247,
+        0.05063005700403247
+      ],
+      "flagRate": 0.8282674772036475,
+      "baseRate": 0.03875379939209726
+    },
+    "later": {
+      "people": 964,
+      "positive": 41,
+      "flagged": 729,
+      "caught": 35,
+      "missed": 6,
+      "flaggedWithoutOutcome": 694,
+      "recall": 0.8536585365853658,
+      "precision": 0.04801097393689986,
+      "recall95": [
+        0.7155654195751948,
+        0.9311575185870393
+      ],
+      "precision95": [
+        0.03472144592764774,
+        0.06603903634572329
+      ],
+      "flagRate": 0.7562240663900415,
+      "baseRate": 0.04253112033195021
+    }
+  },
+  "limitations": [
+    "Descriptive retrospective coverage, not incremental treatment effect or independent validation.",
+    "First observed signup/purchase in Sep 1-Oct 15; no lifetime billing reconciliation.",
+    "New client export and file-import signals absent historically; no imputation.",
+    "Email permission, verification, accessibility and safe UI moments are not reconstructable; eligibility gates relaxed only for behavioral replay.",
+    "Existing emails/promotions and the model release influenced observed outcomes.",
+    "Email positives include early natural returners who are deliberately ineligible for a 48h inactivity reminder.",
+    "Only tracked identifiable people in this extract; missing/opted-out activity and internal accounts can affect results.",
+    "Small buyer count; do not optimize thresholds against these same outcomes."
+  ],
+  "inputSha256": "aa92dc333a2527b4bd960de959f9b1569f264c0354970a4cfd9dbf5c17340e80"
+}

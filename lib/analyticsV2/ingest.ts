@@ -1,3 +1,4 @@
+import { recordEngagementEvents } from "../engagement/server";
 import {validLocale} from "../i18n/preference";
 import {editorRequestLocale} from "../i18n/editor/detection";
 import {localeCohort, localeFromPath, normalizeLocale, isEditorPath} from "../i18n/locale";
@@ -255,6 +256,10 @@ export async function ingestAnalyticsEvents(
   }
   // Await delivery before Vercel can freeze the request's execution.
   await client.flush();
+  if (context.accountId) {
+    try { await recordEngagementEvents(context.accountId, events); }
+    catch { console.warn("engagement_signal_write_failed"); }
+  }
 
   return {
     ok: true,

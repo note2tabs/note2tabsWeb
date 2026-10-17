@@ -108,8 +108,7 @@ import { useHeavyPreviewCountryEligibility } from "../../lib/useHeavyPreviewCoun
 import { prisma } from "../../lib/prisma";
 import {
   GTE_EXPORT_FORMAT_OPTIONS,
-  buildGteExportFile,
-  downloadGteExportFile,
+  exportGteTrack,
   type GteExportFormat,
 } from "../../lib/gteTabExport";
 import {
@@ -2989,14 +2988,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     setExportMenuOpen(false);
     setError(null);
     try {
-      const file = buildGteExportFile(lane, format, canvas?.timingMap);
-      downloadGteExportFile(file);
+      exportGteTrack(lane, format, canvas?.timingMap, { surface: "gte", project: editorId });
     } catch (err: any) {
       setError(err?.message || "We could not prepare this track for export. Your tab is unchanged; please try again.");
     } finally {
       setExportingTrack(false);
     }
-  }, [canvas?.timingMap, exportingTrack, getExportLane]);
+  }, [canvas?.timingMap, exportingTrack, getExportLane, editorId]);
 
   const openTimingEditor = useCallback(() => {
     if (!canvas) return;

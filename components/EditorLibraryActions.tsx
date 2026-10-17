@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useLocale } from "../lib/i18n/react";
 import { translatedError } from "../lib/i18n/translate";
 import { gteApi } from "../lib/gteApi";
-import { buildGteExportFile, downloadGteExportFile, GTE_EXPORT_FORMAT_OPTIONS, type GteExportFormat } from "../lib/gteTabExport";
+import { exportGteTrack, GTE_EXPORT_FORMAT_OPTIONS, type GteExportFormat } from "../lib/gteTabExport";
 import type { EditorListItem, EditorSnapshot, TimingMapV2 } from "../types/gte";
 
 type Props = { editor: EditorListItem; open: boolean; onOpenChange: (open: boolean) => void; onUpdated: (editor: EditorListItem | null) => void };
@@ -65,7 +65,7 @@ export default function EditorLibraryActions({ editor, open, onOpenChange, onUpd
       } else {
         const track = tracks.find(item => item.id === trackId);
         if (!track) return;
-        downloadGteExportFile(buildGteExportFile(track, format, timing));
+        exportGteTrack(track, format, timing, { surface: "library", project: editor.id });
       }
       setAction(null); trigger.current?.focus();
     } catch (err) { setError(err instanceof Error ? err.message : "Something went wrong. Please try again."); }
