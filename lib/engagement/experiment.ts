@@ -48,7 +48,10 @@ export async function reserveEngagementContact(enrollment: Enrollment, channel: 
     // Serializes different campaigns/devices. Use a rolling, cross-campaign cap.
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${enrollment.accountId}, 0))`;
     const recent = await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "EngagementContact"
-      WHERE "accountId" = ${enrollment.accountId} AND "channel" = ${channel} AND "createdAt" > ${new Date(Date.now() - 7 * DAY)} LIMIT 1`;
+      WHERE "accountId" = ${enrollment.accountId} AND "channel" = ${channel} AND "createdAt" > ${new Date(Date.now() - 7 * DAY)}
+      UNION ALL SELECT token AS id FROM "VerificationToken" WHERE ${channel} = 'email' AND (
+        (identifier = ${`reminder:return-to-tab-cooldown:${enrollment.accountId}`} AND expires > NOW()) OR
+        (identifier = ${`reminder:inactive-transcriber:${enrollment.accountId}`} AND expires > ${new Date(Date.now() + (3650 - 7) * DAY)})) LIMIT 1`;
     if (recent.length) return null;
     const id = globalThis.crypto.randomUUID();
     await tx.$executeRaw`INSERT INTO "EngagementContact" ("id", "accountId", "version", "arm", "channel", "action", "state", "createdAt")

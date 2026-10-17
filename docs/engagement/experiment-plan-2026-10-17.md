@@ -44,10 +44,14 @@ Plan for at least two full weeks of enrollment plus mature follow-up, and an ade
 
 - Apply both engagement migrations in production through the normal release workflow, and deploy reviewed code. Neither has been done here.
 - Enable collection and confirm incoming import/export/playback events, identity linkage and outcomes before treatment; collect a sufficient observation window for contextual decisions. Audit older contact/cooldown history so an existing reminder is not immediately followed by an experimental one.
-- Establish a permission-backed reminder audience with provenance in `EngagementEmailPermission`. The table defaults to no permission; no existing account was automatically opted in. The site currently lacks that stored permission record, so the email arm must not be presented as ready to send. A permission recording/revocation workflow and delivery reconciliation must be reviewed before launch.
+- Establish a permission-backed reminder audience with provenance in `EngagementEmailPermission`. The table defaults to no permission; no existing account was automatically opted in. The account privacy-settings opt-in/revocation workflow and signed unsubscribe path are now implemented and tested, with provenance and default denial. Confirm them in the deployed environment before launching emails. Delivery reconciliation remains an operational launch check.
 - Validate scheduler candidate coverage and production email delivery/unsubscribe end to end using controlled accounts; unit tests do not prove deliverability.
 - Review contextual reminder translations with native speakers before sending. All ten supported locales have copy and structural tests; that does not establish perfect idiomatic quality.
-- Run browser checks on mobile, desktop and RTL for the changed prompts. No end-to-end visual sign-off was performed in this turn.
+- Completed synthetic Chrome checks on desktop and mobile, including Arabic RTL. See `readiness-tests-2026-10-17.md` for the division between browser fixtures and real PostgreSQL/API checks.
 - Enable `ENGAGEMENT_SIGNALS_ENABLED`, `ENGAGEMENT_EXPERIMENT_ENABLED` and `NEXT_PUBLIC_ENGAGEMENT_EXPERIMENT_ENABLED` only as part of a coordinated launch; `ENGAGEMENT_REMINDERS_ENABLED` additionally gates reminders. Defaults remain false. Start the native experiment only after readiness checks, so enrollment begins at the intended start.
 
 Tests cover stable assignment/distribution, stored assignments, control suppression, cross-campaign contact locking, entitlement/consent authorization, contextual checkpoint gating, hard safety gates, localized reminder structure, and existing ingestion/export/reminder behavior. No production data mutation, actual reminder delivery or live CTA experiment was executed.
+
+## Readiness follow-up
+
+The implementation and test results were updated on 17 October. See [readiness tests](readiness-tests-2026-10-17.md). Production flags remain disabled; a merge is distinct from native experiment activation and email launch.

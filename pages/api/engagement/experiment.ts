@@ -17,7 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const id = session.user.id;
   try {
     const user = await prisma.user.findUnique({ where: { id }, select: { role: true, subscriptionPlan: true } });
-    const paid = !user || user.subscriptionPlan !== "FREE" || ["PREMIUM", "PRO", "ADMIN", "MOD", "MODERATOR"].includes(user.role);
+    const paid = !user || user.subscriptionPlan !== "FREE" || user.role !== "FREE";
     if (paid) return res.status(200).json({ mode: "excluded" });
     const enrollment = await getEngagementEnrollment(id);
     const operation = req.body?.operation;
@@ -30,8 +30,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (enrollment.arm === "control") return res.status(200).json({ mode: "active", arm: enrollment.arm, show: false });
     const { snapshot } = await decideForAccount(id, { channel: "premium", paid, safeMoment: req.body.safeMoment === true,
       suppressed: false, marketingPermission: false, emailVerified: false, accessibleSavedWork: false });
-    const allowed = enrollment.arm === "existing" ? req.body.checkpoint === "legacy" && req.body.safeMoment === true
-      : req.body.checkpoint === "playback_pause" && contextualPremiumAllowed(snapshot, paid, req.body.safeMoment === true);
+    const commonSafety = snapshot.complete && !snapshot.checkoutActive && !snapshot.unresolvedFailure;
+    const allowed = commonSafety && (enrollment.arm === "existing" ? req.body.checkpoint === "legacy" && req.body.safeMoment === true
+      : req.body.checkpoint === "playback_pause" && contextualPremiumAllowed(snapshot, paid, req.body.safeMoment === true));
     await recordExperimentDecision(enrollment, "premium", enrollment.arm === "existing" ? "legacy" : "playback_pause", allowed, { score: contextualValueScore(snapshot), snapshot });
     if (!allowed) return res.status(200).json({ mode: "active", arm: enrollment.arm, show: false });
     const contactId = await reserveEngagementContact(enrollment, "premium", enrollment.arm === "existing" ? "legacy_prompt" : "contextual_value");

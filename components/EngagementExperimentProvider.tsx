@@ -8,12 +8,12 @@ import { flushGteTelemetry } from "../lib/gteTelemetryClient";
 import { PremiumPromptCard } from "./PremiumUpgradePrompt";
 
 type State = { mode: string; arm?: EngagementArm };
-async function request(body: Record<string, unknown>) {
+async function requestExperiment(body: Record<string, unknown>) {
   const response = await fetch("/api/engagement/experiment", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(8000) });
   if (!response.ok) throw new Error("Experiment unavailable");
   return response.json();
 }
-export default function EngagementExperimentProvider({ children }: { children: ReactNode }) {
+export default function EngagementExperimentProvider({ children, request = requestExperiment }: { children: ReactNode; request?: (body: Record<string, unknown>) => Promise<any> }) {
   const enabled = process.env.NEXT_PUBLIC_ENGAGEMENT_EXPERIMENT_ENABLED === "true";
   const { data: session, status } = useSession();
   const router = useLocaleRouter();
@@ -29,7 +29,7 @@ export default function EngagementExperimentProvider({ children }: { children: R
     void request({ operation: "enroll" }).then(result => { if (active) setState(result); })
       .catch(() => { if (active) setState({ mode: "unavailable" }); });
     return () => { active = false; };
-  }, [enabled, session?.user?.id, status]);
+  }, [enabled, session?.user?.id, status, request]);
   const allowLegacy = ["disabled", "excluded"].includes(state.mode) || state.mode === "active" && state.arm === "existing";
   const claimLegacy = useCallback(async (): Promise<PromptTicket | null> => {
     if (["disabled", "excluded"].includes(state.mode)) return { contactId: null };
@@ -38,7 +38,7 @@ export default function EngagementExperimentProvider({ children }: { children: R
       const r = await request({ operation: "claim", checkpoint: "legacy", safeMoment: true });
       return r.show ? { contactId: r.contactId } : null;
     } catch { return null; }
-  }, [state]);
+  }, [state, request]);
   useEffect(() => {
     if (state.mode !== "active" || state.arm !== "contextual") return;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -52,7 +52,7 @@ export default function EngagementExperimentProvider({ children }: { children: R
         if (document.visibilityState !== "visible" || document.activeElement?.matches("input,textarea,[contenteditable=true]")) return;
         try {
           await Promise.all([flush(), flushGteTelemetry()]);
-          if (token !== generation.current) return;
+          if (token !== generation.current || path !== window.location.pathname || document.visibilityState !== "visible") return;
           const r = await request({ operation: "claim", checkpoint: "playback_pause", safeMoment: true });
           if (!r.show) return;
           if (token !== generation.current || path !== window.location.pathname || document.visibilityState !== "visible") {
@@ -64,6 +64,8 @@ export default function EngagementExperimentProvider({ children }: { children: R
       }, ENGAGEMENT_CTA_DELAY_MS);
     };
     const onPlay = () => { cancel(); setPrompt(null); };
+    const onNavigate = () => { cancel(); setPrompt(null); };
+    router.events.on("routeChangeStart", onNavigate);
     window.addEventListener(ENGAGEMENT_PLAYBACK_ACTIVE_EVENT, onPlay);
     window.addEventListener(ENGAGEMENT_PLAYBACK_EVENT, onPause);
     window.addEventListener("pointerdown", cancel);
@@ -74,8 +76,9 @@ export default function EngagementExperimentProvider({ children }: { children: R
       window.removeEventListener(ENGAGEMENT_PLAYBACK_ACTIVE_EVENT, onPlay);
       window.removeEventListener("pointerdown", cancel); window.removeEventListener("keydown", cancel);
       document.removeEventListener("visibilitychange", cancel);
+      router.events.off("routeChangeStart", onNavigate);
     };
-  }, [state]);
+  }, [state, router.events, request]);
   const element = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!prompt || !element.current) return;
@@ -87,7 +90,7 @@ export default function EngagementExperimentProvider({ children }: { children: R
     }, { threshold: .5 });
     observer.observe(element.current);
     return () => observer.disconnect();
-  }, [prompt]);
+  }, [prompt, request]);
   return <EngagementExperimentContext.Provider value={{ arm: state.arm || null, allowLegacy, claimLegacy }}>
     {children}
     {prompt && prompt.path === router.asPath.split("?")[0] && <div ref={element}>
