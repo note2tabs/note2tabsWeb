@@ -49,7 +49,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const notification = JSON.parse(envelope.Message) as SesNotification;
   const category = notification.mail?.tags?.email_category?.[0];
-  const isReminder = category === "inactive_signup_reminder" || category === "tab_return_reminder";
+  const isReminder = category === "inactive_signup_reminder" || category === "tab_return_reminder" || category === "credit_reset";
   const isTabShare = category === "tab_share";
   if (!isReminder && !isTabShare) {
     return res.status(200).json({ ok: true, ignored: true });

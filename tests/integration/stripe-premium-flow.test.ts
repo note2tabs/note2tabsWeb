@@ -174,6 +174,7 @@ const premiumInvoice = (overrides: Record<string, unknown> = {}) => ({
 describe("stripe premium flow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.CREDIT_RESET_EMAIL_ENABLED;
     stripeMock.prices.retrieve.mockImplementation(async (id: string) => {
       const { DISPLAY_CURRENCIES, localizedPriceAmount } = await import("../../lib/localizedPricing");
       const plan = id.includes("pro") && !id.includes("premium") ? "PRO" : "PREMIUM";
@@ -1974,6 +1975,21 @@ describe("stripe premium flow", () => {
           granted: true,
         },
       });
+    });
+
+    it("queues a low-balance renewal notice in the credit grant transaction", async () => {
+      process.env.CREDIT_RESET_EMAIL_ENABLED = "true";
+      stripeMock.webhooks.constructEvent.mockReturnValue({type:"invoice.payment_succeeded",data:{object:premiumInvoice({id:"in_low_reset"})}});
+      prismaMock.user.findFirst.mockResolvedValue({id:"user_1",role:"PREMIUM",tokensRemaining:2});
+      const handler=(await import("../../pages/api/stripe/webhook")).default;
+      const res=createResponse(); await handler(buildWebhookReq() as any,res as any);
+      expect(res._getStatusCode()).toBe(200);
+      expect(prismaMock.user.update).toHaveBeenCalledWith(expect.objectContaining({data:expect.objectContaining({tokensRemaining:102})}));
+      expect(prismaMock.$executeRaw.mock.calls.some(call=>call.includes("paid:in_low_reset"))).toBe(true);
+      prismaMock.$executeRaw.mockClear();
+      prismaMock.stripeRenewalInvoice.findUnique.mockResolvedValue({invoiceId:"in_low_reset"});
+      await handler(buildWebhookReq() as any,createResponse() as any);
+      expect(prismaMock.$executeRaw.mock.calls.some(call=>call.includes("paid:in_low_reset"))).toBe(false);
     });
 
     it("does not grant renewal credits twice for the same Stripe invoice", async () => {

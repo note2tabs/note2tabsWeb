@@ -27,10 +27,10 @@ describe("SES reminder lifecycle events", () => {
     mocks.upsertMarker.mockResolvedValue({});
   });
 
-  it("records a tagged reminder bounce in PostHog", async () => {
+  it.each(["tab_return_reminder", "credit_reset"])("records a tagged %s bounce in PostHog", async (category) => {
     const notification = {
       notificationType: "Bounce",
-      mail: { messageId: "message-1", tags: { email_category: ["tab_return_reminder"] } },
+      mail: { messageId: "message-1", tags: { email_category: [category] } },
       bounce: { bounceType: "Permanent", bouncedRecipients: [{ emailAddress: "player@example.com" }] },
     };
     const { req, res } = createMocks({
@@ -41,7 +41,7 @@ describe("SES reminder lifecycle events", () => {
     expect(res._getStatusCode()).toBe(200);
     expect(mocks.capture).toHaveBeenCalledWith(expect.objectContaining({
       distinctId: "user-1", event: "reminder_email_bounced",
-      properties: expect.objectContaining({ email_category: "tab_return_reminder", bounce_type: "Permanent" }),
+      properties: expect.objectContaining({ email_category: category, bounce_type: "Permanent" }),
     }));
     expect(mocks.flush).toHaveBeenCalledOnce();
     expect(mocks.upsertMarker).toHaveBeenCalledWith(expect.objectContaining({

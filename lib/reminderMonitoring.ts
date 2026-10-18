@@ -1,6 +1,6 @@
 import type { PostHog } from "posthog-node";
 
-export type ReminderSchedulerName = "inactive_signup" | "tab_return";
+export type ReminderSchedulerName = "inactive_signup" | "tab_return" | "credit_reset";
 
 export function captureReminderRun(
   posthog: Pick<PostHog, "capture"> | null,

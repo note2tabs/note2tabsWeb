@@ -1,10 +1,11 @@
+import { creditResetCopy } from "./i18n/creditResetCopy";
 import { localizedEmailCopy } from "./i18n/emails";
 import { serviceEmails } from "./i18n/serviceEmails";
 import { contextualReminderCopy } from "./i18n/contextualReminderCopy";
 import { validLocale } from "./i18n/preference";
 import type { AppLocale } from "./i18n/locale";
 
-export type CustomerEmailTemplate = "verification" | "password_reset" | "transcription_complete" | "inactive_signup" | "tab_return" | "trial_started" | "trial_ending" | "pro_started" | "payment_failed" | "tab_share" | "contextual_reminder";
+export type CustomerEmailTemplate = "credit_reset" | "verification" | "password_reset" | "transcription_complete" | "inactive_signup" | "tab_return" | "trial_started" | "trial_ending" | "pro_started" | "payment_failed" | "tab_share" | "contextual_reminder";
 export type EmailLanguage = {kind:"internal"} | {kind:"customer";locale:AppLocale;template:CustomerEmailTemplate;accountId?:string;test?:boolean};
 type Content = {subject:string;html:string;text?:string};
 export class EmailLanguageMismatchError extends Error {
@@ -34,6 +35,7 @@ export function emailLanguageProblems(content:Content, language:Exclude<EmailLan
  const c=serviceEmails[expected], auth=localizedEmailCopy(expected);
  let subjects:string[]=[], htmlPhrases:string[]=[], textPhrases:string[]=[];
  switch(language.template) {
+  case "credit_reset": subjects=[creditResetCopy[expected][0]];htmlPhrases=[creditResetCopy[expected][1],creditResetCopy[expected][2],creditResetCopy[expected][3]];textPhrases=[creditResetCopy[expected][1],creditResetCopy[expected][2],creditResetCopy[expected][3]];break;
   case "verification": subjects=[auth?.verification.subject || "Verify your Note2Tabs account"];htmlPhrases=[auth?.verification.body || "Verify your email address to finish setting up your account and use the transcriber."];textPhrases=[auth?.verification.body || "Please verify your email to use the transcriber:"];break;
   case "password_reset":subjects=[auth?.reset.subject || "Reset your Note2Tabs password"];htmlPhrases=[auth?.reset.body || "We received a request to reset your password."];textPhrases=[auth?.reset.body || "We received a request to reset your Note2Tabs password."];break;
   case "transcription_complete":subjects=[auth?.completion.subject || "Your Note2Tabs transcription is ready"];htmlPhrases=[auth?.completion.body || "is ready. Open it to play, edit, practice, or export your tab."];textPhrases=[auth?.completion.body || "is ready. Open it in the Note2Tabs editor to play, edit, practice, and export your tabs."];break;
