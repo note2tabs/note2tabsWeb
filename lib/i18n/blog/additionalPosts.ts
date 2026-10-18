@@ -1,3 +1,9 @@
+import itPost2 from "./it/youtube-to-guitar-tabs-workflow.json";
+import frPost2 from "./fr/youtube-to-guitar-tabs-workflow.json";
+import frPost0 from "./fr/how-to-convert-audio-to-guitar-tabs.json";
+import frPost1 from "./fr/mp3-to-guitar-tabs.json";
+import itPost0 from "./it/how-to-convert-audio-to-guitar-tabs.json";
+import itPost1 from "./it/mp3-to-guitar-tabs.json";
 import koPost0 from "./ko/ai-guitar-tab-editor.json";
 import koPost1 from "./ko/ai-guitar-tab-generator-convert-any-song-even-youtube-into-tabs.json";
 import koPost2 from "./ko/ascii-guitar-tab-editor.json";
@@ -219,4 +225,15 @@ const zhPosts = {
   "youtube-to-guitar-tabs-workflow": zhPost25,
 };
 
-export const additionalPosts = {ko: koPosts, pl: plPosts, ar: arPosts, "zh-Hans": zhPosts};
+const frPosts = {
+  "youtube-to-guitar-tabs-workflow": frPost2,
+  "how-to-convert-audio-to-guitar-tabs": frPost0,
+  "mp3-to-guitar-tabs": frPost1,
+};
+const itPosts = {
+  "youtube-to-guitar-tabs-workflow": itPost2,
+  "how-to-convert-audio-to-guitar-tabs": itPost0,
+  "mp3-to-guitar-tabs": itPost1,
+};
+
+export const additionalPosts = {fr: frPosts, it: itPosts, ko: koPosts, pl: plPosts, ar: arPosts, "zh-Hans": zhPosts};
