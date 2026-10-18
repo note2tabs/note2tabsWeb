@@ -18,5 +18,6 @@
       "path": "/api/cron/prune-jobs",
       "schedule": "0 5 * * *"
     }
-  ]
+  ],
+  "ignoreCommand": "node scripts/ignore-vercel-build.cjs"
 }
