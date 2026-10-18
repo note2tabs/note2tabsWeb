@@ -55,6 +55,8 @@ export default function CheckoutCancellationTracker({ preview = false, previewMe
     billing: context.attempt?.billingInterval === "yearly" ? "yearly" : "monthly",
   });
   if (context.funnelId) resume.set("funnel_id", context.funnelId);
+  if (context.attempt?.source) resume.set("source", context.attempt.source);
+  if (context.attempt?.reason) resume.set("reason", context.attempt.reason);
 
   return (
     <dialog dir={preview ? (previewRtl ? "rtl" : "ltr") : undefined} ref={dialog} className="checkout-return" aria-labelledby="checkout-return-title" onCancel={dismiss}>
