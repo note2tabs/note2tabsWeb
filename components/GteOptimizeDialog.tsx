@@ -160,7 +160,7 @@ export default function GteOptimizeDialog({ snapshot, selection, onCancel, onApp
                         onChange={(event) => { const value = event.target.valueAsNumber; if (Number.isFinite(value)) { generationPendingRef.current = true; setGenerationSettings((current) => ({ ...current, cutThreshold: 12.5 - Math.max(0.5, Math.min(12, value)) })); } }}
                         className="block h-5 w-full cursor-pointer accent-sky-600" />
                     </label>
-                    <p className="text-[11px] leading-4 text-slate-500">{t("Higher values create more position changes.")}</p>
+                    <p className="text-[11px] leading-4 text-slate-500">{t("Higher values create more hand movement.")}</p>
                     <button type="button" onClick={() => setGenerationSettings({ ...DEFAULT_COORDINATE_GENERATION_SETTINGS })} className="text-slate-700 underline">{t("Reset defaults")}</button>
                   </div>
                 </details>
