@@ -256,14 +256,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try { await setStripeEmailLanguage(existingCustomer.id, emailLocale); }
       catch { console.warn("stripe_email_language_sync_failed"); }
     }
-    const checkoutStateHash = createHash("sha256")
-      .update(
-      `checkout-observability-v3|${browser}|${os}|${existingCustomer?.id || "new"}|${contentLocale}|${session.user.id}|${requestedPlan}|${billingInterval}|${selectedConfig.priceId}|${checkoutCurrency}|${returnPaths.success}|${funnelId}|${
-          customerState.subscriptionState.sort().join("|") || "new"
-        }|${trialIncluded ? "seven_day_trial" : "immediate_charge"}`
-      )
-      .digest("hex")
-      .slice(0, 24);
     const checkoutMetadata = {
       userId: session.user.id,
       note2tabsPlan: requestedPlan.toLowerCase(),
@@ -294,8 +286,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         : {}),
     };
-    const checkout = await stripeClient.checkout.sessions.create(
-      {
+    const checkoutParams: Stripe.Checkout.SessionCreateParams = {
         ...(existingCustomer
           ? { customer: existingCustomer.id, customer_update: { address: "auto" as const } }
           : { customer_email: session.user.email }),
@@ -317,7 +308,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         success_url: `${baseUrl}${appendCheckoutSessionId(returnPaths.success)}`,
         cancel_url: `${baseUrl}${appendQueryParam(returnPaths.cancel, "funnel_id", funnelId)}`,
         metadata: checkoutMetadata,
-      },
+    };
+    // Stripe requires an idempotency key to identify exactly the same payload.
+    // A cancellation/resume has a new request ID (and can have new attribution).
+    const checkoutStateHash = createHash("sha256")
+      .update(JSON.stringify(checkoutParams))
+      .digest("hex")
+      .slice(0, 32);
+    const checkout = await stripeClient.checkout.sessions.create(
+      checkoutParams,
       { idempotencyKey: `${requestedPlan.toLowerCase()}-${billingInterval}-checkout-${session.user.id}-${checkoutStateHash}` }
     );
     if (!checkout.url) {

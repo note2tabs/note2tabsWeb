@@ -545,6 +545,26 @@ describe("stripe premium flow", () => {
       );
     });
 
+    it("keeps identical requests idempotent but permits cancellation/resume with new metadata", async () => {
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const run = async (requestId: string, source: string) => {
+        const {req, res} = createMocks({method: "POST", headers: {"x-vercel-id": requestId},
+          body: {plan: "premium", funnelId: "funnel_retry_123", source, reason: "plan_comparison"}});
+        await handler(req as any, res as any);
+        expect(res._getStatusCode()).toBe(200);
+        return stripeMock.checkout.sessions.create.mock.calls.at(-1);
+      };
+      const first = await run("request-one", "navigation");
+      const repeat = await run("request-one", "navigation");
+      const resumed = await run("request-two", "navigation");
+      const changedSource = await run("request-two", "pricing_page");
+      expect(first[0]).toEqual(repeat[0]);
+      expect(first[1].idempotencyKey).toBe(repeat[1].idempotencyKey);
+      expect(resumed[1].idempotencyKey).not.toBe(first[1].idempotencyKey);
+      expect(changedSource[1].idempotencyKey).not.toBe(resumed[1].idempotencyKey);
+      expect(resumed[0].line_items).toEqual(first[0].line_items);
+    });
+
     it("preserves supported local display currencies in checkout metadata", async () => {
       const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
       const { req, res } = createMocks({
