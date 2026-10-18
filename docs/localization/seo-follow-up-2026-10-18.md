@@ -52,3 +52,26 @@ All 438 current sitemap URLs passed HTTP 200, expected HTML language, self-canon
 
 - `/it/free-guitar-tab-maker`: indexing request accepted.
 - `/zh-hans/blog/guitar-pro-alternative-online`: already indexed; no request sent.
+
+- `/ko/blog/guitar-pro-alternative-online`: already indexed; no request sent.
+
+- `/ko/blog/free-online-guitar-tab-maker`: indexing request accepted.
+- `/ko/blog/guitar-solo-tab-maker`: already indexed; no request sent.
+
+- `/ja/contact`: indexing request accepted.
+
+Vercel preview checks passed for commit `f406045d`; the translation PR remains unmerged.
+
+- `/es/contact`: indexing request accepted (tenth accepted request this session).
+
+Acceptance evidence screenshot: `/tmp/n2t-indexing-accepted-20261018.png`.
+
+- `/pt-br/contact`: indexing request accepted (eleventh); quota was not exhausted at ten.
+
+## Quota stop and resume point
+
+Google rejected `/ko/contact` with **Quota exceeded**: “Sorry, we couldn't process this request because you've exceeded your daily quota. Please try submitting this again tomorrow.” This attempt is not an accepted request. Total accepted this session: **11**.
+
+Resume with `/ko/contact`, then inspect `/pl/contact`, `/ar/contact`, and `/zh-hans/contact` from the older missing-page list. French/Italian feature pages and remaining lower-priority routes still need individual inspection; neither the successful HTTP audit nor this request batch proves every public URL is indexed. Inspect first and skip URLs Google already indexes. Request the six new translated articles only after they are deployed. Do not assume a Stockholm date change resets Google's quota.
+
+Quota evidence: `/tmp/n2t-indexing-quota-20261018.png`. PR #220 contains the translation batch; it is not merged or released. No local server remains running.
