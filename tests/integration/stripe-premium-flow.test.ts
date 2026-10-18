@@ -552,7 +552,9 @@ describe("stripe premium flow", () => {
           body: {plan: "premium", funnelId: "funnel_retry_123", source, reason: "plan_comparison"}});
         await handler(req as any, res as any);
         expect(res._getStatusCode()).toBe(200);
-        return stripeMock.checkout.sessions.create.mock.calls.at(-1);
+        const call = stripeMock.checkout.sessions.create.mock.calls.at(-1);
+        if (!call) throw new Error("Checkout creation was not called");
+        return call;
       };
       const first = await run("request-one", "navigation");
       const repeat = await run("request-one", "navigation");
