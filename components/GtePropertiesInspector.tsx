@@ -133,7 +133,7 @@ export function PropertyNumberField({ label, value, onCommit, min, max, unit, in
     {label}
     <div className="relative mt-1.5 flex gap-1">
       <input type="number" min={min} max={max} step={integer ? 1 : "any"} inputMode={integer ? "numeric" : "decimal"} value={draft}
-        className={`${controlClass} ${unit ? "pr-20" : ""}`}
+        className={`${controlClass} ${unit ? "pe-20" : ""}`}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={() => { if (!cancelled.current && draft !== value) onCommit(draft); cancelled.current = false; }}
         onKeyDown={(event) => {
@@ -141,7 +141,7 @@ export function PropertyNumberField({ label, value, onCommit, min, max, unit, in
           if (event.key === "Escape") { event.preventDefault(); cancelled.current = true; setDraft(value); event.currentTarget.blur(); }
         }}
       />
-      {unit ? <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs font-normal text-slate-400">{unit}</span> : null}
+      {unit ? <span className="pointer-events-none absolute inset-y-0 end-3 flex items-center text-xs font-normal text-slate-400">{unit}</span> : null}
       {onStep ? <div className={inlineStepper ? "flex shrink-0 gap-1" : "flex w-7 shrink-0 flex-col gap-0.5"}>{(inlineStepper ? [-1, 1] : [1, -1]).map((delta) => <button key={delta} type="button" aria-label={delta > 0 ? t("Increase fret") : t("Decrease fret")}
         className={`flex flex-1 items-center justify-center rounded border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${inlineStepper ? "h-9 w-9 text-base" : "text-[10px]"}`}
         onMouseDown={(event) => event.preventDefault()}

@@ -58,7 +58,7 @@ export default function GteScaleModeMenu({ value, onChange, disabled, label, opt
       }}>
       {options.map((option) => <button key={option.value} type="button" role="menuitemradio" aria-checked={value === option.value} tabIndex={-1}
         onClick={() => { onChange(option.value); close(); }}
-        className={`flex h-8 w-full items-center justify-between rounded-md px-2 text-left hover:bg-slate-100 focus:bg-slate-100 focus:outline-none ${value === option.value ? "text-sky-700" : ""}`}>
+        className={`flex h-8 w-full items-center justify-between rounded-md px-2 text-start hover:bg-slate-100 focus:bg-slate-100 focus:outline-none ${value === option.value ? "text-sky-700" : ""}`}>
         {option.label}{value === option.value && <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 fill-none stroke-current" strokeWidth={1.7} aria-hidden="true"><path d="m3 8 3 3 7-7" /></svg>}
       </button>)}
     </div>, document.body)}
