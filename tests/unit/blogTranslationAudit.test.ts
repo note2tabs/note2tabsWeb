@@ -5,7 +5,7 @@ import {localizeBlogProps} from "../../lib/i18n/blog/localize";
 import {articleLocales} from "../../lib/i18n/blog/availability";
 import {localeHref, type AppLocale} from "../../lib/i18n/locale";
 
-const locales = ["pt-BR", "es", "ja", "ko", "pl", "ar", "zh-Hans"] as const;
+const locales = ["pt-BR", "es", "ja", "ko", "pl", "ar", "zh-Hans", "fr", "it"] as const;
 const cases = locales.flatMap(locale => readdirSync(`lib/i18n/blog/${locale}`).filter(file => file.endsWith(".json")).map(file => ({locale, slug: file.slice(0,-5), row: JSON.parse(readFileSync(`lib/i18n/blog/${locale}/${file}`, "utf8"))})));
 describe("all authored blog translations", () => {
   it.each(cases)("compiles and retains localized links for $locale / $slug", async ({locale, slug, row}) => {
@@ -31,7 +31,7 @@ describe("all authored blog translations", () => {
     }
   });
   it.each(["fr", "it"] as AppLocale[])("keeps unauthored %s articles as an explicit English fallback", async locale => {
-    const result = await localizeBlogProps({post: {slug: cases[0].slug, title: cases[0].row.sourceTitle, updatedAt: cases[0].row.sourceUpdatedAt, contentHtml: "<p>English source fixture</p>"}}, locale) as any;
+    const result = await localizeBlogProps({post: {slug: "not-yet-translated-article", title: "Untranslated article", updatedAt: cases[0].row.sourceUpdatedAt, contentHtml: "<p>English source fixture</p>"}}, locale) as any;
     expect(result.post.contentLanguage).toBe("en");
     expect(result.post.contentHtml).toBe("<p>English source fixture</p>");
   });
