@@ -14,7 +14,7 @@ Registered both locales in the article revision manifests and translation loader
 
 Read the current published English bodies and checked production's serialized source timestamps. PostgreSQL timestamp-without-time-zone values read through node-postgres on a Stockholm host produced a two-hour offset; translation revisions deliberately match the canonical serialized production article values, not that locally shifted representation. No database writes were made.
 
-Verification: 213 focused tests, TypeScript, and production build passed. Rendered the first four article URLs against the current content database using the production build: correct French/Italian body language, self-canonical, index/follow robots, and localized editor links. Dedicated tests cover reciprocal sitemap entries and stale-source exclusion. This is an initial priority batch; the remaining French/Italian articles still need translation. No independent native-speaker review is claimed.
+Verification: 213 focused tests, TypeScript, and production build passed. Rendered all six article URLs against the current content database using the production build: correct French/Italian body language, self-canonical, index/follow robots, and localized editor links. Dedicated tests cover reciprocal sitemap entries and stale-source exclusion. This is an initial priority batch; the remaining French/Italian articles still need translation. No independent native-speaker review is claimed.
 
 ## Live indexing actions
 
@@ -45,3 +45,10 @@ Reference: https://developers.google.com/search/docs/crawling-indexing/ask-googl
 ## Live sitemap audit
 
 All 438 current sitemap URLs passed HTTP 200, expected HTML language, self-canonical, nonempty title/description, and absence of noindex. Distribution: English and each of the seven previously translated editions 49 URLs; French and Italian 23 each. This checks technical indexability only. The completed translation batch adds six article URLs once deployed. Summary: `seo-live-checks-2026-10-18.json`.
+
+- `/fr/free-guitar-tab-maker`: indexing request accepted.
+- `/fr/ai-guitar-tab-generator`: already indexed; no request sent.
+- `/it/ai-guitar-tab-generator`: already indexed; no request sent.
+
+- `/it/free-guitar-tab-maker`: indexing request accepted.
+- `/zh-hans/blog/guitar-pro-alternative-online`: already indexed; no request sent.
