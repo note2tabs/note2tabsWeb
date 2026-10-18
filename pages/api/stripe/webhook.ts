@@ -1,3 +1,4 @@
+import { queuePaidCreditReset } from "../../../lib/creditResetNotices";
 import { setStripeEmailLanguage } from "../../../lib/i18n/stripeEmailLanguage";
 import { accountEmailLocale } from "../../../lib/i18n/accountLanguage";
 import {localeCohort} from "../../../lib/i18n/locale";
@@ -897,6 +898,7 @@ async function grantRenewalForIdentifier(
             where: { id: user.id },
             data: { role: "PREMIUM", subscriptionPlan: renewal.plan, tokensRemaining },
           });
+          await queuePaidCreditReset(tx, {accountId:user.id,invoiceId:renewal.invoiceId,previousBalance:user.tokensRemaining,now:new Date()});
           return "granted" as const;
         },
         { isolationLevel: "Serializable" }

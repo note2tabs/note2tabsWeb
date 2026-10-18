@@ -21,8 +21,8 @@ export default function ReminderUnsubscribePage() {
     <SeoHead title={t("Email preferences")} canonicalPath="/email/unsubscribe" noindex />
     <section style={{ width: "min(520px, 100%)", padding: 32, border: "1px solid #dedbd2", borderRadius: 18, background: "white" }}>
       <h1 style={{ marginTop: 0 }}>{t("Email preferences")}</h1>
-      {status === "done" ? <><p>{t("You will no longer receive inactivity or return-to-tab reminders.")}</p><Link href="/home">{t("Return to Note2Tabs")}</Link></> : <>
-        <p>{t("Stop occasional emails reminding you to begin or return to a tab. Essential account and billing emails will continue.")}</p>
+      {status === "done" ? <><p>{t("You will no longer receive reminder emails.")}</p><Link href="/home">{t("Return to Note2Tabs")}</Link></> : <>
+        <p>{t("Stop occasional reminders, including credit-reset notifications. Essential account and billing emails will continue.")}</p>
         {status === "error" && <p role="alert">{t("This link could not be used. Please try again.")}</p>}
         <button type="button" onClick={unsubscribe} disabled={status === "saving"}>{t(status === "saving" ? "Updating…" : "Stop reminder emails")}</button>
       </>}

@@ -44,6 +44,7 @@ model VerificationToken {
 }
 
 model User {
+  creditResetNotices CreditResetNotice[]
   id                          String               @id @default(cuid())
   name                        String?
   email                       String               @unique
@@ -756,4 +757,16 @@ model AnalyticsDeliveryOutbox {
   payload     Json
   createdAt   DateTime  @default(now()) @db.Timestamptz(6)
   deliveredAt DateTime? @db.Timestamptz(6)
+}
+
+model CreditResetNotice {
+  id          String @id
+  accountId   String
+  source      String
+  availableAt DateTime @db.Timestamptz(6)
+  expiresAt   DateTime @db.Timestamptz(6)
+  status      String @default("pending")
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  sentAt      DateTime? @db.Timestamptz(6)
+  user        User @relation(fields: [accountId], references: [id], onDelete: Cascade)
 }

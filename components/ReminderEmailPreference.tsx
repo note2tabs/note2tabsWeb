@@ -2,16 +2,16 @@ import {useEffect,useState} from "react";
 import {useLocale} from "../lib/i18n/react";
 import type {AppLocale} from "../lib/i18n/locale";
 const copy:Record<AppLocale,readonly string[]>={
- en:["Email reminders","Receive occasional reminders to return to your music. You can unsubscribe at any time.","Enable reminders","Disable reminders","Could not update reminders. Please try again."],
- fr:["Rappels par e-mail","Recevez occasionnellement un rappel pour reprendre votre musique. Vous pouvez vous désinscrire à tout moment.","Activer les rappels","Désactiver les rappels","Impossible de modifier les rappels. Veuillez réessayer."],
- it:["Promemoria via email","Ricevi promemoria occasionali per tornare alla tua musica. Puoi annullare l’iscrizione in qualsiasi momento.","Attiva i promemoria","Disattiva i promemoria","Impossibile aggiornare i promemoria. Riprova."],
- es:["Recordatorios por correo","Recibe recordatorios ocasionales para retomar tu música. Puedes darte de baja en cualquier momento.","Activar recordatorios","Desactivar recordatorios","No se pudieron actualizar los recordatorios. Inténtalo de nuevo."],
- "pt-BR":["Lembretes por e-mail","Receba lembretes ocasionais para voltar à sua música. Você pode cancelar a qualquer momento.","Ativar lembretes","Desativar lembretes","Não foi possível atualizar os lembretes. Tente novamente."],
- ja:["メールリマインダー","音楽の続きを楽しむためのリマインダーを時々受け取ります。いつでも配信を停止できます。","リマインダーを有効にする","リマインダーを無効にする","リマインダーを更新できませんでした。もう一度お試しください。"],
- ko:["이메일 알림","음악 작업을 이어갈 수 있도록 가끔 알림을 받습니다. 언제든 수신을 거부할 수 있습니다.","알림 활성화","알림 비활성화","알림 설정을 변경하지 못했습니다. 다시 시도해 주세요."],
- pl:["Przypomnienia e-mail","Otrzymuj okazjonalne przypomnienia o powrocie do swojej muzyki. W każdej chwili możesz zrezygnować.","Włącz przypomnienia","Wyłącz przypomnienia","Nie udało się zmienić ustawień przypomnień. Spróbuj ponownie."],
- ar:["تذكيرات بالبريد الإلكتروني","تلقَّ تذكيرات من حين لآخر للعودة إلى موسيقاك. يمكنك إلغاء الاشتراك في أي وقت.","تفعيل التذكيرات","إيقاف التذكيرات","تعذّر تحديث التذكيرات. يُرجى المحاولة مجددًا."],
- "zh-Hans":["邮件提醒","偶尔接收提醒，继续您的音乐创作。您可以随时取消订阅。","开启提醒","关闭提醒","无法更新提醒设置，请重试。"],
+ en:["Email reminders","Receive occasional reminders to return to your music, including when your credits refresh. You can unsubscribe at any time.","Enable reminders","Disable reminders","Could not update reminders. Please try again."],
+ fr:["Rappels par e-mail","Recevez des rappels occasionnels pour reprendre votre musique, notamment lorsque vos crédits sont renouvelés. Vous pouvez vous désinscrire à tout moment.","Activer les rappels","Désactiver les rappels","Impossible de modifier les rappels. Veuillez réessayer."],
+ it:["Promemoria via email","Ricevi promemoria occasionali per tornare alla tua musica, anche quando i tuoi crediti si rinnovano. Puoi annullare l’iscrizione in qualsiasi momento.","Attiva i promemoria","Disattiva i promemoria","Impossibile aggiornare i promemoria. Riprova."],
+ es:["Recordatorios por correo","Recibe recordatorios ocasionales para retomar tu música, también cuando se renueven tus créditos. Puedes darte de baja en cualquier momento.","Activar recordatorios","Desactivar recordatorios","No se pudieron actualizar los recordatorios. Inténtalo de nuevo."],
+ "pt-BR":["Lembretes por e-mail","Receba lembretes ocasionais para voltar à sua música, inclusive quando seus créditos forem renovados. Você pode cancelar a qualquer momento.","Ativar lembretes","Desativar lembretes","Não foi possível atualizar os lembretes. Tente novamente."],
+ ja:["メールリマインダー","クレジット更新時などに、音楽の続きを楽しむためのリマインダーを受け取ります。いつでも配信を停止できます。","リマインダーを有効にする","リマインダーを無効にする","リマインダーを更新できませんでした。もう一度お試しください。"],
+ ko:["이메일 알림","크레딧이 갱신될 때 등 음악 작업을 이어갈 수 있도록 가끔 알림을 받습니다. 언제든 수신을 거부할 수 있습니다.","알림 활성화","알림 비활성화","알림 설정을 변경하지 못했습니다. 다시 시도해 주세요."],
+ pl:["Przypomnienia e-mail","Otrzymuj okazjonalne przypomnienia o powrocie do swojej muzyki, także po odnowieniu kredytów. W każdej chwili możesz zrezygnować.","Włącz przypomnienia","Wyłącz przypomnienia","Nie udało się zmienić ustawień przypomnień. Spróbuj ponownie."],
+ ar:["تذكيرات بالبريد الإلكتروني","تلقَّ تذكيرات من حين لآخر للعودة إلى موسيقاك، بما في ذلك عند تجديد رصيدك. يمكنك إلغاء الاشتراك في أي وقت.","تفعيل التذكيرات","إيقاف التذكيرات","تعذّر تحديث التذكيرات. يُرجى المحاولة مجددًا."],
+ "zh-Hans":["邮件提醒","偶尔接收提醒，继续您的音乐创作，包括额度更新时的通知。您可以随时取消订阅。","开启提醒","关闭提醒","无法更新提醒设置，请重试。"],
 };
 export default function ReminderEmailPreference(){
  const {locale}=useLocale();const c=copy[locale];
