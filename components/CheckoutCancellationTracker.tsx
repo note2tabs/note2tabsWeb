@@ -62,12 +62,12 @@ export default function CheckoutCancellationTracker({ preview = false, previewMe
     <dialog dir={preview ? (previewRtl ? "rtl" : "ltr") : undefined} ref={dialog} className="checkout-return" aria-labelledby="checkout-return-title" onCancel={dismiss}>
       <button className="return-close" type="button" aria-label={t("Dismiss checkout feedback")} onClick={dismiss}>×</button>
       <div className="return-layout">
-        <div className="return-brand"><img src="/favicon-32x32.png" width="24" height="24" alt="" />Note2Tabs</div>
+        <a className="return-brand" href={href("/")}><img src="/favicon-32x32.png" width="24" height="24" alt="" />Note2Tabs</a>
         <div className="return-content">
-          <h1 id="checkout-return-title">{t("Pick up where you left off")}</h1>
+          <h1 id="checkout-return-title">{t("Payment not completed")}</h1>
           <p className="return-description">{t("Your upgrade isn't complete. Continue to checkout whenever you're ready.")}</p>
           <div className="return-actions">
-            <a className="return-primary" href={href(`/pricing?${resume}`)}>{t("Continue to checkout")}<span aria-hidden="true">↗</span></a>
+            <a className="return-primary" href={href(`/pricing?${resume}`)}>{t("Retry payment")}<span aria-hidden="true">↗</span></a>
             <a className="return-secondary" href={href("/transcribe")}>{t("Back to transcribing")}</a>
           </div>
           <div className="return-feedback">
@@ -86,13 +86,12 @@ export default function CheckoutCancellationTracker({ preview = false, previewMe
             </>}
           </div>
         </div>
-        <div className="return-footer">{t("Your music, continued.")}</div>
       </div>
       <style jsx>{`
         .checkout-return { position: fixed; inset: 0; width: 100vw; max-width: none; height: 100dvh; max-height: none; margin: 0; padding: 0; border: 0; color: #192522; background: #f8faf8; overflow-y: auto; }
         .checkout-return::backdrop { background: #f8faf8; }
         .return-layout { min-height: 100%; display: flex; flex-direction: column; padding: 40px 7vw 28px; background: radial-gradient(ellipse at 75% 35%, #e9f0eb80, transparent 60%); }
-        .return-brand { display: flex; align-items: center; gap: 9px; font-size: 17px; font-weight: 650; letter-spacing: -.5px; }
+        .return-brand { color: inherit; text-decoration: none; width: fit-content; display: flex; align-items: center; gap: 9px; font-size: 17px; font-weight: 650; letter-spacing: -.5px; }
         .return-close { position: absolute; inset-inline-end: 32px; top: 30px; width: 44px; height: 44px; border: 1px solid #dce3dd; border-radius: 50%; background: #ffffff80; font-size: 26px; color: #53645b; cursor: pointer; }
         .return-content { width: 100%; max-width: 490px; margin: auto; padding: 72px 0; }
         h1 { font-size: clamp(32px, 4vw, 43px); line-height: 1.12; letter-spacing: -.045em; font-weight: 550; margin: 0; text-wrap: balance; }
@@ -109,7 +108,6 @@ export default function CheckoutCancellationTracker({ preview = false, previewMe
         .return-reasons p { width: 100%; margin: 0 0 8px; line-height: 1.6; }
         .return-reasons button { border: 1px solid #d5dfd7; background: #fff; border-radius: 20px; padding: 9px 12px; color: #475b4d; cursor: pointer; }
         .return-reasons button:hover { background: #e9f1eb; }
-        .return-footer { font-size: 12px; color: #89958c; letter-spacing: .02em; }
         button:focus-visible, a:focus-visible { outline: 2px solid #32664c; outline-offset: 4px; }
         @media (max-width: 600px) { .return-layout { padding: 26px 24px 22px; } .return-close { top: 17px; inset-inline-end: 18px; } .return-content { padding: 60px 0 40px; } }
       `}</style>
