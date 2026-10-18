@@ -1,0 +1,38 @@
+[
+  {
+    "path": "/fr/blog/mp3-to-guitar-tabs",
+    "language": "fr",
+    "title": "Convertir un MP3 en tablature de guitare modifiable",
+    "indexable": true
+  },
+  {
+    "path": "/fr/blog/how-to-convert-audio-to-guitar-tabs",
+    "language": "fr",
+    "title": "Comment convertir un enregistrement audio en tablature de guitare",
+    "indexable": true
+  },
+  {
+    "path": "/fr/blog/youtube-to-guitar-tabs-workflow",
+    "language": "fr",
+    "title": "YouTube en tablature de guitare : une méthode pour apprendre un morceau",
+    "indexable": true
+  },
+  {
+    "path": "/it/blog/mp3-to-guitar-tabs",
+    "language": "it",
+    "title": "Convertire un MP3 in una tablatura per chitarra modificabile",
+    "indexable": true
+  },
+  {
+    "path": "/it/blog/how-to-convert-audio-to-guitar-tabs",
+    "language": "it",
+    "title": "Come convertire un audio in tablatura per chitarra",
+    "indexable": true
+  },
+  {
+    "path": "/it/blog/youtube-to-guitar-tabs-workflow",
+    "language": "it",
+    "title": "Da YouTube a tablatura per chitarra: un metodo per imparare i brani",
+    "indexable": true
+  }
+]
