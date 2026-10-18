@@ -62,9 +62,6 @@ export default function CheckoutCancellationTracker({ preview = false, previewMe
       <div className="return-layout">
         <div className="return-brand"><img src="/favicon-32x32.png" width="24" height="24" alt="" />Note2Tabs</div>
         <div className="return-content">
-          <div className="return-symbol" aria-hidden="true">
-            <svg width="36" height="36" viewBox="0 0 36 36" fill="none"><path d="M22 8v17a4 4 0 1 1-3-3.87V12l10-2v12a4 4 0 1 1-3-3.87V6L19 8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          </div>
           <h1 id="checkout-return-title">{t("Pick up where you left off")}</h1>
           <p className="return-description">{t("Your upgrade isn't complete. Continue to checkout whenever you're ready.")}</p>
           <div className="return-actions">
@@ -96,7 +93,6 @@ export default function CheckoutCancellationTracker({ preview = false, previewMe
         .return-brand { display: flex; align-items: center; gap: 9px; font-size: 17px; font-weight: 650; letter-spacing: -.5px; }
         .return-close { position: absolute; inset-inline-end: 32px; top: 30px; width: 44px; height: 44px; border: 1px solid #dce3dd; border-radius: 50%; background: #ffffff80; font-size: 26px; color: #53645b; cursor: pointer; }
         .return-content { width: 100%; max-width: 490px; margin: auto; padding: 72px 0; }
-        .return-symbol { display: grid; place-items: center; width: 72px; height: 72px; border: 1px solid #dce6df; border-radius: 22px; color: #32664c; background: linear-gradient(145deg, #fff, #eaf1eb); box-shadow: 0 4px 6px #1f3f2a04, inset 0 1px 0 #fff; margin-bottom: 32px; }
         h1 { font-size: clamp(32px, 4vw, 43px); line-height: 1.12; letter-spacing: -.045em; font-weight: 550; margin: 0; text-wrap: balance; }
         .return-description { color: #647269; font-size: 16px; line-height: 1.75; margin: 20px 0 30px; max-width: 410px; }
         .return-actions { display: flex; flex-direction: column; gap: 12px; }
