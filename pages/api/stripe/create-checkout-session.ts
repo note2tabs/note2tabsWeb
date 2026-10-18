@@ -1,3 +1,4 @@
+import type Stripe from "stripe";
 import { marketCheckoutConfig, requestPricingMarket } from "../../../lib/pricingMarket";
 import { setStripeEmailLanguage } from "../../../lib/i18n/stripeEmailLanguage";
 import { accountEmailLocale } from "../../../lib/i18n/accountLanguage";
@@ -83,20 +84,20 @@ const resolveCheckoutReturnPaths = (requestedPath: unknown) => {
   if (requestedPath === "/transcribe?resumeTranscription=1") {
     return {
       success: premiumWelcomePath("/transcribe?resumeTranscription=1"),
-      cancel: "/transcribe?resumeTranscription=1&upgrade=cancel",
+      cancel: "/pricing?upgrade=cancel",
       manage: "/transcribe?resumeTranscription=1&upgrade=manage",
     };
   }
   if (requestedPath === "/?resumeTranscription=1") {
     return {
       success: premiumWelcomePath("/?resumeTranscription=1#hero"),
-      cancel: "/?resumeTranscription=1&upgrade=cancel#hero",
+      cancel: "/pricing?upgrade=cancel",
       manage: "/?resumeTranscription=1&upgrade=manage#hero",
     };
   }
   return {
     success: premiumWelcomePath("/transcribe"),
-    cancel: "/settings?upgrade=cancel",
+    cancel: "/pricing?upgrade=cancel",
     manage: "/settings?upgrade=manage",
   };
 };
@@ -167,7 +168,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     : requestedModel === "light" || requestedModel === "heavy"
       ? requestedModel
       : "unknown";
-  const deviceType = parseUserAgent(req.headers["user-agent"]).deviceType;
+  const {deviceType, browser, os} = parseUserAgent(req.headers["user-agent"]);
   const funnelId =
     normalizePremiumFunnelId(req.body?.funnelId) ||
     createHash("sha256")
@@ -256,20 +257,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try { await setStripeEmailLanguage(existingCustomer.id, emailLocale); }
       catch { console.warn("stripe_email_language_sync_failed"); }
     }
-    const checkoutStateHash = createHash("sha256")
-      .update(
-      `checkout-owned-customer-v2|${existingCustomer?.id || "new"}|${contentLocale}|${session.user.id}|${requestedPlan}|${billingInterval}|${selectedConfig.priceId}|${checkoutCurrency}|${returnPaths.success}|${funnelId}|${
-          customerState.subscriptionState.sort().join("|") || "new"
-        }|${trialIncluded ? "seven_day_trial" : "immediate_charge"}`
-      )
-      .digest("hex")
-      .slice(0, 24);
     const checkoutMetadata = {
       userId: session.user.id,
       note2tabsPlan: requestedPlan.toLowerCase(),
       note2tabsLocale: contentLocale,
       note2tabsVisitorCountry: visitorCountry,
       note2tabsDeviceType: deviceType,
+      note2tabsBrowser: browser,
+      note2tabsOs: os,
+      note2tabsCheckoutIntegration: "hosted_subscription_v1",
       note2tabsBillingInterval: billingInterval,
       note2tabsPriceId: selectedConfig.priceId,
       note2tabsCheckoutCurrency: checkoutCurrency.toLowerCase(),
@@ -291,8 +287,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         : {}),
     };
-    const checkout = await stripeClient.checkout.sessions.create(
-      {
+    const checkoutParams: Stripe.Checkout.SessionCreateParams = {
         ...(existingCustomer
           ? { customer: existingCustomer.id, customer_update: { address: "auto" as const } }
           : { customer_email: session.user.email }),
@@ -314,7 +309,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         success_url: `${baseUrl}${appendCheckoutSessionId(returnPaths.success)}`,
         cancel_url: `${baseUrl}${appendQueryParam(returnPaths.cancel, "funnel_id", funnelId)}`,
         metadata: checkoutMetadata,
-      },
+    };
+    // Stripe requires an idempotency key to identify exactly the same payload.
+    // A cancellation/resume has a new request ID (and can have new attribution).
+    const checkoutStateHash = createHash("sha256")
+      .update(JSON.stringify(checkoutParams))
+      .digest("hex")
+      .slice(0, 32);
+    const checkout = await stripeClient.checkout.sessions.create(
+      checkoutParams,
       { idempotencyKey: `${requestedPlan.toLowerCase()}-${billingInterval}-checkout-${session.user.id}-${checkoutStateHash}` }
     );
     if (!checkout.url) {
@@ -340,6 +343,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       checkout_session_id: checkout.id,
       pricing_market: pricingMarket,
       checkout_currency: checkout.currency || undefined,
+      browser, os,
+      checkout_integration: "hosted_subscription_v1",
+      checkout_created_not_loaded: true,
+      configured_payment_method_types: checkout.payment_method_types,
+      amount_total_minor: checkout.amount_total,
+      promotion_codes_allowed: checkout.allow_promotion_codes === true,
+      billing_address_policy: checkout.billing_address_collection || "auto",
       local_currency_eligible: true,
       site_display_currency: siteDisplayCurrency,
       $insert_id: `checkout-started:${checkout.id}`,

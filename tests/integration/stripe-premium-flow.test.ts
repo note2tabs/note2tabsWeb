@@ -441,7 +441,7 @@ describe("stripe premium flow", () => {
       expect(stripeMock.customers.create).not.toHaveBeenCalled();
       expect(options).not.toHaveProperty("customer");
       expect(options).toMatchObject({customer_email:"user@example.com",locale:"pt-BR",line_items:[{price:"price_test_premium",quantity:1}],metadata:{note2tabsLocale:"pt-BR",note2tabsVisitorCountry:"BR"}});
-      expect(options.cancel_url).toContain("/pt-br/transcribe?resumeTranscription=1&upgrade=cancel");
+      expect(options.cancel_url).toContain("/pt-br/pricing?upgrade=cancel");
       const success = new URL(options.success_url);
       expect(success.pathname).toBe("/pt-br/premium/welcome");
       expect(success.searchParams.get("next")).toBe("/pt-br/transcribe?resumeTranscription=1");
@@ -454,7 +454,7 @@ describe("stripe premium flow", () => {
       expect(res._getStatusCode()).toBe(200);
       const options = stripeMock.checkout.sessions.create.mock.calls[0][0];
       expect(options).toMatchObject({locale:"es",line_items:[{price:"price_test_premium",quantity:1}],metadata:{note2tabsLocale:"es",note2tabsVisitorCountry:"MX"}});
-      expect(options.cancel_url).toContain("/es/transcribe?resumeTranscription=1&upgrade=cancel");
+      expect(options.cancel_url).toContain("/es/pricing?upgrade=cancel");
       const success = new URL(options.success_url);
       expect(success.pathname).toBe("/es/premium/welcome");
       expect(success.searchParams.get("next")).toBe("/es/transcribe?resumeTranscription=1");
@@ -538,12 +538,34 @@ describe("stripe premium flow", () => {
           }),
           success_url:
             "https://note2tabs.test/premium/welcome?next=%2Ftranscribe&session_id={CHECKOUT_SESSION_ID}",
-          cancel_url: "https://note2tabs.test/settings?upgrade=cancel&funnel_id=funnel_test_123",
+          cancel_url: "https://note2tabs.test/pricing?upgrade=cancel&funnel_id=funnel_test_123",
         }),
         expect.objectContaining({
           idempotencyKey: expect.stringMatching(/^premium-monthly-checkout-user_1-/),
         })
       );
+    });
+
+    it("keeps identical requests idempotent but permits cancellation/resume with new metadata", async () => {
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const run = async (requestId: string, source: string) => {
+        const {req, res} = createMocks({method: "POST", headers: {"x-vercel-id": requestId},
+          body: {plan: "premium", funnelId: "funnel_retry_123", source, reason: "plan_comparison"}});
+        await handler(req as any, res as any);
+        expect(res._getStatusCode()).toBe(200);
+        const call = stripeMock.checkout.sessions.create.mock.calls.at(-1);
+        if (!call) throw new Error("Checkout creation was not called");
+        return call;
+      };
+      const first = await run("request-one", "navigation");
+      const repeat = await run("request-one", "navigation");
+      const resumed = await run("request-two", "navigation");
+      const changedSource = await run("request-two", "pricing_page");
+      expect(first[0]).toEqual(repeat[0]);
+      expect(first[1].idempotencyKey).toBe(repeat[1].idempotencyKey);
+      expect(resumed[1].idempotencyKey).not.toBe(first[1].idempotencyKey);
+      expect(changedSource[1].idempotencyKey).not.toBe(resumed[1].idempotencyKey);
+      expect(resumed[0].line_items).toEqual(first[0].line_items);
     });
 
     it("preserves supported local display currencies in checkout metadata", async () => {
@@ -715,7 +737,7 @@ describe("stripe premium flow", () => {
           success_url:
             "https://note2tabs.test/premium/welcome?next=%2Ftranscribe%3FresumeTranscription%3D1&session_id={CHECKOUT_SESSION_ID}",
           cancel_url: expect.stringMatching(
-            /^https:\/\/note2tabs\.test\/transcribe\?resumeTranscription=1&upgrade=cancel&funnel_id=/
+            /^https:\/\/note2tabs\.test\/pricing\?upgrade=cancel&funnel_id=/
           ),
         }),
         expect.any(Object)
@@ -1455,7 +1477,7 @@ describe("stripe premium flow", () => {
           failure_code: "card_declined",
           decline_code: "insufficient_funds",
           failure_type: "card_error",
-          $insert_id: "checkout-payment-failed:cs_failed",
+          $insert_id: "checkout-payment-failed:evt_checkout_failed",
         }),
       }));
       const captured = posthogMock.capture.mock.calls.at(-1)?.[0]?.properties;
@@ -1489,6 +1511,31 @@ describe("stripe premium flow", () => {
         distinctId: "user_1",
         event: "checkout_payment_failed",
       }));
+    });
+
+    it("tracks required payment actions without treating them as failed purchases", async () => {
+      stripeMock.webhooks.constructEvent.mockReturnValue({id:"evt_auth",created:1792000000,type:"payment_intent.requires_action",data:{object:{id:"pi_auth",status:"requires_action",next_action:{type:"use_stripe_sdk"}}}});
+      stripeMock.checkout.sessions.list.mockResolvedValue({data:[{id:"cs_auth",status:"open",metadata:{userId:"user_1",note2tabsPlan:"premium",note2tabsBrowser:"chrome",note2tabsOs:"macos"}}]});
+      const handler=(await import("../../pages/api/stripe/webhook")).default;
+      for(let i=0;i<2;i++)await handler(buildWebhookReq() as any,createResponse() as any);
+      const events=posthogMock.capture.mock.calls.map(c=>c[0]).filter(c=>c.event==="checkout_payment_action_required");
+      expect(events).toHaveLength(2);expect(events[0].uuid).toBe(events[1].uuid);
+      expect(events[0].properties).toMatchObject({browser:"chrome",os:"macos",payment_intent_status:"requires_action",next_action_type:"use_stripe_sdk"});
+      expect(posthogMock.capture).not.toHaveBeenCalledWith(expect.objectContaining({event:"checkout_payment_failed"}));
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it("preserves distinct failed payment attempts while deduplicating webhook retries", async () => {
+      stripeMock.checkout.sessions.list.mockResolvedValue({data:[{id:"cs_retries",metadata:{userId:"user_1",note2tabsPlan:"premium"}}]});
+      const handler=(await import("../../pages/api/stripe/webhook")).default;
+      for(const id of ["evt_failure_1","evt_failure_1","evt_failure_2"]){
+        stripeMock.webhooks.constructEvent.mockReturnValue({id,created:1792000000,type:"payment_intent.payment_failed",data:{object:{id:"pi_retries",status:"requires_payment_method",last_payment_error:{code:"card_declined",type:"card_error"}}}});
+        await handler(buildWebhookReq() as any,createResponse() as any);
+      }
+      const events=posthogMock.capture.mock.calls.map(c=>c[0]).filter(c=>c.event==="checkout_payment_failed");
+      expect(events[0].uuid).toBe(events[1].uuid);expect(events[0].uuid).not.toBe(events[2].uuid);
+      expect(events[0].properties.$insert_id).toBe(events[1].properties.$insert_id);
+      expect(events[0].properties.$insert_id).not.toBe(events[2].properties.$insert_id);
     });
 
     it("schedules card-free school access to end without renewal", async () => {

@@ -152,6 +152,51 @@ export const disbandChordLocal = (snapshot: EditorSnapshot, chordId: number) => 
   return next;
 };
 
+/** Add selected standalone notes to an existing chord without disbanding it. */
+export const mergeNotesIntoChordLocal = (snapshot: EditorSnapshot, chordId: number, noteIds: number[], sourceChordIds: number[] = []) => {
+  const next = cloneEditorSnapshot(snapshot);
+  if (isBassSnapshot(next)) return next;
+  const chord = next.chords.find((item) => item.id === chordId);
+  const ids = new Set(noteIds);
+  const notes = next.notes.filter((note) => ids.has(note.id));
+  const sourceIds = new Set(sourceChordIds.filter((id) => id !== chordId));
+  const sources = next.chords.filter((item) => sourceIds.has(item.id));
+  if (!chord || (!notes.length && !sources.length)) return next;
+  const originalCount = chord.currentTabs.length;
+  const start = Math.min(chord.startTime, ...notes.map((note) => note.startTime), ...sources.map((item) => item.startTime));
+  const end = Math.max(chord.startTime + chord.length, ...notes.map((note) => note.startTime + note.length), ...sources.map((item) => item.startTime + item.length));
+  if (chord.velocities || notes.some((note) => note.velocity !== undefined)) {
+    chord.velocities = [...Array.from({ length: originalCount }, (_, i) => chord.velocities?.[i] ?? 100), ...notes.map((note) => note.velocity ?? 100)];
+  }
+  if (chord.pitchBends || notes.some((note) => note.pitchBend?.length)) {
+    chord.pitchBends = [...Array.from({ length: originalCount }, (_, i) => chord.pitchBends?.[i] ?? []), ...notes.map((note) => note.pitchBend ?? [])];
+  }
+  chord.currentTabs.push(...notes.map((note) => [...note.tab] as TabCoord));
+  chord.ogTabs.push(...notes.map((note) => [...note.tab] as TabCoord));
+  chord.originalMidi.push(...notes.map((note) => note.midiNum));
+  for (const source of sources) {
+    const count = chord.currentTabs.length;
+    if (chord.velocities || source.velocities) {
+      chord.velocities = [...Array.from({ length: count }, (_, i) => chord.velocities?.[i] ?? 100), ...source.currentTabs.map((_, i) => source.velocities?.[i] ?? 100)];
+    }
+    if (chord.pitchBends || source.pitchBends) {
+      chord.pitchBends = [...Array.from({ length: count }, (_, i) => chord.pitchBends?.[i] ?? []), ...source.currentTabs.map((_, i) => source.pitchBends?.[i] ?? [])];
+    }
+    chord.currentTabs.push(...source.currentTabs.map((tab) => [...tab] as TabCoord));
+    chord.ogTabs.push(...source.currentTabs.map((tab, i) => [...(source.ogTabs[i] ?? tab)] as TabCoord));
+    chord.originalMidi.push(...source.originalMidi);
+  }
+  next.chords = next.chords.filter((item) => !sourceIds.has(item.id));
+  chord.startTime = start;
+  chord.length = Math.max(1, end - start);
+  // A saved diagram describes the old membership, not the newly edited chord.
+  delete chord.fingering;
+  delete chord.fingeringIndex;
+  next.notes = next.notes.filter((note) => !ids.has(note.id));
+  next.noteEffects = (next.noteEffects || []).filter((effect) => !ids.has(effect.startNoteId) && !ids.has(effect.endNoteId));
+  return next;
+};
+
 const normalizeCuts = (cuts: CutWithCoord[], totalFrames: number, stringCount = 6): CutWithCoord[] => {
   const normalized = cuts
     .map((cut): CutWithCoord => {

@@ -27,6 +27,28 @@ const buildSnapshot = (
 });
 
 describe("frontend playing-coordinate generator", () => {
+  it("supports modest threshold adjustments without changing default behavior", () => {
+    const source = buildSnapshot(960, [[0, [0, 12], 480], [480, [0, 17], 480]]);
+    const sensitive = structuredClone(source), conservative = structuredClone(source);
+    generatePlayingCoordinatesInSnapshot(sensitive, { cutThreshold: 4.5 });
+    generatePlayingCoordinatesInSnapshot(conservative, { cutThreshold: 6 });
+    expect(sensitive.cutPositionsWithCoords).toHaveLength(2);
+    expect(conservative.cutPositionsWithCoords).toHaveLength(1);
+    const defaults = structuredClone(source), invalid = structuredClone(source);
+    generatePlayingCoordinatesInSnapshot(defaults);
+    generatePlayingCoordinatesInSnapshot(invalid, { cutThreshold: NaN, smoothing: Infinity, barsPerChunk: NaN });
+    expect(invalid).toEqual(defaults);
+  });
+
+  it("detects a modest five-semitone position transition", () => {
+    const snapshot = buildSnapshot(960, [[0, [0, 12], 480], [480, [0, 17], 480]]);
+    generatePlayingCoordinatesInSnapshot(snapshot);
+    expect(snapshot.cutPositionsWithCoords).toEqual([
+      [[0, 480], [2, 12]],
+      [[480, 960], [2, 17]],
+    ]);
+  });
+
   it.each([
     {
       name: "single chunk with a late position change",

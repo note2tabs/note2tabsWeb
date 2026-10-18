@@ -185,7 +185,8 @@ const closestTabs = (
 export const createBackendStyleChordAlternatives = (
   snapshot: Pick<EditorSnapshot, "tuning" | "maxFret">,
   midiContents: number[],
-  playCoord: TabCoord = [0, 0]
+  playCoord: TabCoord = [0, 0],
+  preferPlayingPosition = false
 ) => {
   const seen = new Set<number>();
   const midis = midiContents.map(Number).map(Math.trunc).filter(Number.isFinite).filter((midi) => {
@@ -195,9 +196,14 @@ export const createBackendStyleChordAlternatives = (
   }).filter((midi) => !seen.has(midi - 12));
   const map = new Map<number, TabCoord[]>();
   [...midis, ...midis.map((midi) => midi + 12)].forEach((midi) => map.set(midi, closestTabs(snapshot, playCoord, midi)));
+  const score = (tabs: TabCoord[]) => scoreChord(tabs) + (preferPlayingPosition
+    ? tabs.reduce((sum, [string, fret]) => sum + Math.abs(fret - playCoord[1]) * 0.75 + Math.abs(string - playCoord[0]) * 0.1, 0) / Math.max(1, tabs.length)
+    : 0);
   return generateOctaveCombos(midis)
     .flatMap((combo) => createPossibleTabs(combo, map))
-    .sort((left, right) => scoreChord(left) - scoreChord(right));
+    .map((tabs) => ({ tabs, score: score(tabs) }))
+    .sort((left, right) => left.score - right.score)
+    .map(({ tabs }) => tabs);
 };
 
 type OptimizationContext = {
@@ -300,7 +306,7 @@ export type FingeringOptimizationResult = { chordGroups: NoteChordCluster[]; cre
 
 export const optimizeTrackFingeringInSnapshot = (
   draft: EditorSnapshot,
-  options?: { optimizeChordFingerings?: boolean }
+  options?: { optimizeChordFingerings?: boolean; preferPlayingPosition?: boolean }
 ): FingeringOptimizationResult => {
   const bass = isBassSnapshot(draft);
   const tolerance = Math.max(1, Math.round((draft.framesPerMessure || FIXED_FRAMES_PER_BAR) / 32));
@@ -330,7 +336,7 @@ export const optimizeTrackFingeringInSnapshot = (
       const key = `${midis.join(",")}|${coord[0]},${coord[1]}`;
       let alternatives = chordCache.get(key);
       if (!alternatives) {
-        alternatives = createBackendStyleChordAlternatives(draft, midis, coord);
+        alternatives = createBackendStyleChordAlternatives(draft, midis, coord, options?.preferPlayingPosition);
         chordCache.set(key, alternatives);
       }
       const best = alternatives[0];

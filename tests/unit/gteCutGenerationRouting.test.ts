@@ -10,10 +10,12 @@ const guestApi = fs.readFileSync(
   path.join(process.cwd(), "pages/api/gte-guest/[[...path]].ts"),
   "utf8"
 );
+const optimization = fs.readFileSync(path.join(process.cwd(), "lib/gteOptimization.ts"), "utf8");
 
 describe("smart playing-coordinate generation routing", () => {
   it("routes generation and whole-track fingering optimization through the frontend backend-port", () => {
-    expect(workspace).toContain("generatePlayingCoordinatesInSnapshot(optimized)");
+    expect(workspace.includes("optimizeSelection(snapshotRef.current, selection, options)")).toBe(true);
+    expect(optimization.includes("generatePlayingCoordinatesInSnapshot(coordinateDraft)")).toBe(true);
     expect(workspace).toContain("localApply: generatePlayingCoordinatesInSnapshot");
     expect(workspace).not.toContain("gteApi.generateCuts");
   });

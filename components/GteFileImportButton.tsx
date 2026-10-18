@@ -373,7 +373,7 @@ export default function GteFileImportButton({
         // applySnapshot advances the canvas version. Reload it before the
         // optimization save so a successful import is never mistaken for a
         // failed import because of a stale-version conflict.
-        await optimizeImportedTrackFingerings(targetEditorId);
+        await optimizeImportedTrackFingerings(targetEditorId, undefined, 1, laneIds);
       } catch (optimizationError) {
         await onImported(targetEditorId);
         onError(

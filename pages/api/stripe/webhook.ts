@@ -1,4 +1,5 @@
 import { queuePaidCreditReset } from "../../../lib/creditResetNotices";
+import { checkoutForPaymentIntent, checkoutPaymentDiagnostics, safeCheckoutPaymentDiagnostics } from "../../../lib/checkoutDiagnostics";
 import { setStripeEmailLanguage } from "../../../lib/i18n/stripeEmailLanguage";
 import { accountEmailLocale } from "../../../lib/i18n/accountLanguage";
 import {localeCohort} from "../../../lib/i18n/locale";
@@ -249,6 +250,13 @@ async function trackSubscriptionStarted(
       checkout_attempt_id: session.metadata?.note2tabsCheckoutAttemptId || undefined,
       stripe_event_id: stripeEventId,
       ...checkoutCurrencyProperties(session),
+      ...await checkoutPaymentDiagnostics(stripeClient!, session),
+      payment_status: session.payment_status,
+      amount_total_minor: session.amount_total,
+      billing_interval: session.metadata?.note2tabsBillingInterval,
+      browser: session.metadata?.note2tabsBrowser,
+      os: session.metadata?.note2tabsOs,
+      checkout_integration: session.metadata?.note2tabsCheckoutIntegration,
       event_source: "stripe_webhook",
       $insert_id: `subscription-started:${session.id}`,
     },
@@ -378,9 +386,9 @@ function checkoutCurrencyProperties(session: Stripe.Checkout.Session) {
 
 async function trackCheckoutLifecycle(
   session: Stripe.Checkout.Session,
-  event: "checkout_abandoned" | "checkout_payment_failed",
+  event: "checkout_abandoned" | "checkout_payment_failed" | "checkout_payment_action_required",
   stripeEventId: string,
-  additionalProperties: SafePaymentFailure = {},
+  additionalProperties: SafePaymentFailure & Record<string, unknown> = {},
   occurredAt?: number
 ) {
   const identifier = await resolveUserIdentifierFromCheckoutSession(session);
@@ -411,14 +419,21 @@ async function trackCheckoutLifecycle(
       device_type: session.metadata?.note2tabsDeviceType,
       reason: normalizePremiumFunnelReason(session.metadata?.premiumFunnelReason),
       funnel_id: normalizePremiumFunnelId(session.metadata?.premiumFunnelId) || undefined,
+      browser: session.metadata?.note2tabsBrowser,
+      os: session.metadata?.note2tabsOs,
+      checkout_integration: session.metadata?.note2tabsCheckoutIntegration,
       checkout_status: session.status || undefined,
+      amount_total_minor: session.amount_total,
+      abandonment_observation: event === "checkout_abandoned" ? "session_expired_not_tab_closed" : undefined,
       payment_status: session.payment_status || undefined,
       ...checkoutCurrencyProperties(session),
       event_source: "stripe_webhook",
       ...additionalProperties,
       $insert_id: event === "checkout_payment_failed"
-        ? `checkout-payment-failed:${session.id}`
-        : `checkout-abandoned:${session.id}`,
+        ? `checkout-payment-failed:${stripeEventId}`
+        : event === "checkout_payment_action_required"
+          ? `checkout-payment-action-required:${stripeEventId}`
+          : `checkout-abandoned:${session.id}`,
       stripe_event_id: stripeEventId,
     },
   });
@@ -1022,19 +1037,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    if (event.type === "payment_intent.payment_failed") {
+    if (event.type === "payment_intent.payment_failed" || event.type === "payment_intent.requires_action") {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      const sessions = await stripeClient.checkout.sessions.list({
-        payment_intent: paymentIntent.id,
-        limit: 1,
-      });
-      const checkoutSession = sessions.data[0];
+      const checkoutSession = await checkoutForPaymentIntent(stripeClient, paymentIntent);
       if (checkoutSession?.metadata?.userId && checkoutSession.metadata?.note2tabsPlan) {
         await trackCheckoutLifecycle(
           checkoutSession,
-          "checkout_payment_failed",
+          event.type === "payment_intent.requires_action" ? "checkout_payment_action_required" : "checkout_payment_failed",
           event.id,
-          safePaymentFailure(paymentIntent.last_payment_error),
+          {...safePaymentFailure(paymentIntent.last_payment_error), ...safeCheckoutPaymentDiagnostics(paymentIntent)},
           event.created
         );
       }
