@@ -6964,7 +6964,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         } ${practiceFullscreen ? "gte-practice-fullscreen overflow-y-auto" : ""}`}
   style={
     !isMobileEditMode
-      ? { paddingTop: isMobileViewport && !practiceModeEnabled ? 76 : 12 }
+      ? { paddingTop: isMobileViewport ? (!practiceModeEnabled ? 76 : 12) : 0 }
       : undefined
         }
         onMouseDownCapture={handleMainMouseDownCapture}
