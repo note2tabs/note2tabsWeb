@@ -52,7 +52,17 @@ import {
   getEffectPairKeys,
   orderNotesForEffect,
 } from "../lib/gteNoteEffects";
-import { cloneEditorSnapshot, nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
+import { cloneEditorSnapshot, mergeNotesIntoChordLocal, nextLocalChordId, nextLocalNoteId } from "../lib/gteLocalEditorOps";
+import { buildSubdivisionPlan, subdivideSelection, MAX_SUBDIVISION_PARTS, nextSubdivisionInput, placeSubdivisionHud } from "../lib/gteSubdivision";
+import { getTransposeBounds, transposeSelectionFrets } from "../lib/gteTranspose";
+import { optimizeSelection, type OptimizeOptions, type OptimizeSelection } from "../lib/gteOptimization";
+import GteOptimizeDialog from "./GteOptimizeDialog";
+import GteScaleModeMenu from "./GteScaleModeMenu";
+import { cleanTinyOverlapsInSnapshot, meaningfulConflictInfo } from "../lib/gteOverlapCleanup";
+import { snapSelectionToKey } from "../lib/gteSnapSelectionToKey";
+import { TOOLBAR_SELECTION_TOOLS, TOOL_SELECTION_LABELS, toolAllowsSelection, toolSelectionRule, type PendingSelectionTool } from "../lib/gteToolSelection";
+import { optimizeMergedChord } from "../lib/gteOptimizeMergedChord";
+import { isInsideTabGrid } from "../lib/gteTabGridHitTest";
 import { generatePlayingCoordinatesInSnapshot } from "../lib/gtePlayingCoordinates";
 import {
   finalizeOptimizedTrackFingeringInSnapshot as finalizeOptimizedTrackFingeringCore,
@@ -76,6 +86,9 @@ import {
 } from "../lib/gteChordEditor";
 import type { Chord, ChordFingering, CutWithCoord, EditorSnapshot, Note, NoteEffect, TabCoord, TimingMapV2 } from "../types/gte";
 import TabViewer from "./TabViewer";
+import { estimateChordName } from "../lib/gteChordName";
+import { PropertiesInspectorShell, PropertyNumberField, MusicalDurationField, ChordTransposeControl, NoteFingerings, ChordFingerings, InspectorAction, InspectorDelete } from "./GtePropertiesInspector";
+import { transposeInspectorFrets } from "../lib/gtePropertiesInspector";
 import { buildTabTextFromSnapshot } from "../lib/gteTabText";
 import {
   buildEditorTabView,
@@ -88,6 +101,7 @@ import { RevisionedAutosaveQueue } from "../lib/gteAutosaveQueue";
 import { windowTimelineEvents } from "../lib/gteEditorPerformance";
 import { getPlaybackScrollTarget } from "../lib/gtePlaybackScroll";
 import {
+  GTE_EDITOR_TOOLBAR_GUTTER,
   GTE_TIMELINE_COLUMN_GAP,
   GTE_TIMELINE_END_PADDING,
   GTE_TIMELINE_GUTTER_WIDTH,
@@ -119,17 +133,17 @@ const TOOL_HELP_SECTIONS = [
     tools: [
       ["Merge to Chord", "Combines selected notes or chords into one chord."],
       ["Disband Chord", "Turns the selected chord back into separate notes."],
-      ["Optimize to Coordinates", "Moves selected notes to their best existing playing coordinates."],
       [
-        "Optimize Fingering",
-        "Builds chords from simultaneous notes, generates playing coordinates, and chooses playable fingerings for the whole track.",
+        "Optimize fingerings",
+        "Builds chords and optimizes fingerings using automatic or chosen fret positions, for the selection or whole track.",
       ],
       ["Snap to Key", "Moves selected notes to the nearest notes in the detected key."],
-      ["Quantize", "Aligns selected notes or chords to a rhythmic grid."],
+      ["Snap to beat", "Aligns selected notes or chords to a rhythmic grid."],
       ["Merge Notes", "Joins selected notes on each string into longer notes."],
-      ["Scale", "Proportionally changes selected start times, lengths, or both."],
-      ["Slicing Tool", "Click directly inside a note or chord to split it at that point."],
+      ["Lengthen", "Proportionally changes selected start times, lengths, or both."],
+      ["Subdivide", "Splits overlapping selections together into equally spaced subdivisions."],
       ["Move", "Moves selected notes or chords together along the timeline."],
+      ["Transpose", "Shifts selected frets up or down by semitones without changing timing."],
     ],
   },
   {
@@ -186,6 +200,9 @@ type Props = {
     options?: { recordHistory?: boolean; markDirty?: boolean }
   ) => void;
   allowBackend?: boolean;
+  coordinateEditorMode?: boolean;
+  coordinateEditorCut?: boolean;
+  coordinateEditorEnd?: number;
   embedded?: boolean;
   isActive?: boolean;
   onFocusWorkspace?: () => void;
@@ -272,6 +289,9 @@ type Props = {
     noteIds: number[];
     chordIds: number[];
   }) => void;
+  onCursorActiveChange?: (active: boolean) => void;
+  showFretTypingHint?: boolean;
+  onKeyboardNotePlaced?: () => void;
   onRequestGlobalSelectedShift?: (deltaFrames: number) => boolean | void;
   onBarSelectionStateChange?: (barIndices: number[]) => void;
   onRequestSelectedBarsCopy?: (barIndices: number[]) => void | Promise<void>;
@@ -285,14 +305,6 @@ type Props = {
   mobileViewport?: boolean;
   mobileMode?: "canvas" | "edit";
 };
-
-type PendingSelectionTool =
-  | "quantize"
-  | "scale"
-  | "move"
-  | "hammer-pull"
-  | "slide"
-  | "bend";
 
 type ContextMenuState =
   | {
@@ -320,8 +332,8 @@ type ContextMenuState =
     };
 
 const DEFAULT_STRING_LABELS = ["E", "B", "G", "D", "A", "E"];
-const ROW_HEIGHT = 24;
-const ROW_GAP = 32;
+const ROW_HEIGHT = 20;
+const ROW_GAP = 16;
 const ADD_BAR_BUTTON_SIZE = 40;
 const ADD_BAR_BUTTON_HALF_SIZE = ADD_BAR_BUTTON_SIZE / 2;
 const AddBarIcon = () => (
@@ -350,7 +362,7 @@ const CHORD_PALETTE_EXTENSIONS = [
 const TIME_SIGNATURE_TOP_OPTIONS = Array.from({ length: 64 }, (_, index) => index + 1);
 const TIME_SIGNATURE_BOTTOM_OPTIONS = [1, 2, 4, 8, 16, 32, 64];
 const NOTE_LENGTH_FRACTION_DENOMINATORS = [0.5, 1, 2, 3, 4, 8, 16, 32, 64];
-const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 4, 8, 16, 32, 64];
+const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 4, 8, 16, 32];
 const DEFAULT_CUT_COORD: TabCoord = [2, 0];
 const CUT_SEGMENT_HEIGHT = 20;
 const PLAYING_COORDINATE_OFFSET = 0;
@@ -387,7 +399,7 @@ const SCALE_TOOL_MODE_STORAGE_KEY = "gte-scale-tool-mode-v2";
 const SCALE_TOOL_MODE_RESET_MS = 60_000;
 const SCALE_FACTOR_MIN = 0.1;
 const SCALE_FACTOR_MAX = 8;
-const SCALE_FACTOR_DRAG_PIXELS = 240;
+const SCALE_FACTOR_DRAG_PIXELS = 120;
 const QUANTIZE_SUBDIVISION_MIN = 1;
 const QUANTIZE_SUBDIVISION_MAX = 64;
 const SINGLE_DRAG_ACTIVATION_DISTANCE_PX = 3;
@@ -909,6 +921,7 @@ const computeNoteAlternatesForSnapshot = (
     }))
     .sort((left, right) => left.score - right.score || left.tab[0] - right.tab[0] || left.tab[1] - right.tab[1]);
   return {
+    orderedTabs: ranked.map((item) => item.tab),
     possibleTabs: ranked.filter((item) => !item.blocked).map((item) => item.tab),
     blockedTabs: ranked.filter((item) => item.blocked).map((item) => item.tab),
   };
@@ -1729,14 +1742,6 @@ type MoveSession = {
   anchorPointerFrame: number;
   notes: ScaleEntityBase[];
   chords: ScaleEntityBase[];
-};
-
-type FloatingPanelDragState = {
-  panel: "note" | "chord";
-  offsetX: number;
-  offsetY: number;
-  width: number;
-  height: number;
 };
 
 type DragPointerEventLike = {
@@ -2856,6 +2861,7 @@ function ChordLaneWorkspace({
     if (!isActive) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-gte-optimization-dialog='true']")) return;
       if (isShortcutTextEntryTarget(target)) return;
       if ((event.ctrlKey || event.metaKey) && (event.key === "z" || event.key === "Z")) {
         event.preventDefault();
@@ -5007,6 +5013,8 @@ export default function GteWorkspace({
   barSelectionClearExemptEditorId,
   multiTrackSelectionActive = false,
   onSelectionStateChange,
+  onCursorActiveChange,
+  onKeyboardNotePlaced,
   onRequestGlobalSelectedShift,
   onBarSelectionStateChange,
   onRequestSelectedBarsCopy,
@@ -5019,10 +5027,16 @@ export default function GteWorkspace({
   onRequestBarDrop,
   mobileViewport = false,
   mobileMode,
+  coordinateEditorMode = false,
+  coordinateEditorCut = false,
+  coordinateEditorEnd,
 }: Props) {
   const { t, locale } = useLocale();
   useGteRenderInstrumentation("GteWorkspace", `${editorId}:tab`);
-  if (isChordEditorSnapshot(snapshot)) {
+  const ROW_HEIGHT = coordinateEditorMode ? 15 : 20;
+  const CUT_SEGMENT_HEIGHT = coordinateEditorMode ? 22 : 20;
+  const ROW_GAP = coordinateEditorMode ? 24 : 16;
+  if (isChordEditorSnapshot(snapshot) && !coordinateEditorMode) {
     return (
       <ChordLaneWorkspace
         editorId={editorId}
@@ -5120,8 +5134,8 @@ export default function GteWorkspace({
   const [timeSignature, setTimeSignature] = useState(8);
   const [timeSignatureInput, setTimeSignatureInput] = useState("8");
   const [timeSignatureBottom, setTimeSignatureBottom] = useState(4);
-  const [localDefaultNoteLengthDenominator, setLocalDefaultNoteLengthDenominator] = useState(4);
-  const [localCursorSizeDenominator, setLocalCursorSizeDenominator] = useState(4);
+  const [localDefaultNoteLengthDenominator, setLocalDefaultNoteLengthDenominator] = useState(8);
+  const [localCursorSizeDenominator, setLocalCursorSizeDenominator] = useState(8);
   const defaultNoteLengthDenominator =
     controlledDefaultNoteLengthDenominator ?? localDefaultNoteLengthDenominator;
   const cursorSizeDenominator = controlledCursorSizeDenominator ?? localCursorSizeDenominator;
@@ -5143,6 +5157,7 @@ export default function GteWorkspace({
         onCursorSizeDenominatorChange(next);
       } else {
         setLocalCursorSizeDenominator(next);
+        setLocalDefaultNoteLengthDenominator((current) => Math.min(current, next));
       }
     },
     [cursorSizeDenominator, onCursorSizeDenominatorChange]
@@ -5152,6 +5167,10 @@ export default function GteWorkspace({
   const [localSnapToKeyEnabled, setLocalSnapToKeyEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [optimizingFingering, setOptimizingFingering] = useState(false);
+  const [optimizeDialog, setOptimizeDialog] = useState<{ snapshot: EditorSnapshot; selection: OptimizeSelection } | null>(null);
+  const [optimizeDialogError, setOptimizeDialogError] = useState<string | null>(null);
+  const [overlapCleanupCount, setOverlapCleanupCount] = useState<number | null>(null);
+  const [optimizationSelecting, setOptimizationSelecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [playbackVolume, setPlaybackVolume] = useState(0.6);
   const [localPracticeLoopEnabled, setLocalPracticeLoopEnabled] = useState(false);
@@ -5174,6 +5193,7 @@ export default function GteWorkspace({
   const [draftNote, setDraftNote] = useState<DraftNote | null>(null);
   const [draftNoteAnchor, setDraftNoteAnchor] = useState<DraftNoteAnchor | null>(null);
   const [noteAlternates, setNoteAlternates] = useState<{
+    orderedTabs: TabCoord[];
     possibleTabs: TabCoord[];
     blockedTabs: TabCoord[];
   } | null>(null);
@@ -5215,7 +5235,6 @@ export default function GteWorkspace({
   const [chordMenuAnchor, setChordMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const [chordMenuChordId, setChordMenuChordId] = useState<number | null>(null);
   const [chordMenuDraft, setChordMenuDraft] = useState<{ length: string } | null>(null);
-  const [floatingPanelDrag, setFloatingPanelDrag] = useState<FloatingPanelDragState | null>(null);
   const [editingChordId, setEditingChordId] = useState<number | null>(null);
   const [editingChordAnchor, setEditingChordAnchor] = useState<{ x: number; y: number } | null>(null);
   const [chordNoteMenuAnchor, setChordNoteMenuAnchor] = useState<{ x: number; y: number } | null>(null);
@@ -5255,6 +5274,20 @@ export default function GteWorkspace({
   const [toolHelpOpen, setToolHelpOpen] = useState(false);
   const [tabPreviewOpen, setTabPreviewOpen] = useState(false);
   const [sliceToolActive, setSliceToolActive] = useState(false);
+  useEffect(() => {
+    if (coordinateEditorMode) setCutToolActive(coordinateEditorCut);
+  }, [coordinateEditorMode, coordinateEditorCut]);
+  const [transposeToolActive, setTransposeToolActive] = useState(false);
+  const [transposeOffset, setTransposeOffset] = useState(0);
+  const [transposeInput, setTransposeInput] = useState("0");
+  const [transposeSelection, setTransposeSelection] = useState<{ noteIds: number[]; chordIds: number[] }>({ noteIds: [], chordIds: [] });
+  const [transposeHud, setTransposeHud] = useState({ x: 20, y: 20 });
+  const transposeTypingRef = useRef({ text: "", at: 0 });
+  const [subdivisionParts, setSubdivisionParts] = useState(2);
+  const [subdivisionInput, setSubdivisionInput] = useState("2");
+  const [subdivisionSelection, setSubdivisionSelection] = useState<{ noteIds: number[]; chordIds: number[] }>({ noteIds: [], chordIds: [] });
+  const [subdivisionHud, setSubdivisionHud] = useState({ x: 20, y: 20 });
+  const subdivisionTypingRef = useRef({ text: "", at: 0 });
   const [sliceCursor, setSliceCursor] = useState<{ time: number; rowIndex: number } | null>(null);
   const [cutCursor, setCutCursor] = useState<{ time: number; rowIndex: number } | null>(null);
   const [cutToolActive, setCutToolActive] = useState(false);
@@ -5267,10 +5300,9 @@ export default function GteWorkspace({
   const [scalePreviewChords, setScalePreviewChords] = useState<Record<number, ScalePreviewEntity>>({});
   const [scalePreviewMaxEnd, setScalePreviewMaxEnd] = useState(0);
   const [quantizeDialogOpen, setQuantizeDialogOpen] = useState(false);
-  const [quantizeSubdivision, setQuantizeSubdivision] = useState(4);
-  const [quantizeSubdivisionInput, setQuantizeSubdivisionInput] = useState("4");
-  const [quantizePreScale, setQuantizePreScale] = useState(1);
-  const [quantizePreScaleInput, setQuantizePreScaleInput] = useState("1");
+  const [quantizeSubdivision, setQuantizeSubdivision] = useState(8);
+  const [quantizeSubdivisionInput, setQuantizeSubdivisionInput] = useState("8");
+  const quantizePreScale = 1;
   const [quantizeApplyToLength, setQuantizeApplyToLength] = useState(true);
   const [quantizePreviewNotes, setQuantizePreviewNotes] = useState<Record<number, QuantizePreviewEntity>>({});
   const [quantizePreviewChords, setQuantizePreviewChords] = useState<Record<number, QuantizePreviewEntity>>({});
@@ -5278,6 +5310,7 @@ export default function GteWorkspace({
   const [moveToolActive, setMoveToolActive] = useState(false);
   const [pendingSelectionTool, setPendingSelectionTool] =
     useState<PendingSelectionTool | null>(null);
+  useEffect(() => { setPendingSelectionTool(null); setOptimizationSelecting(false); setOptimizeDialog(null); }, [editorId, isActive]);
   const [movePreviewNotes, setMovePreviewNotes] = useState<Record<number, QuantizePreviewEntity>>({});
   const [movePreviewChords, setMovePreviewChords] = useState<Record<number, QuantizePreviewEntity>>({});
   const [movePreviewMaxEnd, setMovePreviewMaxEnd] = useState(0);
@@ -5383,7 +5416,6 @@ export default function GteWorkspace({
   const noteFretTypingAtRef = useRef(0);
   // A controlled value comes from the editor-level preference store, so it
   // must not be overwritten by the time-signature default during hydration.
-  const defaultNoteLengthUserChangedRef = useRef(controlledDefaultNoteLengthDenominator !== undefined);
   const previousTimeSignatureRef = useRef(8);
   const previousTimeSignatureBottomRef = useRef(4);
   // Only a time signature the user committed here should rescale the cursor
@@ -5397,8 +5429,11 @@ export default function GteWorkspace({
   const lastAddedNoteLengthRef = useRef(DEFAULT_NOTE_LENGTH);
   const applyingSharedScrollRef = useRef(false);
   const scaleSessionRef = useRef<ScaleSession | null>(null);
+  const scaleDragDistanceRef = useRef(0);
+  const scaleDragPointerRef = useRef({ x: 0, y: 0 });
   const quantizeSessionRef = useRef<QuantizeSession | null>(null);
   const moveSessionRef = useRef<MoveSession | null>(null);
+  const moveEdgeOffsetRef = useRef(0);
   const movePreviewRef = useRef<{
     notes: Record<number, QuantizePreviewEntity>;
     chords: Record<number, QuantizePreviewEntity>;
@@ -5486,6 +5521,9 @@ export default function GteWorkspace({
   const timelineWidth = viewportTimelineWidth;
   const timelineChromeWidth = viewportTimelineWidth + (isMobileEditMode ? 0 : 40);
   const rowHeight = ROW_HEIGHT * stringLabels.length;
+  const canvasNoteHeight = ROW_HEIGHT - (coordinateEditorMode ? 2 : mobileViewport ? 4 : 6);
+  // The 1px separator occupies the top pixel of each row's visible interior.
+  const canvasNoteTopInset = (ROW_HEIGHT - canvasNoteHeight + 1) / 2;
   const coordinateBandHeight = showPlayingCoordinates
     ? PLAYING_COORDINATE_OFFSET + CUT_SEGMENT_HEIGHT
     : 0;
@@ -5563,10 +5601,6 @@ export default function GteWorkspace({
     (frames: number) => formatNoteLengthOption(getNearestNoteFractionDenominator(frames)),
     [getNearestNoteFractionDenominator]
   );
-  useEffect(() => {
-    if (defaultNoteLengthUserChangedRef.current) return;
-    setDefaultNoteLengthDenominator(getNearestNoteLengthDenominator(timeSignatureBottom));
-  }, [timeSignatureBottom]);
   useEffect(() => {
     const previousTop = Math.max(1, Math.round(previousTimeSignatureRef.current));
     const previousBottom = Math.max(1, Math.round(previousTimeSignatureBottomRef.current));
@@ -6584,6 +6618,11 @@ export default function GteWorkspace({
     return snapshot.chords.find((chord) => chord.id === activeId) || null;
   }, [snapshot.chords, activeChordIds]);
 
+  const selectedChordName = useMemo(
+    () => selectedChord ? estimateChordName(selectedChord.currentTabs.map((tab) => getSnapshotTabMidi({ tuning: snapshot.tuning }, tab, 0))) : null,
+    [selectedChord, snapshot.tuning]
+  );
+
   const cutBoundaries = useMemo(
     () =>
       segmentEdits
@@ -6750,11 +6789,11 @@ export default function GteWorkspace({
       const availableWidth = isMobileEditMode
         ? Math.max(1, visibleContainerWidth - 2)
         : Math.max(240, visibleContainerWidth - 16);
-      const fittedBars = mobileViewport
+      const fittedBars = coordinateEditorMode ? Math.max(1, Math.min(4, normalizedSharedViewportBars)) : mobileViewport
         ? Math.max(1, Math.min(2, normalizedSharedViewportBars))
         : TARGET_VISIBLE_BARS;
       const rawScale = availableWidth / Math.max(1, framesPerMeasure * fittedBars);
-      const nextScale = isMobileEditMode
+      const nextScale = isMobileEditMode || coordinateEditorMode
         ? Math.max(0.05, Math.min(4, rawScale))
         : Math.max(0.5, Math.min(4, rawScale));
       setAutoBaseScale((prev) => (Math.abs(prev - nextScale) < 0.01 ? prev : nextScale));
@@ -6769,7 +6808,7 @@ export default function GteWorkspace({
       observer.disconnect();
       window.visualViewport?.removeEventListener("resize", computeScale);
     };
-  }, [framesPerMeasure, isMobileEditMode, mobileViewport, normalizedSharedViewportBars, sharedTimelineBaseScale]);
+  }, [framesPerMeasure, isMobileEditMode, mobileViewport, normalizedSharedViewportBars, sharedTimelineBaseScale, coordinateEditorMode]);
 
   useEffect(() => {
     const container = tabViewEnabled ? tabViewScrollRef.current : timelineOuterRef.current;
@@ -6980,53 +7019,7 @@ export default function GteWorkspace({
     };
   }, []);
 
-  const conflictInfo = useMemo(() => {
-    const events: Array<{
-      key: string;
-      stringIndex: number;
-      start: number;
-      end: number;
-      noteId?: number;
-    }> = [];
-    snapshot.notes.forEach((note) => {
-      events.push({
-        key: `note-${note.id}`,
-        stringIndex: note.tab[0],
-        start: note.startTime,
-        end: note.startTime + note.length,
-        noteId: note.id,
-      });
-    });
-    snapshot.chords.forEach((chord) => {
-      chord.currentTabs.forEach((tab, idx) => {
-        events.push({
-          key: `chord-${chord.id}-${idx}`,
-          stringIndex: tab[0],
-          start: chord.startTime,
-          end: chord.startTime + chord.length,
-        });
-      });
-    });
-    const conflictKeys = new Set<string>();
-    for (let i = 0; i < events.length; i += 1) {
-      for (let j = i + 1; j < events.length; j += 1) {
-        const a = events[i];
-        const b = events[j];
-        if (a.stringIndex !== b.stringIndex) continue;
-        if (a.start < b.end && b.start < a.end) {
-          conflictKeys.add(a.key);
-          conflictKeys.add(b.key);
-        }
-      }
-    }
-    const noteConflicts = new Set<number>();
-    events.forEach((evt) => {
-      if (evt.noteId && conflictKeys.has(evt.key)) {
-        noteConflicts.add(evt.noteId);
-      }
-    });
-    return { noteConflicts, conflictKeys };
-  }, [snapshot.notes, snapshot.chords]);
+  const conflictInfo = useMemo(() => meaningfulConflictInfo(snapshot), [snapshot.notes, snapshot.chords, snapshot.fps, snapshot.framesPerMessure, snapshot.timeSignature]);
 
   const cloneSnapshot = useCallback((value: EditorSnapshot) => {
     return JSON.parse(JSON.stringify(value)) as EditorSnapshot;
@@ -7560,15 +7553,22 @@ export default function GteWorkspace({
       };
 
       const scaleItemLength = (value: number) => {
-        if (snapToGridEnabled) {
-          return getBeatSubdivisionGridLength(
-            value * normalizedFactor,
-            timeSignature,
-            normalizedSnapSubdivisionsPerBeat,
-            "round"
-          );
+        // Short notes use a sixteenth note as their 1x length baseline.
+        const baseLength = Math.max(value, noteFractionDenominatorToFrames(16));
+        const scaledLength = clampEventLength(Math.trunc(baseLength * normalizedFactor));
+        if (!snapToGridEnabled) return scaledLength;
+
+        // Length scaling has its own musical snap sizes, independent of the
+        // cursor/grid subdivision. Above an eighth note, use eighth-note steps.
+        const eighthNoteLength = noteFractionDenominatorToFrames(8);
+        if (scaledLength > eighthNoteLength) {
+          return clampEventLength(Math.round(scaledLength / eighthNoteLength) * eighthNoteLength);
         }
-        return clampEventLength(Math.trunc(value * normalizedFactor));
+        return [8, 16, 32, 64]
+          .map(noteFractionDenominatorToFrames)
+          .reduce((nearest, candidate) =>
+            Math.abs(candidate - scaledLength) < Math.abs(nearest - scaledLength) ? candidate : nearest
+          );
       };
 
       session.notes.forEach((note) => {
@@ -7587,7 +7587,7 @@ export default function GteWorkspace({
 
       return { notes, chords, maxEnd, factor: normalizedFactor };
     },
-    [clamp, framesPerMeasure, normalizedSnapSubdivisionsPerBeat, snapToGridEnabled, timeSignature]
+    [clamp, framesPerMeasure, normalizedSnapSubdivisionsPerBeat, noteFractionDenominatorToFrames, snapToGridEnabled, timeSignature]
   );
 
   const applyScalePreview = useCallback(
@@ -7644,6 +7644,8 @@ export default function GteWorkspace({
         ...chords.map((item) => item.startTime)
       );
       const nextAnchor = anchor ?? mousePosRef.current;
+      scaleDragDistanceRef.current = 0;
+      scaleDragPointerRef.current = { ...nextAnchor };
       scaleSessionRef.current = {
         anchorX: nextAnchor.x,
         notes,
@@ -7768,7 +7770,7 @@ export default function GteWorkspace({
             );
           }
           if (update.changedLength) {
-            last = await gteApi.setNoteLength(editorId, noteId, update.length, snapToGridEnabled);
+            last = await gteApi.setNoteLength(editorId, noteId, update.length, false);
           }
         }
         for (const update of chordUpdates) {
@@ -7782,7 +7784,7 @@ export default function GteWorkspace({
             );
           }
           if (update.changedLength) {
-            last = await gteApi.setChordLength(editorId, chordId, update.length, snapToGridEnabled);
+            last = await gteApi.setChordLength(editorId, chordId, update.length, false);
           }
         }
         return last ?? {};
@@ -7808,7 +7810,7 @@ export default function GteWorkspace({
       const parsedSubdivision = Number(subdivisionValue);
       const parsedPreScale = Number(preScaleValue);
       const subdivisions = clamp(
-        Math.round(Number.isFinite(parsedSubdivision) ? parsedSubdivision : 4),
+        Math.round(Number.isFinite(parsedSubdivision) ? parsedSubdivision : 8),
         QUANTIZE_SUBDIVISION_MIN,
         QUANTIZE_SUBDIVISION_MAX
       );
@@ -7819,7 +7821,8 @@ export default function GteWorkspace({
       );
       const beatsPerBar = Math.max(1, Math.round(timeSignature));
       const beatFrames = framesPerMeasure / beatsPerBar;
-      const gridFrames = Math.max(1, beatFrames / subdivisions);
+      const gridFrames = Math.max(1, beatFrames * timeSignatureBottom / subdivisions);
+      const lengthGridFrames = Math.max(1, gridFrames / 2);
       const notes: Record<number, QuantizePreviewEntity> = {};
       const chords: Record<number, QuantizePreviewEntity> = {};
       let maxEnd = 0;
@@ -7831,7 +7834,8 @@ export default function GteWorkspace({
       const quantizeLength = (length: number) => {
         if (!applyToLength) return Math.max(1, Math.round(length));
         const scaledLength = Math.max(1, length * preScale);
-        return Math.max(1, Math.round(Math.round(scaledLength / gridFrames) * gridFrames));
+        // Prefer the longer duration near the midpoint without extending exact grid lengths.
+        return Math.max(1, Math.round(Math.floor(scaledLength / lengthGridFrames + 0.6) * lengthGridFrames));
       };
 
       session.notes.forEach((note) => {
@@ -7850,7 +7854,7 @@ export default function GteWorkspace({
 
       return { notes, chords, maxEnd, subdivisions, preScale };
     },
-    [clamp, framesPerMeasure, timeSignature]
+    [clamp, framesPerMeasure, timeSignature, timeSignatureBottom]
   );
 
   const applyQuantizePreview = useCallback(
@@ -7867,10 +7871,8 @@ export default function GteWorkspace({
       setQuantizePreviewChords(preview.chords);
       setQuantizePreviewMaxEnd(preview.maxEnd);
       setQuantizeSubdivision(preview.subdivisions);
-      setQuantizePreScale(preview.preScale);
       if (options?.syncInputs !== false) {
         setQuantizeSubdivisionInput(String(preview.subdivisions));
-        setQuantizePreScaleInput(formatScaleFactor(preview.preScale));
       }
     },
     [computeQuantizePreview]
@@ -7894,7 +7896,7 @@ export default function GteWorkspace({
       .filter((chord) => chordIds.includes(chord.id))
       .map((chord) => ({ id: chord.id, startTime: chord.startTime, length: chord.length }));
     if (!notes.length && !chords.length) {
-      setError("Select at least one note/chord before using Quantize.");
+      setError("Select at least one note/chord before using Snap to beat.");
       return false;
     }
     setError(null);
@@ -8173,6 +8175,7 @@ export default function GteWorkspace({
       );
       const nextAnchor = anchor ?? mousePosRef.current;
       const anchorPointerFrame = getMovePointerFrame(nextAnchor.x, nextAnchor.y) ?? anchorStart;
+      moveEdgeOffsetRef.current = 0;
       moveSessionRef.current = {
         anchorX: nextAnchor.x,
         anchorStart: Number.isFinite(anchorStart) ? anchorStart : 0,
@@ -8323,40 +8326,112 @@ export default function GteWorkspace({
 
   useEffect(() => {
     if (!scaleToolActive) return;
-    const handleMove = (event: globalThis.MouseEvent) => {
-      const session = scaleSessionRef.current;
-      if (!session) return;
-      const deltaX = event.clientX - session.anchorX;
-      const nextFactor = 1 + deltaX / SCALE_FACTOR_DRAG_PIXELS;
+    let animationFrame = 0;
+    let previousTime: number | null = null;
+    let edgeEnabled = false;
+    const updatePreview = () => {
+      if (!scaleSessionRef.current) return;
+      const deltaX = scaleDragDistanceRef.current;
+      // Linear enlargement with reciprocal shrinking: smooth around 1x,
+      // proportional in both directions, and without exponential acceleration.
+      const dragAmount = deltaX / SCALE_FACTOR_DRAG_PIXELS;
+      const nextFactor = dragAmount >= 0 ? 1 + dragAmount : 1 / (1 - dragAmount);
       applyScalePreview(nextFactor, {
         mode: scaleToolMode,
         syncInput: true,
-        cursor: { x: event.clientX, y: event.clientY },
+        cursor: scaleDragPointerRef.current,
       });
     };
+    const handleMove = (event: globalThis.MouseEvent) => {
+      scaleDragDistanceRef.current += event.clientX - scaleDragPointerRef.current.x;
+      scaleDragPointerRef.current = { x: event.clientX, y: event.clientY };
+      edgeEnabled = true;
+      updatePreview();
+    };
+    const pauseEdgeScaling = () => {
+      edgeEnabled = false;
+      previousTime = null;
+    };
+    const tick = (time: number) => {
+      const elapsed = previousTime === null ? 0 : Math.min(time - previousTime, 50);
+      previousTime = time;
+      if (edgeEnabled && !mobileViewport && document.hasFocus() && !document.hidden && scaleSessionRef.current) {
+        const edgeWidth = 32;
+        const x = scaleDragPointerRef.current.x;
+        const direction = x < edgeWidth
+          ? -Math.min(1, (edgeWidth - x) / edgeWidth)
+          : x > window.innerWidth - edgeWidth
+            ? Math.min(1, (x - window.innerWidth + edgeWidth) / edgeWidth)
+            : 0;
+        if (direction !== 0) {
+          // Continue at up to 240 virtual drag pixels/second without hiding the cursor.
+          scaleDragDistanceRef.current += direction * 240 * elapsed / 1000;
+          updatePreview();
+        }
+      }
+      animationFrame = window.requestAnimationFrame(tick);
+    };
     window.addEventListener("mousemove", handleMove);
+    window.addEventListener("blur", pauseEdgeScaling);
+    document.addEventListener("visibilitychange", pauseEdgeScaling);
+    animationFrame = window.requestAnimationFrame(tick);
     return () => {
       window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("blur", pauseEdgeScaling);
+      document.removeEventListener("visibilitychange", pauseEdgeScaling);
+      window.cancelAnimationFrame(animationFrame);
     };
-  }, [applyScalePreview, scaleToolActive, scaleToolMode]);
+  }, [applyScalePreview, mobileViewport, scaleToolActive, scaleToolMode]);
 
   useEffect(() => {
     if (!moveToolActive) return;
-    const handleMove = (event: globalThis.MouseEvent) => {
+    let animationFrame = 0;
+    let previousTime: number | null = null;
+    let edgeEnabled = false;
+    let pointer = { ...mousePosRef.current };
+    const updatePreview = () => {
       const session = moveSessionRef.current;
       if (!session) return;
-      const pointerFrame = getMovePointerFrame(event.clientX, event.clientY);
-      applyMovePreview(
-        pointerFrame === null
-          ? (event.clientX - session.anchorX) / Math.max(scale, 0.0001)
-          : pointerFrame - session.anchorPointerFrame
-      );
+      const pointerFrame = getMovePointerFrame(pointer.x, pointer.y);
+      const delta = pointerFrame === null
+        ? (pointer.x - session.anchorX) / Math.max(scale, 0.0001)
+        : pointerFrame - session.anchorPointerFrame;
+      applyMovePreview(delta + moveEdgeOffsetRef.current);
+    };
+    const handleMove = (event: globalThis.MouseEvent) => {
+      pointer = { x: event.clientX, y: event.clientY };
+      edgeEnabled = true;
+      updatePreview();
+    };
+    const pauseEdgeMovement = () => { edgeEnabled = false; previousTime = null; };
+    const tick = (time: number) => {
+      const elapsed = previousTime === null ? 0 : Math.min(time - previousTime, 50);
+      previousTime = time;
+      if (edgeEnabled && !mobileViewport && document.hasFocus() && !document.hidden && moveSessionRef.current) {
+        const edgeWidth = 32;
+        const direction = pointer.x < edgeWidth
+          ? -Math.min(1, (edgeWidth - pointer.x) / edgeWidth)
+          : pointer.x > window.innerWidth - edgeWidth
+            ? Math.min(1, (pointer.x - window.innerWidth + edgeWidth) / edgeWidth)
+            : 0;
+        if (direction !== 0) {
+          moveEdgeOffsetRef.current += direction * 240 * elapsed / 1000 / Math.max(scale, 0.0001);
+          updatePreview();
+        }
+      }
+      animationFrame = window.requestAnimationFrame(tick);
     };
     window.addEventListener("mousemove", handleMove);
+    window.addEventListener("blur", pauseEdgeMovement);
+    document.addEventListener("visibilitychange", pauseEdgeMovement);
+    animationFrame = window.requestAnimationFrame(tick);
     return () => {
       window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("blur", pauseEdgeMovement);
+      document.removeEventListener("visibilitychange", pauseEdgeMovement);
+      window.cancelAnimationFrame(animationFrame);
     };
-  }, [applyMovePreview, getMovePointerFrame, moveToolActive, scale]);
+  }, [applyMovePreview, getMovePointerFrame, mobileViewport, moveToolActive, scale]);
 
   useEffect(() => {
     if (!moveToolActive) return;
@@ -8376,7 +8451,7 @@ export default function GteWorkspace({
         const session = moveSessionRef.current;
         const pointerFrame = session ? getMovePointerFrame(pointer.x, pointer.y) : null;
         if (session && pointerFrame !== null) {
-          applyMovePreview(pointerFrame - session.anchorPointerFrame);
+          applyMovePreview(pointerFrame - session.anchorPointerFrame + moveEdgeOffsetRef.current);
         }
       }
       animationFrame = window.requestAnimationFrame(tick);
@@ -8418,9 +8493,9 @@ export default function GteWorkspace({
       if (session) {
         const pointerFrame = getMovePointerFrame(event.clientX, event.clientY);
         applyMovePreview(
-          pointerFrame === null
+          (pointerFrame === null
             ? (event.clientX - session.anchorX) / Math.max(scale, 0.0001)
-            : pointerFrame - session.anchorPointerFrame
+            : pointerFrame - session.anchorPointerFrame) + moveEdgeOffsetRef.current
         );
       }
       commitMoveTool();
@@ -8430,32 +8505,6 @@ export default function GteWorkspace({
       window.removeEventListener("mousedown", handleMouseDownCapture, true);
     };
   }, [applyMovePreview, commitMoveTool, getMovePointerFrame, moveToolActive, scale]);
-
-  useEffect(() => {
-    if (!floatingPanelDrag) return;
-    const handleMove = (event: globalThis.MouseEvent) => {
-      const nextAnchor = clampFloatingPanelAnchor(
-        event.clientX - floatingPanelDrag.offsetX,
-        event.clientY - floatingPanelDrag.offsetY,
-        floatingPanelDrag.width,
-        floatingPanelDrag.height
-      );
-      if (floatingPanelDrag.panel === "note") {
-        setNoteMenuAnchor(nextAnchor);
-      } else {
-        setChordMenuAnchor(nextAnchor);
-      }
-    };
-    const handleUp = () => {
-      setFloatingPanelDrag(null);
-    };
-    window.addEventListener("mousemove", handleMove);
-    window.addEventListener("mouseup", handleUp);
-    return () => {
-      window.removeEventListener("mousemove", handleMove);
-      window.removeEventListener("mouseup", handleUp);
-    };
-  }, [floatingPanelDrag]);
 
   useEffect(() => {
     if (!scaleToolActive) return;
@@ -8548,17 +8597,207 @@ export default function GteWorkspace({
     });
   }, [deactivateScaleTool]);
 
+  const positionSubdivisionHud = useCallback((noteIds: number[], chordIds: number[]) => {
+    const notes = new Set(noteIds), chords = new Set(chordIds);
+    const rects = Array.from(timelineRef.current?.querySelectorAll<HTMLElement>("[data-tool-select-note], [data-tool-select-chord]") ?? [])
+      .filter((element) => notes.has(Number(element.dataset.toolSelectNote)) || chords.has(Number(element.dataset.toolSelectChord)))
+      .map((element) => element.getBoundingClientRect());
+    setSubdivisionHud(placeSubdivisionHud(rects, { width: window.innerWidth, height: window.innerHeight }));
+  }, []);
+
   const toggleSliceTool = useCallback(() => {
-    setSliceToolActive((prev) => {
-      const next = !prev;
-      if (next) {
-        setPendingSelectionTool(null);
-        setCutToolActive(false);
-        deactivateScaleTool();
+    if (sliceToolActive) { setSliceToolActive(false); return; }
+    if (selectionActionsLocked || selectedNoteIds.length + activeChordIds.length === 0) {
+      setError("Select notes or chords before subdividing.");
+      return;
+    }
+    setSubdivisionSelection({ noteIds: [...selectedNoteIds], chordIds: [...activeChordIds] });
+    setSubdivisionParts(2);
+    setSubdivisionInput("2");
+    subdivisionTypingRef.current = { text: "", at: 0 };
+    positionSubdivisionHud(selectedNoteIds, activeChordIds);
+    setPendingSelectionTool(null);
+    setCutToolActive(false);
+    deactivateScaleTool();
+    deactivateMoveTool();
+    deactivateQuantizeTool();
+    setSliceToolActive(true);
+  }, [activeChordIds, deactivateMoveTool, deactivateQuantizeTool, deactivateScaleTool, selectedNoteIds, selectionActionsLocked, sliceToolActive, positionSubdivisionHud]);
+
+  useEffect(() => {
+    if (!sliceToolActive) return;
+    const reposition = () => positionSubdivisionHud(subdivisionSelection.noteIds.map(resolveNoteId), subdivisionSelection.chordIds.map(resolveChordId));
+    reposition();
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+    return () => { window.removeEventListener("resize", reposition); window.removeEventListener("scroll", reposition, true); };
+  }, [sliceToolActive, subdivisionSelection, positionSubdivisionHud, resolveNoteId, resolveChordId, scale]);
+
+  const subdivisionPlan = useMemo(() => sliceToolActive ? buildSubdivisionPlan(snapshot,
+    subdivisionSelection.noteIds.map(resolveNoteId), subdivisionSelection.chordIds.map(resolveChordId), subdivisionParts) : [],
+    [snapshot, sliceToolActive, subdivisionSelection, subdivisionParts, resolveNoteId, resolveChordId]);
+
+  useEffect(() => {
+    if (sliceToolActive && (!isActive || effectiveIsPlaying || tabViewEnabled || practiceMode)) setSliceToolActive(false);
+  }, [sliceToolActive, isActive, effectiveIsPlaying, tabViewEnabled, practiceMode]);
+
+  const commitSubdivision = () => {
+    const parts = Number(subdivisionInput);
+    if (!Number.isInteger(parts) || parts < 2 || parts > MAX_SUBDIVISION_PARTS) return;
+    const noteIds = subdivisionSelection.noteIds.map(resolveNoteId);
+    const chordIds = subdivisionSelection.chordIds.map(resolveChordId);
+    setSliceToolActive(false);
+    setSliceCursor(null);
+    void runMutation(async () => ({}), { localApply: (draft) => {
+      Object.assign(draft, subdivideSelection(draft, buildSubdivisionPlan(draft, noteIds, chordIds, parts)));
+    } });
+    setSelectedNoteIds([]);
+    setSelectedChordIds([]);
+  };
+
+  useEffect(() => {
+    if (!sliceToolActive || !isActive) return;
+    const setCount = (text: string) => {
+      setSubdivisionInput(text);
+      const number = Number(text);
+      if (Number.isInteger(number) && number >= 2 && number <= MAX_SUBDIVISION_PARTS) setSubdivisionParts(number);
+    };
+    const keydown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const isOwnInput = Boolean(target?.closest("[data-subdivision-hud]"));
+      if (!isOwnInput && target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      if (event.key === "Escape" || event.key === "Enter") {
+        if (event.key === "Enter" && target?.closest("[data-subdivision-hud] button")) return;
+        event.preventDefault(); event.stopImmediatePropagation();
+        if (event.key === "Escape") setSliceToolActive(false); else commitSubdivision();
+      } else if (!isOwnInput && /^\d$/.test(event.key)) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        const previous = subdivisionTypingRef.current;
+        const text = nextSubdivisionInput(previous, event.key, Date.now());
+        if (text.length <= 2 && Number(text) <= MAX_SUBDIVISION_PARTS) {
+          subdivisionTypingRef.current = { text, at: Date.now() }; setCount(text);
+        }
+      } else if (!isOwnInput && event.key === "Backspace") {
+        event.preventDefault(); event.stopImmediatePropagation();
+        const text = subdivisionInput.slice(0, -1);
+        subdivisionTypingRef.current = { text, at: Date.now() }; setCount(text);
       }
-      return next;
-    });
-  }, [deactivateScaleTool]);
+    };
+    const wheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey || event.deltaY === 0) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      const value = Math.max(2, Math.min(MAX_SUBDIVISION_PARTS, subdivisionParts + (event.deltaY < 0 ? 1 : -1)));
+      subdivisionTypingRef.current = { text: "", at: 0 }; setCount(String(value));
+    };
+    const click = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (event.button !== 0 || target?.closest("[data-gte-floating-ui='true'], button, input, select, a")) return;
+      event.preventDefault(); event.stopImmediatePropagation(); commitSubdivision();
+    };
+    window.addEventListener("keydown", keydown, true);
+    window.addEventListener("wheel", wheel, { capture: true, passive: false });
+    window.addEventListener("mousedown", click, true);
+    return () => {
+      window.removeEventListener("keydown", keydown, true);
+      window.removeEventListener("wheel", wheel, true);
+      window.removeEventListener("mousedown", click, true);
+    };
+  }, [sliceToolActive, isActive, subdivisionInput, subdivisionParts, subdivisionSelection, resolveNoteId, resolveChordId]);
+
+  const transposeNoteIds = useMemo(() => new Set(transposeSelection.noteIds.map(resolveNoteId)), [transposeSelection, resolveNoteId]);
+  const transposeChordIds = useMemo(() => new Set(transposeSelection.chordIds.map(resolveChordId)), [transposeSelection, resolveChordId]);
+  const transposeBounds = useMemo(() => getTransposeBounds(snapshot, [...transposeNoteIds], [...transposeChordIds], maxFret),
+    [snapshot, transposeNoteIds, transposeChordIds, maxFret]);
+
+  const toggleTransposeTool = () => {
+    if (transposeToolActive) { setTransposeToolActive(false); return; }
+    if (selectionActionsLocked || selectedNoteIds.length + activeChordIds.length === 0) return;
+    setTransposeSelection({ noteIds: [...selectedNoteIds], chordIds: [...activeChordIds] });
+    setTransposeOffset(0); setTransposeInput("0");
+    transposeTypingRef.current = { text: "", at: 0 };
+    const pointer = mousePosRef.current;
+    setTransposeHud({ x: Math.max(12, Math.min(pointer.x + 12, window.innerWidth - 188)), y: Math.max(12, Math.min(pointer.y + 12, window.innerHeight - 120)) });
+    deactivateScaleTool(); deactivateMoveTool(); deactivateQuantizeTool();
+    setSliceToolActive(false); setCutToolActive(false); setPendingSelectionTool(null);
+    setTransposeToolActive(true);
+  };
+
+  const updateTransposeInput = (text: string) => {
+    if (!/^[+-]?\d{0,2}$/.test(text)) return;
+    setTransposeInput(text);
+    const value = Number(text);
+    if (transposeBounds && /^[+-]?\d+$/.test(text) && Number.isInteger(value) && value >= transposeBounds.min && value <= transposeBounds.max) setTransposeOffset(value);
+  };
+  const stepTranspose = (direction: number) => {
+    if (!transposeBounds) return;
+    const value = Math.max(transposeBounds.min, Math.min(transposeBounds.max, transposeOffset + direction));
+    setTransposeOffset(value); setTransposeInput(String(value));
+    transposeTypingRef.current = { text: "", at: 0 };
+  };
+  const commitTranspose = () => {
+    if (!/^[+-]?\d+$/.test(transposeInput)) return;
+    const value = Number(transposeInput);
+    const noteIds = [...transposeNoteIds], chordIds = [...transposeChordIds];
+    if (!transposeSelectionFrets(snapshotRef.current, noteIds, chordIds, value, maxFret)) return;
+    setTransposeToolActive(false);
+    if (value === 0) return;
+    void runMutation(async () => ({}), { localApply: (draft) => {
+      const transposed = transposeSelectionFrets(draft, noteIds, chordIds, value, maxFret);
+      if (transposed) Object.assign(draft, transposed);
+    } });
+  };
+
+  useEffect(() => {
+    if (transposeToolActive && (!isActive || effectiveIsPlaying || tabViewEnabled || practiceMode || sliceToolActive || scaleToolActive || moveToolActive || cutToolActive || quantizeDialogOpen)) setTransposeToolActive(false);
+  }, [transposeToolActive, isActive, effectiveIsPlaying, tabViewEnabled, practiceMode, sliceToolActive, scaleToolActive, moveToolActive, cutToolActive, quantizeDialogOpen]);
+
+  useEffect(() => {
+    if (!transposeToolActive || !isActive) return;
+    const keydown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      const ownInput = Boolean(target?.closest("[data-transpose-hud]"));
+      if (!ownInput && target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      if (ownInput && target?.closest("button")) return;
+      if (event.key === "Escape" || event.key === "Enter") {
+        event.preventDefault(); event.stopImmediatePropagation();
+        if (event.key === "Escape") setTransposeToolActive(false); else commitTranspose();
+      } else if (event.key === "ArrowUp" || event.key === "ArrowDown" || (!ownInput && (event.key === "+" || event.key === "=" || event.key === "-"))) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        stepTranspose(event.key === "ArrowDown" || event.key === "-" ? -1 : 1);
+        if (event.key === "-") transposeTypingRef.current = { text: "-", at: Date.now() };
+      } else if (!ownInput && /^\d$/.test(event.key)) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        const previous = transposeTypingRef.current;
+        const text = (Date.now() - previous.at < KEYBOARD_FRET_TYPE_TIMEOUT_MS ? previous.text : "") + event.key;
+        if (/^-?\d{1,2}$/.test(text)) {
+          transposeTypingRef.current = { text, at: Date.now() }; updateTransposeInput(text);
+        }
+      } else if (!ownInput && event.key === "Backspace") {
+        event.preventDefault(); event.stopImmediatePropagation();
+        const text = transposeInput.slice(0, -1);
+        transposeTypingRef.current = { text, at: Date.now() }; updateTransposeInput(text);
+      }
+    };
+    const wheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey || event.deltaY === 0) return;
+      event.preventDefault(); event.stopImmediatePropagation(); stepTranspose(event.deltaY < 0 ? 1 : -1);
+    };
+    const click = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (event.button !== 0 || target?.closest("[data-gte-floating-ui='true'], input, select, a")) return;
+      event.preventDefault(); event.stopImmediatePropagation(); commitTranspose();
+    };
+    window.addEventListener("keydown", keydown, true);
+    window.addEventListener("wheel", wheel, { capture: true, passive: false });
+    window.addEventListener("mousedown", click, true);
+    return () => {
+      window.removeEventListener("keydown", keydown, true);
+      window.removeEventListener("wheel", wheel, true);
+      window.removeEventListener("mousedown", click, true);
+    };
+  }, [transposeToolActive, isActive, transposeInput, transposeOffset, transposeBounds, transposeNoteIds, transposeChordIds, maxFret]);
 
   const toggleScaleTool = useCallback(() => {
     if (scaleToolActive) {
@@ -8662,6 +8901,7 @@ export default function GteWorkspace({
   const insertCutAtPointer = (clientX: number, clientY: number) => {
     const target = getPointerCutTarget(clientX, clientY);
     if (!target) return false;
+    if (coordinateEditorMode && (target.time <= 0 || target.time >= (coordinateEditorEnd ?? snapshot.totalFrames))) return false;
     void runMutation(() => gteApi.insertCutAt(editorId, target.time), {
       localApply: (draft) => {
         insertCutAtInSnapshot(draft, target.time);
@@ -8670,154 +8910,9 @@ export default function GteWorkspace({
     return true;
   };
 
-  const handleSliceAtTime = (
-    sliceTime: number,
-    clickedTarget?: { type: "note" | "chord"; id: number }
-  ) => {
-    const noteIdsToSlice =
-      clickedTarget?.type === "note"
-        ? [clickedTarget.id]
-        : clickedTarget?.type === "chord"
-        ? []
-        : selectedNoteIds;
-    const chordIdsToSlice =
-      clickedTarget?.type === "chord"
-        ? [clickedTarget.id]
-        : clickedTarget?.type === "note"
-        ? []
-        : selectedChordIds;
-    const notesToSlice = snapshot.notes
-      .filter((note) => noteIdsToSlice.includes(note.id))
-      .map((note) => {
-        const start = note.startTime;
-        const end = note.startTime + note.length;
-        if (sliceTime <= start || sliceTime >= end) return null;
-        const leftLength = clampEventLength(sliceTime - start);
-        const rightLength = clampEventLength(end - sliceTime);
-        if (leftLength < 1 || rightLength < 1) return null;
-        return {
-          id: note.id,
-          tab: note.tab as TabCoord,
-          start,
-          leftLength,
-          rightLength,
-          tempId: getTempNoteId(),
-        };
-      })
-      .filter(
-        (
-          item
-        ): item is {
-          id: number;
-          tab: TabCoord;
-          start: number;
-          leftLength: number;
-          rightLength: number;
-          tempId: number;
-        } => Boolean(item)
-      );
-    const chordsToSlice = snapshot.chords
-      .filter((chord) => chordIdsToSlice.includes(chord.id))
-      .map((chord) => {
-        const start = chord.startTime;
-        const end = chord.startTime + chord.length;
-        if (sliceTime <= start || sliceTime >= end) return null;
-        const leftLength = sliceTime - start;
-        const rightLength = end - sliceTime;
-        if (leftLength < 1 || rightLength < 1) return null;
-        return {
-          id: chord.id,
-          start,
-          leftLength,
-          rightLength,
-          tempId: getTempChordId(),
-          currentTabs: chord.currentTabs.map((tab) => [tab[0], tab[1]] as TabCoord),
-          ogTabs: chord.ogTabs.map((tab) => [tab[0], tab[1]] as TabCoord),
-          originalMidi: chord.originalMidi.slice(),
-        };
-      })
-      .filter(
-        (
-          item
-        ): item is {
-          id: number;
-          start: number;
-          leftLength: number;
-          rightLength: number;
-          tempId: number;
-          currentTabs: TabCoord[];
-          ogTabs: TabCoord[];
-          originalMidi: number[];
-        } => Boolean(item)
-      );
-    if (!notesToSlice.length && !chordsToSlice.length) return;
-    const createdNotes: TempNoteMapping[] = notesToSlice.map((note) => ({
-      tempId: note.tempId,
-      signature: noteSignature(sliceTime, note.rightLength, note.tab),
-    }));
-    const createdChords: TempChordMapping[] = chordsToSlice.map((chord) => ({
-      tempId: chord.tempId,
-      signature: chordSignature(sliceTime, chord.rightLength, chord.currentTabs),
-    }));
-    enqueueOptimisticMutation({
-      label: "slice",
-      createdNotes,
-      createdChords,
-      apply: (draft) => {
-        notesToSlice.forEach((note) => {
-          const noteId = resolveNoteId(note.id);
-          const target = draft.notes.find((item) => item.id === noteId);
-          if (!target) return;
-          target.length = note.leftLength;
-          draft.notes.push({
-            id: note.tempId,
-            startTime: sliceTime,
-            length: note.rightLength,
-            midiNum: 0,
-            tab: [note.tab[0], note.tab[1]],
-            optimals: [],
-          });
-        });
-        chordsToSlice.forEach((chord) => {
-          const chordId = resolveChordId(chord.id);
-          const target = draft.chords.find((item) => item.id === chordId);
-          if (!target) return;
-          target.length = chord.leftLength;
-          draft.chords.push({
-            id: chord.tempId,
-            startTime: sliceTime,
-            length: chord.rightLength,
-            originalMidi: chord.originalMidi.slice(),
-            currentTabs: chord.currentTabs.map((tab) => [tab[0], tab[1]] as TabCoord),
-            ogTabs: chord.ogTabs.map((tab) => [tab[0], tab[1]] as TabCoord),
-          });
-        });
-        return draft;
-      },
-      commit: async () => {
-        let last: { snapshot?: EditorSnapshot } | null = null;
-        for (const note of notesToSlice) {
-          await gteApi.setNoteLength(
-            editorId,
-            resolveNoteId(note.id),
-            clampEventLength(note.leftLength),
-            false
-          );
-          last = await gteApi.addNote(editorId, {
-            tab: note.tab,
-            startTime: sliceTime,
-            length: clampEventLength(note.rightLength),
-            snapToGrid: false,
-          });
-        }
-        for (const chord of chordsToSlice) {
-          last = await gteApi.sliceChord(editorId, resolveChordId(chord.id), sliceTime);
-        }
-        return last ?? {};
-      },
-    });
+  const handleSliceAtTime = (_time: number, _target?: { type: "note" | "chord"; id: number }) => {
+    commitSubdivision();
   };
-
   useEffect(() => {
     if (!dragging) return;
     const handleMove = (clientX: number, clientY: number) => {
@@ -9439,12 +9534,20 @@ export default function GteWorkspace({
         const availableFrames = Math.max(1, rowBarCount * framesPerMeasure);
         const stringIndex = clamp(Math.floor(localY / ROW_HEIGHT), 0, stringMax);
         const rawStartTime = Math.round(current.startX / scale) + rowStart;
-        const startTime = clamp(snapStartTimeToGrid(rawStartTime), rowStart, rowStart + availableFrames - 1);
+        const snappedStart = clamp(snapStartTimeToGrid(rawStartTime), rowStart, rowStart + availableFrames - 1);
+        const cursorStep = cursorSizeDenominatorToFrames(cursorSizeDenominator);
+        const startTime = Math.floor(snappedStart / cursorStep) * cursorStep;
         const currentCursor = keyboardGridCursorRef.current;
         const tappedCurrentCursor =
           mobileViewport &&
           currentCursor?.time === startTime &&
           currentCursor.stringIndex === stringIndex;
+        if (!mobileViewport && document.activeElement instanceof HTMLElement &&
+          document.activeElement.matches("input, textarea, select, [contenteditable='true']")) {
+          // Timeline mousedown prevents default selection, so explicitly return
+          // typing to the canvas rather than leaving an earlier field focused.
+          document.activeElement.blur();
+        }
         setKeyboardGridCursor({ time: startTime, stringIndex });
         setKeyboardCursorVisible(true);
         setKeyboardAddMode(null);
@@ -9559,6 +9662,9 @@ export default function GteWorkspace({
     snapshot.chords,
     clamp,
     snapStartTimeToGrid,
+    cursorSizeDenominator,
+    cursorSizeDenominatorToFrames,
+    onGlobalPlaybackFrameChange,
     mobileViewport,
   ]);
 
@@ -9582,7 +9688,7 @@ export default function GteWorkspace({
       const x = clamp(event.clientX - rect.left, 0, rowWidth);
       const rawTime = rowStart + Math.round(x / scale);
       const minTime = left.start + 1;
-      const maxTime = right.end - 1;
+      const maxTime = Math.min(right.end, coordinateEditorMode ? coordinateEditorEnd ?? right.end : right.end) - 1;
       const newTime = clamp(rawTime, minTime, maxTime);
 
       setSegmentEdits((prev) => {
@@ -9645,8 +9751,31 @@ export default function GteWorkspace({
     };
   }, [playheadDragging, setEffectivePlayheadFrame]);
 
+  const togglePendingToolObject = (target: EventTarget | null) => {
+    if (!pendingSelectionTool || !(target instanceof Element)) return;
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    const note = target.closest<HTMLElement>("[data-tool-select-note]");
+    const chord = target.closest<HTMLElement>("[data-tool-select-chord]");
+    if (note && toolAllowsSelection(pendingSelectionTool, "note")) {
+      const id = Number(note.dataset.toolSelectNote);
+      setSelectedNoteIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+    }
+    if (chord && toolAllowsSelection(pendingSelectionTool, "chord")) {
+      const id = Number(chord.dataset.toolSelectChord);
+      setSelectedChordIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+    }
+  };
+
   const handleTimelineMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
+    const gridRect = event.currentTarget.getBoundingClientRect();
+    const insideGrid = isInsideTabGrid(
+      event.clientX - gridRect.left - event.currentTarget.clientLeft,
+      event.clientY - gridRect.top - event.currentTarget.clientTop,
+      rowStride, rowHeight, rows,
+      (row) => getRowBarCount(row) * framesPerMeasure * scale
+    );
+    if (!insideGrid && !cutToolActive) return;
     if (mobileViewport && Date.now() - lastHandledMobileTimelineTouchAtRef.current < 800) {
       event.preventDefault();
       return;
@@ -9699,6 +9828,7 @@ export default function GteWorkspace({
       setSelectedCutBoundaryIndex(null);
       return;
     }
+    if (!insideGrid) return;
     setSelectedCutBoundaryIndex(null);
     if (mobileViewport && !event.shiftKey && selectedNoteIds.length + selectedChordIds.length > 0) {
       setSelectedNoteIds([]);
@@ -10193,100 +10323,67 @@ export default function GteWorkspace({
     setDraftNoteAnchor(null);
   };
 
-  const handleOptimizeFingering = () => {
-    if (snapshotRef.current.notes.length === 0 && snapshotRef.current.chords.length === 0) return;
-    setOptimizingFingering(true);
-    void runMutation(
-      async () => {
-        const optimized = cloneSnapshot(snapshotRef.current);
-        generatePlayingCoordinatesInSnapshot(optimized);
-        optimizeTrackFingeringInSnapshot(optimized);
-        finalizeOptimizedTrackFingeringInSnapshot(optimized);
-        mergeRedundantCutRegionsInSnapshot(optimized);
-        return gteApi.applySnapshot(editorId, optimized);
-      },
-      {
-        serverMode: "immediate",
-        unavailableMessage: "Fingering optimization is available after saving this draft to an account.",
-      }
-    ).finally(() => setOptimizingFingering(false));
-    setSelectedNoteIds([]);
-    setSelectedChordIds([]);
+
+  const handleCleanTinyOverlaps = () => {
+    const next = cloneSnapshot(snapshotRef.current);
+    const count = cleanTinyOverlapsInSnapshot(next);
+    setOverlapCleanupCount(count);
+    if (!count) return;
+    deactivateScaleTool(); deactivateMoveTool(); deactivateQuantizeTool();
+    setSliceToolActive(false); setTransposeToolActive(false); setCutToolActive(false); setPendingSelectionTool(null);
+    setOptimizationSelecting(false); setOptimizeDialog(null);
+    void runMutation(() => gteApi.applySnapshot(editorId, next), { localApply: (draft) => { cleanTinyOverlapsInSnapshot(draft); } });
   };
 
-  const handleOptimizeToCoordinates = (noteIds: number[] = selectedNoteIds) => {
-    if (!noteIds.length) return;
-    void runMutation(
-      async () => ({}),
-      {
-        localApply: (draft) => {
-          const resolvedIds = noteIds
-            .map((id) => (id < 0 ? noteIdMapRef.current.get(id) ?? id : id))
-            .filter((id) => id >= 0);
-          if (!resolvedIds.length) return;
-          const selectedIdSet = new Set(resolvedIds);
-
-          draft.notes
-            .filter((note) => selectedIdSet.has(note.id))
-            .sort(
-              (left, right) =>
-                left.startTime - right.startTime || left.tab[0] - right.tab[0] || left.id - right.id
-            )
-            .forEach((note) => {
-              const alternates = computeNoteAlternatesForSnapshot(draft, note);
-              const nextTab = alternates.possibleTabs[0];
-              note.optimals = alternates.possibleTabs.map((tab) => cloneTabCoord(tab));
-              if (!nextTab) return;
-              applyNoteFingeringUpdates(
-                draft,
-                getEffectAwareFingeringUpdates(draft, [{ noteId: note.id, tab: nextTab }])
-              );
-            });
-        },
-        serverMode: "local-first",
-      }
-    );
+  const openOptimizeDialog = () => {
+    const current = snapshotRef.current;
+    if (selectionActionsLocked || current.notes.length + current.chords.length === 0) return;
+    deactivateScaleTool(); deactivateMoveTool(); deactivateQuantizeTool();
+    setSliceToolActive(false); setTransposeToolActive(false); setCutToolActive(false); setPendingSelectionTool(null);
+    setOptimizeDialogError(null);
+    setOptimizationSelecting(false);
+    setOptimizeDialog({ snapshot: cloneSnapshot(current), selection: {
+      noteIds: selectedNoteIds.map(resolveNoteId), chordIds: activeChordIds.map(resolveChordId),
+    } });
   };
 
-  const handleSnapSelectedNotesToKey = (noteIds: number[] = selectedNoteIds) => {
-    if (!noteIds.length) return;
-    if (guardSingleTrackSelectionAction("Snap to key")) return;
-    const selectedIds = Array.from(new Set(noteIds.map((id) => resolveNoteId(id))));
-    const selectedIdSet = new Set(selectedIds);
-    const requestedUpdates = snapshotRef.current.notes
-      .filter((note) => selectedIdSet.has(note.id))
-      .map((note) => {
-        const nextTab = snapTabToKey(snapshotRef.current, note.tab);
-        if (isSameTabCoord(note.tab, nextTab)) return null;
-        return { id: note.id, tab: nextTab };
-      })
-      .filter((item): item is { id: number; tab: TabCoord } => Boolean(item));
-    if (!requestedUpdates.length) {
-      setError("Selected notes are already in key.");
-      return;
+  const handleOptimizeFingering = openOptimizeDialog;
+  const handleOptimizeToCoordinates = (_noteIds?: number[]) => openOptimizeDialog();
+
+  const applyOptimization = (options: OptimizeOptions) => {
+    if (!optimizeDialog || optimizingFingering) return;
+    setOptimizeDialogError(null);
+    try {
+      const selection = { noteIds: optimizeDialog.selection.noteIds.map(resolveNoteId), chordIds: optimizeDialog.selection.chordIds.map(resolveChordId) };
+      const optimized = optimizeSelection(snapshotRef.current, selection, options);
+      setOptimizingFingering(true);
+      void runMutation(async () => gteApi.applySnapshot(editorId, optimized), {
+        localApply: (draft) => { Object.assign(draft, optimized); },
+      }).then(() => {
+        setOptimizeDialog(null);
+        setSelectedNoteIds([]); setSelectedChordIds([]);
+      }).finally(() => setOptimizingFingering(false));
+    } catch (error) {
+      setOptimizeDialogError(error instanceof Error ? error.message : "Could not optimize this selection.");
     }
-    const updates = getEffectAwareFingeringUpdates(
-      snapshotRef.current,
-      requestedUpdates.map((update) => ({ noteId: update.id, tab: update.tab }))
-    );
-    playNotePreview(requestedUpdates[0].tab);
+  };
+
+  const handleSnapSelectedNotesToKey = (noteIds: number[] = selectedNoteIds, chordIds: number[] = activeChordIds) => {
+    if (!noteIds.length && !chordIds.length) return;
+    if (guardSingleTrackSelectionAction("Snap to key")) return;
+    const selectedIds = [...new Set(noteIds.map(resolveNoteId))];
+    const selectedChordIds = [...new Set(chordIds.map(resolveChordId))];
+    let result: ReturnType<typeof snapSelectionToKey>;
+    try { result = snapSelectionToKey(snapshotRef.current, selectedIds, selectedChordIds, snapTabToKey); }
+    catch (error) { setError(error instanceof Error ? error.message : "Could not snap this selection to key."); return; }
+    if (!result.changed) { setError("Selected notes/chords are already in key."); return; }
+    if (result.previewTab) playNotePreview(result.previewTab);
     enqueueOptimisticMutation({
       label: "snap-selected-to-key",
       apply: (draft) => {
-        applyNoteFingeringUpdates(
-          draft,
-          updates.map((update) => ({ ...update, noteId: resolveNoteId(update.noteId) }))
-        );
-        return draft;
+        return snapSelectionToKey(draft, selectedIds.map(resolveNoteId), selectedChordIds.map(resolveChordId), snapTabToKey).snapshot;
       },
-      commit: async () => {
-        let last: { snapshot?: EditorSnapshot } | null = null;
-        for (const update of updates) {
-          if (update.noteId < 0) continue;
-          last = await gteApi.assignNoteTab(editorId, update.noteId, update.tab);
-        }
-        return last ?? {};
-      },
+      commit: () => gteApi.applySnapshot(editorId, result.snapshot),
     });
   };
 
@@ -10307,7 +10404,7 @@ export default function GteWorkspace({
     if (tool === "coordinates") {
       handleOptimizeToCoordinates(noteIds);
     } else if (tool === "snap-key") {
-      handleSnapSelectedNotesToKey(noteIds);
+      handleSnapSelectedNotesToKey(noteIds, chordIds);
     } else {
       activateQuantizeTool({ noteIds, chordIds });
     }
@@ -10649,6 +10746,20 @@ export default function GteWorkspace({
     if (bassLane) return;
     const chordIds = [...activeChordIds];
     const baseNoteIds = [...selectedNoteIds];
+    if (chordIds.length >= 2 || (chordIds.length === 1 && baseNoteIds.length > 0)) {
+      const targetChordId = resolveChordId(chordIds[0]);
+      const noteIds = baseNoteIds.map(resolveNoteId);
+      const sourceChordIds = chordIds.slice(1).map(resolveChordId);
+      const merged = optimizeMergedChord(mergeNotesIntoChordLocal(snapshotRef.current, targetChordId, noteIds, sourceChordIds), targetChordId);
+      void runMutation(() => gteApi.applySnapshot(editorId, merged), {
+        localApply: (draft) => {
+          Object.assign(draft, optimizeMergedChord(mergeNotesIntoChordLocal(draft, targetChordId, noteIds, sourceChordIds), targetChordId));
+        },
+      });
+      setSelectedNoteIds([]);
+      setSelectedChordIds([]);
+      return;
+    }
     const chordRefs: ChordRef[] = chordIds
       .map((id) => snapshot.chords.find((chord) => chord.id === id))
       .filter((chord): chord is EditorSnapshot["chords"][number] => Boolean(chord))
@@ -10688,9 +10799,17 @@ export default function GteWorkspace({
     }
 
     if (baseNoteIds.length < 2) return;
-    void runMutation(() => gteApi.makeChord(editorId, baseNoteIds), {
+    const mergeAndOptimize = (draft: EditorSnapshot) => {
+      const existingIds = new Set(draft.chords.map((chord) => chord.id));
+      makeChordInSnapshot(draft, baseNoteIds);
+      const created = draft.chords.find((chord) => !existingIds.has(chord.id));
+      if (created) Object.assign(draft, optimizeMergedChord(draft, created.id));
+    };
+    const merged = cloneSnapshot(snapshotRef.current);
+    mergeAndOptimize(merged);
+    void runMutation(() => gteApi.applySnapshot(editorId, merged), {
       localApply: (draft) => {
-        makeChordInSnapshot(draft, baseNoteIds);
+        mergeAndOptimize(draft);
       },
     });
     setSelectedNoteIds([]);
@@ -11236,49 +11355,71 @@ export default function GteWorkspace({
   const canApplyPendingSelectionTool =
     Boolean(pendingSelectionTool) &&
     !selectionActionsLocked &&
-    (pendingSelectionToolIsEffect
-      ? selectedNoteIds.length >= 2 && activeChordIds.length === 0
-      : pendingSelectionCount > 0);
+    toolSelectionRule(pendingSelectionTool!, snapshot, selectedNoteIds, activeChordIds).valid;
+  const pendingSelectionHint = selectionActionsLocked ? "Select notes/chords in one track only." : pendingSelectionTool ? toolSelectionRule(pendingSelectionTool, snapshot, selectedNoteIds, activeChordIds).hint : "";
+  const pendingSelectionNeedsOptions = pendingSelectionTool && ["scale", "move", "quantize", "subdivide", "transpose", "optimize"].includes(pendingSelectionTool);
   const pendingSelectionToolLabel =
     pendingSelectionTool === "hammer-pull"
       ? "Hammer/Pull"
       : pendingSelectionTool
-      ? pendingSelectionTool.charAt(0).toUpperCase() + pendingSelectionTool.slice(1)
+      ? TOOL_SELECTION_LABELS[pendingSelectionTool]
       : "";
-  const directCanvasTool = sliceToolActive ? "Slice" : cutToolActive ? "Cut" : null;
+  const directCanvasTool = cutToolActive ? "Cut" : null;
   const directCanvasToolHint = sliceToolActive
-    ? "Click directly where you want to split a note or chord."
+    ? "Type or scroll to choose subdivisions, then press Enter to apply."
     : "Click the timeline where you want to add a playing-coordinate boundary.";
 
-  const applyPendingSelectionTool = useCallback(() => {
+  const applyPendingSelectionTool = () => {
     if (!pendingSelectionTool || !canApplyPendingSelectionTool) return;
     const tool = pendingSelectionTool;
     setPendingSelectionTool(null);
+    if (tool === "optimize") {
+      setOptimizeDialog((current) => current ? { ...current, snapshot: cloneSnapshot(snapshotRef.current), selection: { noteIds: selectedNoteIds.map(resolveNoteId), chordIds: activeChordIds.map(resolveChordId) } } : null);
+      setOptimizationSelecting(false);
+    }
     if (tool === "quantize") activateQuantizeTool();
     if (tool === "scale") activateScaleTool();
     if (tool === "move") activateMoveTool();
     if (tool === "hammer-pull") handleAddNoteEffect(1);
     if (tool === "slide") handleAddNoteEffect(2);
     if (tool === "bend") handleAddNoteEffect(0);
-  }, [
-    activateMoveTool,
-    activateQuantizeTool,
-    activateScaleTool,
-    canApplyPendingSelectionTool,
-    handleAddNoteEffect,
-    pendingSelectionTool,
-  ]);
+    if (tool === "merge-chord") handleMakeChord();
+    if (tool === "snap-key") handleSnapSelectedNotesToKey();
+    if (tool === "merge-notes") void handleJoinSelectedNotes();
+    if (tool === "subdivide") toggleSliceTool();
+    if (tool === "transpose") toggleTransposeTool();
+    if (tool === "disband") {
+      const ids = [...activeChordIds];
+      const next = cloneSnapshot(snapshotRef.current);
+      ids.forEach((id) => disbandChordInSnapshot(next, id));
+      void runMutation(() => gteApi.applySnapshot(editorId, next), { localApply: (draft) => { ids.forEach((id) => disbandChordInSnapshot(draft, id)); } });
+      setSelectedChordIds([]);
+    }
+  };
 
-  useEffect(() => {
-    if (!pendingSelectionTool) return;
-    const cancelPendingTool = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      setPendingSelectionTool(null);
-    };
-    window.addEventListener("keydown", cancelPendingTool, true);
-    return () => window.removeEventListener("keydown", cancelPendingTool, true);
-  }, [pendingSelectionTool]);
+  const cancelToolSelection = () => {
+    setPendingSelectionTool(null);
+    if (pendingSelectionTool === "optimize") setOptimizationSelecting(false);
+  };
+  const beginToolSelection = (tool: PendingSelectionTool) => {
+    if (pendingSelectionTool === tool) { cancelToolSelection(); return; }
+    if (pendingSelectionTool === "optimize" && tool !== "optimize") { setOptimizeDialog(null); setOptimizationSelecting(false); }
+    deactivateScaleTool(); deactivateMoveTool(); deactivateQuantizeTool();
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    setSliceToolActive(false); setTransposeToolActive(false); setCutToolActive(false);
+    setEditingChordId(null); setKeyboardCursorVisible(false);
+    setSelectedNoteEffectId(null); setSelectedCutBoundaryIndex(null);
+    setNoteMenuAnchor(null); setNoteMenuNoteId(null); setNoteMenuDraft(null);
+    setChordMenuAnchor(null); setChordMenuChordId(null); setChordMenuDraft(null);
+    if (!toolAllowsSelection(tool, "note")) setSelectedNoteIds([]);
+    if (!toolAllowsSelection(tool, "chord")) setSelectedChordIds([]);
+    setPendingSelectionTool(tool);
+  };
+  const runSelectionAwareTool = (tool: PendingSelectionTool, action: () => void) => {
+    if (pendingSelectionTool || !toolSelectionRule(tool, snapshot, selectedNoteIds, activeChordIds).valid) beginToolSelection(tool);
+    else action();
+  };
+
 
   const handleDeleteNoteEffect = useCallback(() => {
     if (!selectedNoteEffect) return;
@@ -11358,6 +11499,20 @@ export default function GteWorkspace({
     setSelectedChordIds([]);
   };
 
+  const allTrackEventsSelected = useMemo(() => {
+    if (!snapshot.notes.length && !snapshot.chords.length) return false;
+    const notes = new Set(selectedNoteIds), chords = new Set(selectedChordIds);
+    return snapshot.notes.every((note) => notes.has(note.id)) && snapshot.chords.every((chord) => chords.has(chord.id));
+  }, [snapshot.notes, snapshot.chords, selectedNoteIds, selectedChordIds]);
+
+  const toggleSelectAllTrackEvents = () => {
+    setSelectedNoteIds(allTrackEventsSelected ? [] : snapshot.notes.map((note) => note.id));
+    setSelectedChordIds(allTrackEventsSelected ? [] : snapshot.chords.map((chord) => chord.id));
+    setSelectedNoteEffectId(null);
+    setSelectedCutBoundaryIndex(null);
+    setKeyboardCursorVisible(false);
+  };
+
   const handleMergeCutBoundary = () => {
     if (selectedCutBoundaryIndex === null) return;
     void runMutation(() => gteApi.deleteCutBoundary(editorId, selectedCutBoundaryIndex), {
@@ -11367,6 +11522,22 @@ export default function GteWorkspace({
     });
     setSelectedCutBoundaryIndex(null);
   };
+
+  useEffect(() => {
+    if (!coordinateEditorMode || selectedCutBoundaryIndex === null) return;
+    const handleBoundaryDelete = (event: KeyboardEvent) => {
+      if (event.key !== "Delete" && event.key !== "Backspace") return;
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      if (!target?.closest("[data-coordinate-editor]")) return;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      handleMergeCutBoundary();
+    };
+    // The containing modal stops bubbling keyboard events. Listen before it does.
+    window.addEventListener("keydown", handleBoundaryDelete, true);
+    return () => window.removeEventListener("keydown", handleBoundaryDelete, true);
+  }, [coordinateEditorMode, selectedCutBoundaryIndex, handleMergeCutBoundary]);
 
   const handleDeleteChord = () => {
     if (!selectedChord) return;
@@ -11381,59 +11552,15 @@ export default function GteWorkspace({
     setSelectedChordIds([]);
   };
 
-  const clampFloatingPanelAnchor = useCallback(
-    (x: number, y: number, width: number, height: number) => {
-      const padding = 12;
-      const maxX = Math.max(padding, window.innerWidth - width - padding);
-      const maxY = Math.max(padding, window.innerHeight - height - padding);
-      return {
-        x: clamp(Math.round(x), padding, maxX),
-        y: clamp(Math.round(y), padding, maxY),
-      };
-    },
-    [clamp]
-  );
-
-  const getSideMenuAnchor = (event: ReactMouseEvent, menuWidth: number, menuHeight: number) => {
-    const padding = 16;
-    const panelGap = 12;
-    const openOnRight = event.clientX < window.innerWidth / 2;
-    const toolbarRect =
-      toolbarOpen && !mobileViewport && toolbarRef.current
-        ? toolbarRef.current.getBoundingClientRect()
-        : null;
-    const rightEdgeX = window.innerWidth - menuWidth - padding;
-    const toolbarSafeRightX = toolbarRect ? toolbarRect.left - menuWidth - panelGap : rightEdgeX;
-    const targetX = openOnRight ? Math.min(rightEdgeX, toolbarSafeRightX) : padding;
-    const targetY = event.clientY - menuHeight / 2;
-    return clampFloatingPanelAnchor(targetX, targetY, menuWidth, menuHeight);
-  };
-
-  const startFloatingPanelDrag = useCallback(
-    (panel: "note" | "chord", event: ReactMouseEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const element = panel === "note" ? noteMenuRef.current : chordMenuRef.current;
-      if (!element) return;
-      const rect = element.getBoundingClientRect();
-      setFloatingPanelDrag({
-        panel,
-        offsetX: event.clientX - rect.left,
-        offsetY: event.clientY - rect.top,
-        width: rect.width,
-        height: rect.height,
-      });
-    },
-    []
-  );
 
   const openNoteMenu = (noteId: number, fret: number, length: number, event: ReactMouseEvent) => {
     if (event.shiftKey || editingChordId !== null) return;
+    noteFretTypingBufferRef.current = "";
+    noteFretTypingAtRef.current = 0;
     if (isMobileEditMode) {
       setNoteMenuAnchor(null);
     } else {
-      const { x, y } = getSideMenuAnchor(event, 224, 220);
-      setNoteMenuAnchor({ x, y });
+      setNoteMenuAnchor({ x: event.clientX, y: event.clientY });
     }
     setNoteMenuNoteId(noteId);
     setNoteMenuDraft({ fret: String(fret), length: formatLengthFramesAsSeconds(length) });
@@ -11441,16 +11568,14 @@ export default function GteWorkspace({
 
   const openChordMenu = (chordId: number, length: number, event: ReactMouseEvent) => {
     if (event.shiftKey || editingChordId !== null) return;
-    const { x, y } = getSideMenuAnchor(event, 240, 230);
-    setChordMenuAnchor({ x, y });
+    setChordMenuAnchor({ x: event.clientX, y: event.clientY });
     setChordMenuChordId(chordId);
     setChordMenuDraft({ length: formatLengthFramesAsSeconds(length) });
   };
 
   const openChordEdit = (chordId: number, event: ReactMouseEvent) => {
-    const { x, y } = getSideMenuAnchor(event, 200, 80);
     setEditingChordId(chordId);
-    setEditingChordAnchor({ x, y });
+    setEditingChordAnchor({ x: event.clientX, y: event.clientY });
     setChordMenuAnchor(null);
     setChordMenuChordId(null);
     setChordMenuDraft(null);
@@ -11477,8 +11602,9 @@ export default function GteWorkspace({
     event: ReactMouseEvent
   ) => {
     if (editingChordId !== chordId) return;
-    const { x, y } = getSideMenuAnchor(event, 224, 210);
-    setChordNoteMenuAnchor({ x, y });
+    noteFretTypingBufferRef.current = "";
+    noteFretTypingAtRef.current = 0;
+    setChordNoteMenuAnchor({ x: event.clientX, y: event.clientY });
     setChordNoteMenuIndex(tabIndex);
     setChordNoteMenuDraft({ fret: String(fret), length: formatLengthFramesAsSeconds(length) });
   };
@@ -11558,10 +11684,10 @@ export default function GteWorkspace({
     [flushPendingNoteFretArrowCommit]
   );
 
-  const commitNoteMenuFret = () => {
+  const commitNoteMenuFret = (rawValue?: string) => {
     if (!noteMenuDraft) return;
     clearPendingNoteFretArrowCommit();
-    const fretValue = Number(noteMenuDraft.fret);
+    const fretValue = Number(rawValue ?? noteMenuDraft.fret);
     if (!Number.isInteger(fretValue) || fretValue < 0 || fretValue > maxFret) {
       setError(`Enter a whole-number fret between 0 and ${maxFret}.`);
       return;
@@ -11600,9 +11726,9 @@ export default function GteWorkspace({
     [allowBackend, editorId, enqueueOptimisticMutation, selectedNote, snapLengthToGrid, snapToGridEnabled]
   );
 
-  const commitNoteMenuLength = () => {
+  const commitNoteMenuLength = (rawValue?: string) => {
     if (!noteMenuDraft) return;
-    const rawLength = parseLengthSecondsToFrames(noteMenuDraft.length);
+    const rawLength = parseLengthSecondsToFrames(rawValue ?? noteMenuDraft.length);
     if (rawLength === null) {
       setError(`Invalid length. Use seconds greater than 0.`);
       return;
@@ -11627,10 +11753,10 @@ export default function GteWorkspace({
   );
 
   const adjustDesktopNoteMenuFret = useCallback(
-    (delta: number) => {
+    (delta: number, draftValue?: string) => {
       if (!selectedNote) return;
       const fallbackValue = selectedNote?.tab[1] ?? 0;
-      const currentValue = Number(noteMenuDraft?.fret ?? fallbackValue);
+      const currentValue = Number(draftValue ?? noteMenuDraft?.fret ?? fallbackValue);
       const baseValue = Number.isFinite(currentValue) ? currentValue : fallbackValue;
       const nextValue = Math.max(0, Math.min(maxFret, baseValue + delta));
       setNoteMenuDraft((prev) => (prev ? { ...prev, fret: String(nextValue) } : prev));
@@ -11639,9 +11765,9 @@ export default function GteWorkspace({
     [maxFret, noteMenuDraft, scheduleNoteFretArrowCommit, selectedNote]
   );
 
-  const commitChordMenuLength = () => {
+  const commitChordMenuLength = (rawValue?: string) => {
     if (!selectedChord || !chordMenuDraft) return;
-    const rawLength = parseLengthSecondsToFrames(chordMenuDraft.length);
+    const rawLength = parseLengthSecondsToFrames(rawValue ?? chordMenuDraft.length);
     if (rawLength === null) {
       setError(`Invalid length. Use seconds greater than 0.`);
       return;
@@ -11662,6 +11788,23 @@ export default function GteWorkspace({
     });
   };
 
+  const handleTransposeChordFrets = (delta: number) => {
+    if (!selectedChord || !Number.isInteger(delta)) return false;
+    const chordId = resolveChordId(selectedChord.id);
+    const chord = snapshotRef.current.chords.find((item) => item.id === chordId);
+    const tabs = chord && transposeInspectorFrets(chord.currentTabs, delta, maxFret);
+    if (!tabs) return false;
+    void runMutation(() => gteApi.setChordTabs(editorId, chordId, tabs), {
+      localApply: (draft) => {
+        const current = draft.chords.find((item) => item.id === chordId);
+        if (!current) return;
+        const transposed = transposeInspectorFrets(current.currentTabs, delta, maxFret);
+        if (transposed) current.currentTabs = transposed;
+      },
+    });
+    return true;
+  };
+
   const handleChordOctaveShift = (direction: number) => {
     if (!selectedChord) return;
     void runMutation(() => gteApi.shiftChordOctave(editorId, selectedChord.id, direction), {
@@ -11671,26 +11814,33 @@ export default function GteWorkspace({
     });
   };
 
-  const commitChordNoteFret = () => {
+  const commitChordNoteFret = (rawValue?: string) => {
     if (!selectedChord || chordNoteMenuIndex === null || !chordNoteMenuDraft) return;
-    const fretValue = Number(chordNoteMenuDraft.fret);
+    const fretValue = Number(rawValue ?? chordNoteMenuDraft.fret);
     if (!Number.isInteger(fretValue) || fretValue < 0 || fretValue > maxFret) {
       setError(`Enter a whole-number fret between 0 and ${maxFret}.`);
       return;
     }
-    const nextTabs = selectedChord.currentTabs.map((tab, idx) =>
+    const chordId = resolveChordId(selectedChord.id);
+    const currentChord = snapshotRef.current.chords.find((chord) => chord.id === chordId);
+    if (!currentChord?.currentTabs[chordNoteMenuIndex] || currentChord.currentTabs[chordNoteMenuIndex][1] === fretValue) return;
+    const nextTabs = currentChord.currentTabs.map((tab, idx) =>
       idx === chordNoteMenuIndex ? ([tab[0], fretValue] as TabCoord) : tab
     );
-    void runMutation(() => gteApi.setChordTabs(editorId, selectedChord.id, nextTabs), {
+    void runMutation(() => gteApi.setChordTabs(editorId, chordId, nextTabs), {
       localApply: (draft) => {
-        setChordTabsInSnapshot(draft, selectedChord.id, nextTabs);
+        const chord = draft.chords.find((item) => item.id === chordId);
+        if (!chord?.currentTabs[chordNoteMenuIndex]) return;
+        chord.currentTabs = chord.currentTabs.map((tab, idx) =>
+          idx === chordNoteMenuIndex ? [tab[0], fretValue] : tab
+        );
       },
     });
   };
 
-  const commitChordNoteLength = () => {
+  const commitChordNoteLength = (rawValue?: string) => {
     if (!selectedChord || !chordNoteMenuDraft) return;
-    const rawLength = parseLengthSecondsToFrames(chordNoteMenuDraft.length);
+    const rawLength = parseLengthSecondsToFrames(rawValue ?? chordNoteMenuDraft.length);
     if (rawLength === null) {
       setError(`Invalid length. Use seconds greater than 0.`);
       return;
@@ -13239,6 +13389,7 @@ export default function GteWorkspace({
         },
       });
       showKeyboardCursor({ time: snapped.startTime, stringIndex: cursor.stringIndex });
+      onKeyboardNotePlaced?.();
       setKeyboardAddMode({ noteId: tempId, fretText: String(fretValue) });
       setSelectedNoteIds([]);
       setSelectedChordIds([]);
@@ -13261,6 +13412,7 @@ export default function GteWorkspace({
       showKeyboardCursor,
       snapNewNoteToGrid,
       snapTabToKeyIfEnabled,
+      onKeyboardNotePlaced,
     ]
   );
 
@@ -13376,8 +13528,22 @@ export default function GteWorkspace({
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       const isTyping = isShortcutTextEntryTarget(target);
+      // This listener runs in capture phase. Inspector controls own their keys,
+      // including Tab; editor undo/redo remains available outside text fields.
+      const insidePropertiesInspector = Boolean(target?.closest("[data-gte-properties-inspector='true']"));
+      if (target?.closest("[data-gte-scale-mode-menu='true']")) return;
+      if (target?.closest("[data-gte-optimization-dialog='true']")) return;
+      if (insidePropertiesInspector && (isTyping || !((event.ctrlKey || event.metaKey) && /^[zy]$/i.test(event.key)))) return;
+      if (pendingSelectionTool && !isTyping) {
+        if (event.key === "Enter" || event.key === "Escape") {
+          event.preventDefault(); event.stopPropagation();
+          if (event.key === "Enter") applyPendingSelectionTool();
+          else cancelToolSelection();
+        }
+        return;
+      }
       const scaleModeSelect = target?.closest<HTMLElement>("[data-scale-mode-select='true']");
-      if (!isTyping) {
+      if (!isTyping && !insidePropertiesInspector) {
         blurFocusedShortcutControl(target);
       }
       if ((event.ctrlKey || event.metaKey) && (event.key === "z" || event.key === "Z")) {
@@ -13487,8 +13653,23 @@ export default function GteWorkspace({
           setSliceCursor(null);
           return;
         }
+        if (chordNoteMenuIndex !== null) {
+          setChordNoteMenuAnchor(null);
+          setChordNoteMenuIndex(null);
+          setChordNoteMenuDraft(null);
+          return;
+        }
         if (editingChordId !== null) {
           exitChordEdit();
+          return;
+        }
+        if (noteMenuDraft || chordMenuDraft) {
+          setNoteMenuAnchor(null);
+          setNoteMenuNoteId(null);
+          setNoteMenuDraft(null);
+          setChordMenuAnchor(null);
+          setChordMenuChordId(null);
+          setChordMenuDraft(null);
           return;
         }
         setSelectedNoteIds([]);
@@ -13701,6 +13882,18 @@ export default function GteWorkspace({
           return;
         }
 
+        if ((isPlusKey || isMinusKey) && editingChordId !== null) {
+          event.preventDefault();
+          // In fingering edit mode the chord stays selected as a group, but
+          // fret shortcuts must edit only its explicitly chosen member.
+          if (chordNoteMenuIndex === null) return;
+          const chord = snapshotRef.current.chords.find((item) => item.id === resolveChordId(editingChordId));
+          const tab = chord?.currentTabs[chordNoteMenuIndex];
+          if (!tab) return;
+          commitChordNoteFret(String(Math.max(0, Math.min(maxFret, tab[1] + (isPlusKey ? 1 : -1)))));
+          return;
+        }
+
         if (
           (isPlusKey || isMinusKey) &&
           selectedNoteIdsRef.current.length + selectedChordIdsRef.current.length > 0 &&
@@ -13728,6 +13921,18 @@ export default function GteWorkspace({
 
         if (isDigitKey) {
           event.preventDefault();
+          if (editingChordId !== null) {
+            if (chordNoteMenuIndex === null) return;
+            const now = Date.now();
+            const base = now - noteFretTypingAtRef.current <= KEYBOARD_FRET_TYPE_TIMEOUT_MS ? noteFretTypingBufferRef.current : "";
+            const nextText = normalizeTypedFretText(base, event.key);
+            if (nextText) {
+              noteFretTypingBufferRef.current = nextText;
+              noteFretTypingAtRef.current = now;
+              commitChordNoteFret(nextText);
+            }
+            return;
+          }
           const activeAddMode = keyboardAddModeRef.current;
           if (activeAddMode) {
             const nextText = normalizeTypedFretText(activeAddMode.fretText, event.key);
@@ -13772,13 +13977,6 @@ export default function GteWorkspace({
           }
 
           const cursor = resolveKeyboardCursor();
-          const step = getKeyboardGridCellWidthFrames(cursor.time);
-          const targetsOnGrid = getCursorGridTargets(cursor, step);
-          if (targetsOnGrid.length > 0) {
-            noteFretTypingBufferRef.current = "";
-            noteFretTypingAtRef.current = 0;
-            return;
-          }
           noteFretTypingBufferRef.current = event.key;
           noteFretTypingAtRef.current = Date.now();
           createKeyboardNoteAtCursor(cursor, event.key);
@@ -14184,11 +14382,9 @@ export default function GteWorkspace({
       }
       if (event.key === "o" || event.key === "O") {
         if (isTyping) return;
-        if (guardSingleTrackSelectionAction("Optimize")) return;
-        if (selectedNoteIds.length > 0) {
-          event.preventDefault();
-          handleOptimizeToCoordinates();
-        }
+        if (guardSingleTrackSelectionAction("Optimize fingerings")) return;
+        event.preventDefault();
+        handleOptimizeToCoordinates();
         return;
       }
       if (event.key === "h" || event.key === "H") {
@@ -14279,6 +14475,9 @@ export default function GteWorkspace({
   }, [
     isActive,
     practiceMode,
+    pendingSelectionTool,
+    applyPendingSelectionTool,
+    cancelToolSelection,
     noteCursorSizesLinked,
     cursorSizeDenominator,
     defaultNoteLengthDenominator,
@@ -14287,6 +14486,11 @@ export default function GteWorkspace({
     selectedNoteIds,
     selectedChordIds,
     activeChordIds,
+    noteMenuDraft,
+    chordMenuDraft,
+    chordNoteMenuIndex,
+    editingChordId,
+    commitChordNoteFret,
     selectedCutBoundaryIndex,
     selectedNoteEffect,
     editorId,
@@ -14496,6 +14700,29 @@ export default function GteWorkspace({
     snapKeyboardCursorTimeToGrid,
     timelineEnd,
   ]);
+
+  const showSelectedFretCaret = isActive && !mobileViewport && !effectiveIsPlaying && !transposeToolActive &&
+    !scaleToolActive && !moveToolActive && !cutToolActive && !sliceToolActive && !quantizeDialogOpen;
+
+  const cursorGridLineMask = (rowIndex: number, x: number) => {
+    if (mobileViewport || !keyboardCursorMarker ||
+      Math.floor(keyboardCursorMarker.top / rowStride) !== rowIndex ||
+      x <= keyboardCursorMarker.left || x >= keyboardCursorMarker.left + keyboardCursorMarker.width) return undefined;
+    const top = keyboardCursorMarker.top - rowIndex * rowStride + 1;
+    const bottom = top + keyboardCursorMarker.height - 2;
+    return `linear-gradient(to bottom, #000 ${top}px, transparent ${top}px, transparent ${bottom}px, #000 ${bottom}px)`;
+  };
+
+  const cursorActiveCallbackRef = useRef(onCursorActiveChange);
+  cursorActiveCallbackRef.current = onCursorActiveChange;
+  const editingCursorActive = Boolean(
+    (keyboardCursorMarker || selectedNoteIds.length > 0 || activeChordIds.length > 0) &&
+    isActive && !mobileViewport && !tabViewEnabled && !practiceMode
+  );
+  useEffect(() => {
+    cursorActiveCallbackRef.current?.(editingCursorActive);
+    return () => cursorActiveCallbackRef.current?.(false);
+  }, [editingCursorActive]);
 
   const openMobileAddNoteAtCursor = useCallback(() => {
     const cursor = keyboardGridCursorRef.current ?? keyboardGridCursor;
@@ -14818,12 +15045,11 @@ export default function GteWorkspace({
           onMouseDown={(event) => event.stopPropagation()}
           onTouchStart={(event) => event.stopPropagation()}
         >
-          <button type="button" onClick={() => void handleOptimizeFingering()} disabled={optimizingFingering || allTrackEventsEmpty} className={mobileButtonClass}>{t("Optimize fingering")}</button>
-          <button type="button" onClick={() => runMobileWholeTrackTool("coordinates")} disabled={snapshot.notes.length === 0} className={mobileButtonClass}>{t("Optimize to coordinates")}</button>
+          <button type="button" onClick={openOptimizeDialog} disabled={optimizingFingering || allTrackEventsEmpty} className={mobileButtonClass}>{t("Optimize fingerings")}</button>
           <button type="button" onClick={() => runMobileWholeTrackTool("snap-key")} disabled={snapshot.notes.length === 0} className={mobileButtonClass}>{t("Snap to key")}</button>
           <button type="button" onClick={() => void handleMakeChord()} disabled={chordizeCandidateCount < 2 || selectionActionsLocked} className={mobileButtonClass}>{t("Merge to chord")}</button>
           <button type="button" onClick={handleDisbandChord} disabled={!selectedChord || selectionActionsLocked} className={mobileButtonClass}>{t("Disband chord")}</button>
-          <button type="button" onClick={() => runMobileWholeTrackTool("quantize")} disabled={allTrackEventsEmpty || selectionActionsLocked} className={mobileButtonClass}>{t("Quantize")}</button>
+          <button type="button" onClick={() => runMobileWholeTrackTool("quantize")} disabled={allTrackEventsEmpty || selectionActionsLocked} className={mobileButtonClass}>{t("Snap to beat")}</button>
         </div>
       );
     }
@@ -14883,7 +15109,7 @@ export default function GteWorkspace({
 
         {pendingSelectionTool && (
           <div className="rounded-md bg-sky-50 px-2 py-1.5 text-[10px] leading-4 text-sky-800">
-            {t(pendingSelectionToolLabel)}{t(" is ready. Select everything you want to change, then choose Apply.")}</div>
+            {t(pendingSelectionToolLabel)} — {t("Click notes/chords to select or deselect, then press Enter.")}</div>
         )}
 
         <fieldset
@@ -14899,9 +15125,9 @@ export default function GteWorkspace({
               <button
                 type="button"
                 onClick={() => {
-                  void handleMakeChord();
+                  runSelectionAwareTool("merge-chord", handleMakeChord);
                 }}
-                disabled={chordizeCandidateCount < 2 || selectionActionsLocked}
+                disabled={selectionActionsLocked}
                 title={
                   selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Merges notes into a chord object - Shortcut: C")
                 }
@@ -14917,6 +15143,7 @@ export default function GteWorkspace({
               <button
                 type="button"
                 onClick={() => {
+                  if (!toolSelectionRule("disband", snapshot, selectedNoteIds, activeChordIds).valid) { beginToolSelection("disband"); return; }
                   if (activeChordIds.length) {
                     const chordIds = [...activeChordIds];
 
@@ -14937,7 +15164,7 @@ export default function GteWorkspace({
                     setSelectedChordIds([]);
                   }
                 }}
-                disabled={activeChordIds.length === 0 || selectionActionsLocked}
+                disabled={selectionActionsLocked}
                 title={
                   selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Disband selected chord into notes - Shortcut: Shift+L")
                 }
@@ -14947,19 +15174,6 @@ export default function GteWorkspace({
               {renderToolHelp("Disband Chord")}
               </>}
 
-              <button
-                type="button"
-                onClick={() => {
-                  void handleOptimizeToCoordinates();
-                }}
-                disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
-                title={
-                  selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Moves selected notes to their best playing coordinates - Shortcut: O")
-                }
-                className={textButtonClass}
-              >
-                <span className={shortcutClass}>{t("O")}</span>{t("Optimize to Coordinates")}</button>
-              {renderToolHelp("Optimize to Coordinates")}
 
               <button
                 type="button"
@@ -14972,18 +15186,26 @@ export default function GteWorkspace({
                   selectionActionsLocked
                 }
                 title={
-                  optimizingFingering ? t("Optimizing fingering") : selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Chordizes simultaneous notes and optimizes the whole track")
+                  optimizingFingering ? t("Optimizing fingering") : selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Optimize selected notes/chords or the whole track - Shortcut: O")
                 }
                 className={textButtonClass}
-              >{t("Optimize Fingering")}</button>
-              {renderToolHelp("Optimize Fingering")}
+              >{t("Optimize fingerings")}</button>
+              {renderToolHelp("Optimize fingerings")}
+
+              <button type="button" onClick={handleCleanTinyOverlaps}
+                disabled={snapshot.notes.length + snapshot.chords.length === 0}
+                title={t("Trim tiny same-string overlaps in this track without quantizing or moving notes.")}
+                className={textButtonClass}>{t("Clean up tiny overlaps")}</button>
+              {overlapCleanupCount !== null && <p role="status" className="px-2 py-1 text-[10px] leading-4 text-slate-500">
+                {overlapCleanupCount === 0 ? t("No tiny overlaps to trim.") : t("Trimmed {value1} note/chord endings.", { value1: overlapCleanupCount })}
+              </p>}
 
               <button
                 type="button"
-                onClick={() => handleSnapSelectedNotesToKey()}
-                disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
+                onClick={() => runSelectionAwareTool("snap-key", () => handleSnapSelectedNotesToKey())}
+                disabled={selectionActionsLocked}
                 title={
-                  selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Snap selected notes to the current key")
+                  selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Snap selected notes/chords to the current key")
                 }
                 className={textButtonClass}
               >{t("Snap to Key")}</button>
@@ -14997,28 +15219,28 @@ export default function GteWorkspace({
                     setPendingSelectionTool(null);
                     activateQuantizeTool();
                   } else {
-                    setPendingSelectionTool((tool) => (tool === "quantize" ? null : "quantize"));
+                    beginToolSelection("quantize");
                     setError(null);
                   }
                 }}
                 disabled={selectionActionsLocked}
                 title={
-                  selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : selectedNoteIds.length + selectedChordIds.length > 0 ? t("Quantize selected notes/chords") : t("Choose Quantize, then select notes or chords")
+                  selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : selectedNoteIds.length + selectedChordIds.length > 0 ? t("Snap selected notes/chords to the beat") : t("Choose Snap to beat, then select notes or chords")
                 }
                 className={
                   quantizeDialogOpen || pendingSelectionTool === "quantize"
                     ? `${activeButtonClass} bg-sky-600`
                     : textButtonClass
                 }
-              >{t("Quantize")}</button>
-              {renderToolHelp("Quantize")}
+              >{t("Snap to beat")}</button>
+              {renderToolHelp("Snap to beat")}
 
               <button
                 type="button"
                 onClick={() => {
-                  void handleJoinSelectedNotes();
+                  runSelectionAwareTool("merge-notes", () => { void handleJoinSelectedNotes(); });
                 }}
-                disabled={selectedNoteIds.length < 2 || selectionActionsLocked}
+                disabled={selectionActionsLocked}
                 title={
                   selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Merges notes into a single one - Shortcut: J")
                 }
@@ -15047,8 +15269,8 @@ export default function GteWorkspace({
                     event.currentTarget.blur();
                   }}
                   className="h-7 min-w-0 rounded-md border-0 bg-transparent px-2 text-[11px] font-normal text-slate-700 shadow-none outline-none transition hover:bg-slate-100 focus:bg-slate-100"
-                  title={t("Scale mode - Shortcut: D")}
-                  aria-label={t("Scale mode")}
+                  title={t("Lengthen mode - Shortcut: D")}
+                  aria-label={t("Lengthen mode")}
                 >
                   <option value="both">{t("Start + length")}</option>
                   <option value="length">{t("Length scaling")}</option>
@@ -15064,13 +15286,13 @@ export default function GteWorkspace({
                       setPendingSelectionTool(null);
                       toggleScaleTool();
                     } else {
-                      setPendingSelectionTool((tool) => (tool === "scale" ? null : "scale"));
+                      beginToolSelection("scale");
                       setError(null);
                     }
                   }}
                   disabled={selectionActionsLocked}
                   title={
-                    selectedNoteIds.length + selectedChordIds.length > 0 ? t("Scale selected notes/chords - Shortcut: S") : t("Choose Scale, then select notes or chords - Shortcut: S")
+                    selectedNoteIds.length + selectedChordIds.length > 0 ? t("Lengthen selected notes/chords - Shortcut: S") : t("Choose Lengthen, then select notes or chords - Shortcut: S")
                   }
                   className={
                     scaleToolActive || pendingSelectionTool === "scale"
@@ -15087,14 +15309,15 @@ export default function GteWorkspace({
                     <path d="M3 10h18v4H3z" />
                     <path d="M7 6l-4 6 4 6z" />
                     <path d="M17 6l4 6-4 6z" />
-                  </svg>{t("Scale")}</button>
-                {renderToolHelp("Scale")}
+                  </svg>{t("Lengthen")}</button>
+                {renderToolHelp("Lengthen")}
               </div>
 
               <button
                 type="button"
-                onClick={toggleSliceTool}
-                title={t("Note slicing tool, click on the note and where you want to cut it - Shortcut: Shift+S")}
+                onClick={() => runSelectionAwareTool("subdivide", toggleSliceTool)}
+                title={t("Subdivide selected notes and chords - Shortcut: Shift+S")}
+                disabled={selectionActionsLocked}
                 className={
                   sliceToolActive
                     ? `${activeButtonClass} bg-indigo-600`
@@ -15107,8 +15330,15 @@ export default function GteWorkspace({
                   alt=""
                   aria-hidden="true"
                   className="h-3.5 w-3.5"
-                />{t("Slicing Tool")}</button>
-              {renderToolHelp("Slicing Tool")}
+                />{t("Subdivide")}</button>
+              {renderToolHelp("Subdivide")}
+
+              <button type="button" onClick={() => runSelectionAwareTool("transpose", toggleTransposeTool)}
+                disabled={selectionActionsLocked}
+                className={transposeToolActive ? `${activeButtonClass} bg-sky-600` : textButtonClass}>
+                {t("Transpose")}
+              </button>
+              {renderToolHelp("Transpose")}
 
               <button
                 type="button"
@@ -15119,7 +15349,7 @@ export default function GteWorkspace({
                     setPendingSelectionTool(null);
                     activateMoveTool();
                   } else {
-                    setPendingSelectionTool((tool) => (tool === "move" ? null : "move"));
+                    beginToolSelection("move");
                     setError(null);
                   }
                 }}
@@ -15152,17 +15382,15 @@ export default function GteWorkspace({
               <button
                 type="button"
                 onClick={() => {
-                  if (canCreateNoteEffect) {
+                  if (toolSelectionRule("hammer-pull", snapshot, selectedNoteIds, activeChordIds).valid) {
                     setPendingSelectionTool(null);
                     handleAddNoteEffect(1);
                   } else {
-                    setPendingSelectionTool((tool) =>
-                      tool === "hammer-pull" ? null : "hammer-pull"
-                    );
+                    beginToolSelection("hammer-pull");
                     setError(null);
                   }
                 }}
-                disabled={selectionActionsLocked || activeChordIds.length > 0}
+                disabled={selectionActionsLocked}
                 title={
                   selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Connect selected notes with hammer-ons or pull-offs - Shortcut: H")
                 }
@@ -15176,15 +15404,15 @@ export default function GteWorkspace({
               <button
                 type="button"
                 onClick={() => {
-                  if (canCreateNoteEffect) {
+                  if (toolSelectionRule("slide", snapshot, selectedNoteIds, activeChordIds).valid) {
                     setPendingSelectionTool(null);
                     handleAddNoteEffect(2);
                   } else {
-                    setPendingSelectionTool((tool) => (tool === "slide" ? null : "slide"));
+                    beginToolSelection("slide");
                     setError(null);
                   }
                 }}
-                disabled={selectionActionsLocked || activeChordIds.length > 0}
+                disabled={selectionActionsLocked}
                 title={
                   selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Connect selected notes with slides - Shortcut: L")
                 }
@@ -15196,15 +15424,15 @@ export default function GteWorkspace({
               <button
                 type="button"
                 onClick={() => {
-                  if (canCreateNoteEffect) {
+                  if (toolSelectionRule("bend", snapshot, selectedNoteIds, activeChordIds).valid) {
                     setPendingSelectionTool(null);
                     handleAddNoteEffect(0);
                   } else {
-                    setPendingSelectionTool((tool) => (tool === "bend" ? null : "bend"));
+                    beginToolSelection("bend");
                     setError(null);
                   }
                 }}
-                disabled={selectionActionsLocked || activeChordIds.length > 0}
+                disabled={selectionActionsLocked}
                 title={
                   selectionActionsLocked ? t("Disabled while notes/chords are selected in multiple tracks") : t("Connect selected notes with bends - Shortcut: B")
                 }
@@ -15281,7 +15509,6 @@ export default function GteWorkspace({
       <select
         value={defaultNoteLengthDenominator}
         onChange={(event) => {
-          defaultNoteLengthUserChangedRef.current = true;
           setDefaultNoteLengthDenominator(Number(event.target.value));
           releaseSizeSelectFocus(event.currentTarget);
         }}
@@ -15341,6 +15568,95 @@ export default function GteWorkspace({
       }}
     >
       {editMenuPortalTarget ? createPortal(renderEditMenuPanel(true), editMenuPortalTarget) : null}
+      {isActive && !tabViewEnabled && selectedNote && noteMenuNoteId === selectedNote.id && noteMenuDraft && selectedNoteIds.length === 1 && activeChordIds.length === 0 && (
+        <PropertiesInspectorShell
+          key={`note-properties-${selectedNote.id}`}
+          ref={noteMenuRef}
+          kind="note"
+          title={t("Note properties")}
+          context={t("{value1} string · Fret {value2}", { value1: stringLabels[selectedNote.tab[0]], value2: selectedNote.tab[1] })}
+          objectKey={`${editorId}:note-${selectedNote.id}`}
+          geometryKey={`${selectedNote.startTime}:${selectedNote.length}:${selectedNote.tab[0]}:${scale}:${rowStride}`}
+          anchor={noteMenuAnchor ?? { x: 0, y: 0 }}
+          mobile={mobileViewport}
+          onClose={() => { setNoteMenuAnchor(null); setNoteMenuNoteId(null); setNoteMenuDraft(null); }}
+        >
+          <div>
+            <PropertyNumberField label={t("Fret")} value={String(selectedNote.tab[1])} min={0} max={maxFret} integer onCommit={commitNoteMenuFret} onStep={adjustDesktopNoteMenuFret} />
+            <p className="mt-1.5 text-xs text-slate-500">{t("Use +/− to change the fret")}</p>
+          </div>
+          <MusicalDurationField value={getNearestNoteFractionDenominator(selectedNote.length)} options={NOTE_LENGTH_FRACTION_DENOMINATORS.map((value) => ({ value, label: formatNoteLengthOption(value) }))} onChange={commitNoteMenuFractionLength} />
+          <NoteFingerings tabs={noteAlternates?.possibleTabs ?? []} blockedTabs={noteAlternates?.blockedTabs ?? []} orderedTabs={noteAlternates?.orderedTabs} current={selectedNote.tab} labels={stringLabels} onSelect={handleAssignAlt} />
+          {isMobileEditMode && <section className="space-y-2" aria-label={t("Move selected note")}>
+            <div className="grid grid-cols-4 gap-2">{(["left", "up", "down", "right"] as const).map((direction) => <InspectorAction key={direction} title={t("Move note {value1}", { value1: direction })} onClick={() => moveSelectedMobileNote(direction)}>{direction === "left" ? "←" : direction === "right" ? "→" : direction === "up" ? "↑" : "↓"}</InspectorAction>)}</div>
+            <div className="grid grid-cols-2 gap-2"><InspectorAction onClick={() => scaleSelectedMobileNote(0.5)}>{t("Scale ½×")}</InspectorAction><InspectorAction onClick={() => scaleSelectedMobileNote(2)}>{t("Scale 2×")}</InspectorAction></div>
+          </section>}
+          <InspectorDelete label={t("Delete note")} onClick={() => { handleDeleteNote(); setSelectedNoteIds([]); setNoteMenuAnchor(null); setNoteMenuNoteId(null); setNoteMenuDraft(null); }} />
+        </PropertiesInspectorShell>
+      )}
+      {isActive && !tabViewEnabled && selectedChord && chordMenuChordId === selectedChord.id && chordMenuDraft && editingChordId === null && activeChordIds.length === 1 && selectedNoteIds.length === 0 && (
+        <PropertiesInspectorShell
+          key={`chord-properties-${selectedChord.id}`}
+          compact
+          ref={chordMenuRef}
+          kind="chord"
+          title={t("Chord properties")}
+          context={t("{value1} notes · {value2}", { value1: selectedChord.currentTabs.length, value2: selectedChordName?.label ?? t("Unknown chord") })}
+          contextTitle={t("Estimated chord name from the current notes")}
+          objectKey={`${editorId}:chord-${selectedChord.id}`}
+          geometryKey={`${selectedChord.startTime}:${selectedChord.length}:${selectedChord.currentTabs.map((tab) => tab[0]).join(",")}:${scale}:${rowStride}`}
+          anchor={chordMenuAnchor ?? { x: 0, y: 0 }}
+          mobile={mobileViewport}
+          onClose={() => { setChordMenuAnchor(null); setChordMenuChordId(null); setChordMenuDraft(null); }}
+        >
+          <MusicalDurationField label={t("Chord duration")} value={getNearestNoteFractionDenominator(selectedChord.length)} options={NOTE_LENGTH_FRACTION_DENOMINATORS.map((value) => ({ value, label: formatNoteLengthOption(value) }))} onChange={(value) => commitChordMenuLength(formatLengthFramesAsSeconds(noteFractionDenominatorToFrames(Number(value))))} />
+          <ChordTransposeControl tabs={selectedChord.currentTabs} maxFret={maxFret} onTranspose={handleTransposeChordFrets} />
+          <ChordFingerings tabs={selectedChord.currentTabs} alternatives={chordAlternatives} labels={stringLabels} onSelect={handleApplyChordTabs} onEdit={(event) => openChordEdit(selectedChord.id, event)} />
+          <section className="space-y-2 border-t border-slate-100 pt-2" aria-label={t("Group actions")}>
+            <div className="grid grid-cols-2 gap-2"><InspectorAction onClick={() => handleChordOctaveShift(-1)}>{t("Octave down")}</InspectorAction><InspectorAction onClick={() => handleChordOctaveShift(1)}>{t("Octave up")}</InspectorAction></div>
+            {isMobileEditMode && <div className="grid grid-cols-2 gap-2"><InspectorAction title={t("Move chord left")} onClick={() => moveSelectedMobileChord("left")}>←</InspectorAction><InspectorAction title={t("Move chord right")} onClick={() => moveSelectedMobileChord("right")}>→</InspectorAction></div>}
+            <div className="grid grid-cols-2 items-center gap-2">
+              <InspectorAction title={t("Keep the notes, but remove their chord grouping")} onClick={() => { handleDisbandChord(); setChordMenuAnchor(null); setChordMenuChordId(null); setChordMenuDraft(null); }}>{t("Disband chord")}</InspectorAction>
+              <InspectorDelete inline label={t("Delete chord")} title={t("Deletes the chord and all its notes")} onClick={() => { handleDeleteChord(); setChordMenuAnchor(null); setChordMenuChordId(null); setChordMenuDraft(null); }} />
+            </div>
+          </section>
+        </PropertiesInspectorShell>
+      )}
+      {isActive && !tabViewEnabled && selectedChord && editingChordId === selectedChord.id && chordNoteMenuIndex === null && (
+        <PropertiesInspectorShell
+          ref={chordEditPanelRef} kind="chord" title={t("Chord properties")}
+          context={t("{value1} notes · {value2}", { value1: selectedChord.currentTabs.length, value2: selectedChordName?.label ?? t("Unknown chord") })}
+          contextTitle={t("Estimated chord name from the current notes")}
+          objectKey={`${editorId}:chord-${selectedChord.id}`} geometryKey={`${selectedChord.startTime}:${selectedChord.length}:${selectedChord.currentTabs.map((tab) => tab[0]).join(",")}:${scale}:${rowStride}`} anchor={editingChordAnchor ?? { x: 0, y: 0 }} mobile={mobileViewport} onClose={exitChordEdit}
+        >
+          <p className="text-xs leading-5 text-slate-600">{t("Click chord notes to edit.")}</p>
+          <InspectorAction onClick={exitChordEdit}>{t("Done")}</InspectorAction>
+        </PropertiesInspectorShell>
+      )}
+      {isActive && !tabViewEnabled && selectedChord && editingChordId === selectedChord.id && chordNoteMenuIndex !== null && selectedChord.currentTabs[chordNoteMenuIndex] && chordNoteMenuDraft && (
+        <PropertiesInspectorShell
+          key={`chord-member-${selectedChord.id}-${chordNoteMenuIndex}`} ref={chordNoteMenuRef} kind="note" title={t("Note properties")}
+          context={t("Chord note {value1} · {value2} string", { value1: chordNoteMenuIndex + 1, value2: stringLabels[selectedChord.currentTabs[chordNoteMenuIndex][0]] })}
+          objectKey={`${editorId}:chord-${selectedChord.id}`} geometryKey={`${selectedChord.startTime}:${selectedChord.length}:${selectedChord.currentTabs.map((tab) => tab[0]).join(",")}:${scale}:${rowStride}`} anchor={chordNoteMenuAnchor ?? { x: 0, y: 0 }} mobile={mobileViewport}
+          onClose={() => { setChordNoteMenuAnchor(null); setChordNoteMenuIndex(null); setChordNoteMenuDraft(null); }}
+        >
+          <PropertyNumberField label={t("Fret")} value={String(selectedChord.currentTabs[chordNoteMenuIndex][1])} min={0} max={maxFret} integer inlineStepper onCommit={commitChordNoteFret}
+            onStep={(delta, value) => commitChordNoteFret(String(Math.max(0, Math.min(maxFret, Number(value) + delta))))} />
+          <p className="!mt-1.5 text-xs text-slate-500">{t("Use +/− to change the fret")}</p>
+          <InspectorAction onClick={exitChordEdit}>{t("Done")}</InspectorAction>
+          <InspectorDelete label={t("Delete note")} onClick={deleteChordNote} />
+        </PropertiesInspectorShell>
+      )}
+      {coordinateEditorMode && (
+        <div data-gte-coordinate-editor-control="true" className="mb-2 flex justify-end">
+          <button type="button" onClick={handleMergeCutBoundary}
+            disabled={selectedCutBoundaryIndex === null}
+            title={t("Delete selected boundary")}
+            className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-40">
+            {t("Delete boundary")}<kbd className="rounded border border-slate-200 px-1 text-[10px]">Del</kbd>
+          </button>
+        </div>
+      )}
       {pendingSelectionTool && (
         <div
           data-gte-floating-ui="true"
@@ -15349,13 +15665,16 @@ export default function GteWorkspace({
           role="toolbar"
           aria-label={t("{value1} selection", {value1: pendingSelectionToolLabel})}
         >
-          <span className="whitespace-nowrap text-xs text-slate-600">
+          <span className="min-w-0 text-xs text-slate-600">
             <strong className="text-slate-900">{t(pendingSelectionToolLabel)}</strong>
             {" · "}
-            {pendingSelectionCount}{t(" selected")}</span>
+            {pendingSelectionCount}{t(" selected")}
+            <span className="mt-1 block text-[11px] font-normal text-slate-500">{t(pendingSelectionNeedsOptions ? "Click to select/deselect. Enter to set options · Esc to cancel." : "Click to select/deselect. Enter to apply · Esc to cancel.")}</span>
+            <span className={`mt-0.5 block text-[11px] font-normal ${canApplyPendingSelectionTool ? "text-slate-500" : "text-slate-700"}`} role="status">{t(pendingSelectionHint)}</span>
+          </span>
           <button
             type="button"
-            onClick={() => setPendingSelectionTool(null)}
+            onClick={cancelToolSelection}
             className="rounded-md px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"
           >{t("Cancel")}</button>
           <button
@@ -15364,12 +15683,12 @@ export default function GteWorkspace({
             disabled={!canApplyPendingSelectionTool}
             className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
             title={
-              pendingSelectionToolIsEffect ? t("Select at least two notes") : t("Select at least one note or chord")
+              t(pendingSelectionHint)
             }
-          >{t("Apply")}</button>
+          >{t(pendingSelectionNeedsOptions ? "Continue" : "Apply")}</button>
         </div>
       )}
-      {directCanvasTool && (
+      {directCanvasTool && !coordinateEditorMode && (
         <div
           data-gte-floating-ui="true"
           data-gte-editor-control="true"
@@ -15398,25 +15717,77 @@ export default function GteWorkspace({
           >{t("Done")}</button>
         </div>
       )}
+      {optimizeDialog && typeof document !== "undefined" && createPortal(
+        <GteOptimizeDialog snapshot={optimizeDialog.snapshot} selection={optimizeDialog.selection}
+          selecting={optimizationSelecting} onRequestSelection={() => { setOptimizationSelecting(true); beginToolSelection("optimize"); }}
+          error={optimizeDialogError} busy={optimizingFingering} onCancel={() => setOptimizeDialog(null)} onApply={applyOptimization}
+          renderCoordinateEditor={(draft, onChange, cutting, end) => (
+            <GteWorkspace editorId={`${editorId}-coordinate-preview`} snapshot={draft} onSnapshotChange={onChange}
+              allowBackend={false} embedded isActive={false} playbackUiVisible={false}
+              coordinateEditorMode coordinateEditorCut={cutting} coordinateEditorEnd={end}
+              globalSnapToGridEnabled={false} sharedViewportBarCount={Math.max(1, Math.min(4, Math.ceil(end / Math.max(1, draft.framesPerMessure))))} />
+          )} />,
+        document.body
+      )}
+      {transposeToolActive && (
+        <div data-transpose-hud="true" data-gte-floating-ui="true" data-gte-editor-control="true"
+          className="fixed z-[10020] w-44 rounded-lg border border-sky-200 bg-white px-3 py-2 text-slate-700 shadow-lg"
+          style={{ left: transposeHud.x, top: transposeHud.y }} onMouseDown={(event) => event.stopPropagation()}>
+          <label className="grid gap-1 text-[11px] font-medium">
+            {t("Transpose")}
+            <span className="flex items-center gap-1">
+              <button type="button" aria-label={t("Transpose down")} disabled={!transposeBounds || transposeOffset <= transposeBounds.min}
+                onClick={() => stepTranspose(-1)} className="h-7 w-7 shrink-0 rounded border border-slate-200 hover:bg-slate-50 disabled:opacity-30">−</button>
+              <input type="text" inputMode="text" aria-label={t("Semitones")} value={transposeInput}
+                onFocus={(event) => event.currentTarget.select()} onChange={(event) => updateTransposeInput(event.target.value)}
+                className="h-7 min-w-0 w-full rounded border border-slate-200 px-1 text-center text-sm outline-none focus:border-sky-400" />
+              <button type="button" aria-label={t("Transpose up")} disabled={!transposeBounds || transposeOffset >= transposeBounds.max}
+                onClick={() => stepTranspose(1)} className="h-7 w-7 shrink-0 rounded border border-slate-200 hover:bg-slate-50 disabled:opacity-30">+</button>
+            </span>
+          </label>
+          <div className="mt-1 text-[10px] leading-4 text-slate-500">{t("Type or scroll to adjust")}</div>
+          <div className="text-[10px] leading-4 text-slate-500">{t("Enter or click to apply")}</div>
+          <button type="button" onClick={() => setTransposeToolActive(false)} className="mt-1 text-[10px] text-slate-500 hover:text-slate-800">{t("Cancel")}</button>
+        </div>
+      )}
       {sliceToolActive && (
-        <div
-          data-gte-floating-ui="true"
-          data-gte-editor-control="true"
-          className="fixed bottom-28 left-1/2 z-[10020] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-indigo-200 bg-white/95 px-3 py-2 shadow-xl backdrop-blur"
-          role="toolbar"
-          aria-label={t("Slice mode")}
-        >
-          <span className="whitespace-nowrap text-xs text-slate-600">
-            <strong className="text-slate-900">{t("Slice mode")}</strong>
-            {" · "}{t("Click a note where you want to split it")}</span>
-          <button
-            type="button"
-            onClick={() => {
-              setSliceToolActive(false);
-              setSliceCursor(null);
-            }}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700"
-          >{t("Done")}</button>
+        <div data-subdivision-hud="true" data-gte-floating-ui="true" data-gte-editor-control="true"
+          className="fixed z-[10020] w-52 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-slate-700 shadow-lg"
+          style={{ left: subdivisionHud.x, top: subdivisionHud.y }} onMouseDown={(event) => event.stopPropagation()}>
+          <label className="flex items-center justify-between gap-2 text-[11px] font-medium">
+            <span>{t("Split into")}</span>
+            <input type="text" inputMode="numeric" aria-label={t("Subdivision amount")} value={subdivisionInput}
+              onFocus={(event) => { event.currentTarget.select(); subdivisionTypingRef.current = { text: "", at: 0 }; }}
+              onKeyDown={(event) => {
+                if (event.ctrlKey || event.metaKey || event.altKey || !/^\d$/.test(event.key)) return;
+                event.preventDefault(); event.stopPropagation();
+                const now = Date.now();
+                const text = nextSubdivisionInput(subdivisionTypingRef.current, event.key, now);
+                subdivisionTypingRef.current = { text, at: now };
+                setSubdivisionInput(text);
+                const value = Number(text);
+                if (value >= 2 && value <= MAX_SUBDIVISION_PARTS) setSubdivisionParts(value);
+              }}
+              onChange={(event) => {
+                const text = event.target.value;
+                if (!/^\d{0,2}$/.test(text) || Number(text) > MAX_SUBDIVISION_PARTS) return;
+                subdivisionTypingRef.current = { text, at: Date.now() };
+                setSubdivisionInput(text);
+                const value = Number(text);
+                if (Number.isInteger(value) && value >= 2) setSubdivisionParts(value);
+              }}
+              className="h-7 w-10 rounded border border-slate-200 bg-white px-1 text-center text-sm tabular-nums outline-none focus:border-indigo-400" />
+            <span>{t("equal parts")}</span>
+          </label>
+          <div aria-hidden="true" className="mt-2 flex h-3 gap-0.5">{Array.from({ length: subdivisionParts }, (_, index) => <span key={index} className="min-w-0 flex-1 rounded-sm border border-indigo-300 bg-indigo-100" />)}</div>
+          <div className="mt-1 text-[10px] leading-4 text-slate-500">{t("Type or scroll · 2–16")}</div>
+          <div className="mt-2 flex items-center justify-end gap-2">
+            <button type="button" onClick={() => setSliceToolActive(false)} className="rounded px-2 py-1 text-[11px] text-slate-500 hover:bg-slate-100">{t("Cancel")}</button>
+            <button type="button" onClick={commitSubdivision} disabled={!Number.isInteger(Number(subdivisionInput)) || Number(subdivisionInput) < 2 || Number(subdivisionInput) > MAX_SUBDIVISION_PARTS}
+              className="flex h-7 items-center gap-2 rounded-md bg-indigo-600 px-2.5 text-[11px] font-medium text-white hover:bg-indigo-700 disabled:opacity-40">
+              {t("Apply")}<span aria-hidden="true" className="text-indigo-200">↵</span>
+            </button>
+          </div>
         </div>
       )}
       {scaleToolActive && scaleHudPosition && (
@@ -15450,6 +15821,10 @@ export default function GteWorkspace({
             />
           </div>
           <div className="mt-0.5 text-[9px] text-slate-500">{t("Enter or click to apply")}</div>
+          <div className="mt-0.5 flex items-center gap-1 text-[9px] text-slate-500">
+            <kbd className="inline-flex h-4 min-w-4 items-center justify-center rounded border border-slate-300 bg-slate-50 px-1 font-sans text-[10px] font-semibold text-slate-700">−</kbd>
+            <span>{t("- to scale down")}</span>
+          </div>
         </div>
       )}
       {quantizeDialogOpen && (
@@ -15466,20 +15841,20 @@ export default function GteWorkspace({
         >
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 id="gte-quantize-dialog-title" className="m-0 text-sm font-semibold text-slate-900">{t("Quantize notes")}</h2>
+              <h2 id="gte-quantize-dialog-title" className="m-0 text-sm font-semibold text-slate-900">{t("Snap to beat")}</h2>
               <p className="mt-1 text-[11px] leading-4 text-slate-500">{t("Preview selected notes against beat subdivisions.")}</p>
             </div>
             <button
               type="button"
               onClick={deactivateQuantizeTool}
               className="grid h-6 w-6 place-items-center rounded-md border border-slate-200 bg-white text-[12px] font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-800"
-              aria-label={t("Close quantize")}
+              aria-label={t("Close snap to beat")}
               title={t("Close")}
             >{t("x")}</button>
           </div>
 
           <div className="mt-3 grid gap-2">
-            <label className="grid gap-1 text-[11px] font-semibold text-slate-600">{t("Beat subdivision")}<div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+            <label className="grid gap-1 text-[11px] font-semibold text-slate-600">{t("Snap size")}<div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
                 <span className="text-sm font-semibold text-slate-700">1 /</span>
                 <input
                   type="number"
@@ -15512,35 +15887,6 @@ export default function GteWorkspace({
               </div>
             </label>
 
-            <label className="grid gap-1 text-[11px] font-semibold text-slate-600">{t("Pre scaling")}<input
-                type="number"
-                min={SCALE_FACTOR_MIN}
-                max={SCALE_FACTOR_MAX}
-                step={0.01}
-                value={quantizePreScaleInput}
-                onChange={(event) => {
-                  const nextInput = event.target.value;
-                  setQuantizePreScaleInput(nextInput);
-                  const parsed = Number(nextInput);
-                  if (!Number.isFinite(parsed)) return;
-                  applyQuantizePreview(quantizeSubdivision, parsed, quantizeApplyToLength, { syncInputs: false });
-                }}
-                onBlur={() => {
-                  setQuantizePreScaleInput(formatScaleFactor(quantizePreScale));
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    commitQuantizeTool();
-                  }
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    deactivateQuantizeTool();
-                  }
-                }}
-                className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-800 outline-none focus:border-sky-400"
-              />
-            </label>
 
             <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-[11px] font-semibold text-slate-600">
               <input
@@ -15641,9 +15987,97 @@ export default function GteWorkspace({
           </form>
         </div>
       )}
+      {isActive && !mobileViewport && !tabViewEnabled && !practiceMode && typeof document !== "undefined" && createPortal(
+        <div role="toolbar" aria-label={t("Edit notes, chords and playing coordinates")}
+          aria-orientation="vertical" data-gte-floating-ui="true" data-gte-editor-control="true" data-gte-toolbar-ui="true"
+          className="fixed right-1 top-1/2 z-[9997] flex max-h-[calc(100dvh-8rem)] -translate-y-1/2 flex-col gap-1 overflow-y-auto rounded-xl border border-slate-200 bg-white/95 p-1.5 text-slate-600 shadow-sm backdrop-blur"
+          onMouseDown={(event) => {
+            if (!(event.target instanceof Element && event.target.closest("select"))) event.preventDefault();
+            event.stopPropagation();
+          }}>
+          {([
+            ...(!bassLane ? [
+              { label: "Merge to Chord", path: "M4 5h6v4H4zM4 15h6v4H4zM15 8h6v8h-6zM10 7l5 4M10 17l5-4", onClick: handleMakeChord, disabled: chordizeCandidateCount < 2 || selectionActionsLocked },
+              { label: "Disband Chord", path: "M3 8h6v8H3zM15 3h6v5h-6zM15 16h6v5h-6zM9 11l6-5M9 13l6 5", onClick: () => {
+                const chordIds = [...activeChordIds];
+                void runMutation(async () => {
+                  const latestSnapshot = await disbandChordIds(chordIds);
+                  return latestSnapshot ? { snapshot: latestSnapshot } : {};
+                }, { localApply: (draft) => { chordIds.forEach((id) => disbandChordInSnapshot(draft, id)); } });
+                setSelectedChordIds([]);
+              }, disabled: activeChordIds.length === 0 || selectionActionsLocked },
+            ] : []),
+            { label: "Optimize fingerings", path: "M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3ZM4 2v4M2 4h4M20 18v4M18 20h4", onClick: openOptimizeDialog, disabled: optimizingFingering || selectionActionsLocked || (snapshot.notes.length === 0 && snapshot.chords.length === 0) },
+            { label: "Snap to Key", path: "M14 3v12M14 6l5 2M14 15c0 2-2 4-4 4s-4-1-4-3 2-3 4-3 4 0 4 2M3 4v5M1 6h5", onClick: handleSnapSelectedNotesToKey, disabled: selectedNoteIds.length === 0 || selectionActionsLocked },
+            { label: "Snap to beat", path: "M5 3h4v9a3 3 0 0 0 6 0V3h4v9a7 7 0 0 1-14 0V3ZM5 7h4M15 7h4", onClick: activateQuantizeTool, disabled: selectedNoteIds.length + activeChordIds.length === 0 || selectionActionsLocked, active: quantizeDialogOpen },
+            { label: "Merge Notes", path: "M3 3h6v1l2 1.5L9 7l1 1H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM21 3h-6v1l2 1.5L14 7l1 1h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1ZM6 10c0 2 2 2 3 2s3 1 3 3M18 10c0 2-2 2-3 2s-3 1-3 3M10 14l2 2 2-2M3 19a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-2Z", onClick: () => { void handleJoinSelectedNotes(); }, disabled: selectedNoteIds.length < 2 || selectionActionsLocked },
+            { label: "Subdivide", path: "M3 6h18v12H3zM9 6v12M15 6v12", onClick: toggleSliceTool, disabled: selectionActionsLocked || (!sliceToolActive && selectedNoteIds.length + activeChordIds.length === 0), active: sliceToolActive },
+            { label: "Lengthen", path: "M9 12H2m3-3-3 3 3 3M15 12h7m-3-3 3 3-3 3", onClick: toggleScaleTool, disabled: !scaleToolActive && selectedNoteIds.length + activeChordIds.length === 0, active: scaleToolActive, separator: true },
+            { label: "Move", path: "M12 9V2m-3 3 3-3 3 3M12 15v7m-3-3 3 3 3-3M9 12H2m3-3-3 3 3 3M15 12h7m-3-3 3 3-3 3", onClick: () => { if (moveToolActive) deactivateMoveTool(); else activateMoveTool(); }, disabled: !moveToolActive && selectedNoteIds.length + activeChordIds.length === 0, active: moveToolActive },
+            { label: "Transpose", path: "M8 20V4M4 8l4-4 4 4M17 4v16M13 16l4 4 4-4", onClick: toggleTransposeTool, disabled: selectionActionsLocked || (!transposeToolActive && selectedNoteIds.length + activeChordIds.length === 0), active: transposeToolActive },
+            { label: "Hammer/Pull", path: "", letter: "H", onClick: () => handleAddNoteEffect(1), disabled: !canCreateNoteEffect, separator: true },
+            { label: "Bend", path: "", letter: "B", onClick: () => handleAddNoteEffect(0), disabled: !canCreateNoteEffect },
+            { label: "Slide", path: "", letter: "/", onClick: () => handleAddNoteEffect(2), disabled: !canCreateNoteEffect },
+            { label: allTrackEventsSelected ? "Deselect all" : "Select all", path: `M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M8 8h8v8H8z${allTrackEventsSelected ? "M3 21 21 3" : ""}`, onClick: toggleSelectAllTrackEvents, disabled: snapshot.notes.length + snapshot.chords.length === 0, separator: true },
+          ] as Array<{ label: string; path: string; letter?: string; onClick: () => void; disabled?: boolean; active?: boolean; separator?: boolean }>).map((tool) => {
+            const selectionTool = TOOLBAR_SELECTION_TOOLS[tool.label];
+            const rule = selectionTool ? toolSelectionRule(selectionTool, snapshot, selectedNoteIds, activeChordIds) : null;
+            const active = tool.active || Boolean(selectionTool && pendingSelectionTool === selectionTool) || (tool.label === "Optimize fingerings" && pendingSelectionTool === "optimize");
+            return (
+            <div key={tool.label} className={`flex items-center ${tool.separator ? "border-t border-slate-200 pt-1" : ""}`}>
+              <button type="button" title={t(tool.label)} aria-label={t(tool.label)} aria-pressed={active}
+                disabled={editMenuDisabled || (selectionTool ? selectionActionsLocked : tool.disabled)} onClick={() => {
+                  setContextMenu(null);
+                  if (selectionTool && (pendingSelectionTool || !rule?.valid)) beginToolSelection(selectionTool);
+                  else tool.onClick();
+                }}
+                className={`flex h-8 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${tool.label === "Lengthen" ? "w-7" : "w-10"} ${active ? "bg-sky-100 text-sky-700" : "hover:bg-slate-100 hover:text-slate-900"}`}>
+                {tool.label === "Merge to Chord" || tool.label === "Disband Chord" ? (
+                  <svg viewBox="0 0 32 24" className="h-5 w-7" aria-hidden="true">
+                    <g transform={tool.label === "Disband Chord" ? "translate(32 0) scale(-1 1)" : undefined}>
+                      <g fill="#34D399">
+                        <rect x="1" y="3" width="6" height="4" rx="1.3" />
+                        <rect x="1" y="10" width="6" height="4" rx="1.3" />
+                        <rect x="1" y="17" width="6" height="4" rx="1.3" />
+                      </g>
+                      <path d="m9 5 10 7L9 19M9 12h10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <rect x="22" y="2" width="9" height="20" rx="2.5" fill="#38BDF8" fillOpacity="0.15" stroke="#0EA5E9" strokeWidth="1.2" />
+                      <g fill="#38BDF8">
+                        <rect x="24" y="4" width="5" height="4" rx="1" />
+                        <rect x="24" y="10" width="5" height="4" rx="1" />
+                        <rect x="24" y="16" width="5" height="4" rx="1" />
+                      </g>
+                    </g>
+                  </svg>
+                ) : tool.label === "Snap to Key" ? (
+                  <span aria-hidden="true" className="flex items-center justify-center gap-0.5">
+                    <span className="text-[10px] font-semibold leading-none">{["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"][normalizeKeyBaseValue(canvasKeyBase)]}</span>
+                    <svg viewBox="0 0 24 20" className="h-3.5 w-4 shrink-0 fill-none stroke-current" strokeWidth={1.4} strokeLinejoin="round">
+                      <rect x="1" y="2" width="22" height="16" rx="2" />
+                      <path d="M6.5 11v7M12 2v16M17.5 11v7" />
+                      <path d="M5 2h3v9H5zM16 2h3v9h-3z" fill="currentColor" stroke="none" />
+                    </svg>
+                  </span>
+                ) : tool.letter ? <span aria-hidden="true" className="text-sm font-semibold leading-none">{tool.letter}</span> : (
+                  <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] fill-none stroke-current" strokeWidth={1.65} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={tool.path} /></svg>
+                )}
+              </button>
+              {tool.label === "Lengthen" && (
+                <GteScaleModeMenu value={scaleToolMode} disabled={editMenuDisabled} label={t("Lengthen mode")}
+                    options={[{ value: "length", label: t("Length") }, { value: "start", label: t("Start time") }, { value: "both", label: t("Start + length") }]}
+                    onChange={(mode) => {
+                      setScaleToolMode(mode);
+                      if (scaleToolActive) applyScalePreview(scaleFactor, { mode, syncInput: false });
+                    }} />
+              )}
+            </div>
+          ); })}
+        </div>, document.body
+      )}
       {contextMenu && (
         <div
           ref={contextMenuRef}
+          data-gte-coordinate-editor-control={coordinateEditorMode ? "true" : undefined}
           className={`fixed z-[9999] rounded-md border border-slate-200 bg-white/95 py-1 text-xs shadow-lg backdrop-blur ${
             contextMenu.kind === "note"
               ? "max-h-[calc(100vh-1.5rem)] w-64 overflow-y-auto"
@@ -15707,6 +16141,7 @@ export default function GteWorkspace({
             </>
           ) : contextMenu.kind === "playingCoordinates" ? (
             <>
+              {!coordinateEditorMode && <>
               <div className="px-3 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">{t("Playing Coordinates")}</div>
               <button
                 type="button"
@@ -15725,7 +16160,8 @@ export default function GteWorkspace({
                 disabled={!hasRedundantCutRegions}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
               >{t("Clean Playing-Coordinates")}</button>
-              <button
+              </>}
+              {!coordinateEditorMode && <button
                 type="button"
                 onClick={() => {
                   toggleCutTool();
@@ -15735,7 +16171,7 @@ export default function GteWorkspace({
               >
                 <span>{t("Cut")}</span>
                 <span className="text-[10px] text-slate-400">{t("K")}</span>
-              </button>
+              </button>}
               <button
                 type="button"
                 onClick={() => {
@@ -15772,30 +16208,19 @@ export default function GteWorkspace({
                   {!bassLane && <button
                     type="button"
                     onClick={() => {
-                      void handleMakeChord();
+                      runSelectionAwareTool("merge-chord", handleMakeChord);
                       setContextMenu(null);
                     }}
-                    disabled={chordizeCandidateCount < 2 || selectionActionsLocked}
+                    disabled={selectionActionsLocked}
                     className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
                   >
                     <span>{t("Merge to Chord")}</span>
                     <span className="text-[10px] text-slate-400">{t("C")}</span>
                   </button>}
-                  {!bassLane && <button
-                    type="button"
-                    onClick={() => {
-                      void handleOptimizeToCoordinates();
-                      setContextMenu(null);
-                    }}
-                    disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
-                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
-                  >
-                    <span>{t("Optimize to Coordinates")}</span>
-                    <span className="text-[10px] text-slate-400">{t("O")}</span>
-                  </button>}
                   <button
                     type="button"
                     onClick={() => {
+                      if (!toolSelectionRule("disband", snapshot, selectedNoteIds, activeChordIds).valid) { beginToolSelection("disband"); setContextMenu(null); return; }
                       if (activeChordIds.length) {
                         const chordIds = [...activeChordIds];
                         void runMutation(
@@ -15815,7 +16240,7 @@ export default function GteWorkspace({
                       }
                       setContextMenu(null);
                     }}
-                    disabled={activeChordIds.length === 0 || selectionActionsLocked}
+                    disabled={selectionActionsLocked}
                     className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
                   >
                     <span>{t("Disband Chord")}</span>
@@ -15834,43 +16259,42 @@ export default function GteWorkspace({
                     }
                     className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
                   >
-                    <span>{t("Optimize Fingering")}</span>
+                    <span>{t("Optimize fingerings")}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => {
-                      handleSnapSelectedNotesToKey();
+                      runSelectionAwareTool("snap-key", () => handleSnapSelectedNotesToKey());
                       setContextMenu(null);
                     }}
-                    disabled={selectedNoteIds.length === 0 || selectionActionsLocked}
+                    disabled={selectionActionsLocked}
                     className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
                   >{t("Snap to Key")}</button>
                   <button
                     type="button"
                     onClick={() => {
-                      activateQuantizeTool();
+                      runSelectionAwareTool("quantize", () => activateQuantizeTool());
                       setContextMenu(null);
                     }}
                     disabled={
-                      selectedNoteIds.length + selectedChordIds.length === 0 ||
                       selectionActionsLocked
                     }
                     className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
-                  >{t("Quantize")}</button>
+                  >{t("Snap to beat")}</button>
                   <button
                     type="button"
                     onClick={() => {
-                      void handleJoinSelectedNotes();
+                      runSelectionAwareTool("merge-notes", () => { void handleJoinSelectedNotes(); });
                       setContextMenu(null);
                     }}
-                    disabled={selectedNoteIds.length < 2 || selectionActionsLocked}
+                    disabled={selectionActionsLocked}
                     className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
                   >
                     <span>{t("Merge Notes")}</span>
                     <span className="text-[10px] text-slate-400">{t("J")}</span>
                   </button>
                   <label className="flex items-center justify-between gap-3 px-3 py-1.5 text-slate-700">
-                    <span>{t("Scale mode")}</span>
+                    <span>{t("Lengthen mode")}</span>
                     <select
                       data-scale-mode-select="true"
                       value={scaleToolMode}
@@ -15895,28 +16319,32 @@ export default function GteWorkspace({
                   <button
                     type="button"
                     onClick={() => {
-                      toggleScaleTool();
+                      runSelectionAwareTool("scale", toggleScaleTool);
                       setContextMenu(null);
                     }}
                     disabled={
-                      !scaleToolActive &&
-                      selectedNoteIds.length + selectedChordIds.length === 0
+                      selectionActionsLocked
                     }
                     className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
                   >
-                    <span>{t("Scale")}</span>
+                    <span>{t("Lengthen")}</span>
                     <span className="text-[10px] text-slate-400">{t("S")}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => {
-                      toggleSliceTool();
+                      runSelectionAwareTool("subdivide", toggleSliceTool);
                       setContextMenu(null);
                     }}
                     className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100"
                   >
-                    <span>{t("Slicing Tool")}</span>
+                    <span>{t("Subdivide")}</span>
                     <span className="text-[10px] text-slate-400">{t("Shift+S")}</span>
+                  </button>
+                  <button type="button" onClick={() => { runSelectionAwareTool("transpose", toggleTransposeTool); setContextMenu(null); }}
+                    disabled={selectionActionsLocked}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400">
+                    {t("Transpose")}
                   </button>
                   <button
                     type="button"
@@ -15924,13 +16352,12 @@ export default function GteWorkspace({
                       if (moveToolActive) {
                         deactivateMoveTool();
                       } else {
-                        activateMoveTool();
+                        runSelectionAwareTool("move", () => activateMoveTool());
                       }
                       setContextMenu(null);
                     }}
                     disabled={
-                      !moveToolActive &&
-                      selectedNoteIds.length + selectedChordIds.length === 0
+                      selectionActionsLocked
                     }
                     className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
                   >
@@ -15949,10 +16376,10 @@ export default function GteWorkspace({
                       key={`note-context-effect-${label}`}
                       type="button"
                       onClick={() => {
-                        handleAddNoteEffect(Number(effectType));
+                        runSelectionAwareTool(Number(effectType) === 1 ? "hammer-pull" : Number(effectType) === 2 ? "slide" : "bend", () => handleAddNoteEffect(Number(effectType)));
                         setContextMenu(null);
                       }}
-                      disabled={!canCreateNoteEffect}
+                      disabled={selectionActionsLocked}
                       className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
                     >
                       <span>{t(String(label))}</span>
@@ -17415,11 +17842,12 @@ export default function GteWorkspace({
           )
         )}
         <div
-          className={`flex min-w-0 ${tabViewEnabled ? "hidden" : ""} ${
+          className={`relative flex min-w-0 ${tabViewEnabled ? "hidden" : ""} ${
             isMobileEditMode ? "min-h-0 flex-1 items-center" : "items-start"
           }`}
           style={{
             columnGap: GTE_TIMELINE_COLUMN_GAP,
+            paddingRight: !coordinateEditorMode && !mobileViewport && !tabViewEnabled && !practiceMode ? GTE_EDITOR_TOOLBAR_GUTTER : undefined,
             transform: isMobileEditMode ? "translateX(-12px)" : undefined,
           }}
         >
@@ -17430,6 +17858,11 @@ export default function GteWorkspace({
             style={{
               width: GTE_TIMELINE_LABEL_COLUMN_WIDTH,
               flex: `0 0 ${GTE_TIMELINE_LABEL_COLUMN_WIDTH}px`,
+              ...(!mobileViewport ? {
+                position: "absolute" as const,
+                left: `calc(50% - ${timelineWidth / 2 + GTE_TIMELINE_LABEL_COLUMN_WIDTH + GTE_TIMELINE_COLUMN_GAP + (!coordinateEditorMode && !tabViewEnabled && !practiceMode ? GTE_EDITOR_TOOLBAR_GUTTER / 2 : 0)}px)`,
+                top: 0,
+              } : {}),
             }}
           >
             <div ref={mobileLabelColumnRef} style={{ paddingTop: TIMELINE_BAR_HEADER_HEIGHT }}>
@@ -17442,7 +17875,7 @@ export default function GteWorkspace({
                 {stringLabels.map((label, stringIndex) => (
                   <div
                     key={`label-${rowIdx}-${stringIndex}`}
-                    className="flex items-center justify-end pr-2"
+                    className="flex items-center justify-end pr-2 font-bold"
                     style={{ height: ROW_HEIGHT }}
                   >
                     {t(String(label))}
@@ -17454,6 +17887,9 @@ export default function GteWorkspace({
           </div>
           <div
             ref={mobileTimelineScrollRef}
+            style={!mobileViewport ? {
+              marginInline: GTE_TIMELINE_LABEL_COLUMN_WIDTH + GTE_TIMELINE_COLUMN_GAP,
+            } : undefined}
             className={`min-w-0 flex-1 ${
               isMobileEditMode
                 ? "w-0 min-h-0 max-h-full overflow-y-auto overflow-x-hidden overscroll-contain"
@@ -17467,6 +17903,7 @@ export default function GteWorkspace({
             <div
               ref={timelineOuterRef}
               data-gte-shared-timeline="true"
+              data-gte-canvas-timeline="true"
               // No overflow is set on either axis here on purpose: declaring
               // one axis hidden while leaving the other "visible" makes the
               // browser silently compute the visible axis as "auto" (per the
@@ -17480,6 +17917,7 @@ export default function GteWorkspace({
                 className="relative"
                 style={{
                   width: timelineChromeWidth,
+                  marginLeft: !mobileViewport ? `calc((100% - ${timelineWidth}px) / 2)` : undefined,
                   paddingTop: TIMELINE_BAR_HEADER_HEIGHT,
                   paddingBottom: isMobileEditMode ? 56 : addBarStartsNewRow ? 40 : 0,
                 }}
@@ -17574,6 +18012,7 @@ export default function GteWorkspace({
                 <button
                   type="button"
                   onClick={openAddBarsDialog}
+                  data-gte-add-bars="true"
                   onMouseDown={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
@@ -17591,7 +18030,7 @@ export default function GteWorkspace({
                 <div
                   ref={timelineRef}
                   data-track-reorder-block="true"
-                  className={`relative rounded-xl border border-slate-200 bg-white ${
+                  className={`relative ${mobileViewport ? "rounded-xl border border-slate-200 bg-white" : "bg-transparent"} ${
                     cutToolActive || sliceToolActive
                       ? "cursor-crosshair"
                     : scaleToolActive
@@ -17600,7 +18039,17 @@ export default function GteWorkspace({
                 }`}
                 style={{ height: timelineHeight }}
                 onMouseDown={handleTimelineMouseDown}
-                onTouchStartCapture={handleMobileTimelineTouchStart}
+                onMouseDownCapture={(event) => {
+                  if (!pendingSelectionTool || event.button !== 0) return;
+                  event.preventDefault(); event.stopPropagation();
+                  togglePendingToolObject(event.target);
+                }}
+                onClickCapture={(event) => { if (pendingSelectionTool) { event.preventDefault(); event.stopPropagation(); } }}
+                onDoubleClickCapture={(event) => { if (pendingSelectionTool) { event.preventDefault(); event.stopPropagation(); } }}
+                onTouchStartCapture={(event) => {
+                  if (pendingSelectionTool) { event.preventDefault(); event.stopPropagation(); togglePendingToolObject(event.target); return; }
+                  handleMobileTimelineTouchStart(event);
+                }}
                 onTouchMoveCapture={handleMobileTimelineTouchMove}
                 onTouchEndCapture={handleMobileTimelineTouchEnd}
                 onTouchCancelCapture={() => {
@@ -17681,10 +18130,26 @@ export default function GteWorkspace({
                   const beatWidth = framesPerMeasure > 0 ? (framesPerMeasure / beatsPerBar) * scale : 0;
                   return (
                     <div key={`row-${rowIdx}`} className="absolute left-0" style={{ top: rowTop, width: rowWidth }}>
+                      {Array.from({ length: rowBarCount }, (_, barOffset) => (
+                        <div
+                          key={`bar-background-${rowIdx}-${barOffset}`}
+                          aria-hidden="true"
+                          className="pointer-events-none absolute top-0"
+                          style={{
+                            left: barOffset * framesPerMeasure * scale,
+                            width: framesPerMeasure * scale,
+                            height: rowHeight,
+                            backgroundImage: (rowIdx * barsPerRow + barOffset) % 2 === 0
+                              ? "linear-gradient(rgba(32, 42, 39, 0.055), rgba(32, 42, 39, 0.055))"
+                              : "linear-gradient(rgba(32, 42, 39, 0.025), rgba(32, 42, 39, 0.025))",
+                            backgroundColor: "#fff",
+                          }}
+                        />
+                      ))}
                       {[...Array(6)].map((_, idx) => (
                         <div
                           key={`row-${rowIdx}-line-${idx}`}
-                          className="absolute left-0 border-t border-slate-300"
+                          className="absolute left-0 border-t border-slate-400"
                           style={{ top: idx * ROW_HEIGHT, width: rowWidth }}
                         />
                       ))}
@@ -17701,7 +18166,7 @@ export default function GteWorkspace({
                               <div
                                 key={`row-${rowIdx}-beat-${beat}`}
                                 className="absolute top-0 h-full w-px pointer-events-none bg-slate-300/80"
-                                style={{ left, height: rowHeight }}
+                                style={{ left, height: rowHeight, maskImage: cursorGridLineMask(rowIdx, left) }}
                               />
                             );
                           })
@@ -17718,7 +18183,7 @@ export default function GteWorkspace({
                                 <div
                                   key={`row-${rowIdx}-half-beat-${barIndex}-${beatOffset}`}
                                   className="pointer-events-none absolute top-0 h-full w-px bg-slate-200/75"
-                                  style={{ left: halfBeat * beatWidth, height: rowHeight }}
+                                  style={{ left: halfBeat * beatWidth, height: rowHeight, maskImage: cursorGridLineMask(rowIdx, halfBeat * beatWidth) }}
                                 />
                               );
                             })
@@ -17738,7 +18203,7 @@ export default function GteWorkspace({
                               className={`absolute top-0 w-[2px] pointer-events-none ${
                                 isOuterEdge ? "bg-slate-400/90" : "bg-slate-500/85"
                               }`}
-                              style={{ left: dividerX, height: rowHeight }}
+                              style={{ left: dividerX, height: rowHeight, maskImage: cursorGridLineMask(rowIdx, dividerX) }}
                             />
                           );
                         })}
@@ -17757,7 +18222,7 @@ export default function GteWorkspace({
                           />
                         ))}
                       <div
-                        className="absolute left-0 border-b border-slate-300"
+                        className="absolute left-0 border-b border-slate-400"
                         style={{ top: rowHeight, width: rowWidth }}
                       />
                     </div>
@@ -17807,23 +18272,26 @@ export default function GteWorkspace({
                       height: keyboardCursorMarker.height,
                     }}
                   >
-                    <div className="h-full w-full rounded-sm border border-slate-400/75 bg-slate-300/45" />
+                    <div className="flex h-full w-full items-center justify-center rounded-sm border border-slate-400/75 bg-slate-300/45">
+                      {!mobileViewport && !keyboardAddMode && selectedNoteIds.length === 0 && selectedChordIds.length === 0 && !sliceToolActive && !cutToolActive && !scaleToolActive && !moveToolActive && !effectiveIsPlaying && (
+                        <>
+                          <span aria-hidden="true" className="gte-input-caret absolute left-[5px] top-1/2 h-3 -translate-y-1/2 border-l border-slate-700" />
+                        </>
+                      )}
+                    </div>
                   </div>
                 ))}
 
-                {sliceToolActive && sliceCursor && (() => {
-                  const rowStart = sliceCursor.rowIndex * rowFrames;
-                  const left = (sliceCursor.time - rowStart) * scale;
-                  const top = sliceCursor.rowIndex * rowStride;
-                  return (
-                    <div
-                      className="absolute pointer-events-none"
-                      style={{ left, top, height: rowHeight, width: 2, zIndex: 20 }}
-                    >
-                      <div className="h-full w-[2px] rounded-full bg-indigo-500/70" />
-                    </div>
-                  );
-                })()}
+                {sliceToolActive && subdivisionPlan.flatMap((target) => {
+                  const item = target.kind === "note" ? snapshot.notes.find((note) => note.id === target.id) : snapshot.chords.find((chord) => chord.id === target.id);
+                  if (!item) return [];
+                  const strings = "tab" in item ? [item.tab[0]] : [...new Set(item.currentTabs.map((tab) => tab[0]))];
+                  return target.cuts.flatMap((cut) => strings.map((string) => (
+                    <div key={`subdivision-${target.kind}-${target.id}-${cut}-${string}`}
+                      className="pointer-events-none absolute w-px bg-indigo-700 shadow-[0_0_0_1px_rgba(255,255,255,0.65)]"
+                      style={{ left: (cut % rowFrames) * scale, top: Math.floor(cut / rowFrames) * rowStride + string * ROW_HEIGHT + 2, height: ROW_HEIGHT - 4, zIndex: 30 }} />
+                  )));
+                })}
 
                 {cutToolActive && cutCursor && (() => {
                   const rowStart = cutCursor.rowIndex * rowFrames;
@@ -17848,7 +18316,7 @@ export default function GteWorkspace({
                   const rowStart = rowIndex * rowFrames;
                   const left = (safeFrame - rowStart) * scale;
                   const top = rowIndex * rowStride;
-                  const height = rowBlockHeight;
+                  const height = rowHeight;
                   return (
                     <button
                       ref={timelinePlayheadRef}
@@ -17864,7 +18332,7 @@ export default function GteWorkspace({
                         const target = getPointerFrame(event.clientX, event.clientY);
                         if (target) setEffectivePlayheadFrame(target.time);
                       }}
-                      className={`absolute z-30 cursor-col-resize`}
+                      className="absolute z-30 cursor-col-resize border-0 bg-transparent p-0 shadow-none focus-visible:outline-none"
                       style={{
                         left: 0,
                         top: 0,
@@ -17880,16 +18348,25 @@ export default function GteWorkspace({
                         willChange: effectiveIsPlaying ? "transform" : undefined,
                       }}
                     >
+                      <span aria-hidden="true" className="absolute -left-[5px] top-0 h-full w-3" />
                       <span
-                        className={`absolute left-0 top-0 h-full w-[2px] rounded-full ${
-                          effectiveIsPlaying ? "bg-rose-500" : "bg-rose-400/70"
+                        aria-hidden="true"
+                        className={`pointer-events-none absolute left-0 top-0 h-full w-[2px] rounded-full ring-1 ring-white/75 ${
+                          effectiveIsPlaying || playheadDragging ? "bg-[#CF5261]" : "bg-[#CF5261]/80"
                         }`}
                       />
+                      <span
+                        aria-hidden="true"
+                        className="absolute -left-[5px] -top-[7px] flex h-[9px] w-3 items-start justify-center rounded-t-[3px] bg-[#CF5261] shadow-sm"
+                        style={{ clipPath: "polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%)" }}
+                      >
+                        <span className="mt-[2px] h-px w-1 rounded-full bg-white/80" />
+                      </span>
                     </button>
                   );
                 })()}
 
-                {showPlayingCoordinates && cutBoundaries.map((boundary) => {
+                {showPlayingCoordinates && cutBoundaries.filter((boundary) => !coordinateEditorMode || boundary.time < (coordinateEditorEnd ?? Infinity)).map((boundary) => {
                   if (framesPerMeasure <= 0) return null;
                   const rowIndex = Math.floor(boundary.time / rowFrames);
                   if (rowIndex < 0 || rowIndex >= rows) return null;
@@ -17913,13 +18390,15 @@ export default function GteWorkspace({
                         event.preventDefault();
                         event.stopPropagation();
                         setSelectedCutBoundaryIndex(boundary.index);
+                        if (coordinateEditorMode) event.currentTarget.focus({ preventScroll: true });
                         setSegmentDragIndex(boundary.index);
                         setSelectedNoteIds([]);
                         setSelectedChordIds([]);
                       }}
-                      onContextMenu={(event) =>
-                        handlePlayingCoordinatesContextMenu(event, boundary.index)
-                      }
+                      onContextMenu={(event) => {
+                        if (coordinateEditorMode) event.currentTarget.focus({ preventScroll: true });
+                        handlePlayingCoordinatesContextMenu(event, boundary.index);
+                      }}
                       className="absolute z-40 cursor-pointer"
                       style={{ left, top, height, width: 18, transform: "translateX(-9px)" }}
                     >
@@ -17941,8 +18420,10 @@ export default function GteWorkspace({
 
                 {showPlayingCoordinates && segmentEdits.map((segment, segIndex) => {
                   if (framesPerMeasure <= 0) return null;
+                  const displayEnd = coordinateEditorMode ? Math.min(segment.end, coordinateEditorEnd ?? segment.end) : segment.end;
+                  if (segment.start >= displayEnd) return null;
                   const startRow = Math.floor(segment.start / rowFrames);
-                  const endRow = Math.floor((Math.max(segment.end - 1, segment.start)) / rowFrames);
+                  const endRow = Math.floor((Math.max(displayEnd - 1, segment.start)) / rowFrames);
                   const pieces = [];
                   for (let rowIdx = startRow; rowIdx <= endRow; rowIdx += 1) {
                     if (rowIdx < 0 || rowIdx >= rows) continue;
@@ -17951,7 +18432,7 @@ export default function GteWorkspace({
                     const rowStart = rowIdx * rowFrames;
                     const rowEnd = rowStart + availableFrames;
                     const segStart = Math.max(segment.start, rowStart);
-                    const segEnd = Math.min(segment.end, rowEnd);
+                    const segEnd = Math.min(displayEnd, rowEnd);
                     if (segEnd <= segStart) continue;
                     const left = (segStart - rowStart) * scale;
                     const width = Math.max(CUT_SEGMENT_MIN_WIDTH, (segEnd - segStart) * scale);
@@ -17989,7 +18470,7 @@ export default function GteWorkspace({
                         data-gte-editor-control="true"
                         data-gte-playing-coordinate="true"
                         role="group"
-                        className="absolute rounded-md border border-sky-300 bg-sky-200/60 px-2 py-1 text-[10px] text-slate-700"
+                        className={`absolute border px-2 py-1 text-slate-700 ${coordinateEditorMode ? "rounded-sm border-sky-400 bg-sky-200/80" : "rounded-md border-sky-300 bg-sky-200/60 text-[10px]"}`}
                         style={{ top, left, width, height: CUT_SEGMENT_HEIGHT }}
                         title={t("Playing coordinates - The fingerings of the notes are ranked based on the playing coordinate below")}
                         aria-label={t("Playing coordinates {value1}{value2}", {value1: stringLabel, value2: fretLabel})}
@@ -18017,7 +18498,7 @@ export default function GteWorkspace({
                           className={`absolute top-0 flex h-full items-center justify-center rounded text-[10px] font-semibold text-slate-700 hover:text-slate-900 ${
                             cutToolActive ? "cursor-crosshair" : "cursor-pointer"
                           }`}
-                          style={{ left: labelLeft - left, top: 0, width: coordLabelWidth, height: 24 }}
+                          style={{ left: labelLeft - left, top: 0, width: coordLabelWidth, height: coordinateEditorMode ? CUT_SEGMENT_HEIGHT : 24, fontSize: coordinateEditorMode ? 12 : undefined }}
                           title={t("Playing coordinates - The fingerings of the notes are ranked based on the playing coordinate below")}
                           aria-label={t("Playing coordinates {value1}{value2}", {value1: stringLabel, value2: fretLabel})}
                           onClick={(event) => {
@@ -18149,7 +18630,7 @@ export default function GteWorkspace({
 
                 {renderableNoteEffects.flatMap(({ effect, startNote, connectorSegments }) => {
                   const effectColorClass =
-                    selectedNoteEffectId === effect.id ? "bg-amber-400" : "bg-emerald-400";
+                    selectedNoteEffectId === effect.id ? "bg-[#8AECC8]" : "bg-[#34D399]";
                   return connectorSegments.map((segment, idx) => {
                     const left = segment.inRowStart * scale;
                     const top =
@@ -18232,6 +18713,9 @@ export default function GteWorkspace({
                     return (
                       <button
                         key={`note-${note.id}-seg-${segment.rowIndex}-${idx}`}
+                        data-gte-inspector-object={`${editorId}:note-${note.id}`}
+                        data-tool-select-note={note.id}
+                        aria-disabled={pendingSelectionTool && !toolAllowsSelection(pendingSelectionTool, "note") ? true : undefined}
                         data-gte-note="true"
                         type="button"
                         onMouseDown={(event) => {
@@ -18309,14 +18793,12 @@ export default function GteWorkspace({
                           if (selectedNoteIds.length > 1) return;
                           openNoteMenu(note.id, note.tab[1], note.length, event);
                         }}
-                        className={`absolute rounded-md px-1 text-[11px] font-semibold text-slate-900 ${
+                        className={`absolute flex items-center justify-center rounded-[3px] px-1 text-xs font-bold leading-none text-slate-950 ${
                           scaleToolActive ? "cursor-ew-resize" : "cursor-grab"
                         } ${
                           selectedNoteIds.includes(note.id)
-                            ? "bg-amber-400"
-                            : conflictInfo.noteConflicts.has(note.id)
-                            ? "bg-red-400/80"
-                            : "bg-emerald-400"
+                            ? "bg-[#8AECC8]"
+                            : "bg-[#2DC58E]"
                         } ${
                           editingChordId !== null
                             ? "opacity-30 pointer-events-none"
@@ -18327,14 +18809,28 @@ export default function GteWorkspace({
                           noteEffectEdges.right && isLast ? "rounded-r-none" : ""
                         }`}
                         style={{
-                          top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + (mobileViewport ? 1 : 4),
-                          left: segment.inRowStart * scale,
-                          width: Math.max(10, segment.length * scale),
-                          height: mobileViewport ? ROW_HEIGHT - 2 : ROW_HEIGHT - 8,
+                          top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + canvasNoteTopInset,
+                          zIndex: 1,
+                          left: segment.inRowStart * scale + 1,
+                          width: Math.max(10, segment.length * scale) - 2,
+                          height: canvasNoteHeight,
+                          fontSize: coordinateEditorMode ? 11 : undefined,
                           touchAction: mobileViewport ? "none" : undefined,
+                          outline: selectedNoteIds.includes(note.id)
+                            ? "1px solid rgba(15, 23, 42, 0.35)"
+                            : undefined,
+                          outlineOffset: -1,
+                          opacity: pendingSelectionTool && !toolAllowsSelection(pendingSelectionTool, "note") ? 0.25 : conflictInfo.noteConflicts.has(note.id)
+                            ? 0.6
+                            : undefined,
                         }}
                       >
-                        {idx === 0 ? note.tab[1] : null}
+                        {idx === 0 ? <span className="relative inline-flex items-center">
+                          {note.tab[1] + (transposeToolActive && transposeNoteIds.has(note.id) ? transposeOffset : 0)}
+                          {showSelectedFretCaret && selectedNoteIds.length === 1 && selectedNoteIds[0] === note.id && selectedChordIds.length === 0 && (
+                            <span aria-hidden="true" className="gte-input-caret pointer-events-none absolute left-full top-1/2 ml-0.5 h-3 -translate-y-1/2 border-l border-current" />
+                          )}
+                        </span> : null}
                         {isLast && (
                           <span
                             className="absolute right-0 top-0 h-full w-2 cursor-ew-resize"
@@ -18390,7 +18886,30 @@ export default function GteWorkspace({
                     : chord.length;
                   const segments = getSpanSegments(displayStart, displayLength);
                   const endTime = displayStart + Math.max(1, Math.round(displayLength));
-                  return chord.currentTabs.flatMap((tab, idx) =>
+                  const chordStrings = chord.currentTabs.map((tab, idx) =>
+                    editingChordId === chord.id && draggingChordNote?.tabIndex === idx
+                      ? dragChordNotePreview?.stringIndex ?? tab[0]
+                      : tab[0]
+                  );
+                  const firstString = Math.min(...chordStrings);
+                  const lastString = Math.max(...chordStrings);
+                  const backings = chordStrings.length > 1 ? segments.map((segment, segIdx) => (
+                    <div
+                      key={`chord-backing-${chord.id}-${segment.rowIndex}-${segIdx}`}
+                      aria-hidden="true"
+                      className="pointer-events-none absolute rounded-[3px]"
+                      style={{
+                        top: segment.rowIndex * rowStride + firstString * ROW_HEIGHT + canvasNoteTopInset,
+                        left: segment.inRowStart * scale + 1 + (Math.max(10, segment.length * scale) - 2) * 0.05,
+                        width: (Math.max(10, segment.length * scale) - 2) * 0.90,
+                        height: (lastString - firstString) * ROW_HEIGHT + canvasNoteHeight,
+                        backgroundColor: "rgba(56, 189, 248, 0.35)",
+                        opacity: editingChordId !== null && editingChordId !== chord.id ? 0.3 : 1,
+                        zIndex: 0,
+                      }}
+                    />
+                  )) : [];
+                  return [...backings, ...chord.currentTabs.flatMap((tab, idx) =>
                     segments.map((segment, segIdx) => {
                       const isLast = segment.segEnd >= endTime;
                       const isEditingThisChord = editingChordId === chord.id;
@@ -18403,6 +18922,9 @@ export default function GteWorkspace({
                       return (
                         <button
                           key={`chord-${chord.id}-${idx}-seg-${segment.rowIndex}-${segIdx}`}
+                          data-gte-inspector-object={`${editorId}:chord-${chord.id}`}
+                          data-tool-select-chord={chord.id}
+                          aria-disabled={pendingSelectionTool && !toolAllowsSelection(pendingSelectionTool, "chord") ? true : undefined}
                           data-gte-note="true"
                           type="button"
                           onMouseDown={(event) => {
@@ -18489,24 +19011,38 @@ export default function GteWorkspace({
                             }
                             openChordMenu(chord.id, chord.length, event);
                           }}
-                          className={`absolute rounded-md px-1 text-[11px] font-semibold text-slate-900 ${
+                          className={`absolute flex items-center justify-center rounded-[3px] px-1 text-xs font-bold leading-none text-slate-950 ${
                             scaleToolActive ? "cursor-ew-resize" : "cursor-grab"
                           } ${
-                            selectedChordIds.includes(chord.id) ? "bg-blue-400" : "bg-blue-300"
+                            selectedChordIds.includes(chord.id) ? "bg-[#BAE6FD]" : "bg-[#38BDF8]"
                           } ${
                             isDimmed
                               ? "opacity-30 pointer-events-none"
                             : ""
                           }`}
                           style={{
-                            top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + (mobileViewport ? 1 : 4),
-                            left: segment.inRowStart * scale,
-                            width: Math.max(10, segment.length * scale),
-                            height: mobileViewport ? ROW_HEIGHT - 2 : ROW_HEIGHT - 8,
+                            top: segment.rowIndex * rowStride + displayString * ROW_HEIGHT + canvasNoteTopInset,
+                            zIndex: 1,
+                            left: segment.inRowStart * scale + 1,
+                            width: Math.max(10, segment.length * scale) - 2,
+                            height: canvasNoteHeight,
+                            fontSize: coordinateEditorMode ? 11 : undefined,
                             touchAction: mobileViewport ? "none" : undefined,
+                            outline: selectedChordIds.includes(chord.id)
+                              ? "1px solid rgba(15, 23, 42, 0.35)"
+                              : undefined,
+                            outlineOffset: -1,
+                            opacity: pendingSelectionTool && !toolAllowsSelection(pendingSelectionTool, "chord") ? 0.25 : conflictInfo.conflictKeys.has(`chord-${chord.id}-${idx}`)
+                              ? 0.6
+                              : undefined,
                           }}
                         >
-                          {tab[1]}
+                          <span className="relative inline-flex items-center">
+                            {tab[1] + (transposeToolActive && transposeChordIds.has(chord.id) ? transposeOffset : 0)}
+                            {showSelectedFretCaret && isEditingThisChord && chordNoteMenuIndex === idx && selectedNoteIds.length === 0 && activeChordIds.length === 1 && (
+                              <span aria-hidden="true" className="gte-input-caret pointer-events-none absolute left-full top-1/2 ml-0.5 h-3 -translate-y-1/2 border-l border-current" />
+                            )}
+                          </span>
                           {isLast && editingChordId === null && (
                             <span
                               className="absolute right-0 top-0 h-full w-2 cursor-ew-resize"
@@ -18531,380 +19067,8 @@ export default function GteWorkspace({
                         </button>
                       );
                     })
-                  );
+                  )];
                 })}
-
-                {selectedNote &&
-                  noteMenuAnchor &&
-                  noteMenuNoteId === selectedNote.id &&
-                  noteMenuDraft &&
-                  !mobileViewport && (
-                    <div
-                      ref={noteMenuRef}
-                      className="fixed z-[9999] w-56 rounded-md border border-slate-200 bg-white p-2 shadow-md"
-                      style={{
-                        left: noteMenuAnchor.x,
-                        top: noteMenuAnchor.y,
-                      }}
-                      onMouseDown={(event) => event.stopPropagation()}
-                    >
-                      <div
-                        className="flex cursor-move items-center justify-between rounded-md bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700"
-                        onMouseDown={(event) => startFloatingPanelDrag("note", event)}
-                      >
-                        <span>{t("Note #")}{selectedNote.id}</span>
-                        <span className="text-[9px] font-medium uppercase tracking-wide text-slate-400">{t("Drag")}</span>
-                      </div>
-                      <div className="mt-2 space-y-2">
-                        <label className="block text-[10px] text-slate-500">{t("Fret")}<div className="mt-1 flex items-stretch gap-1">
-                            <input
-                              type="number"
-                              min={0}
-                              max={maxFret}
-                              className="w-full rounded border border-slate-200 px-2 py-1 text-xs"
-                              value={noteMenuDraft.fret}
-                              onChange={(event) =>
-                                setNoteMenuDraft((prev) =>
-                                  prev ? { ...prev, fret: event.target.value } : prev
-                                )
-                              }
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                  event.preventDefault();
-                                  commitNoteMenuFret();
-                                }
-                                if (event.key === "Escape") {
-                                  event.preventDefault();
-                                  setNoteMenuAnchor(null);
-                                  setNoteMenuNoteId(null);
-                                  setNoteMenuDraft(null);
-                                }
-                              }}
-                              onBlur={() => commitNoteMenuFret()}
-                            />
-                            <div className="flex w-7 flex-col gap-1">
-                              <button
-                                type="button"
-                                className="flex h-[18px] items-center justify-center rounded border border-slate-200 bg-slate-50 text-[10px] text-slate-700"
-                                onClick={() => adjustDesktopNoteMenuFret(1)}
-                                aria-label={t("Increase fret")}
-                              >{"↑"}</button>
-                              <button
-                                type="button"
-                                className="flex h-[18px] items-center justify-center rounded border border-slate-200 bg-slate-50 text-[10px] text-slate-700"
-                                onClick={() => adjustDesktopNoteMenuFret(-1)}
-                                aria-label={t("Decrease fret")}
-                              >{"↓"}</button>
-                            </div>
-                          </div>
-                        </label>
-                        <div className="grid grid-cols-[1fr_80px] gap-2">
-                          <label className="block text-[10px] text-slate-500">{t("Length (sec)")}<input
-                              type="number"
-                              min={framesToDurationSeconds(1)}
-                              max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
-                              step={0.01}
-                              inputMode="decimal"
-                              className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
-                              value={noteMenuDraft.length}
-                              onChange={(event) =>
-                                setNoteMenuDraft((prev) =>
-                                  prev ? { ...prev, length: event.target.value } : prev
-                                )
-                              }
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                  event.preventDefault();
-                                  commitNoteMenuLength();
-                                }
-                                if (event.key === "Escape") {
-                                  event.preventDefault();
-                                  setNoteMenuAnchor(null);
-                                  setNoteMenuNoteId(null);
-                                  setNoteMenuDraft(null);
-                                }
-                              }}
-                              onBlur={() => commitNoteMenuLength()}
-                            />
-                          </label>
-                          <label className="block text-[10px] text-slate-500">{t("Length")}<select
-                              className="mt-1 h-[26px] w-full rounded border border-slate-200 bg-white px-1 text-xs"
-                              value={getNearestNoteFractionDenominator(selectedNote.length)}
-                              onChange={(event) => commitNoteMenuFractionLength(event.target.value)}
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                  event.preventDefault();
-                                  commitNoteMenuFractionLength(event.currentTarget.value);
-                                }
-                                if (event.key === "Escape") {
-                                  event.preventDefault();
-                                  setNoteMenuAnchor(null);
-                                  setNoteMenuNoteId(null);
-                                  setNoteMenuDraft(null);
-                                }
-                              }}
-                              aria-label={t("Musical note length {value1}", {value1: formatLengthFramesAsFraction(selectedNote.length)})}
-                            >
-                              {NOTE_LENGTH_FRACTION_DENOMINATORS.map((denominator) => (
-                                <option key={denominator} value={denominator}>
-                                  {formatNoteLengthOption(denominator)}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        </div>
-                      </div>
-                      {noteAlternates?.possibleTabs?.length ||
-                      noteAlternates?.blockedTabs?.length ? (
-                        <div className="mt-3">
-                          <div className="text-[10px] text-slate-500">{t("Alternative fingerings")}</div>
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            {(noteAlternates?.possibleTabs || []).slice(0, 10).map((tab, idx) => (
-                              <button
-                                key={`note-alt-${selectedNote.id}-${idx}`}
-                                type="button"
-                                onClick={() => handleAssignAlt(tab)}
-                                className="rounded bg-amber-400/70 px-2 py-1 text-[10px] font-semibold text-slate-900"
-                              >
-                                {stringLabels[tab[0]]}
-                                {tab[1]}
-                              </button>
-                            ))}
-                            {(noteAlternates?.blockedTabs || []).slice(0, 10).map((tab, idx) => (
-                              <button
-                                key={`note-alt-blocked-${selectedNote.id}-${idx}`}
-                                type="button"
-                                onClick={() => handleAssignAlt(tab)}
-                                className="rounded bg-rose-200 px-2 py-1 text-[10px] font-semibold text-rose-700"
-                              >
-                                {stringLabels[tab[0]]}
-                                {tab[1]}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                      <button
-                          type="button"
-                          onClick={() => {
-                            handleDeleteNote();
-                            setSelectedNoteIds([]);
-                            setNoteMenuAnchor(null);
-                            setNoteMenuNoteId(null);
-                            setNoteMenuDraft(null);
-                          }}
-                        className="mt-3 w-full rounded-md bg-rose-500/80 px-2 py-1 text-xs font-semibold text-white"
-                      >{t("Delete note")}</button>
-                    </div>
-                  )}
-
-                {selectedChord &&
-                  chordMenuAnchor &&
-                  chordMenuChordId === selectedChord.id &&
-                  chordMenuDraft &&
-                  editingChordId === null &&
-                  !mobileViewport && (
-                    <div
-                      ref={chordMenuRef}
-                      className="fixed z-[9999] w-60 rounded-md border border-slate-200 bg-white p-2 shadow-md"
-                      style={{ left: chordMenuAnchor.x, top: chordMenuAnchor.y }}
-                      onMouseDown={(event) => event.stopPropagation()}
-                    >
-                      <div
-                        className="flex cursor-move items-center justify-between rounded-md bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700"
-                        onMouseDown={(event) => startFloatingPanelDrag("chord", event)}
-                      >
-                        <span>{t("Chord #")}{selectedChord.id}</span>
-                        <span className="text-[9px] font-medium uppercase tracking-wide text-slate-400">{t("Drag")}</span>
-                      </div>
-                      <div className="mt-2 space-y-2">
-                        <label className="block text-[10px] text-slate-500">{t("Length (sec)")}<input
-                            type="number"
-                            min={framesToDurationSeconds(1)}
-                            max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
-                            step={0.01}
-                            inputMode="decimal"
-                            className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
-                            value={chordMenuDraft.length}
-                            onChange={(event) =>
-                              setChordMenuDraft((prev) =>
-                                prev ? { ...prev, length: event.target.value } : prev
-                              )
-                            }
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                commitChordMenuLength();
-                              }
-                              if (event.key === "Escape") {
-                                event.preventDefault();
-                                setChordMenuAnchor(null);
-                                setChordMenuChordId(null);
-                                setChordMenuDraft(null);
-                              }
-                            }}
-                            onBlur={() => commitChordMenuLength()}
-                          />
-                        </label>
-                      </div>
-                      {chordAlternatives.length ? (
-                        <div className="mt-3">
-                          <div className="text-[10px] text-slate-500">{t("Fingerings")}</div>
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            {chordAlternatives.slice(0, 8).map((tabs, idx) => (
-                              <button
-                                key={`chord-alt-${selectedChord.id}-${idx}`}
-                                type="button"
-                                onClick={() => handleApplyChordTabs(tabs)}
-                                className="rounded bg-amber-400/70 px-2 py-1 text-[10px] font-semibold text-slate-900"
-                              >
-                                {tabs.map((tab) => `${stringLabels[tab[0]]}${tab[1]}`).join(" ")}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={(event) => openChordEdit(selectedChord.id, event)}
-                        className="mt-3 w-full rounded-md border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-100"
-                      >{t("Edit chord")}</button>
-                      <div className="mt-3 grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleChordOctaveShift(-1)}
-                          className="rounded-md border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-100"
-                        >{t("Octave down")}</button>
-                        <button
-                          type="button"
-                          onClick={() => handleChordOctaveShift(1)}
-                          className="rounded-md border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-100"
-                        >{t("Octave up")}</button>
-                      </div>
-                      <div className="mt-2 grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void runMutation(() => gteApi.disbandChord(editorId, selectedChord.id), {
-                              localApply: (draft) => {
-                                disbandChordInSnapshot(draft, selectedChord.id);
-                              },
-                            });
-                            setSelectedChordIds([]);
-                            setChordMenuAnchor(null);
-                            setChordMenuChordId(null);
-                            setChordMenuDraft(null);
-                          }}
-                          className="rounded-md border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-100"
-                        >{t("Disband")}</button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleDeleteChord();
-                            setChordMenuAnchor(null);
-                            setChordMenuChordId(null);
-                            setChordMenuDraft(null);
-                          }}
-                          className="rounded-md bg-rose-500/80 px-2 py-1 text-[10px] font-semibold text-white"
-                        >{t("Delete")}</button>
-                      </div>
-                    </div>
-                  )}
-
-                {editingChordId !== null && editingChordAnchor && (
-                  <div
-                    ref={chordEditPanelRef}
-                    className="fixed z-[9999] w-48 rounded-md border border-slate-200 bg-white p-2 shadow-md"
-                    style={{ left: editingChordAnchor.x, top: editingChordAnchor.y }}
-                    onMouseDown={(event) => event.stopPropagation()}
-                  >
-                    <div className="text-[11px] font-semibold text-slate-700">{t("Editing chord #")}{editingChordId}
-                    </div>
-                    <p className="mt-1 text-[10px] text-slate-500">{t("Click chord notes to edit.")}</p>
-                    <button
-                      type="button"
-                      onClick={exitChordEdit}
-                      className="mt-2 w-full rounded-md bg-emerald-500/80 px-2 py-1 text-[10px] font-semibold text-slate-900"
-                    >{t("Done")}</button>
-                  </div>
-                )}
-
-                {selectedChord &&
-                  editingChordId === selectedChord.id &&
-                  chordNoteMenuAnchor &&
-                  chordNoteMenuIndex !== null &&
-                  chordNoteMenuDraft && (
-                    <div
-                      ref={chordNoteMenuRef}
-                      className="fixed z-[9999] w-56 rounded-md border border-slate-200 bg-white p-2 shadow-md"
-                      style={{ left: chordNoteMenuAnchor.x, top: chordNoteMenuAnchor.y }}
-                      onMouseDown={(event) => event.stopPropagation()}
-                    >
-                      <div className="text-[11px] font-semibold text-slate-700">{t("Chord note #")}{chordNoteMenuIndex + 1}
-                      </div>
-                      <div className="mt-2 space-y-2">
-                        <label className="block text-[10px] text-slate-500">{t("Fret")}<input
-                            type="number"
-                            min={0}
-                            max={maxFret}
-                            className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
-                            value={chordNoteMenuDraft.fret}
-                            onChange={(event) =>
-                              setChordNoteMenuDraft((prev) =>
-                                prev ? { ...prev, fret: event.target.value } : prev
-                              )
-                            }
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                commitChordNoteFret();
-                              }
-                              if (event.key === "Escape") {
-                                event.preventDefault();
-                                setChordNoteMenuAnchor(null);
-                                setChordNoteMenuIndex(null);
-                                setChordNoteMenuDraft(null);
-                              }
-                            }}
-                            onBlur={() => commitChordNoteFret()}
-                          />
-                        </label>
-                        <label className="block text-[10px] text-slate-500">{t("Length (sec)")}<input
-                            type="number"
-                            min={framesToDurationSeconds(1)}
-                            max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
-                            step={0.01}
-                            inputMode="decimal"
-                            className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs"
-                            value={chordNoteMenuDraft.length}
-                            onChange={(event) =>
-                              setChordNoteMenuDraft((prev) =>
-                                prev ? { ...prev, length: event.target.value } : prev
-                              )
-                            }
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                commitChordNoteLength();
-                              }
-                              if (event.key === "Escape") {
-                                event.preventDefault();
-                                setChordNoteMenuAnchor(null);
-                                setChordNoteMenuIndex(null);
-                                setChordNoteMenuDraft(null);
-                              }
-                            }}
-                            onBlur={() => commitChordNoteLength()}
-                          />
-                        </label>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={deleteChordNote}
-                        className="mt-3 w-full rounded-md bg-rose-500/80 px-2 py-1 text-[10px] font-semibold text-white"
-                      >{t("Delete note")}</button>
-                    </div>
-                  )}
 
                 {optimizingFingering && (
                   <div
@@ -19037,104 +19201,6 @@ export default function GteWorkspace({
                   </div>,
                   document.body
                 )}
-                {draftNote && draftNoteAnchor && !mobileViewport && (
-                  <div
-                    ref={draftPopupRef}
-                    className="fixed z-[9999] rounded-md border border-slate-200 bg-white px-2 py-2 shadow-md"
-                    style={{
-                      left: draftNoteAnchor.x,
-                      top: draftNoteAnchor.y,
-                      transform: "translate(-10%, calc(-100% - 8px))",
-                    }}
-                    onClick={(event) => event.stopPropagation()}
-                    onMouseDown={(event) => {
-                      event.stopPropagation();
-                    }}
-                  >
-                    <div className="text-[11px] text-slate-600">{t("String ")}{stringLabels[draftNote.stringIndex]} @ {draftNote.startTime}
-                    </div>
-                    <div className="mt-1 flex items-end gap-2">
-                      <div className="flex flex-col items-start gap-1">
-                        <input
-                          ref={draftFretRef}
-                          type="number"
-                          min={0}
-                          max={maxFret}
-                          value={draftNote.fret ?? ""}
-                          onChange={(e) =>
-                            setDraftNote((prev) =>
-                              prev ? { ...prev, fret: parseOptionalNumber(e.target.value) } : prev
-                            )
-                          }
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                              event.preventDefault();
-                              handleAddNote();
-                            }
-                            if (event.key === "Escape") {
-                              event.preventDefault();
-                              setDraftNote(null);
-                              setDraftNoteAnchor(null);
-                            }
-                          }}
-                          className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
-                          placeholder={t("Fret")}
-                        />
-                        <span className="text-[10px] text-slate-500">{t("Fret")}</span>
-                      </div>
-                      <div className="flex flex-col items-start gap-1">
-                        <input
-                          type="number"
-                          min={framesToDurationSeconds(1)}
-                          max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
-                          step={0.01}
-                          inputMode="decimal"
-                          value={draftNote.length === null ? "" : formatLengthFramesAsSeconds(draftNote.length)}
-                          onChange={(e) =>
-                            setDraftNote((prev) => {
-                              if (!prev) return prev;
-                              const parsed = e.target.value === "" ? null : parseLengthSecondsToFrames(e.target.value);
-                              return {
-                                ...prev,
-                                length: parsed,
-                              };
-                            })
-                          }
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                              event.preventDefault();
-                              handleAddNote();
-                            }
-                            if (event.key === "Escape") {
-                              event.preventDefault();
-                              setDraftNote(null);
-                              setDraftNoteAnchor(null);
-                            }
-                          }}
-                          className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
-                          placeholder={t("Sec")}
-                        />
-                        <span className="text-[10px] text-slate-500">{t("Length sec")}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleAddNote}
-                        onMouseDown={(event) => event.stopPropagation()}
-                        className="rounded-md bg-emerald-500/80 px-2 py-1 text-[11px] font-semibold text-slate-900"
-                      >{t("Add")}</button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDraftNote(null);
-                          setDraftNoteAnchor(null);
-                        }}
-                        onMouseDown={(event) => event.stopPropagation()}
-                        className="rounded-md border border-slate-200 px-2 py-1 text-[11px] text-slate-700"
-                      >{t("Cancel")}</button>
-                    </div>
-                    <div className="mt-1 text-[10px] text-slate-500">{t("Type a fret and press Enter.")}</div>
-                  </div>
-                )}
               </div>
               </div>
             </div>
@@ -19169,125 +19235,6 @@ export default function GteWorkspace({
           )}
         {showMobileEditRail && mobileEditorPanelOpen && typeof document !== "undefined" && createPortal(
           <div className="pointer-events-auto fixed inset-x-0 bottom-0 z-[9980] h-32 bg-white/98 shadow-[0_-8px_24px_rgba(15,23,42,0.08)]" aria-hidden="true" data-gte-floating-ui="true" />,
-          document.body
-        )}
-        {showMobileEditRail && showMobileInlineNoteSettings && selectedNote && noteMenuDraft && typeof document !== "undefined" && createPortal(
-          <div className="mt-2 shrink-0" data-gte-floating-ui="true">
-            <div
-              className={`fixed bottom-2 left-2 right-2 z-[9999] mx-auto flex items-stretch gap-2 overflow-y-auto rounded-xl pb-0 ${
-                mobileLandscape
-                  ? "max-h-[70dvh] w-[min(calc(100vw-1rem),46rem)]"
-                  : "max-h-[48dvh] w-[min(calc(100vw-1rem),28rem)]"
-              }`}
-            >
-              <div
-                ref={showMobileInlineNoteSettings ? noteMenuRef : null}
-                className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white p-2.5 shadow-lg"
-                onMouseDown={(event) => event.stopPropagation()}
-              >
-                <div
-                  className={
-                    mobileLandscape
-                      ? "grid min-h-0 grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.2fr)] gap-3"
-                      : "flex min-h-0 flex-col"
-                  }
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Note settings")}</div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleDeleteNote();
-                          setSelectedNoteIds([]);
-                          setNoteMenuAnchor(null);
-                          setNoteMenuNoteId(null);
-                          setNoteMenuDraft(null);
-                        }}
-                        className="rounded-md bg-rose-500/90 px-2 py-1 text-[10px] font-semibold text-white"
-                      >{t("Delete")}</button>
-                    </div>
-                    <label className="mt-2 block rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                      <span className="flex items-center justify-between text-[9px] font-semibold uppercase tracking-wide text-slate-500">
-                        <span>{t("Fret")}</span>
-                        <span className="text-lg font-bold tabular-nums text-slate-900">{noteMenuDraft.fret}</span>
-                      </span>
-                      <input
-                        type="range"
-                        min={0}
-                        max={maxFret}
-                        step={1}
-                        value={Number(noteMenuDraft.fret)}
-                        onChange={(event) => {
-                          const fret = Number(event.currentTarget.value);
-                          setNoteMenuDraft((prev) => (prev ? { ...prev, fret: String(fret) } : prev));
-                          scheduleNoteFretArrowCommit(selectedNote.id, fret);
-                        }}
-                        className="mt-1 h-7 w-full accent-emerald-600"
-                        aria-label={t("Selected note fret")}
-                      />
-                    </label>
-                  </div>
-                  <div className="min-w-0">
-                    <div className={`grid grid-cols-4 gap-1.5 ${mobileLandscape ? "" : "mt-2"}`} aria-label={t("Move selected note")}>
-                      {(["left", "up", "down", "right"] as const).map((direction) => (
-                        <button
-                          key={direction}
-                          type="button"
-                          onClick={() => moveSelectedMobileNote(direction)}
-                          className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-700 shadow-sm active:bg-slate-100"
-                          aria-label={t("Move note {value1}", {value1: direction})}
-                        >
-                          {direction === "left" ? "←" : direction === "right" ? "→" : direction === "up" ? "↑" : "↓"}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => scaleSelectedMobileNote(0.5)}
-                        className="h-10 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm active:bg-slate-100"
-                      >{t("Scale ½×")}</button>
-                      <button
-                        type="button"
-                        onClick={() => scaleSelectedMobileNote(2)}
-                        className="h-10 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm active:bg-slate-100"
-                      >{t("Scale 2×")}</button>
-                    </div>
-                  </div>
-                  <div className={`min-w-0 ${mobileLandscape ? "max-h-[9.5rem] overflow-y-auto" : "mt-2"}`}>
-                      <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">{t("Fingering")}</div>
-                      {noteAlternates?.possibleTabs?.length || noteAlternates?.blockedTabs?.length ? (
-                        <div className="mt-1.5 flex flex-wrap gap-1.5">
-                          {(noteAlternates?.possibleTabs || []).slice(0, 10).map((tab, index) => (
-                            <button
-                              key={`mobile-note-alt-${selectedNote.id}-${index}`}
-                              type="button"
-                              onClick={() => handleAssignAlt(tab)}
-                              className="min-h-9 min-w-11 rounded-lg bg-amber-400/70 px-2.5 py-1.5 text-xs font-semibold text-slate-900 active:bg-amber-400"
-                            >
-                              {stringLabels[tab[0]]}{tab[1]}
-                            </button>
-                          ))}
-                          {(noteAlternates?.blockedTabs || []).slice(0, 10).map((tab, index) => (
-                            <button
-                              key={`mobile-note-alt-blocked-${selectedNote.id}-${index}`}
-                              type="button"
-                              onClick={() => handleAssignAlt(tab)}
-                              className="min-h-9 min-w-11 rounded-lg bg-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-700 active:bg-rose-300"
-                            >
-                              {stringLabels[tab[0]]}{tab[1]}
-                            </button>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="mt-1.5 text-xs text-slate-400">{t("No alternative fingerings")}</div>
-                      )}
-                    </div>
-                </div>
-              </div>
-            </div>
-          </div>,
           document.body
         )}
         {showMobileEditRail && showMobileMultiSelectPanel && typeof document !== "undefined" && createPortal(
@@ -19334,7 +19281,7 @@ export default function GteWorkspace({
                   onClick={() => handleOptimizeToCoordinates()}
                   disabled={selectedNoteIds.length === 0}
                   className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm active:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                >{t("Optimize to coordinates")}</button>
+                >{t("Optimize fingerings")}</button>
               </div>
               <label className="mt-2 block rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                 <span className="flex items-center justify-between text-[9px] font-semibold uppercase tracking-wide text-slate-500">
@@ -19362,117 +19309,6 @@ export default function GteWorkspace({
           </div>,
           document.body
         )}
-        {showMobileEditRail &&
-          showMobileChordPanel &&
-          selectedChord &&
-          chordMenuDraft &&
-          editingChordId === null &&
-          typeof document !== "undefined" &&
-          createPortal(
-            <div
-              className="fixed bottom-2 left-2 right-2 z-[9999] mx-auto max-h-[48dvh] w-[min(calc(100vw-1rem),28rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-2xl"
-              data-gte-floating-ui="true"
-              onMouseDown={(event) => event.stopPropagation()}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Chord settings")}</div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleDeleteChord();
-                    setSelectedChordIds([]);
-                    setChordMenuAnchor(null);
-                    setChordMenuChordId(null);
-                    setChordMenuDraft(null);
-                  }}
-                  className="rounded-lg bg-rose-500/90 px-3 py-2 text-xs font-semibold text-white"
-                >{t("Delete")}</button>
-              </div>
-              <label className="mt-2 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Length (seconds)")}<input
-                  type="number"
-                  min={framesToDurationSeconds(1)}
-                  max={framesToDurationSeconds(MAX_EVENT_LENGTH_FRAMES)}
-                  step={0.01}
-                  inputMode="decimal"
-                  className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal text-slate-800"
-                  value={chordMenuDraft.length}
-                  onChange={(event) =>
-                    setChordMenuDraft((prev) =>
-                      prev ? { ...prev, length: event.target.value } : prev
-                    )
-                  }
-                  onBlur={commitChordMenuLength}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      commitChordMenuLength();
-                    }
-                  }}
-                />
-              </label>
-              {chordAlternatives.length > 0 && (
-                <div className="mt-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Fingering")}</div>
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {chordAlternatives.slice(0, 8).map((tabs, index) => (
-                      <button
-                        key={`mobile-chord-alt-${selectedChord.id}-${index}`}
-                        type="button"
-                        onClick={() => handleApplyChordTabs(tabs)}
-                        className="min-h-10 rounded-lg bg-amber-400/70 px-2.5 py-1.5 text-xs font-semibold text-slate-900 active:bg-amber-400"
-                      >
-                        {tabs.map((tab) => `${stringLabels[tab[0]]}${tab[1]}`).join(" ")}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div className="mt-3 grid grid-cols-2 gap-2" aria-label={t("Move selected chord")}>
-                <button
-                  type="button"
-                  onClick={() => moveSelectedMobileChord("left")}
-                  className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-700 shadow-sm active:bg-slate-100"
-                  aria-label={t("Move chord left")}
-                >
-                  ←
-                </button>
-                <button
-                  type="button"
-                  onClick={() => moveSelectedMobileChord("right")}
-                  className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-700 shadow-sm active:bg-slate-100"
-                  aria-label={t("Move chord right")}
-                >
-                  →
-                </button>
-              </div>
-              <div className="mt-2 grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleChordOctaveShift(-1)}
-                  className="h-10 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700"
-                >{t("Octave −")}</button>
-                <button
-                  type="button"
-                  onClick={() => handleChordOctaveShift(1)}
-                  className="h-10 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700"
-                >{t("Octave +")}</button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void runMutation(() => gteApi.disbandChord(editorId, selectedChord.id), {
-                      localApply: (draft) => disbandChordInSnapshot(draft, selectedChord.id),
-                    });
-                    setSelectedChordIds([]);
-                    setChordMenuAnchor(null);
-                    setChordMenuChordId(null);
-                    setChordMenuDraft(null);
-                  }}
-                  className="h-10 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700"
-                >{t("Disband")}</button>
-              </div>
-            </div>,
-            document.body
-          )}
       </div>
     </div>
   );

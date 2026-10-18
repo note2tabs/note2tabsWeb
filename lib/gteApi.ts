@@ -18,7 +18,7 @@ import {
   stabilizeNewTranscriberTimingMap,
 } from "./gteTranscriberTiming";
 import { generatePlayingCoordinatesInSnapshot } from "./gtePlayingCoordinates";
-import { shortenTinyImportedNoteOverlapsInSnapshot } from "./gteTranscriberOverlapCleanup";
+import { cleanTinyOverlapsInSnapshot } from "./gteOverlapCleanup";
 
 const AUTH_BASE = "/api/gte";
 const GUEST_BASE = "/api/gte-guest";
@@ -666,6 +666,7 @@ export async function optimizeImportedTrackFingerings(
   const importedLaneIds = importedEditorIds ? new Set(importedEditorIds) : null;
 
   optimized.editors.forEach((lane) => {
+    if (importedLaneIds && !importedLaneIds.has(lane.id)) return;
     if (
       isDrumLane(lane) ||
       !Array.isArray(lane.notes) ||
@@ -673,7 +674,7 @@ export async function optimizeImportedTrackFingerings(
       (lane.notes.length === 0 && lane.chords.length === 0)
     ) return;
     if (importedLaneIds?.has(lane.id)) {
-      shortenTinyImportedNoteOverlapsInSnapshot(lane);
+      cleanTinyOverlapsInSnapshot(lane);
     }
     const passCount = Math.max(1, Math.floor(passes));
     for (let pass = 0; pass < passCount; pass += 1) {
@@ -682,6 +683,7 @@ export async function optimizeImportedTrackFingerings(
       finalizeOptimizedTrackFingeringInSnapshot(lane);
       mergeRedundantCutRegionsInSnapshot(lane);
     }
+    if (importedLaneIds?.has(lane.id)) cleanTinyOverlapsInSnapshot(lane);
   });
 
   await requestForEditor<{ ok: true; snapshot: EditorOrCanvasSnapshot; canvas?: CanvasSnapshot }>(
@@ -898,7 +900,7 @@ export const gteApi = {
         body: JSON.stringify(payload),
       }
     );
-    return { ...response, canvas: await optimizeImportedTrackFingerings(canvasId) };
+    return { ...response, canvas: await optimizeImportedTrackFingerings(canvasId, undefined, 1, [laneId]) };
   },
   saveDrumNote: (
     canvasId: string,
@@ -1202,10 +1204,10 @@ export const gteApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const canvas = await optimizeImportedTrackFingerings(editorId);
     const laneId = editorId.includes(LANE_DELIMITER)
       ? editorId.slice(editorId.indexOf(LANE_DELIMITER) + LANE_DELIMITER.length)
       : response.snapshot.id;
+    const canvas = await optimizeImportedTrackFingerings(editorId, undefined, 1, [laneId]);
     return { ...response, snapshot: canvas.editors.find((lane) => lane.id === laneId) ?? response.snapshot };
   },
   appendImportTab: async (
@@ -1222,7 +1224,7 @@ export const gteApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const canvas = await optimizeImportedTrackFingerings(editorId);
+    const canvas = await optimizeImportedTrackFingerings(editorId, undefined, 1, [response.snapshot.id]);
     return { ...response, snapshot: canvas.editors.find((lane) => lane.id === response.snapshot.id) ?? response.snapshot };
   },
   importAsciiTab: async (
@@ -1241,7 +1243,7 @@ export const gteApi = {
         body: JSON.stringify(payload),
       }
     );
-    const canvas = await optimizeImportedTrackFingerings(editorId);
+    const canvas = await optimizeImportedTrackFingerings(editorId, undefined, 1, [response.editor.id]);
     return { ...response, canvas, editor: canvas.editors.find((lane) => lane.id === response.editor.id) ?? response.editor };
   },
   setSecondsPerBar: (editorId: string, secondsPerBar: number) =>

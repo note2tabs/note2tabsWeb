@@ -8,6 +8,8 @@ import { requestLocale } from "../../lib/i18n/request";
 import { localeSwitchHref } from "../../lib/i18n/locale";
 import { GetServerSideProps } from "next";
 import Link from "../../components/LocaleLink";
+import GteTrackInstrumentIcon from "../../components/GteTrackInstrumentIcon";
+import useGteMenuMouseIntent from "../../components/useGteMenuMouseIntent";
 import {
   useCallback,
   useEffect,
@@ -24,6 +26,7 @@ import { useSession } from "next-auth/react";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { useLocaleRouter as useRouter, useLocale } from "../../lib/i18n/react";
 import dynamic from "next/dynamic";
+import HoverSettingsDropdown from "../../components/HoverSettingsDropdown";
 import { createPortal } from "react-dom";
 import { ANALYTICS_EVENTS, sendEvent } from "../../lib/analytics";
 import { buildLaneEditorRef, gteApi, normalizeEditorName } from "../../lib/gteApi";
@@ -153,6 +156,7 @@ import { appendBoundedHistory, replaceCanvasLane } from "../../lib/gteEditorPerf
 import { createPlaybackLookaheadScheduler } from "../../lib/gtePlaybackLookahead";
 import { getPlaybackScrollTarget } from "../../lib/gtePlaybackScroll";
 import {
+  GTE_EDITOR_TOOLBAR_GUTTER,
   GTE_TIMELINE_END_PADDING,
   GTE_TIMELINE_GUTTER_WIDTH,
   getTimelineBaseScale,
@@ -207,19 +211,18 @@ const CONTROL_COMMIT_DEBOUNCE_MS = 350;
 const TIME_SIGNATURE_TOP_OPTIONS = Array.from({ length: 64 }, (_, index) => index + 1);
 const TIME_SIGNATURE_BOTTOM_OPTIONS = [1, 2, 4, 8, 16, 32, 64];
 const NOTE_LENGTH_FRACTION_DENOMINATORS = [0.5, 1, 2, 3, 4, 8, 16, 32, 64];
-const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 4, 8, 16, 32, 64];
+const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 4, 8, 16, 32];
 const SNAP_SUBDIVISION_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8];
 const TOOL_SHORTCUT_HELP = [
-  ["Scale", "S"],
-  ["Cycle scale mode", "D"],
+  ["Lengthen", "S"],
+  ["Cycle lengthen mode", "D"],
   ["Move tool", "G"],
   ["Slice tool", "Shift+S"],
   ["Cut playing coordinates", "K"],
   ["Merge to chord", "C"],
   ["Disband chord", "Shift+L"],
   ["Merge notes", "J"],
-  ["Optimize to coordinates", "O"],
-  ["Optimize fingering", ""],
+  ["Optimize fingerings", "O"],
   ["Hammer/Pull", "H"],
   ["Slide", "L"],
   ["Bend", "B"],
@@ -1187,8 +1190,8 @@ const normalizeEditorInputSettings = (value: unknown) => {
   return {
     defaultNoteLengthDenominator: NOTE_LENGTH_FRACTION_DENOMINATORS.includes(noteSize)
       ? noteSize
-      : 4,
-    cursorSizeDenominator: CURSOR_SIZE_FRACTION_DENOMINATORS.includes(cursorSize) ? cursorSize : 4,
+      : 8,
+    cursorSizeDenominator: cursorSize === 64 ? 32 : CURSOR_SIZE_FRACTION_DENOMINATORS.includes(cursorSize) ? cursorSize : 8,
   };
 };
 
@@ -1363,20 +1366,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const [exportingTrack, setExportingTrack] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [openTopMenu, setOpenTopMenu] = useState<TopMenuId | null>(null);
-  const editMenuCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cancelEditMenuClose = useCallback(() => {
-    if (editMenuCloseTimeoutRef.current === null) return;
-    clearTimeout(editMenuCloseTimeoutRef.current);
-    editMenuCloseTimeoutRef.current = null;
-  }, []);
-  const scheduleEditMenuClose = useCallback(() => {
-    cancelEditMenuClose();
-    editMenuCloseTimeoutRef.current = setTimeout(() => {
-      editMenuCloseTimeoutRef.current = null;
-      setOpenTopMenu((current) => (current === "edit" ? null : current));
-    }, 350);
-  }, [cancelEditMenuClose]);
-  useEffect(() => () => cancelEditMenuClose(), [cancelEditMenuClose]);
+  const topMenuMouseIntent = useGteMenuMouseIntent(() => setOpenTopMenu(null));
   const [saveError, setSaveError] = useState<string | null>(null);
   const [hasPendingCommit, setHasPendingCommit] = useState(false);
   const [lastCommittedAt, setLastCommittedAt] = useState<string | null>(null);
@@ -1413,6 +1403,15 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   } | null>(null);
   const [openMobileBarMenuLaneId, setOpenMobileBarMenuLaneId] = useState<string | null>(null);
   const [editMenuPortalTarget, setEditMenuPortalTarget] = useState<HTMLDivElement | null>(null);
+  const [cursorSettingsLaneId, setCursorSettingsLaneId] = useState<string | null>(null);
+  const [fretHintProgress, setFretHintProgress] = useState({ editorId, count: 0 });
+  const fretHintNoteCount = fretHintProgress.editorId === editorId ? fretHintProgress.count : 0;
+  const handleKeyboardNotePlaced = useCallback(() => {
+    setFretHintProgress((previous) => ({
+      editorId,
+      count: Math.min(4, (previous.editorId === editorId ? previous.count : 0) + 1),
+    }));
+  }, [editorId]);
   const [editorMode, setEditorMode] = useState<"canvas" | "tab" | "practice">("canvas");
   const practiceModeEnabled = editorMode === "practice";
   const tabViewEnabled = editorMode !== "canvas";
@@ -1420,8 +1419,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const [globalSnapToKeyEnabled, setGlobalSnapToKeyEnabledState] = useState(false);
   const [globalSnapSubdivisionsPerBeat, setGlobalSnapSubdivisionsPerBeat] = useState(4);
   const [leftHandedChordDiagrams, setLeftHandedChordDiagramsState] = useState(false);
-  const [chordOnlyDefaultNoteLengthDenominator, setChordOnlyDefaultNoteLengthDenominator] = useState(4);
-  const [chordOnlyCursorSizeDenominator, setChordOnlyCursorSizeDenominator] = useState(4);
+  const [chordOnlyDefaultNoteLengthDenominator, setChordOnlyDefaultNoteLengthDenominator] = useState(8);
+  const [chordOnlyCursorSizeDenominator, setChordOnlyCursorSizeDenominator] = useState(8);
   const [noteCursorSizesLinked, setNoteCursorSizesLinked] = useState(false);
   const inputSettingsSaveTimerRef = useRef<number | null>(null);
   const inputSettingsHydratedRef = useRef(false);
@@ -1499,14 +1498,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const handleCursorSizeDenominatorChange = useCallback(
     (value: number) => {
       const nextCursorSize = getNearestCursorSizeDenominator(value);
+      // Sizes are fractions: a larger denominator means a shorter note.
+      const nextNoteSize = noteCursorSizesLinked
+        ? nextCursorSize
+        : Math.min(chordOnlyDefaultNoteLengthDenominator, nextCursorSize);
       setChordOnlyCursorSizeDenominator(nextCursorSize);
-      if (noteCursorSizesLinked) {
-        setChordOnlyDefaultNoteLengthDenominator(nextCursorSize);
-      }
+      setChordOnlyDefaultNoteLengthDenominator(nextNoteSize);
       queueEditorInputSettingsSave({
-        defaultNoteLengthDenominator: noteCursorSizesLinked
-          ? nextCursorSize
-          : chordOnlyDefaultNoteLengthDenominator,
+        defaultNoteLengthDenominator: nextNoteSize,
         cursorSizeDenominator: nextCursorSize,
       });
     },
@@ -1596,11 +1595,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const practiceRootRef = useRef<HTMLElement | null>(null);
   const practiceSettingsHydratedRef = useRef(false);
   const globalPlaybackFrameRef = useRef(0);
-  // Where the next explicit "start playback" begins from. Mirrors
-  // globalPlaybackFrameRef everywhere that ref is updated (so pausing and
-  // pressing play again still resumes normally), but additionally resets to 0
-  // on track switch, reload, and "go to start" — globalPlaybackFrameRef alone
-  // does not reset on track switch, since it also drives the shared playhead.
+  // Where the next Play begins: updated on explicit seeks and pauses.
+  // Resets on track switch and "go to start", independently of the shared playhead.
   const startFrameAnchorRef = useRef(0);
   const globalPlaybackCounterTickRef = useRef(0);
   const bpmCommitTimerRef = useRef<number | null>(null);
@@ -2636,7 +2632,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const keyDetectionMatches = useMemo<RelativeScaleMatch[]>(() => {
     if (!findKeyDialogOpen || !canvas) return [];
     const detected = detectGteScale(canvas);
-    return detected ? getRelativeScaleMatches(detected, 5) : [];
+    if (!detected) return [];
+    const matches = getRelativeScaleMatches(detected, detected.candidates.length);
+    const common = (match: RelativeScaleMatch) => match.scaleType === "Major" || match.scaleType === "Minor";
+    return [...matches.filter(common).slice(0, 5), ...matches.filter((match) => !common(match)).slice(0, 5)];
   }, [canvas, findKeyDialogOpen]);
 
   useEffect(() => {
@@ -3289,6 +3288,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       setError("Track not found.");
       return;
     }
+    setDesktopTrackSettingsCollapsed(true);
+    setDesktopTrackMenuOpen(false);
+    setDesktopTrackAddMenuOpen(false);
     const deletedLane = canvas.editors[deletedLaneIndex];
     const previousActiveLaneId = activeLaneId;
     const previousMobileEditLaneId = mobileEditLaneId;
@@ -3899,7 +3901,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         : Math.max(container.clientWidth, viewportAvailableWidth);
       const availableWidth = Math.max(
         240,
-        measuredWidth - GTE_TIMELINE_GUTTER_WIDTH - GTE_TIMELINE_END_PADDING
+        measuredWidth - GTE_TIMELINE_GUTTER_WIDTH - GTE_TIMELINE_END_PADDING -
+          (!practiceModeEnabled && !tabViewEnabled ? GTE_EDITOR_TOOLBAR_GUTTER : 0)
       );
       // Fit each bar to the selected bars-per-row capacity, even when the song
       // currently contains fewer bars. The unused row width then stays empty.
@@ -3928,7 +3931,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       observer.disconnect();
       window.removeEventListener("resize", scheduleScaleComputation);
     };
-  }, [activeLaneId, canvas, desktopBarsPerRow, isMobileViewport, practiceModeEnabled, sharedViewportBarCount]);
+  }, [activeLaneId, canvas, desktopBarsPerRow, isMobileViewport, practiceModeEnabled, sharedViewportBarCount, tabViewEnabled]);
 
   const synchronizeSharedTimelineScroll = useCallback((next: number, scrollLeft?: number) => {
     const clamped = Math.max(0, Math.min(1, next));
@@ -4645,6 +4648,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   );
 
   const stopGlobalPlayback = useCallback((options?: { preserveSpeedTrainerSession?: boolean }) => {
+    // Resume from the latest playback position after pausing through any control.
+    startFrameAnchorRef.current = Math.max(0, Math.round(globalPlaybackFrameRef.current));
     globalPlaybackStartRequestRef.current += 1;
     globalPlaybackStartPendingRef.current = false;
     setGlobalPlaybackIsPreparing(false);
@@ -5652,10 +5657,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       if (globalPlaybackIsPlaying || globalPlaybackStartPendingRef.current) {
         stopGlobalPlayback();
       }
-      // Every explicit seek (cursor/note click, skip bar, go to start) is
-      // exactly what should anchor the next "Play" — unlike the continuous
-      // frame updates during playback, which must not move the anchor, or
-      // pausing and resuming would resume from the pause point instead of it.
+      // Explicit seeks set the next Play position; pausing captures the current
+      // position separately in stopGlobalPlayback.
       startFrameAnchorRef.current = clamped;
       syncGlobalPlaybackFrame(clamped, { forceReact: true });
     },
@@ -6027,9 +6030,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         title={t("Undo")}
         aria-label={t("Undo")}
       >
-        <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-          <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
-        </svg>
+        <span className="h-4 w-4 shrink-0 bg-current" aria-hidden="true" style={{ maskImage: "url(/icons/undo-transparent.png)", WebkitMaskImage: "url(/icons/undo-transparent.png)", maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} />
       </button>
       <div className="h-6 w-px bg-slate-200" />
       <button
@@ -6040,9 +6041,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         title={t("Redo")}
         aria-label={t("Redo")}
       >
-        <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-          <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
-        </svg>
+        <span className="h-4 w-4 shrink-0 bg-current" aria-hidden="true" style={{ maskImage: "url(/icons/redo-transparent.png)", WebkitMaskImage: "url(/icons/redo-transparent.png)", maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} />
       </button>
     </div>
   );
@@ -7480,12 +7479,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         >
           <div style={{ flex: "1 1 0", minWidth: 0 }}>
             <div
-              className="page-title"
-              style={{ display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap" }}
+              style={{ position: "relative", display: "flex", alignItems: "center", gap: "14px", flexWrap: "nowrap", minHeight: 36, fontSize: "1rem", lineHeight: 1.25 }}
             >
               <span
+                className="page-title"
                 style={{
                   display: "inline-flex",
+                  fontSize: "1rem",
                   alignItems: "center",
                   gap: "8px",
                   minWidth: 0,
@@ -7510,7 +7510,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         setNameEditing(false);
                       }
                     }}
-                    className="min-w-0 max-w-full bg-transparent p-0 text-[1.15rem] font-medium text-slate-700 outline-none"
+                    className="min-w-0 max-w-full bg-transparent p-0 text-base font-medium text-slate-700 outline-none"
                     style={{ border: "none", boxShadow: "none" }}
                     placeholder={t("Untitled")}
                   />
@@ -7525,20 +7525,58 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       paddingLeft: isMobileViewport ? 0 : 4,
                       paddingRight: 0,
                       border: "none",
-                      fontSize: isMobileViewport ? "1.35rem" : "1.45rem",
+                      fontSize: "1rem",
                       lineHeight: 1.15,
                       fontWeight: 500,
                       color: "#334155",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
-                      maxWidth: isMobileViewport ? "100%" : "min(32rem, 100%)",
+                      maxWidth: "min(20rem, 100%)",
                     }}
                   >
                     {editorName(canvas?.name, t) || t("Untitled")}
                   </button>
                 )}
               </span>
+                  <div className="relative shrink-0 xl:absolute xl:left-1/2 xl:top-1/2 xl:-translate-x-1/2 xl:-translate-y-1/2">
+                    {renderViewModeSwitch()}
+                  </div>
+                  <div className={`ml-auto shrink-0 items-center gap-2 ${
+                    practiceModeEnabled ? "hidden" : "flex"
+                  }`}>
+                    <EditorTutorialTrigger className="shrink-0" />
+                    <span className="text-xs text-slate-600" role="status" aria-live="polite">
+                      {t(saveStatus)}
+                    </span>
+                    {!isGuestMode && (
+                      <button
+                        type="button"
+                        onClick={() => openShareDialog("editor_toolbar")}
+                        className="inline-flex h-8 min-w-[8rem] w-max max-w-full whitespace-nowrap items-center justify-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-700 focus-visible:ring-offset-2"
+                        title={t("Share this tab")}
+                      >
+                        <svg viewBox="0 0 20 20" className="h-4 w-4 fill-none stroke-current" aria-hidden="true">
+                          <circle cx="5" cy="10" r="2" />
+                          <circle cx="15" cy="5" r="2" />
+                          <circle cx="15" cy="15" r="2" />
+                          <path d="m6.8 9.1 6.4-3.2M6.8 10.9l6.4 3.2" strokeLinecap="round" />
+                        </svg>{t("Share tab")}</button>
+                    )}
+                    {isGuestMode ? (
+                      <div className="flex shrink-0 items-center">
+                        <Link href="/" className="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{t("Back home")}</Link>
+                      </div>
+                    ) : (
+                      <div className="flex shrink-0 items-center">
+                        <button
+                          type="button"
+                          onClick={() => router.push("/gte")}
+                          className="inline-flex h-8 min-w-[8rem] w-max max-w-full whitespace-nowrap items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
+                        >{t("Back to editors")}</button>
+                      </div>
+                    )}
+                  </div>
             </div>
             {!isMobileViewport && (
               <div className="mt-1 space-y-1">
@@ -7548,16 +7586,51 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     practiceModeEnabled ? "[&>details]:hidden" : ""
                   }`}
                 >
+                    {!isMobileViewport && !tabViewEnabled && canvas && (
+                      <div data-gte-floating-ui="true" data-gte-editor-control="true" role="group" aria-label={t("Snapping")}
+                        className="order-6 mx-auto flex items-center gap-4 whitespace-nowrap px-3 text-slate-700 xl:absolute xl:left-1/2 xl:top-1/2 xl:-translate-x-1/2 xl:-translate-y-1/2">
+                    <div className="flex flex-col items-center gap-0.5 text-center text-[10px] font-medium leading-3 text-slate-600">
+                      <span>{t("Snap to grid")}</span>
+                      <button
+                        type="button"
+                        onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
+                        aria-label={t("Snap to grid")}
+                        aria-pressed={globalSnapToGridEnabled}
+                        className={`flex h-7 w-14 items-center justify-center rounded-md border transition-colors ${globalSnapToGridEnabled ? "border-sky-600 bg-sky-600 text-white hover:bg-sky-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <rect x="3" y="3" width="18" height="18" rx="2" />
+                          <path d="M9 3v18M15 3v18M3 9h18M3 15h18" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div className="flex flex-col items-center gap-0.5 text-center text-[10px] font-medium leading-3 text-slate-600">
+                      <span>{t("Snap to key")}</span>
+                      <button
+                        type="button"
+                        onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
+                        aria-label={t("Snap to key")}
+                        aria-pressed={globalSnapToKeyEnabled}
+                        className={`flex h-7 w-14 items-center justify-center gap-1 rounded-md border transition-colors ${globalSnapToKeyEnabled ? "border-sky-600 bg-sky-600 text-white hover:bg-sky-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                      >
+                        <span className="text-sm font-semibold" aria-hidden="true">{KEY_BASE_OPTIONS[normalizeKeyBase(canvas?.keyBase)]}</span>
+                        <svg viewBox="0 0 16 20" className="h-5 w-4 fill-current" aria-hidden="true">
+                          <path d="M11 2h1.75v12.5c0 1.8-1.9 3.25-4.25 3.25S4.25 16.7 4.25 15 6.15 11.75 8.5 11.75c.92 0 1.78.22 2.5.59V2Z" />
+                        </svg>
+                      </button>
+                    </div>
+                      </div>
+                    )}
                   <details
                     className="group relative order-1"
                     open={openTopMenu === "file"}
+                    {...topMenuMouseIntent}
                     onToggle={(event) => {
                       const isOpen = event.currentTarget.open;
                       setOpenTopMenu((current) => (isOpen ? "file" : current === "file" ? null : current));
                     }}
-                    onMouseLeave={() => setOpenTopMenu(null)}
                   >
-                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{t("File")}</summary>
+                    <summary className="flex h-9 cursor-pointer list-none items-center rounded-md px-3.5 text-base text-slate-700 hover:bg-slate-100">{t("File")}</summary>
                     <div className="absolute left-0 top-full z-[10000] min-w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                       {!isGuestMode && (
                         <button
@@ -7635,16 +7708,15 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   <details
                     className="group relative order-2"
                     open={openTopMenu === "edit"}
-                    onMouseEnter={cancelEditMenuClose}
+                    {...topMenuMouseIntent}
                     onToggle={(event) => {
                       const isOpen = event.currentTarget.open;
                       setOpenTopMenu((current) =>
                         isOpen ? "edit" : current === "edit" ? null : current
                       );
                     }}
-                    onMouseLeave={scheduleEditMenuClose}
                   >
-                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{t("Tools")}</summary>
+                    <summary className="flex h-9 cursor-pointer list-none items-center rounded-md px-3.5 text-base text-slate-700 hover:bg-slate-100">{t("Tools")}</summary>
                     <div className="absolute left-0 top-full z-[10000] max-h-[calc(100vh-10rem)] w-72 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                       <div ref={setEditMenuPortalTarget}>
                         {!editMenuOwnerLaneId && (
@@ -7655,15 +7727,15 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                 items: [
                                   ["Merge to Chord", "C"],
                                   ["Disband Chord", "Shift+L"],
-                                  ["Optimize to Coordinates", "O"],
-                                  ["Optimize Fingering", ""],
+                                  ["Optimize fingerings", "O"],
                                   ["Snap to Key", ""],
-                                  ["Quantize", ""],
+                                  ["Snap to beat", ""],
                                   ["Merge Notes", "J"],
                                   ["Length scaling", "D"],
-                                  ["Scale", "S"],
-                                  ["Slicing Tool", "Shift+S"],
+                                  ["Lengthen", "S"],
+                                  ["Subdivide", "Shift+S"],
                                   ["Move", "M"],
+                                  ["Transpose", ""],
                                 ],
                               },
                               {
@@ -7739,15 +7811,15 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   <details
                     className="group relative order-6"
                     open={openTopMenu === "help"}
+                    {...topMenuMouseIntent}
                     onToggle={(event) => {
                       const isOpen = event.currentTarget.open;
                       setOpenTopMenu((current) =>
                         isOpen ? "help" : current === "help" ? null : current
                       );
                     }}
-                    onMouseLeave={() => setOpenTopMenu(null)}
                   >
-                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{t("Help")}</summary>
+                    <summary className="flex h-9 cursor-pointer list-none items-center rounded-md px-3.5 text-base text-slate-700 hover:bg-slate-100">{t("Help")}</summary>
                     <div className="absolute left-0 top-full z-[10000] max-h-[calc(100vh-10rem)] w-80 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                       <div className="px-2 pb-1.5 pt-1 text-xs font-semibold text-slate-700">{t("Keyboard shortcut help")}</div>
                       {SHORTCUT_HELP_SECTIONS.map(([title, shortcuts]) => (
@@ -7777,15 +7849,15 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   <details
                     className="group relative order-3"
                     open={openTopMenu === "view"}
+                    {...topMenuMouseIntent}
                     onToggle={(event) => {
                       const isOpen = event.currentTarget.open;
                       setOpenTopMenu((current) =>
                         isOpen ? "view" : current === "view" ? null : current
                       );
                     }}
-                    onMouseLeave={() => setOpenTopMenu(null)}
                   >
-                    <summary className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{t("View")}</summary>
+                    <summary className="flex h-9 cursor-pointer list-none items-center rounded-md px-3.5 text-base text-slate-700 hover:bg-slate-100">{t("View")}</summary>
                     <div className="absolute left-0 top-full z-[10000] w-64 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
                       <button
                         type="button"
@@ -7842,9 +7914,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     </div>
                   </details>
 
-                  <div className="order-7 ml-auto mr-2 shrink-0 xl:absolute xl:left-1/2 xl:top-1/2 xl:z-10 xl:m-0 xl:-translate-x-1/2 xl:-translate-y-1/2">
-                    {renderViewModeSwitch()}
-                  </div>
+
 
                   <details
                     className="hidden"
@@ -8104,82 +8174,20 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       )}
                     </div>
                   </details>
-
-                  <div className={`order-7 shrink-0 items-center gap-2 xl:ml-auto ${
-                    practiceModeEnabled ? "hidden" : "flex"
-                  }`}>
-                    <EditorTutorialTrigger className="shrink-0" />
-                    <button
-                      type="button"
-                      onClick={handleCanvasUndo}
-                      disabled={canvasUndoCount === 0 || mobileHistoryBusy}
-                      className="flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                      title={t("Undo")}
-                      aria-label={t("Undo")}
-                    >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                        <path d="M7 7H3v4h2V9h7a5 5 0 1 1 0 10h-4v2h4a7 7 0 1 0 0-14H7z" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCanvasRedo}
-                      disabled={canvasRedoCount === 0 || mobileHistoryBusy}
-                      className="flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                      title={t("Redo")}
-                      aria-label={t("Redo")}
-                    >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                        <path d="M17 7h4v4h-2V9h-7a5 5 0 1 0 0 10h4v2h-4a7 7 0 1 1 0-14h5z" />
-                      </svg>
-                    </button>
-                    <span className="text-xs text-slate-600" role="status" aria-live="polite">
-                      {t(saveStatus)}
-                    </span>
-                    {!isGuestMode && (
-                      <button
-                        type="button"
-                        onClick={() => openShareDialog("editor_toolbar")}
-                        className="inline-flex h-8 min-w-[8rem] w-max max-w-full whitespace-nowrap items-center justify-center gap-1.5 rounded-lg border border-slate-900 bg-slate-900 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-700 focus-visible:ring-offset-2"
-                        title={t("Share this tab")}
-                      >
-                        <svg viewBox="0 0 20 20" className="h-4 w-4 fill-none stroke-current" aria-hidden="true">
-                          <circle cx="5" cy="10" r="2" />
-                          <circle cx="15" cy="5" r="2" />
-                          <circle cx="15" cy="15" r="2" />
-                          <path d="m6.8 9.1 6.4-3.2M6.8 10.9l6.4 3.2" strokeLinecap="round" />
-                        </svg>{t("Share tab")}</button>
-                    )}
-                    {isGuestMode ? (
-                      <div>
-                        <Link href="/" className="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">{t("Back home")}</Link>
-                      </div>
-                    ) : (
-                      <div>
-                        <button
-                          type="button"
-                          onClick={() => router.push("/gte")}
-                          className="inline-flex h-8 min-w-[8rem] w-max max-w-full whitespace-nowrap items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
-                        >{t("Back to editors")}</button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
                 {!practiceModeEnabled && (
-                <details className="group w-fit max-w-full rounded-lg border border-slate-200 bg-white shadow-sm">
-                  <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-1.5 text-xs text-slate-600">
+                <HoverSettingsDropdown pushRight clickDismissOnly panelTitle={t("Song settings")} closeLabel={t("Close")} summary={<>
                     <span className="font-semibold text-slate-700">{t("Song settings")}</span>
                     <span className="truncate">
                       {KEY_BASE_OPTIONS[normalizeKeyBase(canvas?.keyBase)]} {t(KEY_TYPE_OPTIONS[normalizeKeyType(canvas?.keyType)])}
                       {" · "}{bpmDraft}{t(" BPM")}{" · "}{normalizeTimeSignature(timeSignatureDraft) ?? 8}/{normalizeTimeSignatureBottom(timeSignatureBottomDraft) ?? 4}
                     </span>
-                    <span className="transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
-                  </summary>
-                  <div className="flex flex-wrap items-end gap-3 border-t border-slate-200 p-3">
-                    <label className="text-xs font-medium text-slate-600">
-                      <span className="mb-1 block">{t("Key")}</span>
-                      <span className="flex items-center gap-1">
+                    <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 self-center transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="m4 6 4 4 4-4" />
+                    </svg>
+                  </>}>
+                    <label className="order-1 col-span-2 min-w-0 text-xs font-medium text-slate-600">
+                      <span className="mb-1 block">{t("Key signature")}</span>
+                      <span className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-2">
                         <select
                           value={normalizeKeyBase(canvas?.keyBase)}
                           name="song-key-base"
@@ -8187,7 +8195,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             commitCanvasKey(Number(event.target.value), normalizeKeyType(canvas?.keyType));
                             event.currentTarget.blur();
                           }}
-                          className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm"
+                          className="h-9 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm"
                           aria-label={t("Base note")}
                         >
                           {KEY_BASE_OPTIONS.map((label, index) => (
@@ -8201,7 +8209,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             commitCanvasKey(normalizeKeyBase(canvas?.keyBase), Number(event.target.value));
                             event.currentTarget.blur();
                           }}
-                          className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm"
+                          className="h-9 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm"
                           aria-label={t("Key extension")}
                         >
                           {KEY_TYPE_OPTIONS.map((label, index) => (
@@ -8210,8 +8218,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         </select>
                       </span>
                     </label>
-                    <label className="text-xs font-medium text-slate-600">
-                      <span className="mb-1 block">{t("BPM")}</span>
+                    <label className="order-3 min-w-0 text-xs font-medium text-slate-600">
+                      <span className="mb-1 block">{t("Tempo (BPM)")}</span>
                       <span className="flex items-center gap-1">
                         <input
                           type="number"
@@ -8234,13 +8242,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               event.currentTarget.blur();
                             }
                           }}
-                          className="h-8 w-20 rounded-md border border-slate-200 bg-white px-2 text-sm"
+                          className="h-9 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm"
                         />
                       </span>
                     </label>
-                    <label className="text-xs font-medium text-slate-600">
+                    <label className="order-4 min-w-0 text-xs font-medium text-slate-600">
                       <span className="mb-1 block">{t("Time signature")}</span>
-                      <span className="flex items-center gap-1">
+                      <span className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
                         <select
                           value={normalizeTimeSignature(timeSignatureDraft) ?? 8}
                           name="time-signature-top"
@@ -8249,7 +8257,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             scheduleTimeSignatureCommit(Number(event.target.value));
                             event.currentTarget.blur();
                           }}
-                          className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm"
+                          className="h-9 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm"
                           aria-label={t("Time signature top number")}
                         >
                           {TIME_SIGNATURE_TOP_OPTIONS.map((value) => (
@@ -8264,7 +8272,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             void commitTimeSignatureBottom(Number(event.target.value));
                             event.currentTarget.blur();
                           }}
-                          className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm"
+                          className="h-9 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm"
                           aria-label={t("Time signature bottom number")}
                         >
                           {TIME_SIGNATURE_BOTTOM_OPTIONS.map((value) => (
@@ -8276,87 +8284,15 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     <button
                       type="button"
                       onClick={() => setFindKeyDialogOpen(true)}
-                      className="h-8 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      className="order-2 col-span-2 flex h-9 items-center justify-self-end gap-1.5 rounded-md px-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                       title={t("Detect the most likely key from all notes and chords")}
-                    >{t("Detect key…")}</button>
-                  </div>
-                </details>
-                )}
-                {!practiceModeEnabled && (
-                <details className="group w-fit max-w-full rounded-lg border border-slate-200 bg-white shadow-sm">
-                  <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-1.5 text-xs text-slate-600">
-                    <span className="font-semibold text-slate-700">{t("Editing settings")}</span>
-                    <span className="truncate">{t("Note ")}{formatNoteLengthOption(chordOnlyDefaultNoteLengthDenominator)}
-                      {" · "}{t("Cursor 1/")}{chordOnlyCursorSizeDenominator}
-                    </span>
-                    <span className="transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
-                  </summary>
-                  <div className="flex flex-wrap items-end gap-3 border-t border-slate-200 p-3">
-                    <label className="grid gap-1 text-xs font-medium text-slate-600">{t("Add note size")}<select
-                        value={chordOnlyDefaultNoteLengthDenominator}
-                        name="editor-add-note-size"
-                        onKeyDown={blockSizeSelectKeyboardChange}
-                        onChange={(event) =>
-                          handleDefaultNoteLengthDenominatorChange(Number(event.target.value))
-                        }
-                        className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700"
-                      >
-                        {(noteCursorSizesLinked
-                          ? CURSOR_SIZE_FRACTION_DENOMINATORS
-                          : NOTE_LENGTH_FRACTION_DENOMINATORS
-                        ).map((denominator) => (
-                          <option key={`desktop-note-size-${denominator}`} value={denominator}>
-                            {formatNoteLengthOption(denominator)}
-                          </option>
-                        ))}
-                      </select>
-                      <span className="text-[10px] font-normal text-slate-400">
-                        <kbd>,</kbd>{t(" smaller / ")}<kbd>.</kbd>{t(" larger")}</span>
-                    </label>
-                    <SizeLinkToggle
-                      linked={noteCursorSizesLinked}
-                      onToggle={toggleNoteCursorSizeLink}
-                      className="self-center"
-                    />
-                    <label className="grid gap-1 text-xs font-medium text-slate-600">{t("Cursor size")}<select
-                        value={chordOnlyCursorSizeDenominator}
-                        name="editor-cursor-size"
-                        onKeyDown={blockSizeSelectKeyboardChange}
-                        onChange={(event) =>
-                          handleCursorSizeDenominatorChange(Number(event.target.value))
-                        }
-                        className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700"
-                      >
-                        {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
-                          <option key={`desktop-cursor-size-${denominator}`} value={denominator}>
-                            1/{denominator}
-                          </option>
-                        ))}
-                      </select>
-                      <span className="text-[10px] font-normal text-slate-400">
-                        <kbd>{t("N")}</kbd>{t(" larger / ")}<kbd>{t("M")}</kbd>{t(" smaller")}</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setGlobalSnapToGridEnabled((enabled) => !enabled)}
-                      aria-pressed={globalSnapToGridEnabled}
-                      className="mt-[18px] flex h-8 min-w-28 self-start items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 hover:bg-slate-50"
                     >
-                      <span>{t("Grid")}</span>
-                      <span>{globalSnapToGridEnabled ? t("On") : t("Off")}</span>
+                      <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 fill-none stroke-current" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 17 10-10 4 4L7 21ZM11 9l4 4M5 3v4M3 5h4M18 2v4M16 4h4" /></svg>
+                      {t("Detect key")}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setGlobalSnapToKeyEnabled((enabled) => !enabled)}
-                      aria-pressed={globalSnapToKeyEnabled}
-                      className="mt-[18px] flex h-8 min-w-28 self-start items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 hover:bg-slate-50"
-                    >
-                      <span>{t("Key")}</span>
-                      <span>{globalSnapToKeyEnabled ? t("On") : t("Off")}</span>
-                    </button>
-                  </div>
-                </details>
+                </HoverSettingsDropdown>
                 )}
+                </div>
                 {(((nameSaving || bpmSaving) && !isGuestMode) ||
                   nameError ||
                   bpmError ||
@@ -9065,8 +9001,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                 laneId === editMenuOwnerLaneId ? editMenuPortalTarget : null
                               }
                               editMenuDisabled={editMenuDisabled}
-                              onEditMenuPointerEnter={cancelEditMenuClose}
-                              onEditMenuPointerLeave={scheduleEditMenuClose}
                               canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
                               canvasKeyType={normalizeKeyType(canvas.keyType)}
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
@@ -9127,6 +9061,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               practiceControlsVisible={false}
                               showToolbarWhenInactive={false}
                               multiTrackSelectionActive={multiTrackSelectionActive}
+                              showFretTypingHint={fretHintNoteCount < 4}
+                              onKeyboardNotePlaced={handleKeyboardNotePlaced}
+                              onCursorActiveChange={(active) => setCursorSettingsLaneId((previous) => active ? laneId : previous === laneId ? null : previous)}
                               onSelectionStateChange={(selection) =>
                                 handleLaneSelectionStateChange(laneId, selection)
                               }
@@ -9351,8 +9288,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                 laneId === editMenuOwnerLaneId ? editMenuPortalTarget : null
                               }
                               editMenuDisabled={editMenuDisabled}
-                              onEditMenuPointerEnter={cancelEditMenuClose}
-                              onEditMenuPointerLeave={scheduleEditMenuClose}
                               canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
                               canvasKeyType={normalizeKeyType(canvas.keyType)}
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
@@ -9411,6 +9346,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               practiceControlsVisible={false}
                               showToolbarWhenInactive={laneId === globalControlsLaneId}
                               multiTrackSelectionActive={multiTrackSelectionActive}
+                              showFretTypingHint={fretHintNoteCount < 4}
+                              onKeyboardNotePlaced={handleKeyboardNotePlaced}
+                              onCursorActiveChange={(active) => setCursorSettingsLaneId((previous) => active ? laneId : previous === laneId ? null : previous)}
                               onSelectionStateChange={(selection) =>
                                 handleLaneSelectionStateChange(laneId, selection)
                               }
@@ -9902,8 +9840,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             laneId === editMenuOwnerLaneId ? editMenuPortalTarget : null
                           }
                           editMenuDisabled={editMenuDisabled || practiceModeEnabled}
-                          onEditMenuPointerEnter={cancelEditMenuClose}
-                          onEditMenuPointerLeave={scheduleEditMenuClose}
                           canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
                           canvasKeyType={normalizeKeyType(canvas.keyType)}
                           sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
@@ -9973,6 +9909,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           practiceControlsVisible={false}
                           showToolbarWhenInactive={!practiceModeEnabled && laneId === globalControlsLaneId}
                           multiTrackSelectionActive={multiTrackSelectionActive}
+                          showFretTypingHint={fretHintNoteCount < 4}
+                          onKeyboardNotePlaced={handleKeyboardNotePlaced}
+                          onCursorActiveChange={(active) => setCursorSettingsLaneId((previous) => active ? laneId : previous === laneId ? null : previous)}
                           onSelectionStateChange={(selection) =>
                             handleLaneSelectionStateChange(laneId, selection)
                           }
@@ -10042,19 +9981,20 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
 
               return (
                 <div
-                  className="fixed bottom-12 left-[calc(1.25rem+28rem+0.75rem)] z-50"
+                  className={`fixed bottom-5 left-[calc(1.25rem+28rem+0.75rem)] ${desktopTrackMenuOpen || desktopTrackAddMenuOpen || !desktopTrackSettingsCollapsed ? "z-[10000]" : "z-50"}`}
                   data-gte-floating-ui="true"
                   data-track-menu="true"
                   data-desktop-track-selector="true"
                 >
+                  <div className="absolute bottom-0 right-[calc(100%+0.75rem)] flex h-[4.5rem] w-[28rem] items-center rounded-2xl border border-slate-200 bg-white p-1 shadow-[0_16px_45px_rgba(15,23,42,0.14)]">
                   <button
                     type="button"
                     data-gte-floating-ui="true"
                     onClick={() => setLocalIsolateBool((prev) => !prev)}
-                    className={`fixed bottom-12 left-5 flex h-[3.75rem] w-[3.75rem] items-center justify-center rounded-full border shadow-lg transition ${
+                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl transition ${
                       local_isolate_bool
-                        ? "border-emerald-600 bg-emerald-600 text-white"
-                        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                        ? "bg-emerald-600 text-white"
+                        : "text-slate-700 hover:bg-slate-50"
                     }`}
                     title={local_isolate_bool ? t("Stop local isolate") : t("Locally isolate this track")}
                     aria-label={local_isolate_bool ? t("Stop local isolate") : t("Locally isolate this track")}
@@ -10064,6 +10004,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       <path d="M12 4a7 7 0 0 0-7 7v5a2.5 2.5 0 0 0 2.5 2.5H8a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H7v-.5a5 5 0 0 1 10 0v.5h-1a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h.5A2.5 2.5 0 0 0 19 16v-5a7 7 0 0 0-7-7z" />
                     </svg>
                   </button>
+                  <span aria-hidden="true" className="mx-1 h-8 w-px shrink-0 bg-slate-200" />
                   {desktopTrackSettingsCollapsed ? (
                     <button
                       type="button"
@@ -10071,16 +10012,19 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         setDesktopTrackMenuOpen((open) => !open);
                         setDesktopTrackAddMenuOpen(false);
                       }}
-                      className="absolute bottom-0 right-[calc(100%+0.75rem)] flex w-[28rem] items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left text-slate-700 shadow-[0_16px_45px_rgba(15,23,42,0.14)] transition hover:bg-slate-50"
+                      className="flex min-w-0 flex-1 items-center justify-between rounded-xl px-3 py-3 text-left text-slate-700 transition hover:bg-slate-50"
                       title={t("Choose a track")}
                       aria-label={t("Choose a track")}
                       aria-expanded={desktopTrackMenuOpen}
                       aria-haspopup="listbox"
                     >
-                      <span className="min-w-0">
+                      <span className="flex min-w-0 items-center gap-2.5">
+                        <GteTrackInstrumentIcon lane={selectedLane} className="h-5 w-5 text-slate-500" />
+                        <span className="min-w-0">
                         <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{t("Track")}</span>
                         <span className="mt-1 block truncate text-sm font-semibold text-slate-800">
                           {editorName(selectedLane.name, t) || t("Track {value1}", {value1: selectedIndex + 1})}
+                        </span>
                         </span>
                       </span>
                       <svg viewBox="0 0 20 20" className={`h-4 w-4 shrink-0 fill-current text-slate-500 transition ${desktopTrackMenuOpen ? "rotate-180" : ""}`} aria-hidden="true">
@@ -10196,8 +10140,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   </div>
                   </>
                   )}
+                  </div>
                   {desktopTrackSettingsCollapsed && desktopTrackMenuOpen && (
-                    <div className="absolute bottom-16 right-[calc(100%+0.75rem)] w-[28rem] overflow-visible rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.18)]">
+                    <div className="absolute bottom-20 right-[calc(100%+0.75rem)] w-[28rem] overflow-visible rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.18)]">
                       <div className="hidden border-b border-slate-100 px-4 py-3">
                         <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{t("Edit track")}</div>
                         <input
@@ -10274,7 +10219,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                 title={t("Double-click to rename")}
                                 className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg px-1.5 py-1.5 text-left text-xs"
                               >
-                                <span className="min-w-0 truncate font-semibold">{editorName(candidate.name, t) || t("Track {value1}", {value1: candidateIndex + 1})}</span>
+                                <span className="flex min-w-0 items-center gap-2"><GteTrackInstrumentIcon lane={candidate} className="h-4 w-4 text-slate-500" /><span className="truncate font-semibold">{editorName(candidate.name, t) || t("Track {value1}", {value1: candidateIndex + 1})}</span></span>
                                 <span className="shrink-0 text-[10px] font-medium text-slate-400">{t(type)}</span>
                               </button>
                             )}
@@ -10609,7 +10554,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             role="dialog"
             aria-modal="true"
             aria-labelledby="find-key-dialog-title"
-            className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 shadow-2xl"
+            className="max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-xl border border-slate-200 bg-white p-5 shadow-2xl"
             onMouseDown={(event) => event.stopPropagation()}
             onKeyDown={(event) => {
               if (event.key === "Escape") setFindKeyDialogOpen(false);
@@ -10619,7 +10564,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             <p className="mt-1 text-sm text-slate-600">{t("Note2Tabs compares the notes and chords in this project. Relative match scores rank these choices only; they are not probabilities.")}</p>
             <div className="mt-4 grid gap-2" role="radiogroup" aria-label={t("Likely song keys")}>
               {keyDetectionMatches.length ? (
-                keyDetectionMatches.map((candidate, index) => {
+                [false, true].map((otherKeys) => {
+                  const choices = keyDetectionMatches.filter((candidate) =>
+                    (candidate.scaleType !== "Major" && candidate.scaleType !== "Minor") === otherKeys
+                  ).map((candidate) => {
                   const value = `${candidate.rootKey}:${candidate.scaleType}`;
                   const selected = selectedKeyCandidate === value;
                   return (
@@ -10643,10 +10591,18 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         {candidate.root} {t(candidate.scaleType)}
                       </span>
                       <span className="text-right text-[10px] font-medium text-slate-500">
-                        {index === 0 ? t("Closest match") : t("Relative match {value1}/100", {value1: candidate.relativeMatch})}
+                        {candidate.rmsDifference === Math.min(...keyDetectionMatches.map((match) => match.rmsDifference)) ? t("Closest match") : t("Relative match {value1}/100", {value1: candidate.relativeMatch})}
                       </span>
                     </label>
                   );
+                  });
+                  if (!choices.length) return null;
+                  return otherKeys ? (
+                    <details key="other-keys" className="mt-1 border-t border-slate-100 pt-2">
+                      <summary className="cursor-pointer py-1 text-xs font-medium text-slate-500">{t("Other keys")}</summary>
+                      <div className="mt-2 grid gap-2">{choices}</div>
+                    </details>
+                  ) : <div key="major-minor-keys" className="grid gap-2">{choices}</div>;
                 })
               ) : (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-600">{t("Add some notes or chords before detecting the key.")}</div>
@@ -10669,23 +10625,107 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           </div>
         </div>
       )}
+      {!isMobileViewport && !tabViewEnabled && canvas && cursorSettingsLaneId !== null && cursorSettingsLaneId === activeLaneId && (
+        <div data-gte-floating-ui="true" data-gte-editor-control="true" role="region" aria-label={t("Editing settings")}
+          className="fixed bottom-24 left-1/2 z-[9997] grid w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 grid-cols-2 items-end gap-x-2 gap-y-2 rounded-xl border border-slate-200 bg-white/95 p-2.5 text-slate-700 shadow-sm backdrop-blur">
+                    <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_2.25rem_minmax(0,1fr)] items-start gap-2">
+                    <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-600">{t("Add note size")}<select
+                        value={chordOnlyDefaultNoteLengthDenominator}
+                        name="editor-add-note-size"
+                        onKeyDown={blockSizeSelectKeyboardChange}
+                        onChange={(event) =>
+                          handleDefaultNoteLengthDenominatorChange(Number(event.target.value))
+                        }
+                        className="h-7 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm text-slate-700"
+                      >
+                        {(noteCursorSizesLinked
+                          ? CURSOR_SIZE_FRACTION_DENOMINATORS
+                          : NOTE_LENGTH_FRACTION_DENOMINATORS
+                        ).map((denominator) => (
+                          <option key={`desktop-note-size-${denominator}`} value={denominator}>
+                            {formatNoteLengthOption(denominator)}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="flex flex-nowrap items-center gap-0.5 whitespace-nowrap text-[10px] font-medium leading-4 text-slate-600">
+                        <kbd className="inline-flex h-4 min-w-3 shrink-0 items-center justify-center rounded-sm border border-slate-300 bg-slate-50 px-0.5 font-sans text-[10px] font-semibold leading-none text-slate-700 shadow-[0_1px_0_#cbd5e1]">,</kbd>
+                        <span>{t("smaller")}</span>
+                        <span className="text-slate-400">/</span>
+                        <kbd className="inline-flex h-4 min-w-3 shrink-0 items-center justify-center rounded-sm border border-slate-300 bg-slate-50 px-0.5 font-sans text-[10px] font-semibold leading-none text-slate-700 shadow-[0_1px_0_#cbd5e1]">.</kbd>
+                        <span>{t("larger")}</span>
+                      </span>
+                    </label>
+                    <div className="mt-5 flex h-7 items-center justify-center">
+                      <SizeLinkToggle
+                      linked={noteCursorSizesLinked}
+                      onToggle={toggleNoteCursorSizeLink}
+                      className="!h-7 !w-7 self-center !border-transparent !bg-transparent hover:!bg-slate-100"
+                      />
+                    </div>
+                    <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-600">{t("Cursor size")}<select
+                        value={chordOnlyCursorSizeDenominator}
+                        name="editor-cursor-size"
+                        onKeyDown={blockSizeSelectKeyboardChange}
+                        onChange={(event) =>
+                          handleCursorSizeDenominatorChange(Number(event.target.value))
+                        }
+                        className="h-7 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm text-slate-700"
+                      >
+                        {CURSOR_SIZE_FRACTION_DENOMINATORS.map((denominator) => (
+                          <option key={`desktop-cursor-size-${denominator}`} value={denominator}>
+                            1/{denominator}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="flex flex-nowrap items-center gap-0.5 whitespace-nowrap text-[10px] font-medium leading-4 text-slate-600">
+                        <kbd className="inline-flex h-4 min-w-3 shrink-0 items-center justify-center rounded-sm border border-slate-300 bg-slate-50 px-0.5 font-sans text-[10px] font-semibold leading-none text-slate-700 shadow-[0_1px_0_#cbd5e1]">N</kbd>
+                        <span>{t("smaller")}</span>
+                        <span className="text-slate-400">/</span>
+                        <kbd className="inline-flex h-4 min-w-3 shrink-0 items-center justify-center rounded-sm border border-slate-300 bg-slate-50 px-0.5 font-sans text-[10px] font-semibold leading-none text-slate-700 shadow-[0_1px_0_#cbd5e1]">M</kbd>
+                        <span>{t("larger")}</span>
+                      </span>
+                    </label>
+                    </div>
+        </div>
+      )}
       {!isMobileViewport && canvas && (
         <div
           data-gte-floating-ui="true"
-          className="pointer-events-none fixed bottom-10 left-1/2 z-[9997] w-[min(calc(100vw-2rem),64rem)] -translate-x-1/2 px-2"
+          className="pointer-events-none fixed bottom-5 left-1/2 z-[9997] w-[min(calc(100vw-2rem),64rem)] -translate-x-1/2 px-2"
         >
-          <div className="relative flex flex-col items-center gap-3 md:min-h-[3.5rem] md:justify-center">
+          <div className="flex justify-center">
+            <div className="pointer-events-auto grid min-h-[4.5rem] grid-cols-[8rem_2rem_2.25rem_2rem_8rem] items-center gap-x-1 gap-y-1 rounded-2xl border border-slate-200 bg-white/95 px-2 py-2 text-slate-700 shadow-sm backdrop-blur">
             {displayPreferences.showPlaybackCounter && (
               <span
-                className="pointer-events-auto absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-slate-200 bg-white/95 px-2 py-1 text-[10px] font-semibold tabular-nums text-slate-600 shadow-sm"
+                className="col-start-3 row-start-1 justify-self-center whitespace-nowrap text-[10px] font-semibold tabular-nums text-slate-600"
                 role="timer"
                 aria-label={t("Playback time")}
               >
                 {formatPlaybackTime(globalPlaybackCounterFrame / globalPlaybackFps)} / {formatPlaybackTime(canvasTimelineEnd / globalPlaybackFps)}
               </span>
             )}
-            <div className="pointer-events-auto flex items-center gap-2">
-              <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1.5 text-slate-700 shadow-sm backdrop-blur">
+              <div className="col-start-1 row-start-2 flex items-center justify-end gap-1">
+                    <button
+                      type="button"
+                      onClick={handleCanvasUndo}
+                      disabled={canvasUndoCount === 0 || mobileHistoryBusy}
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                      title={t("Undo")}
+                      aria-label={t("Undo")}
+                    >
+                      <span className="h-4 w-4 shrink-0 bg-current" aria-hidden="true" style={{ maskImage: "url(/icons/undo-transparent.png)", WebkitMaskImage: "url(/icons/undo-transparent.png)", maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCanvasRedo}
+                      disabled={canvasRedoCount === 0 || mobileHistoryBusy}
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                      title={t("Redo")}
+                      aria-label={t("Redo")}
+                    >
+                      <span className="h-4 w-4 shrink-0 bg-current" aria-hidden="true" style={{ maskImage: "url(/icons/redo-transparent.png)", WebkitMaskImage: "url(/icons/redo-transparent.png)", maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} />
+                    </button>
+                <span className="mx-2 h-5 border-l border-slate-200" aria-hidden="true" />
                 <button
                   type="button"
                   onClick={skipGlobalPlaybackToStart}
@@ -10697,10 +10737,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     <polygon points="18,5 8,12 18,19" />
                   </svg>
                 </button>
+              </div>
                 <button
                   type="button"
                   onClick={skipGlobalPlaybackBackwardBar}
-                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                  className="col-start-2 row-start-2 flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
                   title={t("Previous bar")}
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
@@ -10710,7 +10751,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 <button
                   type="button"
                   onClick={toggleGlobalPlayback}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700"
+                  className="col-start-3 row-start-2 flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700"
                   title={globalPlaybackIsPlaying ? t("Pause") : t("Play")}
                 >
                   {globalPlaybackIsPlaying ? (
@@ -10727,15 +10768,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 <button
                   type="button"
                   onClick={skipGlobalPlaybackForwardBar}
-                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
+                  className="col-start-4 row-start-2 flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
                   title={t("Next bar")}
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                     <polygon points="7,5 17,12 7,19" />
                   </svg>
                 </button>
-              </div>
-              <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-3 py-1.5 text-slate-700 shadow-sm backdrop-blur">
+              <div className="col-start-5 row-start-2 ml-2 flex items-center justify-start gap-2 border-l border-slate-200 pl-3">
                   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current text-slate-500" aria-hidden="true">
                     <path d="M4 10v4h4l5 4V6L8 10H4z" />
                     <path d="M16 8a4 4 0 0 1 0 8v-2a2 2 0 0 0 0-4V8z" />
@@ -10757,28 +10797,27 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           </div>
         </div>
       )}
+      {canvas && !practiceModeEnabled && !isMobileViewport && (
+        <label
+          data-gte-floating-ui="true"
+          className="fixed bottom-5 left-5 z-50 flex items-center gap-2 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-xs font-medium text-slate-600 shadow-sm"
+        >
+          <span>{t("Bars/row")}</span>
+          <input
+            type="range"
+            name="bottom-timeline-zoom"
+            min={1}
+            max={6}
+            step={1}
+            value={desktopBarsPerRow}
+            onChange={(event) => setDesktopBarsPerRow(Number(event.target.value))}
+            className="w-28 accent-slate-700"
+            aria-label={t("Bars per row")}
+          />
+          <span className="w-3 text-right tabular-nums">{desktopBarsPerRow}</span>
+        </label>
+      )}
       {canvas && !practiceModeEnabled && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/90 backdrop-blur">
-
-          <div className="container gte-wide py-1">
-            <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-1 shadow-sm">
-              {!isMobileViewport && (
-                <label className="hidden w-48 shrink-0 items-center gap-2 text-xs font-medium text-slate-600 sm:flex">
-                  <span>{t("Bars/row")}</span>
-                  <input
-                    type="range"
-                    name="bottom-timeline-zoom"
-                    min={1}
-                    max={6}
-                    step={1}
-                    value={desktopBarsPerRow}
-                    onChange={(event) => setDesktopBarsPerRow(Number(event.target.value))}
-                    className="min-w-0 flex-1"
-                    aria-label={t("Bars per row")}
-                  />
-                  <span className="w-4 text-right tabular-nums">{desktopBarsPerRow}</span>
-                </label>
-              )}
               <div
                 ref={globalTimelineScrollbarRef}
                 data-gte-timeline-control="true"
@@ -10790,9 +10829,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               >
                 <div style={{ width: globalTimelineTrackWidth, height: 1 }} />
               </div>
-            </div>
-          </div>
-        </div>
       )}
       {trackContextMenu && (
         <div

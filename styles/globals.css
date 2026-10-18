@@ -12841,7 +12841,7 @@ input[type="number"] {
     transform: none;
   }
 }
-.gte-top-menu-bar > details > div button {
+.gte-top-menu-bar > details:not([data-gte-settings-panel]) > div button {
   min-height: 1.5rem;
   height: 1.5rem;
   padding: 0.125rem 0.5rem;
@@ -12849,14 +12849,14 @@ input[type="number"] {
   line-height: 1rem;
 }
 
-.gte-top-menu-bar > details > div label {
+.gte-top-menu-bar > details:not([data-gte-settings-panel]) > div label {
   min-height: 1.75rem;
   padding: 0.2rem 0.5rem;
   font-size: 0.7rem;
   line-height: 1rem;
 }
 
-.gte-top-menu-bar > details > div select {
+.gte-top-menu-bar > details:not([data-gte-settings-panel]) > div select {
   height: 1.5rem;
   min-height: 1.5rem;
   padding-top: 0;
@@ -12881,6 +12881,10 @@ input[type="number"] {
   background: #fbf8f1;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
   transition: top 0.18s ease;
+}
+
+.gte-editor-sticky-banner:has(details[data-gte-settings-panel][open]) {
+  z-index: 10000;
 }
 
 .nav-shell--editor-visible + #main-content .gte-editor-sticky-banner {
@@ -13839,6 +13843,20 @@ input[type="number"] {
   .premium-welcome-primary { transition: none; }
 }
 
+/* Hide coordinate chrome without changing its data, layout, or fingering logic. */
+[data-gte-playing-coordinate="true"] {
+  visibility: hidden;
+}
+
+[data-gte-coordinate-preview="true"] [data-gte-playing-coordinate="true"] {
+  visibility: visible;
+}
+
+[data-gte-coordinate-preview="true"] [data-gte-playhead],
+[data-gte-coordinate-preview="true"] [data-gte-add-bars="true"] {
+  display: none;
+}
+
 /* Desktop score editor: restrained application chrome around a paper-like score. */
 @media (min-width: 781px) {
   main.page-tight {
@@ -13883,7 +13901,16 @@ input[type="number"] {
   .gte-top-menu-bar > details > summary {
     border-radius: .45rem;
     color: #56615d;
-    font-size: .78rem;
+    min-height: 2.25rem;
+    padding: .25rem .625rem;
+    font-size: .875rem;
+    line-height: 1.5rem;
+  }
+
+  .gte-top-menu-bar > details[data-gte-settings-panel] > summary {
+    min-height: 2.5rem;
+    padding: .3125rem .75rem;
+    font-size: .9375rem;
   }
 
   .gte-top-menu-bar > details > summary:hover {
@@ -13895,6 +13922,13 @@ input[type="number"] {
   [data-gte-tab-view="true"],
   [data-gte-chord-score="true"] {
     background: var(--gte-paper) !important;
+  }
+
+  [data-gte-canvas-timeline="true"] {
+    background: transparent !important;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
   }
 
   [data-desktop-track-selector="true"] {
@@ -14542,4 +14576,17 @@ html[lang="ar"] [data-editor-locale="ar"] :is(input[type="text"], textarea) {
   color: #52616b;
   font-size: 0.8rem;
   line-height: 1.45;
+}
+
+@keyframes gte-input-caret-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.gte-input-caret {
+  animation: gte-input-caret-blink 1s step-end infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gte-input-caret { animation: none; }
 }

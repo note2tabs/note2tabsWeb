@@ -40,9 +40,9 @@ export const normalizeGteEditorInputSettings = (value: unknown): GteEditorInputS
     defaultNoteLengthDenominator: normalizeDenominator(
       source.defaultNoteLengthDenominator,
       NOTE_SIZE_DENOMINATORS,
-      4
+      8
     ),
-    cursorSizeDenominator: normalizeDenominator(source.cursorSizeDenominator, CURSOR_SIZE_DENOMINATORS, 4),
+    cursorSizeDenominator: normalizeDenominator(source.cursorSizeDenominator, CURSOR_SIZE_DENOMINATORS, 8),
   };
 };
 
