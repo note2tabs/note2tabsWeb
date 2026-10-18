@@ -7,6 +7,12 @@ type SignedSegment = [number, number];
 const BACKEND_BLUR_SIZE = 80;
 const BACKEND_CUT_MARGIN = 4.5;
 const BACKEND_BARS_PER_CHUNK = 4;
+export type PlayingCoordinateGenerationSettings = { cutThreshold: number; smoothing: number; barsPerChunk: number };
+export const DEFAULT_COORDINATE_GENERATION_SETTINGS: PlayingCoordinateGenerationSettings = {
+  cutThreshold: BACKEND_CUT_MARGIN, smoothing: BACKEND_BLUR_SIZE, barsPerChunk: BACKEND_BARS_PER_CHUNK,
+};
+const boundedSetting = (value: number | undefined, fallback: number, min: number, max: number) =>
+  Number.isFinite(value) ? Math.max(min, Math.min(max, value!)) : fallback;
 const backendAnchorString = (stringCount: number) => Math.max(0, Math.min(2, stringCount - 1));
 
 const bankersRound = (value: number) => {
@@ -184,7 +190,8 @@ const buildWindowRegions = (
   snapshot: EditorSnapshot,
   stamps: Stamp[],
   windowStart: number,
-  windowEnd: number
+  windowEnd: number,
+  settings: PlayingCoordinateGenerationSettings
 ): CutWithCoord[] => {
   const duration = Math.max(0, windowEnd - windowStart);
   if (!duration) return [];
@@ -209,13 +216,13 @@ const buildWindowRegions = (
       midis?.size ? [...midis].reduce((sum, midi) => sum + midi, 0) / midis.size : null
     )
   );
-  const kernel = Array.from({ length: 2 * BACKEND_BLUR_SIZE + 1 }, () => 1 / (2 * BACKEND_BLUR_SIZE + 1));
+  const kernel = Array.from({ length: 2 * settings.smoothing + 1 }, () => 1 / (2 * settings.smoothing + 1));
   const smoothed = convolveReflect(averages, kernel);
   const derivative = convolveReflect(smoothed, [-1, 0, 1]);
   const cutPositions = mergeTransitionSegments([
     ...findSignedSegments(derivative, true),
     ...findSignedSegments(derivative, false),
-  ].filter(([start, end]) => Math.abs(smoothed[end] - smoothed[start]) > BACKEND_CUT_MARGIN));
+  ].filter(([start, end]) => Math.abs(smoothed[end] - smoothed[start]) > settings.cutThreshold));
   const boundaries = cutPositions
     .map(([start, end]) => Math.max(1, Math.min(duration - 1, bankersRound((start + end) / 2))))
     .filter((boundary, index, values) => index === 0 || boundary !== values[index - 1]);
@@ -319,7 +326,12 @@ const normalizeGeneratedRegions = (regions: CutWithCoord[], endTime: number) => 
 };
 
 /** Frontend port of TabEditor.generateCutPositions with non-overlapping transition partitioning. */
-export const generatePlayingCoordinatesInSnapshot = (snapshot: EditorSnapshot) => {
+export const generatePlayingCoordinatesInSnapshot = (snapshot: EditorSnapshot, options: Partial<PlayingCoordinateGenerationSettings> = {}) => {
+  const settings: PlayingCoordinateGenerationSettings = {
+    cutThreshold: boundedSetting(options.cutThreshold, BACKEND_CUT_MARGIN, 3, 6),
+    smoothing: Math.round(boundedSetting(options.smoothing, BACKEND_BLUR_SIZE, 40, 120)),
+    barsPerChunk: Math.round(boundedSetting(options.barsPerChunk, BACKEND_BARS_PER_CHUNK, 2, 8)),
+  };
   const framesPerBar = Math.max(1, Math.trunc(snapshot.framesPerMessure || 480));
   const noteEnd = snapshot.notes.reduce(
     (latest, note) => Math.max(latest, Math.trunc(note.startTime) + Math.trunc(note.length)),
@@ -347,7 +359,7 @@ export const generatePlayingCoordinatesInSnapshot = (snapshot: EditorSnapshot) =
     snapshot.notes.forEach((note) => { note.optimals = []; });
     return snapshot.cutPositionsWithCoords;
   }
-  const chunkFrames = framesPerBar * BACKEND_BARS_PER_CHUNK;
+  const chunkFrames = framesPerBar * settings.barsPerChunk;
   const regions: CutWithCoord[] = [];
   const chunkCount = Math.ceil(endTime / chunkFrames);
   const stampsByChunk: Stamp[][] = Array.from({ length: chunkCount }, () => []);
@@ -368,7 +380,8 @@ export const generatePlayingCoordinatesInSnapshot = (snapshot: EditorSnapshot) =
         snapshot,
         stampsByChunk[chunkIndex],
         start,
-        Math.min(endTime, start + chunkFrames)
+        Math.min(endTime, start + chunkFrames),
+        settings
       )
     );
   }

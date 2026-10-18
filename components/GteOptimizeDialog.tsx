@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { CutWithCoord, EditorSnapshot } from "../types/gte";
-import { coordinateEditorResult, createCoordinateEditorDraft, editableOptimizationCuts, optimizationAnchorString, optimizationRange, type OptimizeOptions, type OptimizeScope, type OptimizeSelection } from "../lib/gteOptimization";
+import { coordinateEditorResult, createCoordinateEditorDraft, generateCoordinateEditorPositions, optimizationAnchorString, optimizationRange, type OptimizeOptions, type OptimizeScope, type OptimizeSelection } from "../lib/gteOptimization";
+import { DEFAULT_COORDINATE_GENERATION_SETTINGS } from "../lib/gtePlayingCoordinates";
+import { createCoordinatePreview } from "../lib/gteCoordinatePreview";
 import { getMaxFretFromSnapshot, getOpenStringMidiFromSnapshot } from "../lib/gteTuning";
 import { useLocale } from "../lib/i18n/react";
 
@@ -19,7 +21,10 @@ export default function GteOptimizeDialog({ snapshot, selection, onCancel, onApp
   const [editingCuts, setEditingCuts] = useState<CutWithCoord[] | null>(null);
   const [coordinateDraft, setCoordinateDraft] = useState<EditorSnapshot | null>(null);
   const [coordinateCutting, setCoordinateCutting] = useState(false);
+  const [generationSettings, setGenerationSettings] = useState({ ...DEFAULT_COORDINATE_GENERATION_SETTINGS });
   const rootRef = useRef<HTMLDivElement>(null);
+  const previewRef = useRef<ReturnType<typeof createCoordinatePreview> | null>(null);
+  const previewSourceRef = useRef<EditorSnapshot | null>(null);
   const initialFocus = useRef<HTMLElement | null>(null);
   const range = useMemo(() => optimizationRange(snapshot, selection, scope), [snapshot, selection, scope]);
   const strings = getOpenStringMidiFromSnapshot(snapshot);
@@ -41,13 +46,20 @@ export default function GteOptimizeDialog({ snapshot, selection, onCancel, onApp
 
   const changeScope = (next: OptimizeScope) => { setScope(next); setCuts([]); setCustom(false); };
   const openEditor = () => {
-    const initial = structuredClone(cuts.length ? cuts : editableOptimizationCuts(snapshot, selection, scope, validFret ? fret : 5));
+    const initial = structuredClone(cuts.length ? cuts : standardCuts());
     setEditingCuts(initial);
-    setCoordinateDraft(createCoordinateEditorDraft(snapshot, selection, scope, initial));
+    const source = createCoordinateEditorDraft(snapshot, selection, scope, initial);
+    previewSourceRef.current = source;
+    previewRef.current = source ? createCoordinatePreview(source, scope === "selected" ? selection : undefined) : null;
+    setCoordinateDraft(source && previewRef.current ? previewRef.current.update(source.cutPositionsWithCoords).snapshot : null);
     setCoordinateCutting(false);
   };
-  const closeEditor = () => { setEditingCuts(null); setCoordinateDraft(null); setCoordinateCutting(false); };
+  const closeEditor = () => { setEditingCuts(null); setCoordinateDraft(null); setCoordinateCutting(false); previewRef.current = null; previewSourceRef.current = null; };
+  const updatePreview = (next: EditorSnapshot) => {
+    setCoordinateDraft(previewRef.current?.update(next.cutPositionsWithCoords).snapshot ?? next);
+  };
   const scopeLabel = scope === "track" ? t("Whole track") : t("Selected notes/chords");
+  const standardCuts = (): CutWithCoord[] => range ? [[[range.start, range.end], [optimizationAnchorString(snapshot), validFret ? fret : 5]]] : [];
 
   return (
     <div className="fixed inset-0 z-[10040] flex items-center justify-center bg-slate-950/25 p-4" data-gte-floating-ui="true" data-gte-optimization-dialog="true"
@@ -95,7 +107,7 @@ export default function GteOptimizeDialog({ snapshot, selection, onCancel, onApp
             <div className="flex items-center justify-between gap-3">
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={custom} className="accent-sky-600" onChange={(event) => {
                 setCustom(event.target.checked);
-                if (event.target.checked && !cuts.length) setCuts(editableOptimizationCuts(snapshot, selection, scope, validFret ? fret : 5));
+                if (event.target.checked && !cuts.length) setCuts(standardCuts());
               }} />{t("Custom fret positions")}</label>
               <button type="button" disabled={!custom || !range} onClick={openEditor} className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs hover:bg-slate-50 disabled:opacity-40">{t("Edit")}</button>
             </div>
@@ -117,6 +129,32 @@ export default function GteOptimizeDialog({ snapshot, selection, onCancel, onApp
               <span className="text-xs text-slate-500">{scopeLabel}</span>
             </div>
             <div className="my-3 flex items-center gap-3">
+              <div className="relative flex shrink-0">
+                <button type="button" onClick={() => { updatePreview(generateCoordinateEditorPositions(previewSourceRef.current ?? coordinateDraft, range.end - range.start, generationSettings)); setCoordinateCutting(false); }}
+                  className="h-8 rounded-l-md border border-slate-200 bg-white px-3 text-xs text-slate-700 hover:bg-slate-50">{t("Generate fret positions")}</button>
+                <details className="group">
+                  <summary aria-label={t("Fret position generation settings")} title={t("Generation settings")}
+                    className="flex h-8 cursor-pointer list-none items-center rounded-r-md border border-l-0 border-slate-200 bg-white px-2 text-slate-600 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">▾</summary>
+                  <div className="absolute left-0 top-full z-50 mt-1 w-64 space-y-3 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600 shadow-lg">
+                    {([
+                      ["cutThreshold", "Cut threshold", 3, 6, 0.25],
+                      ["smoothing", "Smoothing (frames)", 40, 120, 10],
+                      ["barsPerChunk", "Bars per analysis window", 2, 8, 1],
+                    ] as const).map(([key, label, min, max, step]) => <label key={key} className="block space-y-1">
+                      <span className="flex items-center justify-between gap-3"><span>{t(label)}</span><output className="tabular-nums text-slate-800">{generationSettings[key]}</output></span>
+                      <input aria-label={t(label)} type="range" min={min} max={max} step={step} value={generationSettings[key]}
+                        onChange={(event) => { const value = event.target.valueAsNumber; if (Number.isFinite(value)) setGenerationSettings((current) => ({ ...current, [key]: Math.max(min, Math.min(max, value)) })); }}
+                        className="block h-5 w-full cursor-pointer accent-sky-600" />
+                    </label>)}
+                    <p className="text-[11px] leading-4 text-slate-500">{t("Lower thresholds create more boundaries. Changes apply when you generate.")}</p>
+                    <button type="button" onClick={() => setGenerationSettings({ ...DEFAULT_COORDINATE_GENERATION_SETTINGS })} className="text-slate-700 underline">{t("Reset defaults")}</button>
+                  </div>
+                </details>
+              </div>
+              <button type="button" onClick={() => {
+                updatePreview({ ...coordinateDraft, cutPositionsWithCoords: [[[0, range.end - range.start], [optimizationAnchorString(snapshot), validFret ? fret : 5]]] });
+                setCoordinateCutting(false);
+              }} className="h-8 shrink-0 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-700 hover:bg-slate-50">{t("Reset fret positions")}</button>
               <button type="button" aria-pressed={coordinateCutting} onClick={() => setCoordinateCutting((value) => !value)}
                 className={`rounded-md border px-3 py-1.5 text-xs ${coordinateCutting ? "border-sky-400 bg-sky-50 text-sky-800" : "border-slate-200 bg-white text-slate-600"}`}>
                 {t("Cut")}
@@ -133,7 +171,7 @@ export default function GteOptimizeDialog({ snapshot, selection, onCancel, onApp
               onContextMenuCapture={(event) => {
                 if (!(event.target as Element).closest("[data-gte-playing-coordinate='true'], [data-gte-coordinate-editor-control='true']")) { event.preventDefault(); event.stopPropagation(); }
               }}>
-              {renderCoordinateEditor(coordinateDraft, setCoordinateDraft, coordinateCutting, range.end - range.start)}
+              {renderCoordinateEditor(coordinateDraft, updatePreview, coordinateCutting, range.end - range.start)}
             </div>
             <div className="mt-4 flex shrink-0 justify-end gap-2">
               <button type="button" onClick={closeEditor} className="rounded-md border border-slate-200 px-3 py-2 text-sm">{t("Cancel")}</button>

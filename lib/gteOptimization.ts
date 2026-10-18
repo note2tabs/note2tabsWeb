@@ -1,7 +1,7 @@
 import type { CutWithCoord, EditorSnapshot, TabCoord } from "../types/gte";
 import { cloneEditorSnapshot } from "./gteLocalEditorOps";
 import { finalizeOptimizedTrackFingeringInSnapshot, mergeRedundantCutRegionsInSnapshot, optimizeTrackFingeringInSnapshot } from "./gteFingeringOptimization";
-import { generatePlayingCoordinatesInSnapshot } from "./gtePlayingCoordinates";
+import { generatePlayingCoordinatesInSnapshot, type PlayingCoordinateGenerationSettings } from "./gtePlayingCoordinates";
 import { getMaxFretFromSnapshot, getOpenStringMidiFromSnapshot, getTabMidi } from "./gteTuning";
 
 export type OptimizeScope = "selected" | "track";
@@ -71,6 +71,17 @@ export function coordinateEditorResult(draft: EditorSnapshot, start: number, end
   const duration = end - start;
   const cuts = replaceCoordinateWindow([], draft.cutPositionsWithCoords, 0, duration, duration, [optimizationAnchorString(draft), 0]);
   return cuts.map(([[from, to], coord]) => [[from + start, to + start], coord]);
+}
+
+/** Generate only preview coordinates, including pitches stored inside chords. */
+export function generateCoordinateEditorPositions(draft: EditorSnapshot, duration: number, settings: PlayingCoordinateGenerationSettings): EditorSnapshot {
+  const generated = cloneEditorSnapshot(draft);
+  let id = -1;
+  generated.chords.forEach((chord) => chord.currentTabs.forEach((tab) => generated.notes.push({
+    id: id--, startTime: chord.startTime, length: chord.length, tab: [...tab], midiNum: getTabMidi(draft, tab), optimals: [],
+  })));
+  generatePlayingCoordinatesInSnapshot(generated, settings);
+  return { ...draft, cutPositionsWithCoords: coordinateEditorResult(generated, 0, duration) };
 }
 
 export function optimizeSelection(snapshot: EditorSnapshot, selection: OptimizeSelection, options: OptimizeOptions): EditorSnapshot {

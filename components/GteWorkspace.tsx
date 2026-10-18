@@ -5036,6 +5036,9 @@ export default function GteWorkspace({
 }: Props) {
   const { t, locale } = useLocale();
   useGteRenderInstrumentation("GteWorkspace", `${editorId}:tab`);
+  const ROW_HEIGHT = coordinateEditorMode ? 15 : 20;
+  const CUT_SEGMENT_HEIGHT = coordinateEditorMode ? 22 : 20;
+  const ROW_GAP = coordinateEditorMode ? 24 : 16;
   if (isChordEditorSnapshot(snapshot) && !coordinateEditorMode) {
     return (
       <ChordLaneWorkspace
@@ -5518,7 +5521,7 @@ export default function GteWorkspace({
   const timelineWidth = viewportTimelineWidth;
   const timelineChromeWidth = viewportTimelineWidth + (isMobileEditMode ? 0 : 40);
   const rowHeight = ROW_HEIGHT * stringLabels.length;
-  const canvasNoteHeight = ROW_HEIGHT - (mobileViewport ? 4 : 6);
+  const canvasNoteHeight = ROW_HEIGHT - (coordinateEditorMode ? 2 : mobileViewport ? 4 : 6);
   // The 1px separator occupies the top pixel of each row's visible interior.
   const canvasNoteTopInset = (ROW_HEIGHT - canvasNoteHeight + 1) / 2;
   const coordinateBandHeight = showPlayingCoordinates
@@ -11495,13 +11498,15 @@ export default function GteWorkspace({
     const handleBoundaryDelete = (event: KeyboardEvent) => {
       if (event.key !== "Delete" && event.key !== "Backspace") return;
       const target = event.target instanceof HTMLElement ? event.target : null;
+      if (!target?.closest("[data-coordinate-editor]")) return;
       if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
       event.preventDefault();
       event.stopPropagation();
       handleMergeCutBoundary();
     };
-    window.addEventListener("keydown", handleBoundaryDelete);
-    return () => window.removeEventListener("keydown", handleBoundaryDelete);
+    // The containing modal stops bubbling keyboard events. Listen before it does.
+    window.addEventListener("keydown", handleBoundaryDelete, true);
+    return () => window.removeEventListener("keydown", handleBoundaryDelete, true);
   }, [coordinateEditorMode, selectedCutBoundaryIndex, handleMergeCutBoundary]);
 
   const handleDeleteChord = () => {
@@ -18312,13 +18317,15 @@ export default function GteWorkspace({
                         event.preventDefault();
                         event.stopPropagation();
                         setSelectedCutBoundaryIndex(boundary.index);
+                        if (coordinateEditorMode) event.currentTarget.focus({ preventScroll: true });
                         setSegmentDragIndex(boundary.index);
                         setSelectedNoteIds([]);
                         setSelectedChordIds([]);
                       }}
-                      onContextMenu={(event) =>
-                        handlePlayingCoordinatesContextMenu(event, boundary.index)
-                      }
+                      onContextMenu={(event) => {
+                        if (coordinateEditorMode) event.currentTarget.focus({ preventScroll: true });
+                        handlePlayingCoordinatesContextMenu(event, boundary.index);
+                      }}
                       className="absolute z-40 cursor-pointer"
                       style={{ left, top, height, width: 18, transform: "translateX(-9px)" }}
                     >
@@ -18390,7 +18397,7 @@ export default function GteWorkspace({
                         data-gte-editor-control="true"
                         data-gte-playing-coordinate="true"
                         role="group"
-                        className="absolute rounded-md border border-sky-300 bg-sky-200/60 px-2 py-1 text-[10px] text-slate-700"
+                        className={`absolute border px-2 py-1 text-slate-700 ${coordinateEditorMode ? "rounded-sm border-sky-400 bg-sky-200/80" : "rounded-md border-sky-300 bg-sky-200/60 text-[10px]"}`}
                         style={{ top, left, width, height: CUT_SEGMENT_HEIGHT }}
                         title={t("Playing coordinates - The fingerings of the notes are ranked based on the playing coordinate below")}
                         aria-label={t("Playing coordinates {value1}{value2}", {value1: stringLabel, value2: fretLabel})}
@@ -18418,7 +18425,7 @@ export default function GteWorkspace({
                           className={`absolute top-0 flex h-full items-center justify-center rounded text-[10px] font-semibold text-slate-700 hover:text-slate-900 ${
                             cutToolActive ? "cursor-crosshair" : "cursor-pointer"
                           }`}
-                          style={{ left: labelLeft - left, top: 0, width: coordLabelWidth, height: 24 }}
+                          style={{ left: labelLeft - left, top: 0, width: coordLabelWidth, height: coordinateEditorMode ? CUT_SEGMENT_HEIGHT : 24, fontSize: coordinateEditorMode ? 12 : undefined }}
                           title={t("Playing coordinates - The fingerings of the notes are ranked based on the playing coordinate below")}
                           aria-label={t("Playing coordinates {value1}{value2}", {value1: stringLabel, value2: fretLabel})}
                           onClick={(event) => {
@@ -18732,6 +18739,7 @@ export default function GteWorkspace({
                           left: segment.inRowStart * scale + 1,
                           width: Math.max(10, segment.length * scale) - 2,
                           height: canvasNoteHeight,
+                          fontSize: coordinateEditorMode ? 11 : undefined,
                           touchAction: mobileViewport ? "none" : undefined,
                           outline: selectedNoteIds.includes(note.id)
                             ? "1px solid rgba(15, 23, 42, 0.35)"
@@ -18941,6 +18949,7 @@ export default function GteWorkspace({
                             left: segment.inRowStart * scale + 1,
                             width: Math.max(10, segment.length * scale) - 2,
                             height: canvasNoteHeight,
+                            fontSize: coordinateEditorMode ? 11 : undefined,
                             touchAction: mobileViewport ? "none" : undefined,
                             outline: selectedChordIds.includes(chord.id)
                               ? "1px solid rgba(15, 23, 42, 0.35)"

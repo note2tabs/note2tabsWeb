@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { coordinateAt, coordinateEditorResult, createCoordinateEditorDraft, editableOptimizationCuts, optimizationAnchorString, optimizationRange, optimizeSelection, replaceCoordinateWindow, type OptimizeOptions } from "../../lib/gteOptimization";
+import { coordinateAt, coordinateEditorResult, createCoordinateEditorDraft, editableOptimizationCuts, generateCoordinateEditorPositions, optimizationAnchorString, optimizationRange, optimizeSelection, replaceCoordinateWindow, type OptimizeOptions } from "../../lib/gteOptimization";
+import { DEFAULT_COORDINATE_GENERATION_SETTINGS } from "../../lib/gtePlayingCoordinates";
 import type { EditorSnapshot } from "../../types/gte";
 
 const fixture = (): EditorSnapshot => ({ id: "optimize", fps: 240, framesPerMessure: 480, totalFrames: 960, maxFret: 22,
@@ -15,6 +16,20 @@ const selected = { noteIds: [1, 2], chordIds: [] };
 const options: OptimizeOptions = { scope: "selected", position: "chosen", fret: 7, custom: false, cuts: [] };
 
 describe("unified optimization", () => {
+  it("generates positions for chord-only previews without changing notes or extending the selected range", () => {
+    const snapshot = fixture();
+    snapshot.notes = [];
+    snapshot.chords[0].currentTabs = [[0, 17]];
+    const draft = createCoordinateEditorDraft(snapshot, { noteIds: [], chordIds: [1] }, "selected", [[[500, 600], [2, 5]]])!;
+    const before = structuredClone(draft);
+    const generated = generateCoordinateEditorPositions(draft, 100, DEFAULT_COORDINATE_GENERATION_SETTINGS);
+    expect(generated.cutPositionsWithCoords).toEqual([[[0, 100], [2, 17]]]);
+    expect(generated.notes).toEqual([]);
+    expect(generated.chords).toEqual(before.chords);
+    expect(generated.totalFrames).toBe(100);
+    expect(draft).toEqual(before);
+  });
+
   it("crops the legacy coordinate workspace to the selected time span and rebases edits back", () => {
     const snapshot = fixture(), before = structuredClone(snapshot);
     const draft = createCoordinateEditorDraft(snapshot, selected, "selected", editableOptimizationCuts(snapshot, selected, "selected", 5))!;

@@ -5,6 +5,8 @@ import * as jsxRuntime from "react/jsx-runtime";
 import { describe, expect, it, vi } from "vitest";
 import * as optimization from "../../lib/gteOptimization";
 import * as tuning from "../../lib/gteTuning";
+import * as coordinates from "../../lib/gtePlayingCoordinates";
+import * as preview from "../../lib/gteCoordinatePreview";
 import { insertCutBoundaryLocal, shiftCutBoundaryLocal } from "../../lib/gteLocalEditorOps";
 import type { EditorSnapshot } from "../../types/gte";
 
@@ -26,6 +28,8 @@ function harness() {
     if (name === "react") return hooks;
     if (name === "react/jsx-runtime") return jsxRuntime;
     if (name.includes("gteOptimization")) return optimization;
+    if (name.includes("gtePlayingCoordinates")) return coordinates;
+    if (name.includes("gteCoordinatePreview")) return preview;
     if (name.includes("gteTuning")) return tuning;
     if (name.includes("i18n/react")) return { useLocale: () => ({ t: (key: string) => key }) };
     throw new Error(`Unexpected module ${name}`);
@@ -48,6 +52,35 @@ function harness() {
 }
 
 describe("Optimize dialog", () => {
+  it("starts from the chosen standard position and generates only on request", () => {
+    const h = harness();
+    h.button("Chosen fret position").props.onClick();
+    h.nodes().find((node) => node.props.type === "checkbox").props.onChange({ target: { checked: true } });
+    h.button("Edit").props.onClick(); h.nodes();
+    expect(h.props.renderCoordinateEditor.mock.lastCall![0].cutPositionsWithCoords).toEqual([[[0, 120], [2, 5]]]);
+    const threshold = h.nodes().find((node) => node.props["aria-label"] === "Cut threshold");
+    expect(threshold.props.type).toBe("range");
+    threshold.props.onChange({ target: { valueAsNumber: 6 } });
+    expect(h.nodes().find((node) => node.props["aria-label"] === "Cut threshold").props.value).toBe(6);
+    h.nodes().find((node) => node.props["aria-label"] === "Cut threshold").props.onChange({ target: { valueAsNumber: 5.75 } });
+    expect(h.nodes().find((node) => node.props["aria-label"] === "Cut threshold").props.value).toBe(5.75);
+    expect(h.nodes().filter((node) => node.props.type === "range")).toHaveLength(3);
+    threshold.props.onChange({ target: { valueAsNumber: 3.5 } });
+    h.nodes();
+    expect(h.props.renderCoordinateEditor.mock.lastCall![0].cutPositionsWithCoords).toEqual([[[0, 120], [2, 5]]]);
+    h.button("Generate fret positions").props.onClick(); h.nodes();
+    const generated = h.props.renderCoordinateEditor.mock.lastCall![0];
+    expect(generated.cutPositionsWithCoords).not.toEqual([[[0, 120], [2, 5]]]);
+    expect(generated.totalFrames).toBe(120);
+    expect(generated.notes).toEqual([expect.objectContaining({ id: 1, startTime: 0, length: 120, midiNum: 60 })]);
+    h.button("Reset fret positions").props.onClick(); h.nodes();
+    expect(h.props.renderCoordinateEditor.mock.lastCall![0].cutPositionsWithCoords).toEqual([[[0, 120], [2, 5]]]);
+    expect(h.props.onApply).not.toHaveBeenCalled();
+    h.button("Reset defaults").props.onClick();
+    expect(h.nodes().find((node) => node.props["aria-label"] === "Cut threshold").props.value).toBe(4.5);
+    expect(h.props.snapshot.cutPositionsWithCoords).toEqual([[[0, 480], [2, 3]]]);
+  });
+
   it("keeps positioning and scope independent", () => {
     const h = harness();
     expect(h.button("Automatic").props["aria-pressed"]).toBe(true);
@@ -75,7 +108,7 @@ describe("Optimize dialog", () => {
     h.button("Edit").props.onClick();
     h.nodes();
     [draft, onChange] = h.props.renderCoordinateEditor.mock.lastCall!;
-    expect(draft.cutPositionsWithCoords).toEqual([[[0, 120], [2, 3]]]);
+    expect(draft.cutPositionsWithCoords).toEqual([[[0, 120], [2, 5]]]);
     onChange({ ...draft, cutPositionsWithCoords: [[[0, 60], [2, 9]], [[60, 120], [1, 7]]] });
     h.button("Done").props.onClick();
     h.button("Optimize").props.onClick();
