@@ -1,3 +1,4 @@
+import { PRICING_MARKET_COOKIE, requestPricingMarket } from "./lib/pricingMarket";
 import { PRICE_TAX_NOTE_COOKIE, showPriceTaxNoteForCountry } from "./lib/priceTaxNote";
 import { diagnosticEndpoint } from "./lib/diagnosticEndpoint";
 import {LANGUAGE_CHOICE_COOKIE} from "./lib/i18n/preference";
@@ -11,6 +12,7 @@ import {languagePromptPreview} from "./lib/i18n/languageMismatch";
 
 const withCurrencyPreference = (request: NextRequest, response: NextResponse) => {
   const country = request.headers.get("x-vercel-ip-country");
+  response.cookies.set({name: PRICING_MARKET_COOKIE, value: requestPricingMarket(country), httpOnly: false, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/"});
   response.cookies.set({
     name: DISPLAY_CURRENCY_COOKIE,
     value: displayCurrencyForCountry(country),

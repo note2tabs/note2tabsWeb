@@ -180,6 +180,7 @@ describe("stripe premium flow", () => {
       const interval = id.includes("yearly") ? "yearly" : "monthly";
       return {id, active:true, currency:"usd", unit_amount:Math.round(localizedPriceAmount(plan,interval,"USD")*100), recurring:{interval:interval==="yearly"?"year":"month"}, currency_options:Object.fromEntries(DISPLAY_CURRENCIES.map(c=>[c.toLowerCase(),{unit_amount:Math.round(localizedPriceAmount(plan,interval,c)*(["JPY","KRW"].includes(c)?1:100))}]))};
     });
+    delete process.env.LATAM_PRICING_ENABLED;
     process.env.STRIPE_PRICE_PREMIUM_MONTHLY = "price_test_premium";
     delete process.env.STRIPE_PRICE_PREMIUM_YEARLY;
     delete process.env.STRIPE_PRODUCT_PREMIUM;
@@ -332,6 +333,41 @@ describe("stripe premium flow", () => {
 
       expect(res._getStatusCode()).toBe(503);
       expect(stripeMock.checkout.sessions.create).not.toHaveBeenCalled();
+    });
+
+    it.each(["AR", "CO", "CR", "DO", "PR"])("uses the lower USD price for %s without trusting a client market", async country => {
+      process.env.LATAM_PRICING_ENABLED = "true";
+      for (const plan of ["PREMIUM", "PRO"]) for (const interval of ["MONTHLY", "YEARLY"]) process.env[`STRIPE_MARKET_LATAM_${plan}_${interval}`] = `price_latam_${plan}_${interval}`;
+      stripeMock.prices.retrieve.mockResolvedValue({active:true,currency:"usd",unit_amount:299,recurring:{interval:"month"}});
+      const handler = (await import("../../pages/api/stripe/create-checkout-session")).default;
+      const {req,res}=createMocks({method:"POST",headers:{"x-vercel-ip-country":country},body:{locale:"es"}});
+      await handler(req as any,res as any);
+      expect(res._getStatusCode()).toBe(200);
+      expect(stripeMock.checkout.sessions.create.mock.calls[0][0]).toMatchObject({currency:"usd",customer_email:"user@example.com",line_items:[{price:"price_latam_PREMIUM_MONTHLY",quantity:1}],metadata:{note2tabsPricingMarket:"latam"}});
+      expect(stripeMock.customers.create).not.toHaveBeenCalled();
+    });
+
+    it.each([["premium","monthly",299],["premium","yearly",2999],["pro","monthly",749],["pro","yearly",7499]] as const)("pins LatAm %s %s to its own USD amount",async(plan,interval,amount)=>{
+      process.env.LATAM_PRICING_ENABLED="true";
+      process.env.PRO_PLAN_ENABLED="true";process.env.STRIPE_PRODUCT_PRO="prod_test_pro";process.env.STRIPE_PRICE_PRO_MONTHLY="price_test_pro";
+      process.env.STRIPE_PRICE_PREMIUM_YEARLY="price_test_premium_yearly";process.env.STRIPE_PRICE_PRO_YEARLY="price_test_pro_yearly";
+      for(const p of ["PREMIUM","PRO"])for(const i of ["MONTHLY","YEARLY"])process.env[`STRIPE_MARKET_LATAM_${p}_${i}`]=`price_latam_${p}_${i}`;
+      stripeMock.prices.retrieve.mockResolvedValue({active:true,currency:"usd",unit_amount:amount,recurring:{interval:interval==="monthly"?"month":"year"}});
+      const handler=(await import("../../pages/api/stripe/create-checkout-session")).default;
+      const {req,res}=createMocks({method:"POST",headers:{"x-vercel-ip-country":"AR"},body:{plan,billingInterval:interval}});
+      await handler(req as any,res as any);
+      expect(res._getStatusCode()).toBe(200);
+      expect(stripeMock.checkout.sessions.create.mock.calls[0][0]).toMatchObject({currency:"usd",line_items:[{price:`price_latam_${plan.toUpperCase()}_${interval.toUpperCase()}`,quantity:1}]});
+    });
+
+    it("ignores a forged LatAm cookie/body on a US checkout", async () => {
+      process.env.LATAM_PRICING_ENABLED="true";
+      for (const plan of ["PREMIUM", "PRO"]) for (const interval of ["MONTHLY", "YEARLY"]) process.env[`STRIPE_MARKET_LATAM_${plan}_${interval}`] = `price_latam_${plan}_${interval}`;
+      const handler=(await import("../../pages/api/stripe/create-checkout-session")).default;
+      const {req,res}=createMocks({method:"POST",headers:{"x-vercel-ip-country":"US",cookie:"n2t_pricing_market=latam"},body:{pricingMarket:"latam",country:"AR"}});
+      await handler(req as any,res as any);
+      expect(res._getStatusCode()).toBe(200);
+      expect(stripeMock.checkout.sessions.create.mock.calls[0][0]).toMatchObject({line_items:[{price:"price_test_premium",quantity:1}],metadata:{note2tabsPricingMarket:"standard"}});
     });
 
     it("creates Pro checkout without a trial", async () => {
@@ -903,6 +939,20 @@ describe("stripe premium flow", () => {
   });
 
   describe("change-plan", () => {
+    it("preserves a purchased LatAm tier on upgrade even when rollout is paused and the buyer travels",async()=>{
+      process.env.STRIPE_PRICE_PRO_MONTHLY="price_test_pro";process.env.STRIPE_PRODUCT_PRO="prod_test_pro";process.env.PRO_PLAN_ENABLED="true";
+      process.env.STRIPE_MARKET_LATAM_PRO_MONTHLY="price_latam_PRO_MONTHLY";
+      prismaMock.user.findUnique.mockResolvedValue({role:"PREMIUM",subscriptionPlan:"PREMIUM"});
+      stripeMock.customers.list.mockResolvedValue({data:[{id:"cus_1",email:"user@example.com"}]});
+      stripeMock.subscriptions.list.mockResolvedValue({data:[premiumSubscription({metadata:{note2tabsPricingMarket:"latam"}})]});
+      stripeMock.subscriptions.update.mockResolvedValue({});
+      const handler=(await import("../../pages/api/stripe/change-plan")).default;
+      const {req,res}=createMocks({method:"POST",headers:{"x-vercel-ip-country":"US"},body:{plan:"pro"}});
+      await handler(req as any,res as any);
+      expect(res._getStatusCode()).toBe(200);
+      expect(stripeMock.subscriptions.update.mock.calls[0][1]).toMatchObject({items:[{id:expect.any(String),price:"price_latam_PRO_MONTHLY"}],metadata:{note2tabsPricingMarket:"latam"}});
+    });
+
     it("upgrades Premium to Pro immediately with proration", async () => {
       process.env.STRIPE_PRICE_PRO_MONTHLY = "price_test_pro";
       process.env.STRIPE_PRODUCT_PRO = "prod_test_pro";

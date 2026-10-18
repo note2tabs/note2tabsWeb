@@ -1,3 +1,4 @@
+import { marketPriceIds } from "./pricingMarket";
 import { HISTORICAL_PRICE_IDS } from "./stripePriceHistory";
 import type Stripe from "stripe";
 import { proPlanConfigured, type PaidSubscriptionPlan } from "./subscriptionPlans";
@@ -31,7 +32,7 @@ export function getStripePremiumConfig(): StripePremiumConfig | null {
   const annualPriceId = process.env.STRIPE_PRICE_PREMIUM_YEARLY?.trim();
   return {
     priceId,
-    priceIds: [priceId, annualPriceId, ...HISTORICAL_PRICE_IDS.PREMIUM].filter((value): value is string => Boolean(value)),
+    priceIds: [priceId, annualPriceId, ...HISTORICAL_PRICE_IDS.PREMIUM, ...marketPriceIds("PREMIUM")].filter((value): value is string => Boolean(value)),
     productId: process.env.STRIPE_PRODUCT_PREMIUM?.trim() || null,
   };
 }
@@ -45,7 +46,7 @@ export function getStripePaidPlanConfigs(): Record<PaidSubscriptionPlan, StripeP
     PRO: proPriceId ? {
       plan: "PRO",
       priceId: proPriceId,
-      priceIds: [proPriceId, proAnnualPriceId, ...HISTORICAL_PRICE_IDS.PRO].filter((value): value is string => Boolean(value)),
+      priceIds: [proPriceId, proAnnualPriceId, ...HISTORICAL_PRICE_IDS.PRO, ...marketPriceIds("PRO")].filter((value): value is string => Boolean(value)),
       productId: process.env.STRIPE_PRODUCT_PRO?.trim() || null,
     } : null,
   };

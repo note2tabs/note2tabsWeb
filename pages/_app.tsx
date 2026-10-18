@@ -3,7 +3,7 @@ import AccountLanguageSync from "../components/AccountLanguageSync";
 import LanguageMismatchPrompt from "../components/LanguageMismatchPrompt";
 import { stripLocale } from "../lib/i18n/locale";
 import SkipLink from "../components/SkipLink";
-import { DisplayCurrencyContext } from "../lib/useDisplayCurrency";
+import { DisplayCurrencyContext, PricingMarketContext } from "../lib/useDisplayCurrency";
 import { LocaleProvider } from "../lib/i18n/react";
 import type { AppProps } from "next/app";
 import dynamic from "next/dynamic";
@@ -107,7 +107,7 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
   }, [router.events]);
 
   return (
-    <DisplayCurrencyContext.Provider value={pageProps.initialDisplayCurrency || "USD"}><LocaleProvider path={router.asPath} initialEditorLocale={pageProps.initialEditorLocale} initialEditorMessages={pageProps.initialEditorMessages}><SessionProvider session={session} refetchInterval={0} refetchOnWindowFocus={false}><EngagementExperimentProvider><AccountLanguageSync /><LanguageMismatchPrompt />
+    <PricingMarketContext.Provider value={pageProps.initialPricingMarket || "standard"}><DisplayCurrencyContext.Provider value={pageProps.initialDisplayCurrency || "USD"}><LocaleProvider path={router.asPath} initialEditorLocale={pageProps.initialEditorLocale} initialEditorMessages={pageProps.initialEditorMessages}><SessionProvider session={session} refetchInterval={0} refetchOnWindowFocus={false}><EngagementExperimentProvider><AccountLanguageSync /><LanguageMismatchPrompt />
       <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
@@ -131,6 +131,6 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         <AffiliateAttributionCapture />
         <CheckoutCancellationTracker />
       </div>
-    </EngagementExperimentProvider></SessionProvider></LocaleProvider></DisplayCurrencyContext.Provider>
+    </EngagementExperimentProvider></SessionProvider></LocaleProvider></DisplayCurrencyContext.Provider></PricingMarketContext.Provider>
   );
 }

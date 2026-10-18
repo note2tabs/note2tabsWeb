@@ -84,7 +84,7 @@ const SERVER_CONTROLLED_PROPERTIES = new Set([
   "analytics_transport",
   "environment",
   "ingest_source",
-  "visitor_country", "visitor_market", "localization_cohort",
+  "visitor_country", "visitor_market", "localization_cohort", "pricing_market",
 ]);
 
 function clientEventProperties(props: Record<string, unknown>) {

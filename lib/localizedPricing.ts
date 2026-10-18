@@ -1,3 +1,4 @@
+import { LATAM_PRICES, type PricingMarket } from "./pricingMarket";
 import type { BillingInterval } from "./stripePremium";
 import type { PaidSubscriptionPlan } from "./subscriptionPlans";
 
@@ -67,9 +68,10 @@ const PRICES: Record<PaidSubscriptionPlan, Record<BillingInterval, Record<Displa
 export function localizedPriceAmount(
   plan: PaidSubscriptionPlan,
   interval: BillingInterval,
-  currency: DisplayCurrency
+  currency: DisplayCurrency,
+  market: PricingMarket = "standard"
 ) {
-  return PRICES[plan][interval][currency];
+  return market === "latam" && currency === "USD" ? LATAM_PRICES[plan][interval] : PRICES[plan][interval][currency];
 }
 
 const SYMBOLS: Record<DisplayCurrency, string> = {
@@ -113,15 +115,16 @@ export function formatLocalizedPrice(
   plan: PaidSubscriptionPlan,
   interval: BillingInterval,
   currency: DisplayCurrency,
-  locale = "en"
+  locale = "en",
+  market: PricingMarket = "standard"
 ) {
-  const amount = localizedPriceAmount(plan, interval, currency);
+  const amount = localizedPriceAmount(plan, interval, currency, market);
   return formatLocalizedAmount(amount, currency, locale);
 }
 
-export function localizedAnnualSaving(plan: PaidSubscriptionPlan, currency: DisplayCurrency, locale = "en") {
-  const monthly = PRICES[plan].monthly[currency];
-  const yearly = PRICES[plan].yearly[currency];
+export function localizedAnnualSaving(plan: PaidSubscriptionPlan, currency: DisplayCurrency, locale = "en", market: PricingMarket = "standard") {
+  const monthly = localizedPriceAmount(plan, "monthly", currency, market);
+  const yearly = localizedPriceAmount(plan, "yearly", currency, market);
   // Calculate from exact charge units, then round the savings label up as intended.
   const minor = currency === "JPY" || currency === "KRW" ? 1 : 100;
   const saving = (Math.round(monthly * minor) * 12 - Math.round(yearly * minor)) / minor;
