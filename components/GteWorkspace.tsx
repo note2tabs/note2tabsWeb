@@ -56,6 +56,7 @@ import { buildSubdivisionPlan, subdivideSelection, MAX_SUBDIVISION_PARTS } from 
 import { getTransposeBounds, transposeSelectionFrets } from "../lib/gteTranspose";
 import { optimizeSelection, type OptimizeOptions, type OptimizeSelection } from "../lib/gteOptimization";
 import GteOptimizeDialog from "./GteOptimizeDialog";
+import GteScaleModeMenu from "./GteScaleModeMenu";
 import { optimizeMergedChord } from "../lib/gteOptimizeMergedChord";
 import { isInsideTabGrid } from "../lib/gteTabGridHitTest";
 import { generatePlayingCoordinatesInSnapshot } from "../lib/gtePlayingCoordinates";
@@ -13533,6 +13534,7 @@ export default function GteWorkspace({
       // This listener runs in capture phase. Inspector controls own their keys,
       // including Tab; editor undo/redo remains available outside text fields.
       const insidePropertiesInspector = Boolean(target?.closest("[data-gte-properties-inspector='true']"));
+      if (target?.closest("[data-gte-scale-mode-menu='true']")) return;
       if (target?.closest("[data-gte-optimization-dialog='true']")) return;
       if (insidePropertiesInspector && (isTyping || !((event.ctrlKey || event.metaKey) && /^[zy]$/i.test(event.key)))) return;
       const scaleModeSelect = target?.closest<HTMLElement>("[data-scale-mode-select='true']");
@@ -16016,23 +16018,12 @@ export default function GteWorkspace({
                 )}
               </button>
               {tool.label === "Scale" && (
-                <span className="relative flex h-8 w-3 items-center justify-center rounded hover:bg-slate-100 focus-within:ring-2 focus-within:ring-sky-500">
-                  <svg viewBox="0 0 12 12" className="pointer-events-none h-3 w-3 fill-none stroke-current" strokeWidth={1.5} aria-hidden="true"><path d="m3 4.5 3 3 3-3" /></svg>
-                  <select aria-label={t("Scale mode")} title={`${t("Scale mode")}: ${t(scaleToolMode === "length" ? "Length" : scaleToolMode === "start" ? "Start time" : "Start + length")}`}
-                    data-scale-mode-select="true" value={scaleToolMode} disabled={editMenuDisabled}
-                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                    onChange={(event) => {
-                      const mode = event.target.value;
-                      if (!isScaleToolMode(mode)) return;
+                <GteScaleModeMenu value={scaleToolMode} disabled={editMenuDisabled} label={t("Scale mode")}
+                    options={[{ value: "length", label: t("Length") }, { value: "start", label: t("Start time") }, { value: "both", label: t("Start + length") }]}
+                    onChange={(mode) => {
                       setScaleToolMode(mode);
                       if (scaleToolActive) applyScalePreview(scaleFactor, { mode, syncInput: false });
-                      event.currentTarget.blur();
-                    }}>
-                    <option value="length">{t("Length")}</option>
-                    <option value="start">{t("Start time")}</option>
-                    <option value="both">{t("Start + length")}</option>
-                  </select>
-                </span>
+                    }} />
               )}
             </div>
           ))}
