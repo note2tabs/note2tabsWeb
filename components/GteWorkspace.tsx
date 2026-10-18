@@ -1884,8 +1884,8 @@ function ChordFingeringDiagram({
   return (
     <div className="relative h-[76px] w-[82px] select-none">
       {baseFret > 1 ? (
-        <span className="absolute left-0 top-[19px] w-5 text-right text-[9px] font-semibold text-slate-500">
-          {baseFret}{t("fr")}</span>
+        <span title={`${t("Fret")} ${baseFret}`} className="absolute left-0 top-[19px] w-5 text-right text-[9px] font-semibold text-slate-500">
+          {baseFret}</span>
       ) : null}
       <div className="absolute left-5 top-4 h-[54px] w-[54px]">
         {Array.from({ length: 6 }, (_, stringIndex) => (
@@ -15663,7 +15663,7 @@ export default function GteWorkspace({
           data-gte-editor-control="true"
           className="fixed bottom-28 left-1/2 z-[10020] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl border border-sky-200 bg-white/95 px-3 py-2 shadow-xl backdrop-blur"
           role="toolbar"
-          aria-label={t("{value1} selection", {value1: pendingSelectionToolLabel})}
+          aria-label={t("{value1} selection", {value1: t(pendingSelectionToolLabel)})}
         >
           <span className="min-w-0 text-xs text-slate-600">
             <strong className="text-slate-900">{t(pendingSelectionToolLabel)}</strong>
@@ -15694,11 +15694,11 @@ export default function GteWorkspace({
           data-gte-editor-control="true"
           className="fixed bottom-28 left-1/2 z-[10020] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-indigo-200 bg-white/95 px-3 py-2 shadow-xl backdrop-blur"
           role="toolbar"
-          aria-label={t("{value1} tool", {value1: directCanvasTool})}
+          aria-label={t("{value1} tool", {value1: t(directCanvasTool || "")})}
         >
           <span className="min-w-0 text-xs text-slate-600">
-            <strong className="text-slate-900">{directCanvasTool}</strong>
-            <span className="hidden sm:inline"> · {directCanvasToolHint}</span>
+            <strong className="text-slate-900">{t(directCanvasTool || "")}</strong>
+            <span className="hidden sm:inline"> · {t(directCanvasToolHint)}</span>
           </span>
           <button
             type="button"
