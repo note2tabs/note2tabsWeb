@@ -8,6 +8,7 @@ import { localeSwitchHref } from "../../lib/i18n/locale";
 import { GetServerSideProps } from "next";
 import Link from "../../components/LocaleLink";
 import GteTrackInstrumentIcon from "../../components/GteTrackInstrumentIcon";
+import useGteMenuMouseIntent from "../../components/useGteMenuMouseIntent";
 import {
   useCallback,
   useEffect,
@@ -213,16 +214,15 @@ const NOTE_LENGTH_FRACTION_DENOMINATORS = [0.5, 1, 2, 3, 4, 8, 16, 32, 64];
 const CURSOR_SIZE_FRACTION_DENOMINATORS = [1, 2, 4, 8, 16, 32];
 const SNAP_SUBDIVISION_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8];
 const TOOL_SHORTCUT_HELP = [
-  ["Scale", "S"],
-  ["Cycle scale mode", "D"],
+  ["Lengthen", "S"],
+  ["Cycle lengthen mode", "D"],
   ["Move tool", "G"],
   ["Slice tool", "Shift+S"],
   ["Cut playing coordinates", "K"],
   ["Merge to chord", "C"],
   ["Disband chord", "Shift+L"],
   ["Merge notes", "J"],
-  ["Optimize to coordinates", "O"],
-  ["Optimize fingering", ""],
+  ["Optimize fingerings", "O"],
   ["Hammer/Pull", "H"],
   ["Slide", "L"],
   ["Bend", "B"],
@@ -1366,20 +1366,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const [exportingTrack, setExportingTrack] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [openTopMenu, setOpenTopMenu] = useState<TopMenuId | null>(null);
-  const editMenuCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cancelEditMenuClose = useCallback(() => {
-    if (editMenuCloseTimeoutRef.current === null) return;
-    clearTimeout(editMenuCloseTimeoutRef.current);
-    editMenuCloseTimeoutRef.current = null;
-  }, []);
-  const scheduleEditMenuClose = useCallback(() => {
-    cancelEditMenuClose();
-    editMenuCloseTimeoutRef.current = setTimeout(() => {
-      editMenuCloseTimeoutRef.current = null;
-      setOpenTopMenu((current) => (current === "edit" ? null : current));
-    }, 350);
-  }, [cancelEditMenuClose]);
-  useEffect(() => () => cancelEditMenuClose(), [cancelEditMenuClose]);
+  const topMenuMouseIntent = useGteMenuMouseIntent(() => setOpenTopMenu(null));
   const [saveError, setSaveError] = useState<string | null>(null);
   const [hasPendingCommit, setHasPendingCommit] = useState(false);
   const [lastCommittedAt, setLastCommittedAt] = useState<string | null>(null);
@@ -7602,11 +7589,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   <details
                     className="group relative order-1"
                     open={openTopMenu === "file"}
+                    {...topMenuMouseIntent}
                     onToggle={(event) => {
                       const isOpen = event.currentTarget.open;
                       setOpenTopMenu((current) => (isOpen ? "file" : current === "file" ? null : current));
                     }}
-                    onMouseLeave={() => setOpenTopMenu(null)}
                   >
                     <summary className="flex h-9 cursor-pointer list-none items-center rounded-md px-3.5 text-base text-slate-700 hover:bg-slate-100">{t("File")}</summary>
                     <div className="absolute left-0 top-full z-[10000] min-w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
@@ -7686,14 +7673,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   <details
                     className="group relative order-2"
                     open={openTopMenu === "edit"}
-                    onMouseEnter={cancelEditMenuClose}
+                    {...topMenuMouseIntent}
                     onToggle={(event) => {
                       const isOpen = event.currentTarget.open;
                       setOpenTopMenu((current) =>
                         isOpen ? "edit" : current === "edit" ? null : current
                       );
                     }}
-                    onMouseLeave={scheduleEditMenuClose}
                   >
                     <summary className="flex h-9 cursor-pointer list-none items-center rounded-md px-3.5 text-base text-slate-700 hover:bg-slate-100">{t("Tools")}</summary>
                     <div className="absolute left-0 top-full z-[10000] max-h-[calc(100vh-10rem)] w-72 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
@@ -7706,12 +7692,12 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                 items: [
                                   ["Merge to Chord", "C"],
                                   ["Disband Chord", "Shift+L"],
-                                  ["Optimize", "O"],
+                                  ["Optimize fingerings", "O"],
                                   ["Snap to Key", ""],
                                   ["Snap to beat", ""],
                                   ["Merge Notes", "J"],
                                   ["Length scaling", "D"],
-                                  ["Scale", "S"],
+                                  ["Lengthen", "S"],
                                   ["Subdivide", "Shift+S"],
                                   ["Move", "M"],
                                   ["Transpose", ""],
@@ -7790,13 +7776,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   <details
                     className="group relative order-6"
                     open={openTopMenu === "help"}
+                    {...topMenuMouseIntent}
                     onToggle={(event) => {
                       const isOpen = event.currentTarget.open;
                       setOpenTopMenu((current) =>
                         isOpen ? "help" : current === "help" ? null : current
                       );
                     }}
-                    onMouseLeave={() => setOpenTopMenu(null)}
                   >
                     <summary className="flex h-9 cursor-pointer list-none items-center rounded-md px-3.5 text-base text-slate-700 hover:bg-slate-100">{t("Help")}</summary>
                     <div className="absolute left-0 top-full z-[10000] max-h-[calc(100vh-10rem)] w-80 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
@@ -7828,13 +7814,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   <details
                     className="group relative order-3"
                     open={openTopMenu === "view"}
+                    {...topMenuMouseIntent}
                     onToggle={(event) => {
                       const isOpen = event.currentTarget.open;
                       setOpenTopMenu((current) =>
                         isOpen ? "view" : current === "view" ? null : current
                       );
                     }}
-                    onMouseLeave={() => setOpenTopMenu(null)}
                   >
                     <summary className="flex h-9 cursor-pointer list-none items-center rounded-md px-3.5 text-base text-slate-700 hover:bg-slate-100">{t("View")}</summary>
                     <div className="absolute left-0 top-full z-[10000] w-64 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
@@ -8980,8 +8966,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                 laneId === editMenuOwnerLaneId ? editMenuPortalTarget : null
                               }
                               editMenuDisabled={editMenuDisabled}
-                              onEditMenuPointerEnter={cancelEditMenuClose}
-                              onEditMenuPointerLeave={scheduleEditMenuClose}
                               canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
                               canvasKeyType={normalizeKeyType(canvas.keyType)}
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
@@ -9269,8 +9253,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                 laneId === editMenuOwnerLaneId ? editMenuPortalTarget : null
                               }
                               editMenuDisabled={editMenuDisabled}
-                              onEditMenuPointerEnter={cancelEditMenuClose}
-                              onEditMenuPointerLeave={scheduleEditMenuClose}
                               canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
                               canvasKeyType={normalizeKeyType(canvas.keyType)}
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
@@ -9823,8 +9805,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             laneId === editMenuOwnerLaneId ? editMenuPortalTarget : null
                           }
                           editMenuDisabled={editMenuDisabled || practiceModeEnabled}
-                          onEditMenuPointerEnter={cancelEditMenuClose}
-                          onEditMenuPointerLeave={scheduleEditMenuClose}
                           canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
                           canvasKeyType={normalizeKeyType(canvas.keyType)}
                           sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}

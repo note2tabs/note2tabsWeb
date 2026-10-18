@@ -328,7 +328,7 @@ const normalizeGeneratedRegions = (regions: CutWithCoord[], endTime: number) => 
 /** Frontend port of TabEditor.generateCutPositions with non-overlapping transition partitioning. */
 export const generatePlayingCoordinatesInSnapshot = (snapshot: EditorSnapshot, options: Partial<PlayingCoordinateGenerationSettings> = {}) => {
   const settings: PlayingCoordinateGenerationSettings = {
-    cutThreshold: boundedSetting(options.cutThreshold, BACKEND_CUT_MARGIN, 3, 6),
+    cutThreshold: boundedSetting(options.cutThreshold, BACKEND_CUT_MARGIN, 0.5, 12),
     smoothing: Math.round(boundedSetting(options.smoothing, BACKEND_BLUR_SIZE, 40, 120)),
     barsPerChunk: Math.round(boundedSetting(options.barsPerChunk, BACKEND_BARS_PER_CHUNK, 2, 8)),
   };

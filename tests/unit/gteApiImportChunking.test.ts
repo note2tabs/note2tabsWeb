@@ -142,14 +142,14 @@ describe("transcriber import chunking", () => {
       editorType: "bass" as const,
       tuning: { presetId: "bass-standard", openStringMidi: [43, 38, 33, 28], capo: 0 },
       notes: [
-        { id: 1, startTime: 0, length: 125, midiNum: 43, tab: [0, 0] as [number, number], optimals: [] },
+        { id: 1, startTime: 0, length: 121, midiNum: 43, tab: [0, 0] as [number, number], optimals: [] },
         { id: 2, startTime: 120, length: 120, midiNum: 45, tab: [0, 2] as [number, number], optimals: [] },
       ],
       chords: [],
     });
     const source: CanvasSnapshot = {
       ...buildCanvas("canvas-1", [120]),
-      editors: [bassLane("existing-bass"), bassLane("imported-bass")],
+      editors: [bassLane("existing-bass"), { ...bassLane("existing-guitar"), trackType: "tab", editorType: "tab", tuning: { presetId: "standard", openStringMidi: [64, 59, 55, 50, 45, 40], capo: 0 } }, bassLane("imported-bass")],
     };
     vi.stubGlobal("fetch", vi.fn(async (_url: string | URL | Request, init?: RequestInit) =>
       new Response(JSON.stringify({ ok: true, snapshot: JSON.parse(String(init?.body || "{}")).snapshot }), {
@@ -164,7 +164,8 @@ describe("transcriber import chunking", () => {
       ["imported-bass"]
     );
 
-    expect(result.editors.find((lane) => lane.id === "existing-bass")?.notes[0].length).toBe(125);
+    expect(result.editors.find((lane) => lane.id === "existing-bass")?.notes[0].length).toBe(121);
+    expect(result.editors.find((lane) => lane.id === "existing-guitar")).toEqual(source.editors[1]);
     expect(result.editors.find((lane) => lane.id === "imported-bass")?.notes[0].length).toBe(120);
   });
 

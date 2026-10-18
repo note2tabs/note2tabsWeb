@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
-import { buildSubdivisionPlan, subdivideSelection } from "../../lib/gteSubdivision";
+import { buildSubdivisionPlan, subdivideSelection, MAX_SUBDIVISION_PARTS, nextSubdivisionInput, placeSubdivisionHud } from "../../lib/gteSubdivision";
 import type { EditorSnapshot, Note } from "../../types/gte";
 
 const note = (id: number, startTime: number, length: number): Note => ({ id, startTime, length, midiNum: 64, tab: [0, 0], optimals: [], velocity: 90, pitchBend: [0, 1] });
@@ -25,16 +25,16 @@ describe("subdivision input mode", () => {
     const input = vi.fn(), parts = vi.fn(), active = vi.fn(), commit = vi.fn();
     const remove = vi.fn();
     const context = { sliceToolActive: true, isActive: true, subdivisionParts: 2, subdivisionInput: "2",
-      subdivisionTypingRef: { current: { text: "", at: 0 } }, KEYBOARD_FRET_TYPE_TIMEOUT_MS: 1400, MAX_SUBDIVISION_PARTS: 128,
+      subdivisionTypingRef: { current: { text: "", at: 0 } }, nextSubdivisionInput, MAX_SUBDIVISION_PARTS,
       setSubdivisionInput: input, setSubdivisionParts: parts, setSliceToolActive: active, commitSubdivision: commit,
       window: { addEventListener: (name: string, callback: (event: unknown) => void) => { listeners[name] = callback; }, removeEventListener: remove },
     };
     const cleanup = vm.runInNewContext(ts.transpileModule(`(${effect})()`, {}).outputText, context);
     const event = (extra = {}) => ({ target: { closest: () => null }, preventDefault: vi.fn(), stopImmediatePropagation: vi.fn(), ...extra });
-    listeners.keydown(event({ key: "2" }));
-    listeners.keydown(event({ key: "3" }));
-    expect(input).toHaveBeenLastCalledWith("23");
-    expect(parts).toHaveBeenLastCalledWith(23);
+    listeners.keydown(event({ key: "1" }));
+    listeners.keydown(event({ key: "6" }));
+    expect(input).toHaveBeenLastCalledWith("16");
+    expect(parts).toHaveBeenLastCalledWith(16);
     expect(commit).not.toHaveBeenCalled();
     listeners.wheel(event({ deltaY: -100 }));
     expect(parts).toHaveBeenLastCalledWith(3);
@@ -50,6 +50,22 @@ describe("subdivision input mode", () => {
 });
 
 describe("grouped subdivision", () => {
+  it("limits subdivision to 16 and resets digit entry after 450ms", () => {
+    expect(MAX_SUBDIVISION_PARTS).toBe(16);
+    expect(nextSubdivisionInput({ text: "1", at: 1000 }, "6", 1300)).toBe("16");
+    expect(nextSubdivisionInput({ text: "1", at: 1000 }, "6", 1500)).toBe("6");
+    expect(nextSubdivisionInput({ text: "2", at: 1000 }, "3", 1100)).toBe("3");
+    const snapshot = fixture(); snapshot.notes = [note(1, 0, 160)];
+    expect(buildSubdivisionPlan(snapshot, [1], [], 99)[0].cuts).toHaveLength(15);
+  });
+  it("anchors the popup beside visible selections and keeps it inside the viewport", () => {
+    const position = placeSubdivisionHud([{ left: 300, right: 450, top: 400, bottom: 420 }], { width: 1200, height: 800 });
+    expect(position.x).toBe(300);
+    expect(position.y).toBeLessThan(400);
+    const edge = placeSubdivisionHud([{ left: 1180, right: 1200, top: 10, bottom: 30 }], { width: 1200, height: 800 });
+    expect(edge.x + 208).toBeLessThanOrEqual(1188);
+    expect(edge.y).toBeGreaterThanOrEqual(12);
+  });
   it("shares a grid across transitive overlaps and subdivides separate groups independently", () => {
     const plan = buildSubdivisionPlan(fixture(), [1, 2, 3, 4], [], 3);
     expect(plan).toEqual([

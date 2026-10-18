@@ -221,7 +221,7 @@ function realAction(name: string, context: Record<string, any>) {
   }
   visit(workspaceAst);
   if (!initializer) throw new Error(`Missing action ${name}`);
-  return vm.runInNewContext(ts.transpileModule(`(${initializer})`, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, context);
+  return vm.runInNewContext(ts.transpileModule(`(${initializer})`, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { pendingSelectionTool: null, ...context });
 }
 
 function actionHarness() {

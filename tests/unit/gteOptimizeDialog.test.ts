@@ -36,7 +36,7 @@ function harness() {
   } });
   const snapshot: EditorSnapshot = { id: "dialog", fps: 240, framesPerMessure: 480, totalFrames: 480, cutPositionsWithCoords: [[[0, 480], [2, 3]]], optimalsByTime: {},
     notes: [{ id: 1, startTime: 100, length: 120, tab: [1, 1], midiNum: 60, optimals: [] }], chords: [] };
-  const props = { snapshot, selection: { noteIds: [1], chordIds: [] }, onApply: vi.fn(), onCancel: vi.fn(),
+  const props = { snapshot, selection: { noteIds: [1], chordIds: [] }, onApply: vi.fn(), onCancel: vi.fn(), onRequestSelection: vi.fn(), selecting: false,
     renderCoordinateEditor: vi.fn((_draft: EditorSnapshot, _onChange: (next: EditorSnapshot) => void, _cutting: boolean, _end: number) => jsxRuntime.jsx("div", { "data-test-coordinate-editor": true })),
   };
   const render = () => { cursor = 0; return module.exports.default(props); };
@@ -52,19 +52,37 @@ function harness() {
 }
 
 describe("Optimize dialog", () => {
+  it("allows selecting on the canvas from an initially empty selection, preserving dialog settings", () => {
+    const h = harness(); h.props.selection = { noteIds: [], chordIds: [] };
+    h.button("Chosen fret position").props.onClick();
+    expect(h.button("Selected notes/chords").props.disabled).toBe(false);
+    h.button("Selected notes/chords").props.onClick();
+    expect(h.props.onRequestSelection).toHaveBeenCalledOnce();
+    expect(h.props.onApply).not.toHaveBeenCalled();
+    h.props.selecting = true;
+    expect(h.render().props.style).toEqual({ display: "none" });
+    h.props.selection = { noteIds: [1], chordIds: [] }; h.props.selecting = false;
+    expect(h.button("Chosen fret position").props["aria-pressed"]).toBe(true);
+    expect(h.button("Selected notes/chords").props["aria-pressed"]).toBe(true);
+    expect(h.button("Optimize fingerings").props.disabled).toBe(false);
+    expect(h.props.onApply).not.toHaveBeenCalled();
+    h.button("Optimize fingerings").props.onClick();
+    expect(h.props.onApply).toHaveBeenCalledWith(expect.objectContaining({ scope: "selected", position: "chosen", fret: 5 }));
+  });
+
   it("starts from the chosen standard position and generates only on request", () => {
     const h = harness();
     h.button("Chosen fret position").props.onClick();
     h.nodes().find((node) => node.props.type === "checkbox").props.onChange({ target: { checked: true } });
     h.button("Edit").props.onClick(); h.nodes();
     expect(h.props.renderCoordinateEditor.mock.lastCall![0].cutPositionsWithCoords).toEqual([[[0, 120], [2, 5]]]);
-    const threshold = h.nodes().find((node) => node.props["aria-label"] === "Cut threshold");
+    const threshold = h.nodes().find((node) => node.props["aria-label"] === "Hand Movement");
     expect(threshold.props.type).toBe("range");
     threshold.props.onChange({ target: { valueAsNumber: 6 } });
-    expect(h.nodes().find((node) => node.props["aria-label"] === "Cut threshold").props.value).toBe(6);
-    h.nodes().find((node) => node.props["aria-label"] === "Cut threshold").props.onChange({ target: { valueAsNumber: 5.75 } });
-    expect(h.nodes().find((node) => node.props["aria-label"] === "Cut threshold").props.value).toBe(5.75);
-    expect(h.nodes().filter((node) => node.props.type === "range")).toHaveLength(3);
+    expect(h.nodes().find((node) => node.props["aria-label"] === "Hand Movement").props.value).toBe(6);
+    h.nodes().find((node) => node.props["aria-label"] === "Hand Movement").props.onChange({ target: { valueAsNumber: 5.75 } });
+    expect(h.nodes().find((node) => node.props["aria-label"] === "Hand Movement").props.value).toBe(5.75);
+    expect(h.nodes().filter((node) => node.props.type === "range")).toHaveLength(1);
     threshold.props.onChange({ target: { valueAsNumber: 3.5 } });
     h.nodes();
     expect(h.props.renderCoordinateEditor.mock.lastCall![0].cutPositionsWithCoords).toEqual([[[0, 120], [2, 5]]]);
@@ -77,7 +95,7 @@ describe("Optimize dialog", () => {
     expect(h.props.renderCoordinateEditor.mock.lastCall![0].cutPositionsWithCoords).toEqual([[[0, 120], [2, 5]]]);
     expect(h.props.onApply).not.toHaveBeenCalled();
     h.button("Reset defaults").props.onClick();
-    expect(h.nodes().find((node) => node.props["aria-label"] === "Cut threshold").props.value).toBe(4.5);
+    expect(h.nodes().find((node) => node.props["aria-label"] === "Hand Movement").props.value).toBe(8);
     expect(h.props.snapshot.cutPositionsWithCoords).toEqual([[[0, 480], [2, 3]]]);
   });
 
@@ -89,7 +107,7 @@ describe("Optimize dialog", () => {
     expect(h.button("Selected notes/chords").props["aria-pressed"]).toBe(true);
     h.button("Whole track").props.onClick();
     expect(h.button("Chosen fret position").props["aria-pressed"]).toBe(true);
-    h.button("Optimize").props.onClick();
+    h.button("Optimize fingerings").props.onClick();
     expect(h.props.onApply).toHaveBeenCalledWith(expect.objectContaining({ scope: "track", position: "chosen", fret: 5, custom: false }));
   });
   it("isolates nested edits until Done and discards them on Cancel", () => {
@@ -111,7 +129,7 @@ describe("Optimize dialog", () => {
     expect(draft.cutPositionsWithCoords).toEqual([[[0, 120], [2, 5]]]);
     onChange({ ...draft, cutPositionsWithCoords: [[[0, 60], [2, 9]], [[60, 120], [1, 7]]] });
     h.button("Done").props.onClick();
-    h.button("Optimize").props.onClick();
+    h.button("Optimize fingerings").props.onClick();
     expect(h.props.onApply).toHaveBeenCalledWith(expect.objectContaining({ custom: true, cuts: [[[100, 160], [2, 9]], [[160, 220], [1, 7]]] }));
     expect(h.props.snapshot.cutPositionsWithCoords).toEqual([[[0, 480], [2, 3]]]);
   });
@@ -122,7 +140,7 @@ describe("Optimize dialog", () => {
     const [draft, onChange, cutting, end] = h.props.renderCoordinateEditor.mock.lastCall!;
     expect(cutting).toBe(true); expect(end).toBe(120);
     onChange(shiftCutBoundaryLocal(insertCutBoundaryLocal(draft, 60, [1, 5]), 1, 70));
-    h.button("Done").props.onClick(); h.button("Optimize").props.onClick();
+    h.button("Done").props.onClick(); h.button("Optimize fingerings").props.onClick();
     expect(h.props.onApply.mock.calls[0][0].cuts[0][0][1]).toBe(170);
     h.button("Whole track").props.onClick();
     expect(h.button("Edit").props.disabled).toBe(true);

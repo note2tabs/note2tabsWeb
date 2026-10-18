@@ -1,7 +1,22 @@
 import type { EditorSnapshot } from "../types/gte";
 import { cloneEditorSnapshot, nextLocalChordId, nextLocalNoteId } from "./gteLocalEditorOps";
 
-export const MAX_SUBDIVISION_PARTS = 128;
+export const MAX_SUBDIVISION_PARTS = 16;
+export const SUBDIVISION_TYPING_TIMEOUT_MS = 450;
+export function nextSubdivisionInput(previous: { text: string; at: number }, digit: string, now: number) {
+  const combined = (now - previous.at < SUBDIVISION_TYPING_TIMEOUT_MS ? previous.text : "") + digit;
+  return combined.length <= 2 && Number(combined) <= MAX_SUBDIVISION_PARTS ? combined : digit;
+}
+
+export function placeSubdivisionHud(rects: Array<{ left: number; right: number; top: number; bottom: number }>, viewport: { width: number; height: number }) {
+  const width = 208, height = 126, margin = 12;
+  const visible = rects.filter((rect) => rect.right > 0 && rect.left < viewport.width && rect.bottom > 0 && rect.top < viewport.height)
+    .sort((a, b) => a.top - b.top || a.left - b.left);
+  const anchor = visible[0];
+  const x = anchor?.left ?? (viewport.width - width) / 2;
+  const y = anchor ? anchor.top - height - 10 >= margin ? anchor.top - height - 10 : anchor.bottom + 10 : (viewport.height - height) / 2;
+  return { x: Math.max(margin, Math.min(x, viewport.width - width - margin)), y: Math.max(margin, Math.min(y, viewport.height - height - margin)) };
+}
 export type SubdivisionTarget = { kind: "note" | "chord"; id: number; cuts: number[] };
 
 /** Strict temporal overlap, including transitive overlap; touching endpoints stay separate. */
