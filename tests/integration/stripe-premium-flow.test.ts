@@ -255,6 +255,9 @@ describe("stripe premium flow", () => {
 
       expect(res._getStatusCode()).toBe(303);
       expect(res.getHeader("Location")).toBe("https://checkout.stripe.test/session_123");
+      expect(stripeMock.customers.create).not.toHaveBeenCalled();
+      expect(stripeMock.checkout.sessions.create.mock.calls[0][0]).toMatchObject({customer_email: "user@example.com"});
+      expect(stripeMock.checkout.sessions.create.mock.calls[0][0]).not.toHaveProperty("customer");
       expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(expect.objectContaining({
         mode: "subscription",
         payment_method_collection: "if_required",
@@ -398,7 +401,9 @@ describe("stripe premium flow", () => {
       await handler(req as any,res as any);
       expect(res._getStatusCode()).toBe(200);
       const options = stripeMock.checkout.sessions.create.mock.calls[0][0];
-      expect(options).toMatchObject({locale:"pt-BR",line_items:[{price:"price_test_premium",quantity:1}],metadata:{note2tabsLocale:"pt-BR",note2tabsVisitorCountry:"BR"}});
+      expect(stripeMock.customers.create).not.toHaveBeenCalled();
+      expect(options).not.toHaveProperty("customer");
+      expect(options).toMatchObject({customer_email:"user@example.com",locale:"pt-BR",line_items:[{price:"price_test_premium",quantity:1}],metadata:{note2tabsLocale:"pt-BR",note2tabsVisitorCountry:"BR"}});
       expect(options.cancel_url).toContain("/pt-br/transcribe?resumeTranscription=1&upgrade=cancel");
       const success = new URL(options.success_url);
       expect(success.pathname).toBe("/pt-br/premium/welcome");
@@ -466,12 +471,12 @@ describe("stripe premium flow", () => {
           $insert_id: "checkout-started:cs_test_123",
         }),
       }));
-      expect(stripeMock.customers.create).toHaveBeenCalledWith(expect.objectContaining({email:"user@example.com",preferred_locales:["en"]}),expect.objectContaining({idempotencyKey:"account-email-language-v1:user_1"}));
-      expect(stripeMock.customers.create.mock.invocationCallOrder[0]).toBeLessThan(stripeMock.checkout.sessions.create.mock.invocationCallOrder[0]);
+      expect(stripeMock.customers.create).not.toHaveBeenCalled();
       expect(posthogMock.flush).toHaveBeenCalled();
       expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          customer: "cus_localized",
+          customer_email: "user@example.com",
+          locale: "en",
           mode: "subscription",
           payment_method_collection: "always",
           line_items: [{ price: "price_test_premium", quantity: 1 }],
@@ -887,6 +892,8 @@ describe("stripe premium flow", () => {
       await handler(req as any, res as any);
 
       expect(res._getStatusCode()).toBe(200);
+      expect(stripeMock.customers.create).not.toHaveBeenCalled();
+      expect(stripeMock.checkout.sessions.create.mock.calls[0][0]).toMatchObject({customer:"cus_incomplete",customer_update:{address:"auto"}});
       expect(stripeMock.subscriptions.cancel).toHaveBeenCalledWith("sub_incomplete");
       expect(stripeMock.checkout.sessions.create).toHaveBeenCalledTimes(1);
       expect(stripeMock.checkout.sessions.create.mock.invocationCallOrder[0]).toBeLessThan(

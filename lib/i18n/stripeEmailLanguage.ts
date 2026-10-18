@@ -33,13 +33,3 @@ export async function syncStripeEmailLanguage(email: string, locale: AppLocale) 
     }
   } catch(error) {if(error instanceof StripeEmailLanguageError)throw error;throw await reportStripeLanguageFailure(locale,"lookup");}
 }
-/** Set language before Checkout can generate the first invoice/receipt. */
-export async function createStripeEmailCustomer(accountId: string, email: string, locale: AppLocale) {
-  if (!stripeClient) throw new Error("Stripe is unavailable");
-  try {
-    const customer=await stripeClient.customers.create({email,metadata:{userId:accountId},preferred_locales:stripeEmailLocales(locale)},
-      {idempotencyKey:`account-email-language-v1:${accountId}`});
-    if(customer.preferred_locales?.[0] !== stripeEmailLocales(locale)[0])throw new StripeEmailLanguageError();
-    return customer;
-  } catch {throw await reportStripeLanguageFailure(locale,"create",accountId);}
-}
