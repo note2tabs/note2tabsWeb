@@ -64,7 +64,7 @@ export default function CheckoutCancellationTracker({ preview = false, previewMe
       <div className="return-layout">
         <div className="return-brand"><img src="/favicon-32x32.png" width="24" height="24" alt="" />Note2Tabs</div>
         <div className="return-content">
-          <h1 id="checkout-return-title">{t("Pick up where you left off")}</h1>
+          <h1 id="checkout-return-title">{t("Payment not completed")}</h1>
           <p className="return-description">{t("Your upgrade isn't complete. Continue to checkout whenever you're ready.")}</p>
           <div className="return-actions">
             <a className="return-primary" href={href(`/pricing?${resume}`)}>{t("Continue to checkout")}<span aria-hidden="true">↗</span></a>
