@@ -1,3 +1,4 @@
+import type Stripe from "stripe";
 import { marketCheckoutConfig, requestPricingMarket } from "../../../lib/pricingMarket";
 import { setStripeEmailLanguage } from "../../../lib/i18n/stripeEmailLanguage";
 import { accountEmailLocale } from "../../../lib/i18n/accountLanguage";
