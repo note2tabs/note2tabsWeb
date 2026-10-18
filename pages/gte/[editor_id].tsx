@@ -7,6 +7,7 @@ import { requestLocale } from "../../lib/i18n/request";
 import { localeSwitchHref } from "../../lib/i18n/locale";
 import { GetServerSideProps } from "next";
 import Link from "../../components/LocaleLink";
+import GteTrackInstrumentIcon from "../../components/GteTrackInstrumentIcon";
 import {
   useCallback,
   useEffect,
@@ -8153,7 +8154,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     </div>
                   </details>
                 {!practiceModeEnabled && (
-                <HoverSettingsDropdown pushRight panelTitle={t("Song settings")} closeLabel={t("Close")} summary={<>
+                <HoverSettingsDropdown pushRight clickDismissOnly panelTitle={t("Song settings")} closeLabel={t("Close")} summary={<>
                     <span className="font-semibold text-slate-700">{t("Song settings")}</span>
                     <span className="truncate">
                       {KEY_BASE_OPTIONS[normalizeKeyBase(canvas?.keyBase)]} {t(KEY_TYPE_OPTIONS[normalizeKeyType(canvas?.keyType)])}
@@ -9965,7 +9966,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
 
               return (
                 <div
-                  className="fixed bottom-5 left-[calc(1.25rem+28rem+0.75rem)] z-50"
+                  className={`fixed bottom-5 left-[calc(1.25rem+28rem+0.75rem)] ${desktopTrackMenuOpen || desktopTrackAddMenuOpen || !desktopTrackSettingsCollapsed ? "z-[10000]" : "z-50"}`}
                   data-gte-floating-ui="true"
                   data-track-menu="true"
                   data-desktop-track-selector="true"
@@ -10002,10 +10003,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       aria-expanded={desktopTrackMenuOpen}
                       aria-haspopup="listbox"
                     >
-                      <span className="min-w-0">
+                      <span className="flex min-w-0 items-center gap-2.5">
+                        <GteTrackInstrumentIcon lane={selectedLane} className="h-5 w-5 text-slate-500" />
+                        <span className="min-w-0">
                         <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{t("Track")}</span>
                         <span className="mt-1 block truncate text-sm font-semibold text-slate-800">
                           {editorName(selectedLane.name, t) || t("Track {value1}", {value1: selectedIndex + 1})}
+                        </span>
                         </span>
                       </span>
                       <svg viewBox="0 0 20 20" className={`h-4 w-4 shrink-0 fill-current text-slate-500 transition ${desktopTrackMenuOpen ? "rotate-180" : ""}`} aria-hidden="true">
@@ -10200,7 +10204,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                 title={t("Double-click to rename")}
                                 className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg px-1.5 py-1.5 text-left text-xs"
                               >
-                                <span className="min-w-0 truncate font-semibold">{editorName(candidate.name, t) || t("Track {value1}", {value1: candidateIndex + 1})}</span>
+                                <span className="flex min-w-0 items-center gap-2"><GteTrackInstrumentIcon lane={candidate} className="h-4 w-4 text-slate-500" /><span className="truncate font-semibold">{editorName(candidate.name, t) || t("Track {value1}", {value1: candidateIndex + 1})}</span></span>
                                 <span className="shrink-0 text-[10px] font-medium text-slate-400">{t(type)}</span>
                               </button>
                             )}

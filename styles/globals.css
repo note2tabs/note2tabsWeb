@@ -12881,6 +12881,10 @@ input[type="number"] {
   transition: top 0.18s ease;
 }
 
+.gte-editor-sticky-banner:has(details[data-gte-settings-panel][open]) {
+  z-index: 10000;
+}
+
 .nav-shell--editor-visible + #main-content .gte-editor-sticky-banner {
   top: 57px;
 }

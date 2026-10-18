@@ -29,13 +29,14 @@ function insideReturnCorridor(point: Point, origin: Point, bounds: DOMRect) {
     { x: edge, y: bounds.top - margin }, { x: edge, y: bounds.bottom + margin });
 }
 
-export default function HoverSettingsDropdown({ summary, children, panelTitle, closeLabel, pushRight = false, panelIcon = "music" }: {
+export default function HoverSettingsDropdown({ summary, children, panelTitle, closeLabel, pushRight = false, panelIcon = "music", clickDismissOnly = false }: {
   summary: ReactNode;
   children: ReactNode;
   panelTitle?: string;
   closeLabel?: string;
   pushRight?: boolean;
   panelIcon?: "music" | "editing";
+  clickDismissOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDetailsElement>(null);
@@ -101,12 +102,12 @@ export default function HoverSettingsDropdown({ summary, children, panelTitle, c
       if (event.target instanceof Node && !rootRef.current?.contains(event.target)) setOpen(false);
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (!clickDismissOnly && event.key === "Escape") {
         setOpen(false);
         rootRef.current?.querySelector("summary")?.focus();
       }
     };
-    document.addEventListener("pointermove", move, true);
+    if (!clickDismissOnly) document.addEventListener("pointermove", move, true);
     document.addEventListener("pointerdown", dismiss);
     document.addEventListener("keydown", escape);
     return () => {
@@ -117,7 +118,7 @@ export default function HoverSettingsDropdown({ summary, children, panelTitle, c
       document.removeEventListener("pointerdown", dismiss);
       document.removeEventListener("keydown", escape);
     };
-  }, [open]);
+  }, [open, clickDismissOnly]);
 
   return (
     <details
@@ -136,6 +137,7 @@ export default function HoverSettingsDropdown({ summary, children, panelTitle, c
       }}
       onPointerEnter={() => { leaveRef.current = null; cancelClose(); }}
       onPointerLeave={(event) => {
+        if (clickDismissOnly) return;
         if (!open || event.pointerType !== "mouse") return;
         if (returnCorridorRef.current) return;
         leaveRef.current = { point: { x: event.clientX, y: event.clientY }, at: Date.now() };
@@ -143,6 +145,7 @@ export default function HoverSettingsDropdown({ summary, children, panelTitle, c
         closeTimerRef.current = setTimeout(() => setOpen(false), 150);
       }}
       onBlur={(event) => {
+        if (clickDismissOnly) return;
         // Select handlers blur after committing; that must not dismiss the panel.
         if (event.relatedTarget === null && event.target instanceof HTMLSelectElement) return;
         if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
@@ -164,12 +167,12 @@ export default function HoverSettingsDropdown({ summary, children, panelTitle, c
                 </svg>
                 {panelTitle}
               </span>
-              <button type="button" aria-label={closeLabel} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800" onClick={() => {
+              {!clickDismissOnly && <button type="button" aria-label={closeLabel} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800" onClick={() => {
                 setOpen(false);
                 rootRef.current?.querySelector("summary")?.focus();
               }}>
                 <svg viewBox="0 0 16 16" className="h-4 w-4 fill-none stroke-current" strokeWidth={1.75} strokeLinecap="round" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8" /></svg>
-              </button>
+              </button>}
             </div>
             <div className="grid grid-cols-2 items-end gap-x-3 gap-y-3">{children}</div>
           </>

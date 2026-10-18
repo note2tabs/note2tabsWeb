@@ -111,7 +111,7 @@ export function optimizeSelection(snapshot: EditorSnapshot, selection: OptimizeS
   } else cuts = [[[range.start, range.end], fallback]];
   const total = Math.max(snapshot.totalFrames, range.end);
   working.cutPositionsWithCoords = replaceCoordinateWindow(snapshot.cutPositionsWithCoords, cuts, range.start, range.end, total, fallback);
-  optimizeTrackFingeringInSnapshot(working);
+  optimizeTrackFingeringInSnapshot(working, { preferPlayingPosition: options.position === "chosen" });
   finalizeOptimizedTrackFingeringInSnapshot(working);
   mergeRedundantCutRegionsInSnapshot(working);
   if (whole) return working;

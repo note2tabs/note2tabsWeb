@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
 import { mergeNotesIntoChordLocal } from "../../lib/gteLocalEditorOps";
+import { optimizeMergedChord } from "../../lib/gteOptimizeMergedChord";
 import type { EditorSnapshot } from "../../types/gte";
 
 const fixture = (): EditorSnapshot => ({
@@ -72,7 +73,7 @@ describe("merge standalone notes into an existing chord", () => {
     const snapshot = fixture();
     const api = { applySnapshot: vi.fn(), makeChord: vi.fn(), disbandChord: vi.fn() };
     const context = { bassLane: false, activeChordIds: [9], selectedNoteIds: [1], resolveChordId: (id: number) => id, resolveNoteId: (id: number) => id,
-      snapshotRef: { current: snapshot }, mergeNotesIntoChordLocal, editorId: "merge-test", gteApi: api, setSelectedNoteIds: vi.fn(), setSelectedChordIds: vi.fn(),
+      snapshotRef: { current: snapshot }, mergeNotesIntoChordLocal, optimizeMergedChord, editorId: "merge-test", gteApi: api, setSelectedNoteIds: vi.fn(), setSelectedChordIds: vi.fn(),
       runMutation: vi.fn((_commit, options) => options.localApply(snapshot)),
     };
     vm.runInNewContext(ts.transpileModule(`(${action})()`, {}).outputText, context);

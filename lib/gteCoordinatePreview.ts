@@ -43,7 +43,7 @@ export function createCoordinatePreview(source: EditorSnapshot, selection?: Opti
         const key = JSON.stringify(group.times.map((time) => coordinateAt(cuts, time, fallback)));
         if (group.result && key === group.key) return;
         const draft = cloneEditorSnapshot({ ...baseline, notes: group.notes, chords: group.chords, noteEffects: group.effects, cutPositionsWithCoords: cuts });
-        optimizeTrackFingeringInSnapshot(draft);
+        optimizeTrackFingeringInSnapshot(draft, { preferPlayingPosition: true });
         finalizeOptimizedTrackFingeringInSnapshot(draft);
         // Reserve deterministic IDs across independent groups, including converted chords.
         let nextNote = maxNoteId + index * stride + 1, nextChord = maxChordId + index * stride + 1;

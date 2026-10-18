@@ -1,6 +1,7 @@
 import { performance } from "node:perf_hooks";
 import { describe, expect, it } from "vitest";
 import { createCoordinatePreview } from "../../lib/gteCoordinatePreview";
+import { optimizeSelection } from "../../lib/gteOptimization";
 import { optimizeTrackFingeringInSnapshot, finalizeOptimizedTrackFingeringInSnapshot } from "../../lib/gteFingeringOptimization";
 import { buildGtePerformanceFixture } from "../../lib/gtePerformanceFixture";
 import type { CutWithCoord, EditorSnapshot } from "../../types/gte";
@@ -15,6 +16,20 @@ const fixture = (): EditorSnapshot => ({ id: "preview", fps: 240, framesPerMessu
 const cuts = (fret: number): CutWithCoord[] => [[[0, 240], [2, fret]], [[240, 960], [2, 5]]];
 
 describe("live coordinate preview", () => {
+  it("moves existing chord fingerings toward changed fret positions without accumulating changes", () => {
+    const source = fixture(); source.notes = [];
+    source.chords = [{ id: 1, startTime: 0, length: 100, originalMidi: [60, 64, 67], currentTabs: [[1, 1], [0, 0], [2, 12]], ogTabs: [[1, 1], [0, 0], [2, 12]] }];
+    const original = structuredClone(source), preview = createCoordinatePreview(source);
+    const low = preview.update(cuts(2)).snapshot;
+    const high = preview.update(cuts(14)).snapshot;
+    const average = (snapshot: EditorSnapshot) => snapshot.chords[0].currentTabs.reduce((sum, tab) => sum + tab[1], 0) / snapshot.chords[0].currentTabs.length;
+    expect(average(high)).toBeGreaterThan(average(low));
+    expect(high.chords[0].currentTabs).not.toEqual(low.chords[0].currentTabs);
+    const applied = optimizeSelection(source, { noteIds: [], chordIds: [1] }, { scope: "track", position: "chosen", fret: 14, custom: true, cuts: cuts(14) });
+    expect(applied.chords[0].currentTabs).toEqual(high.chords[0].currentTabs);
+    expect(preview.update(cuts(2)).snapshot).toEqual(low);
+    expect(source).toEqual(original);
+  });
   it("recalculates only changed coordinate dependencies and always starts from the original", () => {
     const source = fixture(), before = structuredClone(source), preview = createCoordinatePreview(source);
     const initial = preview.update(cuts(5));
@@ -40,7 +55,7 @@ describe("live coordinate preview", () => {
     const result = preview.update(cuts(12));
     expect(result.totalGroups).toBe(1);
     const expected = structuredClone(source); expected.cutPositionsWithCoords = cuts(12);
-    optimizeTrackFingeringInSnapshot(expected); finalizeOptimizedTrackFingeringInSnapshot(expected);
+    optimizeTrackFingeringInSnapshot(expected, { preferPlayingPosition: true }); finalizeOptimizedTrackFingeringInSnapshot(expected);
     // Generated IDs are deliberately reserved across cache groups.
     const musical = (snapshot: EditorSnapshot) => ({ notes: snapshot.notes.map(({ id, ...note }) => note), chords: snapshot.chords.map(({ id, ...chord }) => chord) });
     expect(musical(result.snapshot)).toEqual(musical(expected));
