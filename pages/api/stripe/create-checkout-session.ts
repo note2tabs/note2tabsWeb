@@ -84,20 +84,20 @@ const resolveCheckoutReturnPaths = (requestedPath: unknown) => {
   if (requestedPath === "/transcribe?resumeTranscription=1") {
     return {
       success: premiumWelcomePath("/transcribe?resumeTranscription=1"),
-      cancel: "/transcribe?resumeTranscription=1&upgrade=cancel",
+      cancel: "/pricing?upgrade=cancel",
       manage: "/transcribe?resumeTranscription=1&upgrade=manage",
     };
   }
   if (requestedPath === "/?resumeTranscription=1") {
     return {
       success: premiumWelcomePath("/?resumeTranscription=1#hero"),
-      cancel: "/?resumeTranscription=1&upgrade=cancel#hero",
+      cancel: "/pricing?upgrade=cancel",
       manage: "/?resumeTranscription=1&upgrade=manage#hero",
     };
   }
   return {
     success: premiumWelcomePath("/transcribe"),
-    cancel: "/settings?upgrade=cancel",
+    cancel: "/pricing?upgrade=cancel",
     manage: "/settings?upgrade=manage",
   };
 };

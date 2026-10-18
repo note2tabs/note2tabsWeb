@@ -1791,9 +1791,8 @@
   "One preview per account · No credits used": "계정당 1회 체험 · 크레딧 차감 없음",
   "No additional tax at checkout": "결제 시 추가 세금 없음",
   "Your upgrade isn't complete. Continue to checkout whenever you're ready.": "아직 업그레이드가 완료되지 않았어요. 준비되면 결제를 이어서 진행하세요.",
-  "Continue to checkout": "결제 계속하기",
   "Back to transcribing": "악보 변환으로 돌아가기",
   "Thanks for your feedback.": "의견을 보내 주셔서 감사합니다.",
-  "Your music, continued.": "당신의 음악은 계속됩니다.",
-  "Payment not completed": "결제가 완료되지 않았습니다"
+  "Payment not completed": "결제가 완료되지 않았습니다",
+  "Retry payment": "결제 다시 시도"
 }

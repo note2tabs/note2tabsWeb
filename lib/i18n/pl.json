@@ -1791,9 +1791,8 @@
   "One preview per account · No credits used": "Jedna próba na konto · Bez zużycia kredytów",
   "No additional tax at checkout": "Bez dodatkowych podatków przy płatności",
   "Your upgrade isn't complete. Continue to checkout whenever you're ready.": "Zmiana planu nie została ukończona. Wróć do płatności, gdy będziesz gotowy.",
-  "Continue to checkout": "Przejdź do płatności",
   "Back to transcribing": "Wróć do transkrypcji",
   "Thanks for your feedback.": "Dziękujemy za opinię.",
-  "Your music, continued.": "Twoja muzyka gra dalej.",
-  "Payment not completed": "Płatność nie została ukończona"
+  "Payment not completed": "Płatność nie została ukończona",
+  "Retry payment": "Ponów płatność"
 }

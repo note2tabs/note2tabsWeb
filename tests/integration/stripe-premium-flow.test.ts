@@ -440,7 +440,7 @@ describe("stripe premium flow", () => {
       expect(stripeMock.customers.create).not.toHaveBeenCalled();
       expect(options).not.toHaveProperty("customer");
       expect(options).toMatchObject({customer_email:"user@example.com",locale:"pt-BR",line_items:[{price:"price_test_premium",quantity:1}],metadata:{note2tabsLocale:"pt-BR",note2tabsVisitorCountry:"BR"}});
-      expect(options.cancel_url).toContain("/pt-br/transcribe?resumeTranscription=1&upgrade=cancel");
+      expect(options.cancel_url).toContain("/pt-br/pricing?upgrade=cancel");
       const success = new URL(options.success_url);
       expect(success.pathname).toBe("/pt-br/premium/welcome");
       expect(success.searchParams.get("next")).toBe("/pt-br/transcribe?resumeTranscription=1");
@@ -453,7 +453,7 @@ describe("stripe premium flow", () => {
       expect(res._getStatusCode()).toBe(200);
       const options = stripeMock.checkout.sessions.create.mock.calls[0][0];
       expect(options).toMatchObject({locale:"es",line_items:[{price:"price_test_premium",quantity:1}],metadata:{note2tabsLocale:"es",note2tabsVisitorCountry:"MX"}});
-      expect(options.cancel_url).toContain("/es/transcribe?resumeTranscription=1&upgrade=cancel");
+      expect(options.cancel_url).toContain("/es/pricing?upgrade=cancel");
       const success = new URL(options.success_url);
       expect(success.pathname).toBe("/es/premium/welcome");
       expect(success.searchParams.get("next")).toBe("/es/transcribe?resumeTranscription=1");
@@ -537,7 +537,7 @@ describe("stripe premium flow", () => {
           }),
           success_url:
             "https://note2tabs.test/premium/welcome?next=%2Ftranscribe&session_id={CHECKOUT_SESSION_ID}",
-          cancel_url: "https://note2tabs.test/settings?upgrade=cancel&funnel_id=funnel_test_123",
+          cancel_url: "https://note2tabs.test/pricing?upgrade=cancel&funnel_id=funnel_test_123",
         }),
         expect.objectContaining({
           idempotencyKey: expect.stringMatching(/^premium-monthly-checkout-user_1-/),
@@ -736,7 +736,7 @@ describe("stripe premium flow", () => {
           success_url:
             "https://note2tabs.test/premium/welcome?next=%2Ftranscribe%3FresumeTranscription%3D1&session_id={CHECKOUT_SESSION_ID}",
           cancel_url: expect.stringMatching(
-            /^https:\/\/note2tabs\.test\/transcribe\?resumeTranscription=1&upgrade=cancel&funnel_id=/
+            /^https:\/\/note2tabs\.test\/pricing\?upgrade=cancel&funnel_id=/
           ),
         }),
         expect.any(Object)
