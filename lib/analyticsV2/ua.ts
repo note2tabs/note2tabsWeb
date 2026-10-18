@@ -15,15 +15,15 @@ export function parseUserAgent(ua: string | undefined): ParsedUserAgent {
 
   let browser = "unknown";
   if (lower.includes("edg")) browser = "edge";
-  else if (lower.includes("chrome")) browser = "chrome";
-  else if (lower.includes("firefox")) browser = "firefox";
+  else if (lower.includes("chrome") || lower.includes("crios")) browser = "chrome";
+  else if (lower.includes("firefox") || lower.includes("fxios")) browser = "firefox";
   else if (lower.includes("safari")) browser = "safari";
 
   let os = "unknown";
   if (lower.includes("windows")) os = "windows";
+  else if (lower.includes("iphone") || lower.includes("ipad") || lower.includes("ios")) os = "ios";
   else if (lower.includes("mac os") || lower.includes("macintosh")) os = "macos";
   else if (lower.includes("android")) os = "android";
-  else if (lower.includes("iphone") || lower.includes("ipad") || lower.includes("ios")) os = "ios";
   else if (lower.includes("linux")) os = "linux";
 
   return { browser, os, deviceType, userAgent };

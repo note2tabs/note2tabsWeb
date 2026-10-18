@@ -1454,7 +1454,7 @@ describe("stripe premium flow", () => {
           failure_code: "card_declined",
           decline_code: "insufficient_funds",
           failure_type: "card_error",
-          $insert_id: "checkout-payment-failed:cs_failed",
+          $insert_id: "checkout-payment-failed:evt_checkout_failed",
         }),
       }));
       const captured = posthogMock.capture.mock.calls.at(-1)?.[0]?.properties;
@@ -1488,6 +1488,31 @@ describe("stripe premium flow", () => {
         distinctId: "user_1",
         event: "checkout_payment_failed",
       }));
+    });
+
+    it("tracks required payment actions without treating them as failed purchases", async () => {
+      stripeMock.webhooks.constructEvent.mockReturnValue({id:"evt_auth",created:1792000000,type:"payment_intent.requires_action",data:{object:{id:"pi_auth",status:"requires_action",next_action:{type:"use_stripe_sdk"}}}});
+      stripeMock.checkout.sessions.list.mockResolvedValue({data:[{id:"cs_auth",status:"open",metadata:{userId:"user_1",note2tabsPlan:"premium",note2tabsBrowser:"chrome",note2tabsOs:"macos"}}]});
+      const handler=(await import("../../pages/api/stripe/webhook")).default;
+      for(let i=0;i<2;i++)await handler(buildWebhookReq() as any,createResponse() as any);
+      const events=posthogMock.capture.mock.calls.map(c=>c[0]).filter(c=>c.event==="checkout_payment_action_required");
+      expect(events).toHaveLength(2);expect(events[0].uuid).toBe(events[1].uuid);
+      expect(events[0].properties).toMatchObject({browser:"chrome",os:"macos",payment_intent_status:"requires_action",next_action_type:"use_stripe_sdk"});
+      expect(posthogMock.capture).not.toHaveBeenCalledWith(expect.objectContaining({event:"checkout_payment_failed"}));
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it("preserves distinct failed payment attempts while deduplicating webhook retries", async () => {
+      stripeMock.checkout.sessions.list.mockResolvedValue({data:[{id:"cs_retries",metadata:{userId:"user_1",note2tabsPlan:"premium"}}]});
+      const handler=(await import("../../pages/api/stripe/webhook")).default;
+      for(const id of ["evt_failure_1","evt_failure_1","evt_failure_2"]){
+        stripeMock.webhooks.constructEvent.mockReturnValue({id,created:1792000000,type:"payment_intent.payment_failed",data:{object:{id:"pi_retries",status:"requires_payment_method",last_payment_error:{code:"card_declined",type:"card_error"}}}});
+        await handler(buildWebhookReq() as any,createResponse() as any);
+      }
+      const events=posthogMock.capture.mock.calls.map(c=>c[0]).filter(c=>c.event==="checkout_payment_failed");
+      expect(events[0].uuid).toBe(events[1].uuid);expect(events[0].uuid).not.toBe(events[2].uuid);
+      expect(events[0].properties.$insert_id).toBe(events[1].properties.$insert_id);
+      expect(events[0].properties.$insert_id).not.toBe(events[2].properties.$insert_id);
     });
 
     it("schedules card-free school access to end without renewal", async () => {
