@@ -1,4 +1,4 @@
-import { setStripeEmailLanguage, createStripeEmailCustomer } from "../../../lib/i18n/stripeEmailLanguage";
+import { setStripeEmailLanguage } from "../../../lib/i18n/stripeEmailLanguage";
 import { accountEmailLocale } from "../../../lib/i18n/accountLanguage";
 import { verifyStripePrice } from "../../../lib/stripePriceParity";
 import { stripeLocale } from "../../../lib/i18n/checkout";
@@ -247,16 +247,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const activeAttribution = attribution?.affiliate.status === "ACTIVE" ? attribution : null;
 
     await verifyStripePrice(stripeClient, selectedConfig.priceId, requestedPlan, billingInterval, checkoutCurrency);
-    let existingCustomer = customerState.premiumCustomer || customerState.fallbackCustomer;
+    const existingCustomer = customerState.premiumCustomer || customerState.fallbackCustomer;
     const emailLocale = await accountEmailLocale(session.user.id, contentLocale);
-    if (!existingCustomer) existingCustomer = await createStripeEmailCustomer(session.user.id, session.user.email, emailLocale);
     if (existingCustomer) {
       try { await setStripeEmailLanguage(existingCustomer.id, emailLocale); }
       catch { console.warn("stripe_email_language_sync_failed"); }
     }
     const checkoutStateHash = createHash("sha256")
       .update(
-      `email-language-v1|${existingCustomer.id}|${contentLocale}|${session.user.id}|${requestedPlan}|${billingInterval}|${selectedConfig.priceId}|${checkoutCurrency}|${returnPaths.success}|${funnelId}|${
+      `checkout-owned-customer-v2|${existingCustomer?.id || "new"}|${contentLocale}|${session.user.id}|${requestedPlan}|${billingInterval}|${selectedConfig.priceId}|${checkoutCurrency}|${returnPaths.success}|${funnelId}|${
           customerState.subscriptionState.sort().join("|") || "new"
         }|${trialIncluded ? "seven_day_trial" : "immediate_charge"}`
       )
@@ -291,11 +290,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const checkout = await stripeClient.checkout.sessions.create(
       {
         ...(existingCustomer
-          ? { customer: existingCustomer.id }
+          ? { customer: existingCustomer.id, customer_update: { address: "auto" as const } }
           : { customer_email: session.user.email }),
         mode: "subscription",
         currency: checkoutCurrency.toLowerCase(),
-        ...(contentLocale !== "en" ? {locale: stripeLocale(contentLocale)} : {}),
+        locale: stripeLocale(contentLocale),
         payment_method_collection: "always",
         line_items: [{ price: selectedConfig.priceId, quantity: 1 }],
         client_reference_id: funnelId,

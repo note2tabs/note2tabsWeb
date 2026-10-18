@@ -3,14 +3,10 @@ const capture=vi.hoisted(()=>vi.fn());
 vi.mock("../../lib/posthogServer",()=>({createPostHogServerClient:()=>({captureExceptionImmediate:capture})}));
 const customers=vi.hoisted(()=>({create:vi.fn(),update:vi.fn(),list:vi.fn()}));
 vi.mock("../../lib/stripe",()=>({stripeClient:{customers}}));
-import {createStripeEmailCustomer,setStripeEmailLanguage,syncStripeEmailLanguage} from "../../lib/i18n/stripeEmailLanguage";
+import {setStripeEmailLanguage,syncStripeEmailLanguage} from "../../lib/i18n/stripeEmailLanguage";
 describe("Stripe email preferences",()=>{
  beforeEach(()=>{vi.resetAllMocks();customers.update.mockImplementation(async (_id,params)=>({preferred_locales:params.preferred_locales}));});
- it("sets language before creating a customer's first checkout and deduplicates creation",async()=>{
-  customers.create.mockResolvedValue({id:"customer",preferred_locales:["pt-BR"]});
-  await createStripeEmailCustomer("account","owner@example.com","pt-BR");
-  expect(customers.create).toHaveBeenCalledWith({email:"owner@example.com",metadata:{userId:"account"},preferred_locales:["pt-BR"]},{idempotencyKey:"account-email-language-v1:account"});
- });
+
  it("updates every matched billing customer while skipping already correct preferences",async()=>{
   customers.list.mockReturnValue((async function*(){yield {id:"first",preferred_locales:["en"]};yield {id:"second",preferred_locales:["fr"]};yield {id:"third",preferred_locales:[]};})());
   await syncStripeEmailLanguage("owner@example.com","fr");

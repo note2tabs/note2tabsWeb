@@ -1,5 +1,5 @@
 import { accountEmailLocale } from "../../../lib/i18n/accountLanguage";
-import { setStripeEmailLanguage, createStripeEmailCustomer } from "../../../lib/i18n/stripeEmailLanguage";
+import { setStripeEmailLanguage } from "../../../lib/i18n/stripeEmailLanguage";
 import { requestLocale } from "../../../lib/i18n/request";
 import { stripeLocale } from "../../../lib/i18n/checkout";
 import { displayCurrencyForCountry } from "../../../lib/localizedPricing";
@@ -55,9 +55,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const currency = displayCurrencyForCountry(typeof country === "string" ? country : undefined);
     await verifyStripePrice(stripeClient, config.priceId, "PREMIUM", "monthly", currency);
     const locale = await accountEmailLocale(session.user.id, requestLocale(req));
-    const existingCustomer = customerState.premiumCustomer || customerState.fallbackCustomer || await createStripeEmailCustomer(session.user.id, session.user.email, locale);
-    try { await setStripeEmailLanguage(existingCustomer.id, locale); }
-    catch { console.warn("stripe_email_language_sync_failed"); }
+    const existingCustomer = customerState.premiumCustomer || customerState.fallbackCustomer;
+    if (existingCustomer) {
+      try { await setStripeEmailLanguage(existingCustomer.id, locale); }
+      catch { console.warn("stripe_email_language_sync_failed"); }
+    }
     const metadata = {
       userId: session.user.id,
       note2tabsPlan: "premium",
@@ -68,7 +70,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       note2tabsSchoolCheckout: "true",
     };
     const checkout = await stripeClient.checkout.sessions.create({
-      ...(existingCustomer ? { customer: existingCustomer.id } : { customer_email: session.user.email }),
+      ...(existingCustomer ? { customer: existingCustomer.id, customer_update: { address: "auto" as const } } : { customer_email: session.user.email }),
       locale: stripeLocale(locale),
       mode: "subscription",
       currency: currency.toLowerCase(),
