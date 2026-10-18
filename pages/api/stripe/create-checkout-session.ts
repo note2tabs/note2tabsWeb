@@ -167,7 +167,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     : requestedModel === "light" || requestedModel === "heavy"
       ? requestedModel
       : "unknown";
-  const deviceType = parseUserAgent(req.headers["user-agent"]).deviceType;
+  const {deviceType, browser, os} = parseUserAgent(req.headers["user-agent"]);
   const funnelId =
     normalizePremiumFunnelId(req.body?.funnelId) ||
     createHash("sha256")
@@ -258,7 +258,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     const checkoutStateHash = createHash("sha256")
       .update(
-      `checkout-owned-customer-v2|${existingCustomer?.id || "new"}|${contentLocale}|${session.user.id}|${requestedPlan}|${billingInterval}|${selectedConfig.priceId}|${checkoutCurrency}|${returnPaths.success}|${funnelId}|${
+      `checkout-observability-v3|${browser}|${os}|${existingCustomer?.id || "new"}|${contentLocale}|${session.user.id}|${requestedPlan}|${billingInterval}|${selectedConfig.priceId}|${checkoutCurrency}|${returnPaths.success}|${funnelId}|${
           customerState.subscriptionState.sort().join("|") || "new"
         }|${trialIncluded ? "seven_day_trial" : "immediate_charge"}`
       )
@@ -270,6 +270,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       note2tabsLocale: contentLocale,
       note2tabsVisitorCountry: visitorCountry,
       note2tabsDeviceType: deviceType,
+      note2tabsBrowser: browser,
+      note2tabsOs: os,
+      note2tabsCheckoutIntegration: "hosted_subscription_v1",
       note2tabsBillingInterval: billingInterval,
       note2tabsPriceId: selectedConfig.priceId,
       note2tabsCheckoutCurrency: checkoutCurrency.toLowerCase(),
@@ -340,6 +343,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       checkout_session_id: checkout.id,
       pricing_market: pricingMarket,
       checkout_currency: checkout.currency || undefined,
+      browser, os,
+      checkout_integration: "hosted_subscription_v1",
+      checkout_created_not_loaded: true,
+      configured_payment_method_types: checkout.payment_method_types,
+      amount_total_minor: checkout.amount_total,
+      promotion_codes_allowed: checkout.allow_promotion_codes === true,
+      billing_address_policy: checkout.billing_address_collection || "auto",
       local_currency_eligible: true,
       site_display_currency: siteDisplayCurrency,
       $insert_id: `checkout-started:${checkout.id}`,
