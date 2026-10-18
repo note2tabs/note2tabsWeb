@@ -1,3 +1,4 @@
+import type { PricingMarket } from "./pricingMarket";
 import type Stripe from "stripe";
 import { localizedPriceAmount, type DisplayCurrency } from "./localizedPricing";
 import type { BillingInterval } from "./stripePremium";
@@ -12,6 +13,7 @@ export async function verifyStripePrice(
   plan: PaidSubscriptionPlan,
   interval: BillingInterval,
   currency: DisplayCurrency,
+  market: PricingMarket = "standard",
 ) {
   let cached = prices.get(priceId);
   if (!cached || cached.expires < Date.now()) {
@@ -24,7 +26,7 @@ export async function verifyStripePrice(
   }
   const price = await cached.value;
   const minor = currency === "JPY" || currency === "KRW" ? 1 : 100;
-  const expected = Math.round(localizedPriceAmount(plan, interval, currency) * minor);
+  const expected = Math.round(localizedPriceAmount(plan, interval, currency, market) * minor);
   const amount = price.currency === currency.toLowerCase()
     ? price.unit_amount
     : price.currency_options?.[currency.toLowerCase()]?.unit_amount;

@@ -30,13 +30,14 @@ import type { BillingInterval } from "../lib/stripePremium";
 import { buildPricingProductStructuredData } from "../lib/pricingStructuredData";
 import { rememberCheckoutAttempt } from "../lib/checkoutTracking";
 import { formatLocalizedAmount as rawAmount, formatLocalizedPrice as rawPrice, localizedAnnualSaving as rawSaving, readDisplayCurrencyCookie } from "../lib/localizedPricing";
-import { useDisplayCurrency } from "../lib/useDisplayCurrency";
+import { useDisplayCurrency, usePricingMarket } from "../lib/useDisplayCurrency";
 import { markPremiumPricingVisited } from "../lib/premiumPromptSignals";
 
 export default function PricingPage() {
   const { t, locale } = useLocale();
-  const localizedAnnualSaving = (...args: Parameters<typeof rawSaving>) => rawSaving(args[0], args[1], locale);
-  const formatLocalizedPrice = (...args: Parameters<typeof rawPrice>) => rawPrice(args[0], args[1], args[2], locale);
+  const pricingMarket = usePricingMarket();
+  const localizedAnnualSaving = (...args: Parameters<typeof rawSaving>) => rawSaving(args[0], args[1], locale, pricingMarket);
+  const formatLocalizedPrice = (...args: Parameters<typeof rawPrice>) => rawPrice(args[0], args[1], args[2], locale, pricingMarket);
   const formatLocalizedAmount = (...args: Parameters<typeof rawAmount>) => rawAmount(args[0], args[1], locale);
   const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
@@ -75,9 +76,9 @@ export default function PricingPage() {
   ];
   const measurementContext = useCallback(() => pricingMeasurementContext({
     role: currentRole, plan: currentPlan, signedIn: Boolean(session),
-    billingInterval, displayCurrency,
+    billingInterval, displayCurrency, pricingMarket,
     userAgent: typeof navigator === "undefined" ? undefined : navigator.userAgent,
-  }), [currentRole, currentPlan, session, billingInterval, displayCurrency]);
+  }), [currentRole, currentPlan, session, billingInterval, displayCurrency, pricingMarket]);
   const description =
     t("Monthly and yearly pricing for Note2Tabs. Compare Free, Premium, and Pro plans for guitar tab transcription and editing.");
   const pricingJsonLd = [
@@ -119,7 +120,7 @@ export default function PricingPage() {
         },
       })),
     },
-    buildPricingProductStructuredData(showPro, displayCurrency),
+    buildPricingProductStructuredData(showPro, displayCurrency, pricingMarket),
   ];
 
   const entrySource = normalizePremiumFunnelSource(router.query.source);

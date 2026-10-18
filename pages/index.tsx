@@ -28,7 +28,7 @@ import { isDevelopmentClient, isLocalNoDbClientMode } from "../lib/clientDevMode
 import { buildDevCreditsSummary, type CreditsSummary } from "../lib/credits";
 import { rememberCheckoutAttempt } from "../lib/checkoutTracking";
 import { formatLocalizedAmount as rawAmount, formatLocalizedPrice as rawPrice, localizedAnnualSaving as rawSaving } from "../lib/localizedPricing";
-import { useDisplayCurrency } from "../lib/useDisplayCurrency";
+import { useDisplayCurrency, usePricingMarket } from "../lib/useDisplayCurrency";
 import { buildLaneEditorRef, gteApi, type TranscriberSegmentGroup } from "../lib/gteApi";
 import { GTE_GUEST_EDITOR_ID } from "../lib/gteGuestDraft";
 import { tabSegmentsToStamps } from "../lib/tabTextToStamps";
@@ -219,8 +219,9 @@ const formatTrustMetric = (value: number) => new Intl.NumberFormat("en-US").form
 export default function HomePage({ trustMetrics }: HomePageProps) {
   const { t, locale } = useLocale();
   const formatLocalizedAmount = (...args: Parameters<typeof rawAmount>) => rawAmount(args[0], args[1], locale);
-  const formatLocalizedPrice = (...args: Parameters<typeof rawPrice>) => rawPrice(args[0], args[1], args[2], locale);
-  const localizedAnnualSaving = (...args: Parameters<typeof rawSaving>) => rawSaving(args[0], args[1], locale);
+  const pricingMarket = usePricingMarket();
+  const formatLocalizedPrice = (...args: Parameters<typeof rawPrice>) => rawPrice(args[0], args[1], args[2], locale, pricingMarket);
+  const localizedAnnualSaving = (...args: Parameters<typeof rawSaving>) => rawSaving(args[0], args[1], locale, pricingMarket);
   const { data: session, status: sessionStatus, update: updateSession } = useSession();
   const router = useRouter();
   const [mode, setMode] = useState<"FILE" | "YOUTUBE">("FILE");

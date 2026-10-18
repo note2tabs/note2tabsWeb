@@ -8,6 +8,7 @@ export function pricingMeasurementContext(input: {
   signedIn: boolean;
   billingInterval: string;
   displayCurrency: string;
+  pricingMarket?: string;
   userAgent?: string;
 }) {
   const plan = effectiveSubscriptionPlan(input.role, input.plan);
@@ -19,6 +20,7 @@ export function pricingMeasurementContext(input: {
     current_plan: plan.toLowerCase(),
     billing_interval: input.billingInterval,
     display_currency: input.displayCurrency.toLowerCase(),
+    pricing_market: input.pricingMarket || "standard",
     device_type: parseUserAgent(input.userAgent).deviceType,
   };
 }

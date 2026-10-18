@@ -1,3 +1,4 @@
+import { requestPricingMarket } from "../pricingMarket";
 import { isLocalizedPublicPath, localeSwitchHref, stripLocale, localeReleaseSwitch, type AppLocale } from "./locale";
 import { displayCurrencyForCountry, readDisplayCurrencyCookie } from "../localizedPricing";
 import type { GetServerSideProps, GetServerSidePropsContext, GetStaticProps } from "next";
@@ -25,7 +26,7 @@ export function withLocalizedPilot<P extends Record<string, unknown>>(
     if (!("props" in result)) return result;
     const country = context.req.headers["x-vercel-ip-country"];
     const initialDisplayCurrency = typeof country === "string" ? displayCurrencyForCountry(country) : readDisplayCurrencyCookie(context.req.headers.cookie || "");
-    return {...result, props: {...await result.props, initialDisplayCurrency}};
+    return {...result, props: {...await result.props, initialDisplayCurrency, initialPricingMarket: requestPricingMarket(country)}};
   };
 }
 

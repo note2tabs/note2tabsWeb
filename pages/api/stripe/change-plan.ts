@@ -1,3 +1,4 @@
+import { marketCheckoutConfig } from "../../../lib/pricingMarket";
 import type { NextApiRequest, NextApiResponse } from "next";
 import type Stripe from "stripe";
 import { getServerSession } from "next-auth/next";
@@ -33,7 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (requestedPlan === "PRO" && !proPlanCheckoutEnabled()) {
     return res.status(503).json({ error: "Pro is not available yet." });
   }
-  const targetConfig = getStripePaidPlanConfig(requestedPlan, billingInterval);
+  let targetConfig = getStripePaidPlanConfig(requestedPlan, billingInterval);
   if (!stripeClient || !targetConfig) return res.status(503).json({ error: "That plan is not available yet." });
 
   try {
@@ -46,6 +47,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (current) break;
     }
     if (!current) return res.status(404).json({ error: "No active subscription was found." });
+    if (current.metadata?.note2tabsPricingMarket === "latam") {
+      targetConfig = marketCheckoutConfig(targetConfig, billingInterval, "latam");
+    }
     const currentPlan = stripeSubscriptionPlan(current);
     if (!currentPlan) return res.status(409).json({ error: "This subscription cannot be changed here." });
     if (currentPlan === requestedPlan) return res.status(200).json({ changed: false, plan: rawPlan });
@@ -76,7 +80,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           {
             start_date: current.current_period_end,
             items: [{ price: targetConfig.priceId, quantity: item.quantity || 1 }],
-            metadata: { note2tabsPlan: "premium", note2tabsPriceId: targetConfig.priceId, note2tabsBillingInterval: billingInterval },
+            metadata: { ...current.metadata, note2tabsPlan: "premium", note2tabsPriceId: targetConfig.priceId, note2tabsBillingInterval: billingInterval },
           },
         ],
       });

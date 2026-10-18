@@ -1,3 +1,4 @@
+import { marketCheckoutConfig, requestPricingMarket } from "../../../lib/pricingMarket";
 import { setStripeEmailLanguage } from "../../../lib/i18n/stripeEmailLanguage";
 import { accountEmailLocale } from "../../../lib/i18n/accountLanguage";
 import { verifyStripePrice } from "../../../lib/stripePriceParity";
@@ -141,7 +142,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(503).json({ error: "Pro checkout is not available yet." });
   }
   const selectedPlan = PLAN_CATALOG[requestedPlan];
-  const selectedConfig = getStripePaidPlanConfig(requestedPlan, billingInterval);
+  const pricingMarket = requestPricingMarket(visitorCountry);
+  const baseConfig = getStripePaidPlanConfig(requestedPlan, billingInterval);
+  const selectedConfig = baseConfig ? marketCheckoutConfig(baseConfig, billingInterval, pricingMarket) : null;
   const paidConfigs = Object.values(getStripePaidPlanConfigs()).filter(
     (value): value is NonNullable<typeof value> => Boolean(value)
   );
@@ -246,7 +249,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     const activeAttribution = attribution?.affiliate.status === "ACTIVE" ? attribution : null;
 
-    await verifyStripePrice(stripeClient, selectedConfig.priceId, requestedPlan, billingInterval, checkoutCurrency);
+    await verifyStripePrice(stripeClient, selectedConfig.priceId, requestedPlan, billingInterval, checkoutCurrency, pricingMarket);
     const existingCustomer = customerState.premiumCustomer || customerState.fallbackCustomer;
     const emailLocale = await accountEmailLocale(session.user.id, contentLocale);
     if (existingCustomer) {
@@ -270,7 +273,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       note2tabsBillingInterval: billingInterval,
       note2tabsPriceId: selectedConfig.priceId,
       note2tabsCheckoutCurrency: checkoutCurrency.toLowerCase(),
-      note2tabsPricingRevision: "parity-2026-10-15",
+      note2tabsPricingRevision: "latam-2026-10-18",
+      note2tabsPricingMarket: pricingMarket,
       premiumFunnelId: funnelId,
       premiumFunnelSource: source,
       premiumFunnelReason: reason,
@@ -334,6 +338,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       request_id: requestId,
       checkout_attempt_id: requestId,
       checkout_session_id: checkout.id,
+      pricing_market: pricingMarket,
       checkout_currency: checkout.currency || undefined,
       local_currency_eligible: true,
       site_display_currency: siteDisplayCurrency,

@@ -1,3 +1,4 @@
+import { marketCheckoutConfig, requestPricingMarket } from "../../../lib/pricingMarket";
 import { accountEmailLocale } from "../../../lib/i18n/accountLanguage";
 import { setStripeEmailLanguage } from "../../../lib/i18n/stripeEmailLanguage";
 import { requestLocale } from "../../../lib/i18n/request";
@@ -36,7 +37,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!access?.role) return redirect(res, 302, "/auth/login");
   if (PAID_ROLES.has(access.role)) return redirect(res, 302, "/settings");
 
-  const config = getStripePaidPlanConfig("PREMIUM", "monthly");
+  let config = getStripePaidPlanConfig("PREMIUM", "monthly");
   const configs = Object.values(getStripePaidPlanConfigs()).filter(
     (value): value is NonNullable<typeof value> => Boolean(value)
   );
@@ -53,7 +54,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const country = req.headers["x-vercel-ip-country"];
     const currency = displayCurrencyForCountry(typeof country === "string" ? country : undefined);
-    await verifyStripePrice(stripeClient, config.priceId, "PREMIUM", "monthly", currency);
+    const pricingMarket = requestPricingMarket(country);
+    config = marketCheckoutConfig(config, "monthly", pricingMarket);
+    await verifyStripePrice(stripeClient, config.priceId, "PREMIUM", "monthly", currency, pricingMarket);
     const locale = await accountEmailLocale(session.user.id, requestLocale(req));
     const existingCustomer = customerState.premiumCustomer || customerState.fallbackCustomer;
     if (existingCustomer) {
@@ -63,6 +66,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const metadata = {
       userId: session.user.id,
       note2tabsPlan: "premium",
+      note2tabsPricingMarket: pricingMarket,
       note2tabsLocale: locale,
       note2tabsBillingInterval: "monthly",
       note2tabsPriceId: config.priceId,
