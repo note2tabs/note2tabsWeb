@@ -9,6 +9,7 @@ export type Note = {
   optimals: TabCoord[];
   velocity?: number;
   pitchBend?: number[];
+  notationStaff?: "treble" | "bass";
 };
 
 export type GteTrackType = "tab" | "bass" | "chords" | "drums";

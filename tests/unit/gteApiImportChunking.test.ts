@@ -134,6 +134,23 @@ describe("transcriber import chunking", () => {
     expect(result.editors[2]).toEqual(drums);
   });
 
+  it("preserves pitched notation tracks instead of running guitar fingering optimization", async () => {
+    const source = buildCanvas("canvas-1", [120]);
+    const lane = source.editors[0];
+    lane.instrumentId = "gm:piano";
+    lane.notes = [
+      { id: 1, startTime: 0.5, length: 121.25, midiNum: 21, tab: [0, 0], optimals: [], velocity: 0.3 },
+      { id: 2, startTime: 0.5, length: 240, midiNum: 108, tab: [0, 0], optimals: [], velocity: 0.8 },
+    ];
+    const before = structuredClone(source);
+    vi.stubGlobal("fetch", vi.fn(async (_url: string | URL | Request, init?: RequestInit) =>
+      new Response(JSON.stringify({ ok: true, snapshot: JSON.parse(String(init?.body || "{}")).snapshot }), { status: 200 })
+    ));
+    const result = await optimizeImportedTrackFingerings("canvas-1", source, 2, [lane.id]);
+    expect(result).toEqual(before);
+    expect(source).toEqual(before);
+  });
+
   it("cleans tiny overlaps only in lanes identified as newly transcriber-imported", async () => {
     const bassLane = (id: string) => ({
       ...buildCanvas("canvas-1", [120]).editors[0],

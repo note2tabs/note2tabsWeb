@@ -19,6 +19,7 @@ import {
 } from "./gteTranscriberTiming";
 import { generatePlayingCoordinatesInSnapshot } from "./gtePlayingCoordinates";
 import { cleanTinyOverlapsInSnapshot } from "./gteOverlapCleanup";
+import { isNotationTrack } from "./gteNotation";
 
 const AUTH_BASE = "/api/gte";
 const GUEST_BASE = "/api/gte-guest";
@@ -668,7 +669,7 @@ export async function optimizeImportedTrackFingerings(
   optimized.editors.forEach((lane) => {
     if (importedLaneIds && !importedLaneIds.has(lane.id)) return;
     if (
-      isDrumLane(lane) ||
+      isDrumLane(lane) || isNotationTrack(lane) ||
       !Array.isArray(lane.notes) ||
       !Array.isArray(lane.chords) ||
       (lane.notes.length === 0 && lane.chords.length === 0)

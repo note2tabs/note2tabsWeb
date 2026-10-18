@@ -76,6 +76,7 @@ import {
 } from "../../lib/gteSamplePlayback";
 import { buildDiscreteSlideSteps } from "../../lib/gteSlidePlayback";
 import { getOpenStringMidiFromSnapshot, getTabMidi as getSnapshotTabMidi } from "../../lib/gteTuning";
+import { isNotationTrack, scoreEvents } from "../../lib/gteNotation";
 import {
   getDrumVoiceForNote,
   isDrumTrackType,
@@ -2429,7 +2430,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           pendingDrumSavesRef.current.set(laneId, laneSnapshot);
         }
       }
-      setSaveError(err?.message || "We could not save the drum track. Your edits remain here and will retry.");
+      setSaveError(err?.message || "We could not save your track edits. They remain here and will retry.");
       drumSaveRetryDelayRef.current = Math.min(30000, drumSaveRetryDelayRef.current * 2);
     } finally {
       drumSaveInFlightRef.current = false;
@@ -2878,7 +2879,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     }
   }, [applyCanvasUpdate, barSelection?.barIndices, canvas, editorId, isGuestMode, pendingMeterChange, timeSignatureSaving]);
 
-  const handleAddLane = async (kind: "tab" | "bass" | "chords" | "drums" = "tab") => {
+  const handleAddLane = async (requestedKind: "tab" | "bass" | "chords" | "drums" | "piano" | "strings" | "instrument" = "tab") => {
+    const notationInstrument = requestedKind === "piano" || requestedKind === "strings" || requestedKind === "instrument" ? "gm:" + requestedKind : null;
+    const kind = notationInstrument ? "tab" : requestedKind as "tab" | "bass" | "chords" | "drums";
     if (!canvasRef.current || addingLane) return;
     setAddingLane(true);
     setAddTrackMenuOpen(false);
@@ -2915,7 +2918,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             timeSignature: currentTimeSignature,
             timeSignatureBottom: currentTimeSignatureBottom,
             ...(lane.id === createdLaneId
-              ? { editorType: kind, type: kind, trackType: kind }
+              ? { editorType: kind, type: kind, trackType: kind, ...(notationInstrument ? { instrumentId: notationInstrument, name: requestedKind === "piano" ? "Piano" : requestedKind === "strings" ? "Strings" : "Instrument" } : {}) }
               : {}),
           })),
         },
@@ -3424,7 +3427,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       }
       return nextCanvas;
     });
-    if (isDrumLane(nextLaneSnapshot) && (options?.markDirty ?? true)) {
+    if ((isDrumLane(nextLaneSnapshot) || isNotationTrack(nextLaneSnapshot)) && (options?.markDirty ?? true)) {
       queueDrumSave(laneId, nextLaneSnapshot);
     }
     if (options?.markDirty ?? options?.recordHistory !== false) {
@@ -4880,6 +4883,12 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           incomingTransitionNoteIds.add(endNote.id);
         });
 
+        if (isNotationTrack(lane)) {
+          scoreEvents(lane).forEach((note) => {
+            pushEvent(note.start, note.length, note.midi, 0.55 * Math.max(0, Math.min(1, note.velocity)), instrumentId, lanePan, laneId);
+          });
+          return;
+        }
         const consumedTransitionNoteIds = new Set<number>();
         lane.notes.forEach((note) => {
           if (consumedTransitionNoteIds.has(note.id)) return;
@@ -10073,11 +10082,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       )}
                       {!selectedChordLane && !selectedDrumLane && (
                         <div className="contents">
-                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Tuning")}<select value={selectedTuning.presetId} onChange={(event) => handleLaneTuningChange(selectedLaneId, event.target.value, selectedTuning.capo)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700">
+                          {!isNotationTrack(selectedLane) && <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Tuning")}<select value={selectedTuning.presetId} onChange={(event) => handleLaneTuningChange(selectedLaneId, event.target.value, selectedTuning.capo)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700">
                               {(selectedBassLane ? BASS_TUNING_PRESETS : TUNING_PRESETS).map((preset) => <option key={`${selectedLaneId}-screen-tuning-${preset.id}`} value={preset.id}>{t(preset.label)}</option>)}
                             </select>
-                          </label>
-                          {!selectedBassLane && <details className="rounded-lg border border-slate-200 px-3 py-2">
+                          </label>}
+                          {!selectedBassLane && !isNotationTrack(selectedLane) && <details className="rounded-lg border border-slate-200 px-3 py-2">
                             <summary className="cursor-pointer text-xs font-medium text-slate-600">{t("More settings")}</summary>
                             <label className="mt-3 flex items-center justify-between gap-3 text-xs font-medium text-slate-600">{t("Capo")}<input type="number" min={0} max={12} value={trackCapoDraftById[selectedLaneId] ?? String(selectedTuning.capo)} onChange={(event) => handleLaneCapoDraftChange(selectedLaneId, event.target.value)} onBlur={() => commitLaneCapoDraft(selectedLaneId, selectedTuning.presetId, selectedTuning.capo)} className="h-8 w-16 rounded-md border border-slate-200 px-2 text-xs text-slate-700" aria-label={t("Track capo")} />
                             </label>
@@ -10272,7 +10281,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             </select>
                           </label>
                         )}
-                        {!selectedChordLane && !selectedDrumLane && (
+                        {!selectedChordLane && !selectedDrumLane && !isNotationTrack(selectedLane) && (
                           <>
                             <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Tuning")}<select
                                 value={selectedTuning.presetId}
@@ -10310,16 +10319,16 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
                           <button type="button" onClick={() => beginTrackOffset(selectedLaneId)} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">{t("Offset track")}</button>
                           <button type="button" onClick={() => requestDeleteTrack(selectedLaneId)} disabled={deletingLaneId === selectedLaneId} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50">{deletingLaneId === selectedLaneId ? t("Removing...") : t("Remove")}</button>
-                          {!selectedBassLane && !selectedChordLane && !selectedDrumLane && <button type="button" onClick={() => void handleConvertLaneToBass(selectedLaneId)} className="col-span-2 rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">{t("Convert to bass")}</button>}
+                          {!selectedBassLane && !selectedChordLane && !selectedDrumLane && !isNotationTrack(selectedLane) && <button type="button" onClick={() => void handleConvertLaneToBass(selectedLaneId)} className="col-span-2 rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">{t("Convert to bass")}</button>}
                         </div>
                       </div>
 
                       <div className="relative border-t border-slate-100 p-2">
                         {desktopTrackAddMenuOpen && (
                           <div className="mb-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-                            {(["tab", "bass", "chords", "drums"] as const).map((type) => (
+                            {(["tab", "bass", "chords", "drums", "piano", "strings", "instrument"] as const).map((type) => (
                               <button key={type} type="button" onClick={() => { setDesktopTrackAddMenuOpen(false); void handleAddLane(type); }} disabled={addingLane} className="block w-full rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50">
-                                {type === "tab" ? t("Tab") : type === "bass" ? t("Bass") : type === "chords" ? t("Chords") : t("Drums")}
+                                {type === "tab" ? t("Tab") : type === "bass" ? t("Bass") : type === "chords" ? t("Chords") : type === "drums" ? t("Drums") : type === "piano" ? t("Piano") : type === "strings" ? t("Strings") : t("Other instrument")}
                               </button>
                             ))}
                           </div>
@@ -10411,7 +10420,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 )}
                 {addTrackMenuOpen && (
                   <div className="mb-2 ml-auto w-44 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl" role="menu" aria-label={t("Add track")}>
-                    {(["tab", "chords", "drums"] as const).map((type) => (
+                    {(["tab", "chords", "drums", "piano", "strings", "instrument"] as const).map((type) => (
                       <button
                         key={`mobile-add-${type}`}
                         type="button"
@@ -10423,7 +10432,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         disabled={addingLane}
                         className="flex min-h-10 w-full items-center justify-between rounded-xl px-3 text-left text-sm font-medium text-slate-700 active:bg-slate-50 disabled:opacity-50"
                       >
-                        <span>{type === "tab" ? t("Tab") : type === "chords" ? t("Chords") : t("Drums")}</span>
+                        <span>{type === "tab" ? t("Tab") : type === "chords" ? t("Chords") : type === "drums" ? t("Drums") : type === "piano" ? t("Piano") : type === "strings" ? t("Strings") : t("Other instrument")}</span>
                         <span className="text-xs text-slate-400">{t("Track")}</span>
                       </button>
                     ))}
