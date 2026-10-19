@@ -1795,5 +1795,5 @@
   "Thanks for your feedback.": "Dziękujemy za opinię.",
   "Payment not completed": "Płatność nie została ukończona",
   "Retry payment": "Ponów płatność",
-  "Eligible earnings are paid at most once per month after reaching US$50 equivalent. Smaller balances carry forward.": "Prowizje kwalifikujące się do wypłaty są wypłacane najwyżej raz w miesiącu po osiągnięciu równowartości 50 USD. Niższe salda przechodzą na kolejne miesiące."
+  "Eligible earnings are paid at most once per month after reaching US$25 equivalent. Smaller balances carry forward.": "Prowizje kwalifikujące się do wypłaty są wypłacane najwyżej raz w miesiącu po osiągnięciu równowartości 25 USD. Niższe salda przechodzą na kolejne miesiące."
 }

@@ -1795,5 +1795,5 @@
   "Thanks for your feedback.": "Gracias por tu opinión.",
   "Payment not completed": "Pago no completado",
   "Retry payment": "Reintentar el pago",
-  "Eligible earnings are paid at most once per month after reaching US$50 equivalent. Smaller balances carry forward.": "Las comisiones disponibles se pagan como máximo una vez al mes, al alcanzar el equivalente a 50 USD. Los saldos inferiores se acumulan para los meses siguientes."
+  "Eligible earnings are paid at most once per month after reaching US$25 equivalent. Smaller balances carry forward.": "Las comisiones disponibles se pagan como máximo una vez al mes, al alcanzar el equivalente a 25 USD. Los saldos inferiores se acumulan para los meses siguientes."
 }

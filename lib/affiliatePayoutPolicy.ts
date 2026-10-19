@@ -1,6 +1,6 @@
-export const AFFILIATE_MINIMUM_PAYOUT_USD = 50;
+export const AFFILIATE_MINIMUM_PAYOUT_USD = 25;
 export const AFFILIATE_BANK_PAYOUT_DAY = 28;
-export const AFFILIATE_PAYOUT_NOTICE = "Eligible earnings are paid at most once per month after reaching US$50 equivalent. Smaller balances carry forward.";
+export const AFFILIATE_PAYOUT_NOTICE = "Eligible earnings are paid at most once per month after reaching US$25 equivalent. Smaller balances carry forward.";
 
 // Stripe uses these currencies without decimal minor units.
 const ZERO_DECIMAL = new Set(["bif", "clp", "djf", "gnf", "jpy", "kmf", "krw", "mga", "pyg", "rwf", "ugx", "vnd", "vuv", "xaf", "xof", "xpf"]);

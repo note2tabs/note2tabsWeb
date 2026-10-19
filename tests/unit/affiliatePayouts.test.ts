@@ -39,8 +39,13 @@ describe("monthly affiliate payouts", () => {
     expect(m.tx.affiliateCommission.update).not.toHaveBeenCalled();
   });
   it("includes exactly the threshold", async () => {
-    m.tx.affiliateCommission.findMany.mockResolvedValue([commission("c1", 5000)]);
-    expect(await prepareAffiliatePayout("aff", m.stripe as any, rates, now)).toEqual(expect.objectContaining({ amount: 50000 }));
+    m.tx.affiliateCommission.findMany.mockResolvedValue([commission("c1", 2500)]);
+    expect(await prepareAffiliatePayout("aff", m.stripe as any, rates, now)).toEqual(expect.objectContaining({ amount: 25000 }));
+  });
+  it("keeps earnings just below US$25 pending", async () => {
+    m.tx.affiliateCommission.findMany.mockResolvedValue([commission("c1", 2499)]);
+    expect(await prepareAffiliatePayout("aff", m.stripe as any, rates, now)).toBeNull();
+    expect(m.tx.affiliatePayout.create).not.toHaveBeenCalled();
   });
   it("does not release another batch in the same month", async () => {
     m.tx.affiliatePayout.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ ...payout, status: "PAID" });

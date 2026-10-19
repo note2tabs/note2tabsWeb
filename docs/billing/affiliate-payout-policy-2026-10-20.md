@@ -2,7 +2,7 @@
 
 ## Policy
 
-- Minimum released earnings: US$50 equivalent. Smaller balances carry forward without expiry.
+- Minimum released earnings: US$25 equivalent. Smaller balances carry forward without expiry.
 - Only commissions past the existing individual refund/dispute hold are eligible.
 - At most one new batch per affiliate per UTC calendar month. Retries resume the same immutable batch; they do not include newly earned commissions.
 - The cron still checks daily, allowing onboarding or temporary errors to recover. It cannot make a second batch after a successful release that month, including when retrying an older month's batch.
@@ -17,7 +17,7 @@ The three existing affiliates are Swedish Express accounts, not yet onboarded, w
 
 The platform currently settles payments in SEK. A source charge can be denominated in EUR, USD, BRL, etc.; do not submit that original currency/amount as a SEK payout. Allocate each gross commission from the original charge's actual Stripe balance-transaction amount, rounding down in settlement minor units. Payment processing fees are not deducted from the affiliate's agreed gross commission. Refunds reverse only that commission's persisted allocation from the grouped transfer.
 
-Use the ECB daily reference rates solely to decide whether the settlement-currency balance meets US$50, not to perform a currency exchange. Reject stale (>7 days), future, missing or unsupported rates; leave funds pending. Different settlement currencies within one batch fail closed for review rather than being added numerically. All current production funds settle in SEK. Sources:
+Use the ECB daily reference rates solely to decide whether the settlement-currency balance meets US$25, not to perform a currency exchange. Reject stale (>7 days), future, missing or unsupported rates; leave funds pending. Different settlement currencies within one batch fail closed for review rather than being added numerically. All current production funds settle in SEK. Sources:
 - https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml
 - https://docs.stripe.com/connect/separate-charges-and-transfers
 - https://docs.stripe.com/connect/manage-payout-schedule

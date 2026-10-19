@@ -1795,5 +1795,5 @@
   "Thanks for your feedback.": "感谢您的反馈。",
   "Payment not completed": "付款未完成",
   "Retry payment": "重试付款",
-  "Eligible earnings are paid at most once per month after reaching US$50 equivalent. Smaller balances carry forward.": "可结算佣金达到等值50美元后，每个自然月最多支付一次。未达到最低支付金额的余额将结转至以后月份。"
+  "Eligible earnings are paid at most once per month after reaching US$25 equivalent. Smaller balances carry forward.": "可结算佣金达到等值25美元后，每个自然月最多支付一次。未达到最低支付金额的余额将结转至以后月份。"
 }

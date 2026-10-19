@@ -3,12 +3,12 @@ import { minimumPayoutMinor, parseReferenceRates, settledCommissionAmount } from
 const now = new Date("2026-10-20T12:00:00Z");
 const xml = `<Cube time='2026-10-19'><Cube currency='USD' rate='1.1'/><Cube currency='SEK' rate='11'/><Cube currency='JPY' rate='165'/></Cube>`;
 describe("minimum affiliate payout eligibility", () => {
-  it("uses US$50 equivalent and respects zero-decimal currencies", () => {
+  it("uses US$25 equivalent and respects zero-decimal currencies", () => {
     const rates = parseReferenceRates(xml, now);
-    expect(minimumPayoutMinor("usd", rates)).toBe(5000);
-    expect(minimumPayoutMinor("sek", rates)).toBe(50000);
-    expect(minimumPayoutMinor("jpy", rates)).toBe(7500);
-    expect(minimumPayoutMinor("eur", rates)).toBe(4546);
+    expect(minimumPayoutMinor("usd", rates)).toBe(2500);
+    expect(minimumPayoutMinor("sek", rates)).toBe(25000);
+    expect(minimumPayoutMinor("jpy", rates)).toBe(3750);
+    expect(minimumPayoutMinor("eur", rates)).toBe(2273);
   });
   it.each(["", xml.replace("2026-10-19", "2026-10-01"), xml.replace("2026-10-19", "2026-10-21")])("holds money when rates are missing, stale or from the future", value => {
     expect(() => parseReferenceRates(value, now)).toThrow();
