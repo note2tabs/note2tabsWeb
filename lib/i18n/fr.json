@@ -1794,5 +1794,6 @@
   "Back to transcribing": "Revenir à la transcription",
   "Thanks for your feedback.": "Merci pour votre avis.",
   "Payment not completed": "Paiement non effectué",
-  "Retry payment": "Réessayer le paiement"
+  "Retry payment": "Réessayer le paiement",
+  "Eligible earnings are paid at most once per month after reaching US$25 equivalent. Smaller balances carry forward.": "Les commissions éligibles sont versées au maximum une fois par mois, dès que leur montant atteint l’équivalent de 25 USD. Les soldes inférieurs sont reportés aux mois suivants."
 }

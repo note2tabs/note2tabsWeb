@@ -1,3 +1,4 @@
+import { withAffiliatePayoutLock, reverseCommissionTransfer } from "../../../lib/affiliatePayouts";
 import { queuePaidCreditReset } from "../../../lib/creditResetNotices";
 import { checkoutForPaymentIntent, checkoutPaymentDiagnostics, safeCheckoutPaymentDiagnostics } from "../../../lib/checkoutDiagnostics";
 import { setStripeEmailLanguage } from "../../../lib/i18n/stripeEmailLanguage";
@@ -782,18 +783,15 @@ async function reverseAffiliateCommission(chargeId: string) {
       attribution: { select: { referredUserId: true } },
     },
   });
-  for (const commission of commissions) {
-    if (commission.status === "PAID" && commission.stripeTransferId && stripeClient) {
-      await stripeClient.transfers.createReversal(commission.stripeTransferId, {
-        amount: commission.commissionAmount,
-        metadata: { note2tabsCommissionId: commission.id },
-      }, { idempotencyKey: `affiliate-reversal-${commission.id}` });
-    }
-    const reversedAt = new Date();
-    await prisma.affiliateCommission.update({
-      where: { id: commission.id },
-      data: { status: "REVERSED", reversedAt },
-    });
+  for (const original of commissions) {
+    if (!stripeClient) throw new Error("Stripe unavailable for affiliate refund");
+    const stripe = stripeClient;
+    const reversed = await withAffiliatePayoutLock(original.affiliateId, tx =>
+      reverseCommissionTransfer(tx, stripe, original.id)
+    );
+    if (!reversed) continue;
+    const commission = original;
+    const { reversedAt } = reversed;
     await trackAffiliateEvent({
       distinctId: commission.attribution.referredUserId,
       event: "affiliate_payment_refunded",
