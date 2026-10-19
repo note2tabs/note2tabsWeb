@@ -536,7 +536,8 @@ async function importTranscriberToSaved(
         currentEditorId,
         lastResponse.canvas,
         TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES,
-        finalImportedEditorIds
+        finalImportedEditorIds,
+        { manual: true }
       )
     : undefined;
   return {
@@ -626,7 +627,8 @@ async function importTranscriberToGuest(
       response.editorId,
       response.canvas,
       TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES,
-      importedEditorIds
+      importedEditorIds,
+      { manual: true }
     ),
   };
   return response;
@@ -644,7 +646,8 @@ export async function optimizeImportedTrackFingerings(
   editorId: string,
   sourceCanvas?: CanvasSnapshot,
   passes: number = 1,
-  importedEditorIds?: readonly string[]
+  importedEditorIds?: readonly string[],
+  overlapCleanupOptions: { manual?: boolean } = {}
 ): Promise<CanvasSnapshot> {
   const canvasId = editorId.includes(LANE_DELIMITER)
     ? editorId.slice(0, editorId.indexOf(LANE_DELIMITER))
@@ -674,7 +677,7 @@ export async function optimizeImportedTrackFingerings(
       (lane.notes.length === 0 && lane.chords.length === 0)
     ) return;
     if (importedLaneIds?.has(lane.id)) {
-      cleanTinyOverlapsInSnapshot(lane);
+      cleanTinyOverlapsInSnapshot(lane, overlapCleanupOptions);
     }
     const passCount = Math.max(1, Math.floor(passes));
     for (let pass = 0; pass < passCount; pass += 1) {
@@ -683,7 +686,7 @@ export async function optimizeImportedTrackFingerings(
       finalizeOptimizedTrackFingeringInSnapshot(lane);
       mergeRedundantCutRegionsInSnapshot(lane);
     }
-    if (importedLaneIds?.has(lane.id)) cleanTinyOverlapsInSnapshot(lane);
+    if (importedLaneIds?.has(lane.id)) cleanTinyOverlapsInSnapshot(lane, overlapCleanupOptions);
   });
 
   await requestForEditor<{ ok: true; snapshot: EditorOrCanvasSnapshot; canvas?: CanvasSnapshot }>(

@@ -3,9 +3,8 @@ import type { EditorSnapshot } from "../types/gte";
 type Span = { start: number; end: number };
 type StringEvent = Span & { key: string; owner: string; string: number; noteId?: number };
 export function tinyOverlapToleranceFrames(snapshot: EditorSnapshot) {
-  const fps = Number(snapshot.fps) > 0 ? snapshot.fps : 240;
   const quarter = (Number(snapshot.framesPerMessure) || 480) / Math.max(1, Number(snapshot.timeSignature) || 4);
-  return Math.min(fps * 0.015, quarter / 32);
+  return quarter / 32;
 }
 export function isTinyBoundaryOverlap(snapshot: EditorSnapshot, a: Span, b: Span) {
   if (a.start === b.start) return false;
@@ -41,14 +40,21 @@ export function meaningfulConflictInfo(snapshot: EditorSnapshot) {
 }
 
 /** Mutates durations only: no beat snapping, onset shifts, pitch or membership changes. */
-export function cleanTinyOverlapsInSnapshot(snapshot: EditorSnapshot) {
+export function cleanTinyOverlapsInSnapshot(snapshot: EditorSnapshot, options: { manual?: boolean } = {}) {
   if ([snapshot.trackType, snapshot.editorType, snapshot.type].some((type) => type === "drums" || type === "drum")) return 0;
   const ends = new Map<string, Map<number, number>>();
   stringEvents(snapshot).forEach((events, string) => events.forEach((event, index) => {
     // Skip simultaneous onsets; only consider the next genuinely later onset.
     let next = index + 1;
     while (next < events.length && events[next].start === event.start) next += 1;
-    if (next >= events.length || !isTinyBoundaryOverlap(snapshot, event, events[next])) return;
+    if (next >= events.length) return;
+    const later = events[next];
+    const overlap = event.end - later.start;
+    const manualTolerance = Math.min(tinyOverlapToleranceFrames(snapshot) * 8,
+      (event.end - event.start) * 0.5, (later.end - later.start) * 0.5);
+    const eligible = options.manual ? overlap > 0 && overlap <= manualTolerance + 1e-8
+      : isTinyBoundaryOverlap(snapshot, event, later);
+    if (!eligible) return;
     const cuts = ends.get(event.owner) ?? new Map<number, number>();
     cuts.set(string, events[next].start); ends.set(event.owner, cuts);
   }));
@@ -59,9 +65,11 @@ export function cleanTinyOverlapsInSnapshot(snapshot: EditorSnapshot) {
   });
   snapshot.chords.forEach((chord) => {
     const cuts = ends.get(`c:${chord.id}`);
-    // A partial-string collision must not cut off the other ringing chord tones.
-    if (!cuts || !chord.currentTabs.length || !chord.currentTabs.every(([string]) => cuts.has(string))) return;
-    const end = Math.min(...chord.currentTabs.map(([string]) => cuts.get(string)!));
+    // Chord tones share one duration. Even a collision on one member trims the
+    // chord to the earliest eligible boundary; requiring every string skipped
+    // ordinary chord-to-note and partial chord-to-chord transitions.
+    if (!cuts?.size) return;
+    const end = Math.min(...cuts.values());
     const length = end - chord.startTime;
     if (length < 1 || chord.strums?.some((strum) => strum.time >= length)) return;
     chord.length = length; changed += 1;

@@ -58,6 +58,39 @@ function buildCanvas(id: string, bpms: number[], offsetFrames: number = 0): Canv
 }
 
 describe("transcriber import chunking", () => {
+  it.each(["saved", "guest"] as const)("cleans wider chord overlaps on %s transcription import without changing existing tracks", async (mode) => {
+    const source = buildCanvas("canvas-1", [120]);
+    const imported = source.editors[0];
+    imported.notes = [{ id: 2, startTime: 72, length: 120, midiNum: 64, tab: [1, 5], optimals: [] }];
+    imported.chords = [{ id: 1, startTime: 0, length: 96, currentTabs: [[0, 0], [1, 0]],
+      ogTabs: [[0, 0], [1, 0]], originalMidi: [64, 59] }];
+    const existing = { ...structuredClone(imported), id: "existing-track" };
+    source.editors.unshift(existing);
+    const before = structuredClone(source);
+    let persisted: CanvasSnapshot | undefined;
+    vi.stubGlobal("fetch", vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const method = init?.method || "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      if (method === "GET") return new Response(JSON.stringify({ ...source, editors: [existing] }), { status: 200 });
+      if (body.snapshot) {
+        persisted = body.snapshot;
+        return new Response(JSON.stringify({ ok: true, snapshot: persisted }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ ok: true, target: mode === "guest" ? "guest" : "existing",
+        editorId: "canvas-1", importedEditorIds: ["lane-1"], canvas: source, timingMap: body.timingMap ?? source.timingMap }), { status: 200 });
+    }));
+    const payload = { editorId: "canvas-1", segmentGroups: [buildGroup(0)] };
+    const result = mode === "guest" ? await gteApi.importTranscriberToGuest(payload)
+      : await gteApi.importTranscriberToSaved({ ...payload, target: "existing" });
+    expect(result.canvas?.editors.find((lane) => lane.id === "existing-track")).toEqual(existing);
+    const cleaned = persisted!.editors.find((lane) => lane.id === "lane-1")!;
+    // The original partial chord collision exceeded 15ms, but fits the tool's wider margin.
+    expect(cleaned.chords[0].length).toBe(72);
+    expect(cleaned.chords[0].startTime).toBe(0);
+    expect(cleaned.notes[0].startTime).toBe(72);
+    expect(cleaned.notes[0].midiNum).toBe(64);
+    expect(source).toEqual(before);
+  });
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
