@@ -59,6 +59,7 @@ import { optimizeSelection, type OptimizeOptions, type OptimizeSelection } from 
 import GteOptimizeDialog from "./GteOptimizeDialog";
 import GteScaleModeMenu from "./GteScaleModeMenu";
 import { cleanTinyOverlapsInSnapshot, meaningfulConflictInfo } from "../lib/gteOverlapCleanup";
+import { sameHistoryContent } from "../lib/gteHistoryEquality";
 import { snapSelectionToKey } from "../lib/gteSnapSelectionToKey";
 import { TOOLBAR_SELECTION_TOOLS, TOOL_SELECTION_LABELS, toolAllowsSelection, toolSelectionRule, type PendingSelectionTool } from "../lib/gteToolSelection";
 import { optimizeMergedChord } from "../lib/gteOptimizeMergedChord";
@@ -6327,8 +6328,14 @@ export default function GteWorkspace({
   );
 
   useEffect(() => {
+    // An external undo can arrive while an older local edit is queued/in flight.
+    // Follow it with the restored state rather than saving the superseded edit
+    // after the page has already persisted undo. Do not record another undo step.
+    if (useExternalHistory && !sameHistoryContent(snapshotRef.current, snapshot)) {
+      autosaveQueueRef.current?.enqueue({ ...snapshot, id: editorId }, "external-history");
+    }
     snapshotRef.current = snapshot;
-  }, [snapshot]);
+  }, [snapshot, editorId, useExternalHistory]);
 
   useEffect(() => {
     selectedNoteIdsRef.current = selectedNoteIds;

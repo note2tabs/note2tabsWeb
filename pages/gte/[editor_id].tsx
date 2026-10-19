@@ -154,6 +154,9 @@ import {
   offsetTrackToFrame,
 } from "../../lib/gteTrackOffset";
 import { appendBoundedHistory, replaceCanvasLane } from "../../lib/gteEditorPerformance";
+import { useGteCanvasState } from "../../lib/useGteCanvasState";
+import { sameHistoryContent } from "../../lib/gteHistoryEquality";
+import { RevisionedAutosaveQueue } from "../../lib/gteAutosaveQueue";
 import { createPlaybackLookaheadScheduler } from "../../lib/gtePlaybackLookahead";
 import { getPlaybackScrollTarget } from "../../lib/gtePlaybackScroll";
 import {
@@ -1326,7 +1329,7 @@ const moveBarsInCanvas = (
 export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passedTutorial }: Props) {
   useGteRenderInstrumentation("GteEditorPage", editorId);
   const { data: session } = useSession();
-  const [canvas, setCanvas] = useState<CanvasSnapshot | null>(null);
+  const [canvas, setCanvas, canvasRef] = useGteCanvasState();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState("");
@@ -1641,13 +1644,25 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const previousTrackInstrumentSignatureRef = useRef<string | null>(null);
   const canvasUndoRef = useRef<CanvasSnapshot[]>([]);
   const canvasRedoRef = useRef<CanvasSnapshot[]>([]);
-  const canvasRef = useRef<CanvasSnapshot | null>(null);
   const canvasRevisionRef = useRef(0);
   const pendingDrumSavesRef = useRef(new Map<string, EditorSnapshot>());
   const drumSaveTimerRef = useRef<number | null>(null);
   const drumSaveInFlightRef = useRef(false);
   const drumSaveStartedCleanRef = useRef(false);
   const drumSaveRetryDelayRef = useRef(1500);
+  const canvasDraftSaveQueue = useMemo(() => new RevisionedAutosaveQueue<CanvasSnapshot, unknown>({
+    save: (next) => gteApi.applySnapshot(editorId, next),
+    debounceMs: 100,
+    onError: () => setSaveError("We could not sync your latest changes. They remain on this device and will retry automatically."),
+  }), [editorId]);
+  useEffect(() => () => { canvasDraftSaveQueue.dispose(); }, [canvasDraftSaveQueue]);
+  useEffect(() => {
+    // While a restored state is being saved, newer edits supersede it. Never
+    // let a delayed undo save overwrite a later edit or a second undo/redo.
+    if (canvas && canvasDraftSaveQueue.getState().pending) {
+      canvasDraftSaveQueue.enqueue(canvas, "newer-canvas");
+    }
+  }, [canvas, canvasDraftSaveQueue]);
   const trackSectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const [sharedTimelineBaseScale, setSharedTimelineBaseScale] = useState<number | undefined>(undefined);
 
@@ -2044,7 +2059,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
 
   const recordCanvasHistory = useCallback(
     (previous: CanvasSnapshot, next: CanvasSnapshot) => {
-      if (previous === next) return;
+      if (sameHistoryContent(previous, next)) return;
       const nextUndo = appendBoundedHistory(
         canvasUndoRef.current,
         previous,
@@ -2065,9 +2080,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     try {
       const data = await gteApi.getEditor(editorId);
       const normalized = normalizeCanvas(data, editorId);
+      const previous = canvasRef.current;
+      if (previous?.id === normalized.id) recordCanvasHistory(previous, normalized);
+      else resetCanvasHistory();
       setCanvas(normalized);
       hydrateEditorInputSettings(normalized);
-      resetCanvasHistory();
       setActiveLaneId((prev) => resolveActiveLaneId(prev, normalized));
       activeLaneHydratedRef.current = true;
       setLastCommittedAt(normalized.updatedAt || null);
@@ -2116,9 +2133,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               await gteApi.applySnapshot(editorId, normalized);
             }
           }
+          const previous = canvasRef.current;
+          if (previous?.id === normalized.id) recordCanvasHistory(previous, normalized);
+          else resetCanvasHistory();
           setCanvas(normalized);
           hydrateEditorInputSettings(normalized);
-          resetCanvasHistory();
           setActiveLaneId((prev) => resolveActiveLaneId(prev, normalized));
           setLastCommittedAt(normalized.updatedAt || null);
           setHasPendingCommit(false);
@@ -2140,7 +2159,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   }, [canvas, isGuestMode]);
 
   useEffect(() => {
-    canvasRef.current = canvas;
     if (canvas) canvasRevisionRef.current += 1;
   }, [canvas]);
 
@@ -2480,6 +2498,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
 
   const commitCanvasToBackend = useCallback(
     async (options?: { force?: boolean; keepalive?: boolean }) => {
+      if (canvasDraftSaveQueue.getState().pending) {
+        await canvasDraftSaveQueue.flushThroughLatest();
+        if (canvasDraftSaveQueue.getState().pending) return;
+      }
       const currentCanvas = canvasRef.current;
       if (!currentCanvas) return;
       if (!isGuestMode && (pendingDrumSavesRef.current.size || drumSaveInFlightRef.current)) {
@@ -2527,7 +2549,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         setSavingCanvas(false);
       }
     },
-    [cloneCanvas, editorId, flushDrumSaves, hasPendingCommit, isGuestMode]
+    [canvasDraftSaveQueue, cloneCanvas, editorId, flushDrumSaves, hasPendingCommit, isGuestMode]
   );
 
   const syncLatestCanvasBeforeStructuralMutation = useCallback(async () => {
@@ -2547,15 +2569,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
 
   const syncCanvasDraftToBackend = useCallback(
     async (nextCanvas: CanvasSnapshot, options?: { silent?: boolean }) => {
-      try {
-        await gteApi.applySnapshot(editorId, cloneCanvas(nextCanvas));
-      } catch (err: any) {
-        if (!options?.silent) {
-          setSaveError(err?.message || "We could not sync your latest changes. They remain on this device and will retry automatically.");
-        }
-      }
+      canvasDraftSaveQueue.enqueue(cloneCanvas(nextCanvas), "canvas-history");
+      await canvasDraftSaveQueue.flushLatest();
     },
-    [cloneCanvas, editorId]
+    [canvasDraftSaveQueue, cloneCanvas]
   );
 
   useEffect(() => {
@@ -3793,11 +3810,26 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     }
   }, [barSelection, openMobileBarMenuLaneId]);
 
+  const rebaseHistoryLaneSaves = useCallback((previous: CanvasSnapshot, restored: CanvasSnapshot) => {
+    const restoredIds = new Set(restored.editors.map((lane) => lane.id));
+    for (const id of pendingDrumSavesRef.current.keys()) {
+      if (!restoredIds.has(id)) pendingDrumSavesRef.current.delete(id);
+    }
+    for (const lane of restored.editors) {
+      const before = previous.editors.find((candidate) => candidate.id === lane.id);
+      if (pendingDrumSavesRef.current.has(lane.id) ||
+        isDrumLane(lane) && !sameHistoryContent(before, lane)) {
+        queueDrumSave(lane.id, lane);
+      }
+    }
+  }, [queueDrumSave]);
+
   const handleCanvasUndo = useCallback(() => {
     if (!canvas) return;
-    if (deletingLaneId || addingLane || savingCanvas) return;
+    if (deletingLaneId || addingLane) return;
     const undoList = canvasUndoRef.current;
     if (!undoList.length) return;
+    canvasRevisionRef.current += 1;
     let nextCanvasSnapshot: CanvasSnapshot | null = null;
     setCanvas((current) => {
       if (!current) return current;
@@ -3812,6 +3844,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       canvasRedoRef.current = nextRedo;
       setCanvasUndoCount(nextUndo.length);
       setCanvasRedoCount(nextRedo.length);
+      rebaseHistoryLaneSaves(current, previous);
       nextCanvasSnapshot = previous;
       return nextCanvasSnapshot;
     });
@@ -3819,13 +3852,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     if (nextCanvasSnapshot) {
       void syncCanvasDraftToBackend(nextCanvasSnapshot, { silent: true });
     }
-  }, [addingLane, canvas, deletingLaneId, savingCanvas, syncCanvasDraftToBackend]);
+  }, [addingLane, canvas, deletingLaneId, rebaseHistoryLaneSaves, syncCanvasDraftToBackend]);
 
   const handleCanvasRedo = useCallback(() => {
     if (!canvas) return;
-    if (deletingLaneId || addingLane || savingCanvas) return;
+    if (deletingLaneId || addingLane) return;
     const redoList = canvasRedoRef.current;
     if (!redoList.length) return;
+    canvasRevisionRef.current += 1;
     let nextCanvasSnapshot: CanvasSnapshot | null = null;
     setCanvas((current) => {
       if (!current) return current;
@@ -3840,6 +3874,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       canvasRedoRef.current = nextRedo;
       setCanvasUndoCount(nextUndo.length);
       setCanvasRedoCount(nextRedo.length);
+      rebaseHistoryLaneSaves(current, next);
       nextCanvasSnapshot = next;
       return nextCanvasSnapshot;
     });
@@ -3847,7 +3882,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     if (nextCanvasSnapshot) {
       void syncCanvasDraftToBackend(nextCanvasSnapshot, { silent: true });
     }
-  }, [addingLane, canvas, deletingLaneId, savingCanvas, syncCanvasDraftToBackend]);
+  }, [addingLane, canvas, deletingLaneId, rebaseHistoryLaneSaves, syncCanvasDraftToBackend]);
 
   useEffect(() => {
     const handleSaveShortcut = (event: KeyboardEvent) => {
@@ -6050,7 +6085,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     };
   }, [canvasTimelineEnd, globalPlaybackIsPlaying, synchronizeSharedTimelineScroll]);
 
-  const mobileHistoryBusy = Boolean(deletingLaneId || addingLane || savingCanvas);
+  const mobileHistoryBusy = Boolean(deletingLaneId || addingLane);
   const renderMobileHistoryControls = () => (
     <div className="flex items-center overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <button

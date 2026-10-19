@@ -2,6 +2,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RevisionedAutosaveQueue } from "../../lib/gteAutosaveQueue";
 
 describe("RevisionedAutosaveQueue", () => {
+  it("serializes concurrent explicit flushes after an in-flight save", async () => {
+    let release: (() => void) | undefined;
+    let active = 0, maximum = 0;
+    const save = vi.fn(async (payload: { value: number }) => {
+      active++; maximum = Math.max(maximum, active);
+      if (payload.value === 1) await new Promise<void>((resolve) => { release = resolve; });
+      else await Promise.resolve();
+      active--;
+    });
+    const queue = new RevisionedAutosaveQueue({ save, debounceMs: 10000 });
+    queue.enqueue({ value: 1 }); const first = queue.flushLatest();
+    queue.enqueue({ value: 2 }); const second = queue.flushLatest();
+    queue.enqueue({ value: 3 }); const third = queue.flushLatest();
+    release!();
+    await Promise.all([first, second, third]);
+    expect(maximum).toBe(1);
+    expect(save.mock.calls.map(([payload]) => payload.value)).toEqual([1, 3]);
+    expect(queue.getState().pending).toBe(false);
+    queue.dispose();
+  });
   beforeEach(() => {
     vi.useFakeTimers();
   });

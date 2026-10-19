@@ -100,7 +100,9 @@ export class RevisionedAutosaveQueue<TPayload, TResult> {
 
   async flushLatest(options: FlushOptions = {}) {
     this.clearTimer();
-    if (this.inFlight) {
+    // More than one caller may be waiting (rapid undo/redo plus autosave).
+    // Recheck after waking: another waiter may already have started a save.
+    while (this.inFlight) {
       await this.inFlight;
     }
     if (!this.latest || this.latest.revision <= this.savedRevision) return;
