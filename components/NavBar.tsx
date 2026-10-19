@@ -61,6 +61,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+  const [affiliateAccess, setAffiliateAccess] = useState<{ userId: string; available: boolean } | null>(null);
   const [signOutBusy, setSignOutBusy] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -84,6 +85,25 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
     `nav-pill${extraClass ? ` ${extraClass}` : ""}${
       isPrimaryNavSectionActive(stripLocale(router.pathname), section) ? " nav-pill--active" : ""
     }`;
+
+  const userId = session?.user?.id;
+  const hasAffiliateDashboard = sessionStatus === "authenticated" &&
+    Boolean(userId && affiliateAccess?.userId === userId && affiliateAccess.available);
+
+  useEffect(() => {
+    if (!profileMenuOpen || sessionStatus !== "authenticated" || !userId || affiliateAccess?.userId === userId) return;
+    const controller = new AbortController();
+    void fetch("/api/affiliate/status", { signal: controller.signal, cache: "no-store" })
+      .then(async response => {
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!controller.signal.aborted && typeof data.isAffiliate === "boolean") {
+          setAffiliateAccess({ userId, available: data.isAffiliate });
+        }
+      })
+      .catch(() => { /* Retry on the next menu opening if the lookup was unavailable. */ });
+    return () => controller.abort();
+  }, [profileMenuOpen, sessionStatus, userId, affiliateAccess?.userId]);
 
   useEffect(() => {
     setMenuOpen(false);
@@ -318,6 +338,9 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
                         </div>
                       )}
                     </div>
+                  )}
+                  {hasAffiliateDashboard && (
+                    <Link href="/affiliate" role="menuitem" onClick={() => setProfileMenuOpen(false)}>{t("Affiliate dashboard")}</Link>
                   )}
                   <Link href="/settings" role="menuitem" onClick={() => setProfileMenuOpen(false)}>{t(" Settings ")}</Link>
                   <button
