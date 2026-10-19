@@ -31,6 +31,7 @@ import { createPortal } from "react-dom";
 import { ANALYTICS_EVENTS, sendEvent } from "../../lib/analytics";
 import { buildLaneEditorRef, gteApi, normalizeEditorName } from "../../lib/gteApi";
 import { buildTrackMergePlan } from "../../lib/gteTrackMerge";
+import { cleanTinyOverlapsInSnapshot } from "../../lib/gteOverlapCleanup";
 import {
   PLAYBACK_SPEED_OPTIONS,
   SPEED_TRAINER_START_OPTIONS,
@@ -1353,6 +1354,12 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const [timingApplyToAll, setTimingApplyToAll] = useState(false);
   const [timingSaving, setTimingSaving] = useState(false);
   const [activeLaneId, setActiveLaneId] = useState<string | null>(null);
+  const [trackCleanupResult, setTrackCleanupResult] = useState<{ laneId: string; count: number } | null>(null);
+  useEffect(() => {
+    if (!trackCleanupResult) return;
+    const timer = window.setTimeout(() => setTrackCleanupResult(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [trackCleanupResult]);
   const activeLaneHydratedRef = useRef(false);
   const activeLaneSaveTimerRef = useRef<number | null>(null);
   const [mobileEditLaneId, setMobileEditLaneId] = useState<string | null>(null);
@@ -3430,6 +3437,30 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     if (options?.markDirty ?? options?.recordHistory !== false) {
       setHasPendingCommit(true);
     }
+  };
+
+  const handleCleanActiveTrack = () => {
+    const lane = canvasRef.current?.editors.find((candidate) => candidate.id === activeLaneId);
+    if (!lane || isDrumLane(lane) || practiceModeEnabled) return;
+    const next = structuredClone(lane);
+    const count = cleanTinyOverlapsInSnapshot(next, { manual: true });
+    setTrackCleanupResult({ laneId: lane.id!, count });
+    if (!count) return;
+    handleLaneSnapshotChange(lane.id!, next);
+    // This top-level action bypasses the workspace's mutation queue. Persist its
+    // lane snapshot through the existing retrying save queue before committing.
+    queueDrumSave(lane.id!, next);
+  };
+
+  const renderTrackCleanupTool = () => {
+    const lane = canvas?.editors.find((candidate) => candidate.id === activeLaneId);
+    return <>
+      <button type="button" onClick={handleCleanActiveTrack}
+        disabled={!lane || isDrumLane(lane) || practiceModeEnabled || lane.notes.length + lane.chords.length === 0}
+        title={t("Trim tiny same-string overlaps in this track without quantizing or moving notes.")}
+        className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+      >{t("Clean up track")}</button>
+    </>;
   };
 
   const handleLaneInstrumentChange = useCallback(
@@ -6969,6 +7000,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         }
         onMouseDownCapture={handleMainMouseDownCapture}
       >
+      {trackCleanupResult?.laneId === activeLaneId && <div role="status" aria-live="polite" data-gte-cleanup-feedback="true"
+        className="fixed bottom-4 right-4 z-[10050] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-sm text-slate-700 shadow-lg backdrop-blur">
+        {trackCleanupResult.count === 0 ? t("No tiny overlaps to trim.") : t("Trimmed {value1} note/chord endings.", { value1: trackCleanupResult.count })}
+      </div>}
       {PRACTICE_RATING_UI_ENABLED && practiceRatingState === "countdown" && (
         <div
           className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center"
@@ -7132,6 +7167,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 <div className="max-h-[60vh] overflow-y-auto border-t border-slate-200 p-2">
                   <div ref={setEditMenuPortalTarget} />
                   <div className="mt-1 grid gap-1 border-t border-slate-100 pt-1">
+                    {renderTrackCleanupTool()}
                     <button type="button" onClick={() => setFindKeyDialogOpen(true)} className="min-h-11 rounded-xl px-3 text-left text-sm font-medium text-slate-700 active:bg-slate-100">{t("Detect song key")}</button>
                     <button
                       type="button"
@@ -7366,6 +7402,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             <details className="relative shrink-0">
               <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm">{t("Tools")}</summary>
               <div className="absolute left-0 top-[calc(100%+4px)] z-[10000] min-w-60 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
+                {renderTrackCleanupTool()}
                 <button
                   type="button"
                   onClick={() => setFindKeyDialogOpen(true)}
@@ -7780,6 +7817,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         )}
                       </div>
                       <div className="mt-1 border-t border-slate-200 pt-1">
+                        {renderTrackCleanupTool()}
                         <button
                           type="button"
                           onClick={openTimingEditor}

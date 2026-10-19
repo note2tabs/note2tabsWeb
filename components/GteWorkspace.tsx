@@ -5170,6 +5170,11 @@ export default function GteWorkspace({
   const [optimizeDialog, setOptimizeDialog] = useState<{ snapshot: EditorSnapshot; selection: OptimizeSelection } | null>(null);
   const [optimizeDialogError, setOptimizeDialogError] = useState<string | null>(null);
   const [overlapCleanupCount, setOverlapCleanupCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (overlapCleanupCount === null) return;
+    const timer = window.setTimeout(() => setOverlapCleanupCount(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [overlapCleanupCount]);
   const [optimizationSelecting, setOptimizationSelecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [playbackVolume, setPlaybackVolume] = useState(0.6);
@@ -10326,13 +10331,13 @@ export default function GteWorkspace({
 
   const handleCleanTinyOverlaps = () => {
     const next = cloneSnapshot(snapshotRef.current);
-    const count = cleanTinyOverlapsInSnapshot(next);
+    const count = cleanTinyOverlapsInSnapshot(next, { manual: true });
     setOverlapCleanupCount(count);
     if (!count) return;
     deactivateScaleTool(); deactivateMoveTool(); deactivateQuantizeTool();
     setSliceToolActive(false); setTransposeToolActive(false); setCutToolActive(false); setPendingSelectionTool(null);
     setOptimizationSelecting(false); setOptimizeDialog(null);
-    void runMutation(() => gteApi.applySnapshot(editorId, next), { localApply: (draft) => { cleanTinyOverlapsInSnapshot(draft); } });
+    void runMutation(() => gteApi.applySnapshot(editorId, next), { localApply: (draft) => { cleanTinyOverlapsInSnapshot(draft, { manual: true }); } });
   };
 
   const openOptimizeDialog = () => {
@@ -15192,13 +15197,11 @@ export default function GteWorkspace({
               >{t("Optimize fingerings")}</button>
               {renderToolHelp("Optimize fingerings")}
 
-              <button type="button" onClick={handleCleanTinyOverlaps}
+              {!editMenuPortalTarget && <><button type="button" onClick={handleCleanTinyOverlaps}
                 disabled={snapshot.notes.length + snapshot.chords.length === 0}
                 title={t("Trim tiny same-string overlaps in this track without quantizing or moving notes.")}
-                className={textButtonClass}>{t("Clean up tiny overlaps")}</button>
-              {overlapCleanupCount !== null && <p role="status" className="px-2 py-1 text-[10px] leading-4 text-slate-500">
-                {overlapCleanupCount === 0 ? t("No tiny overlaps to trim.") : t("Trimmed {value1} note/chord endings.", { value1: overlapCleanupCount })}
-              </p>}
+                className={textButtonClass}>{t("Clean up track")}</button>
+              </>}
 
               <button
                 type="button"
@@ -16833,6 +16836,10 @@ export default function GteWorkspace({
         </div>
       )}
 
+      {!error && isActive && !editMenuPortalTarget && overlapCleanupCount !== null && <div role="status" aria-live="polite" data-gte-cleanup-feedback="true"
+        className="fixed bottom-4 right-4 z-[10050] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-sm text-slate-700 shadow-lg backdrop-blur">
+        {overlapCleanupCount === 0 ? t("No tiny overlaps to trim.") : t("Trimmed {value1} note/chord endings.", { value1: overlapCleanupCount })}
+      </div>}
       {error && isActive && (
         <div
           className="fixed bottom-4 right-4 z-[10050] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-lg border border-rose-300 bg-rose-50/95 px-3 py-2 text-sm text-rose-800 shadow-lg backdrop-blur"
