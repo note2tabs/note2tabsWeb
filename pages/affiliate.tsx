@@ -1,3 +1,4 @@
+import { AFFILIATE_PAYOUT_NOTICE } from "../lib/affiliatePayoutPolicy";
 import { translatedError } from "../lib/i18n/translate";
 import { useLocale } from "../lib/i18n/react";
 import Head from "next/head";
@@ -87,6 +88,7 @@ export default function AffiliatePage() {
           <button className="affiliatePrimaryButton" onClick={onboard} disabled={busy}>{t(busy ? "Opening Stripe…" : affiliate.detailsSubmitted ? "Finish payout setup" : "Set up Stripe payouts")}<ArrowIcon/></button>
         </section>}
         {error && <div className="affiliateInlineError" role="alert">{translatedError(error, locale)}</div>}
+        <p>{t(AFFILIATE_PAYOUT_NOTICE)}</p>
         <section className="affiliateStats" aria-label={t("Affiliate overview")}>
           <article><span>{t("Total earned")}</span><strong className="affiliateStatMoney">{t(money(totalEarned, currency, locale))}</strong><small>{t("Paid and pending")}</small></article>
           <article><span>{t("Pending")}</span><strong className="affiliateStatMoney">{t(money(affiliate.totals.pending, currency, locale))}</strong><small>{t("Released after the hold period")}</small></article>

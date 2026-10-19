@@ -1,6 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../lib/prisma";
 import { stripeClient } from "../../../lib/stripe";
+import { loadPayoutRates } from "../../../lib/affiliatePayoutPolicy";
+import { prepareAffiliatePayout, sendAffiliatePayout } from "../../../lib/affiliatePayouts";
 
 function authorized(req: NextApiRequest) {
   const secret = process.env.CRON_SECRET;
@@ -13,53 +15,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!authorized(req)) return res.status(401).json({ error: "Unauthorized" });
   if (!stripeClient) return res.status(503).json({ error: "Stripe not configured" });
 
-  const commissions = await prisma.affiliateCommission.findMany({
+  const affiliates = await prisma.affiliate.findMany({
     where: {
-      status: "PENDING",
-      availableAt: { lte: new Date() },
-      stripeChargeId: { not: null },
-      // Deactivation prevents future sales, but does not forfeit commissions
-      // that were already earned and entered the payout queue.
-      affiliate: { status: { in: ["ACTIVE", "DEACTIVATED"] }, stripeAccountId: { not: null } },
-    },
-    include: { affiliate: true },
-    orderBy: { availableAt: "asc" },
-    take: 100,
+      status: { in: ["ACTIVE", "DEACTIVATED"] }, stripeAccountId: { not: null },
+      OR: [
+        { commissions: { some: { status: "PENDING", availableAt: { lte: new Date() }, stripeChargeId: { not: null } } } },
+        { payouts: { some: { status: "PENDING" } } },
+      ],
+    }, select: { id: true, stripeAccountId: true },
   });
-  let paid = 0;
-  let waitingForOnboarding = 0;
-  let failed = 0;
-
-  for (const commission of commissions) {
-    const accountId = commission.affiliate.stripeAccountId;
-    const chargeId = commission.stripeChargeId;
-    if (!accountId || !chargeId) continue;
-    try {
-      const account = await stripeClient.accounts.retrieve(accountId);
-      if ("deleted" in account || !account.payouts_enabled || !account.details_submitted) {
-        waitingForOnboarding += 1;
-        continue;
+  let paid = 0, failed = 0;
+  if (!affiliates.length) return res.status(200).json({ ok: true, scanned: 0, paid, failed });
+  try {
+    const now = new Date();
+    const rates = await loadPayoutRates(now);
+    for (const affiliate of affiliates) {
+      try {
+        const payout = await prepareAffiliatePayout(affiliate.id, stripeClient, rates, now);
+        if (payout && await sendAffiliatePayout(payout.id, affiliate.id, affiliate.stripeAccountId!, stripeClient)) paid += 1;
+      } catch (error) {
+        failed += 1;
+        console.error("affiliate monthly payout failed", { affiliateId: affiliate.id, error });
       }
-      const transfer = await stripeClient.transfers.create({
-        amount: commission.commissionAmount,
-        currency: commission.currency,
-        destination: accountId,
-        source_transaction: chargeId,
-        transfer_group: `affiliate_invoice_${commission.stripeInvoiceId}`,
-        metadata: {
-          note2tabsCommissionId: commission.id,
-          note2tabsAffiliateId: commission.affiliateId,
-        },
-      }, { idempotencyKey: `affiliate-commission-${commission.id}` });
-      await prisma.affiliateCommission.update({
-        where: { id: commission.id },
-        data: { status: "PAID", stripeTransferId: transfer.id, paidAt: new Date() },
-      });
-      paid += 1;
-    } catch (error) {
-      failed += 1;
-      console.error("affiliate commission payout failed", { commissionId: commission.id, error });
     }
+  } catch (error) {
+    console.error("affiliate payout rates unavailable", error);
+    return res.status(503).json({ error: "Payout rates unavailable; commissions remain pending" });
   }
-  return res.status(200).json({ ok: true, scanned: commissions.length, paid, waitingForOnboarding, failed });
+  return res.status(failed ? 502 : 200).json({ ok: failed === 0, scanned: affiliates.length, paid, failed });
 }

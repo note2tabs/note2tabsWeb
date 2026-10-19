@@ -1,3 +1,4 @@
+import { AFFILIATE_PAYOUT_NOTICE } from "../lib/affiliatePayoutPolicy";
 import { useLocale } from "../lib/i18n/react";
 import Link from "../components/LocaleLink";
 import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../components/SeoHead";
@@ -132,7 +133,7 @@ export default function AffiliateProgramPage() {
               {translatedFaq.map((item) => (
                 <details key={item.question}>
                   <summary>{t(item.question)}<span aria-hidden="true">{t("+")}</span></summary>
-                  <p>{t(item.answer)}</p>
+                  <p>{t(item.answer)}{item.question === "How and when do I get paid?" && <> {t(AFFILIATE_PAYOUT_NOTICE)}</>}</p>
                 </details>
               ))}
             </div>

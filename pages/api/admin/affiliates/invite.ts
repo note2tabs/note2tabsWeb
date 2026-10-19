@@ -1,3 +1,4 @@
+import { AFFILIATE_BANK_PAYOUT_DAY } from "../../../../lib/affiliatePayoutPolicy";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { DEFAULT_AFFILIATE_TERMS, normalizeAffiliateCode, parseAffiliateTerms } from "../../../../lib/affiliate";
@@ -37,6 +38,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const account = await stripe.accounts.create({
       type: "express",
+      settings: { payouts: { schedule: { interval: "monthly", monthly_anchor: AFFILIATE_BANK_PAYOUT_DAY } } },
       email: user.email,
       capabilities: { transfers: { requested: true } },
       metadata: {

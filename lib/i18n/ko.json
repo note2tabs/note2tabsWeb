@@ -1794,5 +1794,6 @@
   "Back to transcribing": "악보 변환으로 돌아가기",
   "Thanks for your feedback.": "의견을 보내 주셔서 감사합니다.",
   "Payment not completed": "결제가 완료되지 않았습니다",
-  "Retry payment": "결제 다시 시도"
+  "Retry payment": "결제 다시 시도",
+  "Eligible earnings are paid at most once per month after reaching US$50 equivalent. Smaller balances carry forward.": "지급 가능한 수익이 미화 50달러 상당액에 도달하면 월 최대 1회 지급됩니다. 기준액 미만의 잔액은 다음 달로 이월됩니다."
 }

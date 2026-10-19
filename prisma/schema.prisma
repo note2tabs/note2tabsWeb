@@ -101,6 +101,7 @@ model Affiliate {
   owner                  User     @relation("AffiliateOwner", fields: [userId], references: [id], onDelete: Cascade)
   attributions          AffiliateAttribution[]
   commissions           AffiliateCommission[]
+  payouts               AffiliatePayout[]
 
   @@index([status])
 }
@@ -127,6 +128,8 @@ model AffiliateCommission {
   stripeInvoiceId  String   @unique
   stripeChargeId   String?
   stripeTransferId String?  @unique
+  payoutId         String?
+  payoutAmount     Int?
   paymentNumber    Int
   grossAmount      Int
   commissionAmount Int
@@ -137,6 +140,7 @@ model AffiliateCommission {
   reversedAt       DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+  payout           AffiliatePayout?     @relation(fields: [payoutId], references: [id], onDelete: Restrict)
   affiliate        Affiliate            @relation(fields: [affiliateId], references: [id], onDelete: Restrict)
   attribution      AffiliateAttribution @relation(fields: [attributionId], references: [id], onDelete: Restrict)
 
@@ -144,6 +148,7 @@ model AffiliateCommission {
   @@index([status, availableAt])
   @@index([affiliateId, createdAt])
   @@index([stripeChargeId])
+  @@index([payoutId])
 }
 
 /// Product feedback is first-party operational data, not analytics. It keeps
@@ -769,4 +774,20 @@ model CreditResetNotice {
   createdAt   DateTime @default(now()) @db.Timestamptz(6)
   sentAt      DateTime? @db.Timestamptz(6)
   user        User @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+model AffiliatePayout {
+  id               String @id
+  affiliateId      String
+  month            String
+  amount           Int
+  currency         String
+  status           String @default("PENDING")
+  stripeTransferId String? @unique
+  createdAt        DateTime @default(now())
+  transferredAt    DateTime?
+  affiliate        Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Restrict)
+  commissions      AffiliateCommission[]
+
+  @@unique([affiliateId, month])
 }

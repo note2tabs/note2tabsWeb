@@ -1794,5 +1794,6 @@
   "Back to transcribing": "採譜に戻る",
   "Thanks for your feedback.": "ご意見ありがとうございます。",
   "Payment not completed": "お支払いが完了していません",
-  "Retry payment": "支払いを再試行"
+  "Retry payment": "支払いを再試行",
+  "Eligible earnings are paid at most once per month after reaching US$50 equivalent. Smaller balances carry forward.": "支払可能な報酬が50米ドル相当に達すると、月1回を上限に支払われます。最低支払額に満たない残高は翌月以降に繰り越されます。"
 }
