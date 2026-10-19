@@ -1795,5 +1795,18 @@
   "Thanks for your feedback.": "感谢您的反馈。",
   "Payment not completed": "付款未完成",
   "Retry payment": "重试付款",
-  "Eligible earnings are paid at most once per month after reaching US$25 equivalent. Smaller balances carry forward.": "可结算佣金达到等值25美元后，每个自然月最多支付一次。未达到最低支付金额的余额将结转至以后月份。"
+  "Eligible earnings are paid at most once per month after reaching US$25 equivalent. Smaller balances carry forward.": "可结算佣金达到等值25美元后，每个自然月最多支付一次。未达到最低支付金额的余额将结转至以后月份。",
+  "Apply to become an affiliate": "申请成为推广合作伙伴",
+  "Applications are reviewed individually.": "我们会逐一审核申请。",
+  "Apply using the form below. We review each application and invite partners whose audiences would benefit from Note2Tabs.": "请填写下方表单。我们会审核每份申请，邀请其受众可能从Note2Tabs中受益的合作伙伴。",
+  "Audience size": "受众规模",
+  "Website or social profile": "网站或社交媒体主页",
+  "How would you share Note2Tabs?": "你打算如何推广Note2Tabs？",
+  "Enter a valid website or social profile URL.": "请输入有效的网站或社交媒体主页链接。",
+  "Please complete all required fields.": "请填写所有必填项。",
+  "Please wait a moment and try again.": "请稍等片刻后重试。",
+  "One or more answers are too long.": "一项或多项回答超出了字数限制。",
+  "Please complete the required fields.": "请填写必填项。",
+  "The application could not be submitted.": "无法提交申请。",
+  "Too many attempts. Please try again later.": "尝试次数过多，请稍后重试。"
 }

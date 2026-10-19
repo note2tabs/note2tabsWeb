@@ -1795,5 +1795,18 @@
   "Thanks for your feedback.": "Dziękujemy za opinię.",
   "Payment not completed": "Płatność nie została ukończona",
   "Retry payment": "Ponów płatność",
-  "Eligible earnings are paid at most once per month after reaching US$25 equivalent. Smaller balances carry forward.": "Prowizje kwalifikujące się do wypłaty są wypłacane najwyżej raz w miesiącu po osiągnięciu równowartości 25 USD. Niższe salda przechodzą na kolejne miesiące."
+  "Eligible earnings are paid at most once per month after reaching US$25 equivalent. Smaller balances carry forward.": "Prowizje kwalifikujące się do wypłaty są wypłacane najwyżej raz w miesiącu po osiągnięciu równowartości 25 USD. Niższe salda przechodzą na kolejne miesiące.",
+  "Apply to become an affiliate": "Zgłoś się do programu partnerskiego",
+  "Applications are reviewed individually.": "Każde zgłoszenie rozpatrujemy indywidualnie.",
+  "Apply using the form below. We review each application and invite partners whose audiences would benefit from Note2Tabs.": "Wypełnij poniższy formularz. Rozpatrujemy każde zgłoszenie i zapraszamy partnerów, których odbiorcom może przydać się Note2Tabs.",
+  "Audience size": "Wielkość grupy odbiorców",
+  "Website or social profile": "Strona internetowa lub profil społecznościowy",
+  "How would you share Note2Tabs?": "Jak zamierzasz promować Note2Tabs?",
+  "Enter a valid website or social profile URL.": "Podaj poprawny adres strony internetowej lub profilu społecznościowego.",
+  "Please complete all required fields.": "Wypełnij wszystkie wymagane pola.",
+  "Please wait a moment and try again.": "Poczekaj chwilę i spróbuj ponownie.",
+  "One or more answers are too long.": "Co najmniej jedna odpowiedź jest zbyt długa.",
+  "Please complete the required fields.": "Wypełnij wymagane pola.",
+  "The application could not be submitted.": "Nie udało się wysłać zgłoszenia.",
+  "Too many attempts. Please try again later.": "Zbyt wiele prób. Spróbuj ponownie później."
 }

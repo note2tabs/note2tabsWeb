@@ -1,9 +1,10 @@
+import { sendEvent } from "../lib/analytics";
 import { AFFILIATE_PAYOUT_NOTICE } from "../lib/affiliatePayoutPolicy";
 import { translatedError } from "../lib/i18n/translate";
 import { useLocale } from "../lib/i18n/react";
 import Head from "next/head";
 import { signIn, useSession } from "next-auth/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Commission = { id: string; amount: number; currency: string; status: string; availableAt: string; createdAt: string };
 type AffiliateData = {
@@ -22,21 +23,36 @@ const ArrowIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 
 
 export default function AffiliatePage() {
   const { t, locale } = useLocale();
-  const { status } = useSession();
-  const [affiliate, setAffiliate] = useState<AffiliateData | null>(null);
+  const { status, data: session } = useSession();
+  const userId = session?.user?.id;
+  const [loaded, setLoaded] = useState<{ userId: string; data: AffiliateData } | null>(null);
+  const affiliate = status === "authenticated" && userId && loaded?.userId === userId ? loaded.data : null;
+  const trackedUser = useRef<string | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<"link" | "code" | null>(null);
   const [copyError, setCopyError] = useState(false);
 
   useEffect(() => {
-    if (status !== "authenticated") return;
-    void fetch("/api/affiliate/me").then(async (response) => {
-      const body = await response.json();
+    if (status !== "authenticated" || !userId) return;
+    const controller = new AbortController();
+    setError("");
+    void fetch("/api/affiliate/me", { signal: controller.signal, cache: "no-store" }).then(async response => {
+      const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || "Could not load your affiliate account");
-      setAffiliate(body.affiliate);
-    }).catch((reason) => setError(reason instanceof Error ? reason.message : "Could not load your affiliate account"));
-  }, [status]);
+      if (!controller.signal.aborted) setLoaded({ userId, data: body.affiliate });
+    }).catch(reason => {
+      if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "Could not load your affiliate account");
+    });
+    return () => controller.abort();
+  }, [status, userId]);
+
+  useEffect(() => {
+    if (status !== "authenticated") { trackedUser.current = null; return; }
+    if (!affiliate || !userId || trackedUser.current === userId) return;
+    trackedUser.current = userId;
+    try { sendEvent("affiliate_dashboard_viewed", { surface: "affiliate_dashboard", access: "authorized" }); } catch { /* Optional analytics cannot break the dashboard. */ }
+  }, [affiliate, status, userId]);
 
   const link = affiliate ? `https://www.note2tabs.com/?ref=${affiliate.code}` : "";
   const currency = affiliate?.commissions[0]?.currency || "usd";
@@ -55,7 +71,7 @@ export default function AffiliatePage() {
     setBusy(true); setError("");
     try {
       const response = await fetch("/api/affiliate/onboarding", { method: "POST" });
-      const body = await response.json();
+      const body = await response.json().catch(() => ({}));
       if (!response.ok || !body.url) throw new Error(body.error || "Could not open Stripe payout setup");
       window.location.href = body.url;
     } catch (reason) {

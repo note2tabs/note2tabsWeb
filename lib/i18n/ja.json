@@ -1795,5 +1795,18 @@
   "Thanks for your feedback.": "ご意見ありがとうございます。",
   "Payment not completed": "お支払いが完了していません",
   "Retry payment": "支払いを再試行",
-  "Eligible earnings are paid at most once per month after reaching US$25 equivalent. Smaller balances carry forward.": "支払可能な報酬が25米ドル相当に達すると、月1回を上限に支払われます。最低支払額に満たない残高は翌月以降に繰り越されます。"
+  "Eligible earnings are paid at most once per month after reaching US$25 equivalent. Smaller balances carry forward.": "支払可能な報酬が25米ドル相当に達すると、月1回を上限に支払われます。最低支払額に満たない残高は翌月以降に繰り越されます。",
+  "Apply to become an affiliate": "アフィリエイトに応募する",
+  "Applications are reviewed individually.": "応募内容は個別に審査します。",
+  "Apply using the form below. We review each application and invite partners whose audiences would benefit from Note2Tabs.": "下のフォームからご応募ください。応募内容を審査し、Note2Tabsを役立てていただける視聴者や読者をお持ちの方をご招待します。",
+  "Audience size": "視聴者・読者の規模",
+  "Website or social profile": "ウェブサイト・SNSプロフィール",
+  "How would you share Note2Tabs?": "Note2Tabsをどのように紹介しますか？",
+  "Enter a valid website or social profile URL.": "有効なウェブサイトまたはSNSプロフィールのURLを入力してください。",
+  "Please complete all required fields.": "必須項目をすべて入力してください。",
+  "Please wait a moment and try again.": "少し待ってから、もう一度お試しください。",
+  "One or more answers are too long.": "回答が長すぎる項目があります。",
+  "Please complete the required fields.": "必須項目を入力してください。",
+  "The application could not be submitted.": "応募内容を送信できませんでした。",
+  "Too many attempts. Please try again later.": "試行回数が多すぎます。しばらくしてからもう一度お試しください。"
 }

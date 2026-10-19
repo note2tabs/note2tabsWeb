@@ -1795,5 +1795,18 @@
   "Thanks for your feedback.": "Gracias por tu opinión.",
   "Payment not completed": "Pago no completado",
   "Retry payment": "Reintentar el pago",
-  "Eligible earnings are paid at most once per month after reaching US$25 equivalent. Smaller balances carry forward.": "Las comisiones disponibles se pagan como máximo una vez al mes, al alcanzar el equivalente a 25 USD. Los saldos inferiores se acumulan para los meses siguientes."
+  "Eligible earnings are paid at most once per month after reaching US$25 equivalent. Smaller balances carry forward.": "Las comisiones disponibles se pagan como máximo una vez al mes, al alcanzar el equivalente a 25 USD. Los saldos inferiores se acumulan para los meses siguientes.",
+  "Apply to become an affiliate": "Solicita unirte al programa de afiliados",
+  "Applications are reviewed individually.": "Revisamos cada solicitud de forma individual.",
+  "Apply using the form below. We review each application and invite partners whose audiences would benefit from Note2Tabs.": "Completa el formulario de abajo. Revisamos cada solicitud e invitamos a los colaboradores cuyo público pueda beneficiarse de Note2Tabs.",
+  "Audience size": "Tamaño de tu audiencia",
+  "Website or social profile": "Sitio web o perfil en redes sociales",
+  "How would you share Note2Tabs?": "¿Cómo darías a conocer Note2Tabs?",
+  "Enter a valid website or social profile URL.": "Introduce una URL válida de un sitio web o perfil en redes sociales.",
+  "Please complete all required fields.": "Completa todos los campos obligatorios.",
+  "Please wait a moment and try again.": "Espera un momento e inténtalo de nuevo.",
+  "One or more answers are too long.": "Una o más respuestas son demasiado largas.",
+  "Please complete the required fields.": "Completa los campos obligatorios.",
+  "The application could not be submitted.": "No se pudo enviar la solicitud.",
+  "Too many attempts. Please try again later.": "Demasiados intentos. Inténtalo de nuevo más tarde."
 }
