@@ -799,6 +799,8 @@ model CreditUpgrade {
   subscriptionId String
   oldPeriodStart Int
   oldInvoiceId String
+  attempt Int @default(0)
+  lastVoidedInvoiceId String?
   priceId String
   currency String
   credits Int

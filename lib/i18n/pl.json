@@ -1843,6 +1843,6 @@
   "Then {amount}/month": "Następnie {amount}/mies.",
   "Review before payment": "Sprawdź przed zapłatą",
   "Upgrade to Pro — {price}": "Przejdź na Pro — {price}",
-  "{percent}% off · month 1": "−{percent}% · 1. miesiąc",
-  "{credits} credits exchanged · −{amount} (month 1)": "Wymiana {credits} kredytów · −{amount} (1. mies.)"
+  "{credits} credits exchanged · {amount} off your first month": "Wymiana {credits} kredytów · {amount} zniżki w pierwszym miesiącu",
+  "{percent}% off": "−{percent}%"
 }

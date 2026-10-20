@@ -1819,6 +1819,6 @@
   "Then {amount}/month": "Then {amount}/month",
   "Review before payment": "Review before payment",
   "Upgrade to Pro — {price}": "Upgrade to Pro — {price}",
-  "{percent}% off · month 1": "{percent}% off · month 1",
-  "{credits} credits exchanged · −{amount} (month 1)": "{credits} credits exchanged · −{amount} (month 1)"
+  "{credits} credits exchanged · {amount} off your first month": "{credits} credits exchanged · {amount} off your first month",
+  "{percent}% off": "{percent}% off"
 }

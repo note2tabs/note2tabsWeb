@@ -59,7 +59,21 @@ export async function payCreditUpgrade(quote: Awaited<ReturnType<typeof prepareC
   if (current.pending_update || current.items.data[0]?.price.id === saved.priceId) {
     return upgradeResult(current);
   }
+  if (current.status !== "active" || current.cancel_at_period_end || current.schedule) throw new CreditUpgradeError("Your subscription changed. Review billing settings before upgrading.");
   if (current.current_period_start !== saved.oldPeriodStart) throw new CreditUpgradeError("Your subscription renewed. Review the upgrade again.");
+  let attempt = saved.attempt;
+  const latest = typeof current.latest_invoice === "string" ? await stripeClient.invoices.retrieve(current.latest_invoice) : current.latest_invoice;
+  if (latest?.status === "void") {
+    if (latest.discount?.coupon?.metadata?.note2tabsCreditUpgrade !== saved.id) throw new CreditUpgradeError("Your last invoice changed. Review billing settings before upgrading.");
+    // Expired pending updates have void invoices. Reusing the old Stripe key
+    // would return an unpayable invoice; one new key per void invoice is safe
+    // even when several tabs retry concurrently.
+    attempt = await prisma.$transaction(async tx => {
+      const [record] = await tx.$queryRaw<Array<{ attempt: number; lastVoidedInvoiceId: string | null }>>`SELECT attempt,"lastVoidedInvoiceId" FROM "CreditUpgrade" WHERE id=${saved.id} FOR UPDATE`;
+      if (record.lastVoidedInvoiceId === latest.id) return record.attempt;
+      return (await tx.creditUpgrade.update({ where: { id: saved.id }, data: { attempt: { increment: 1 }, lastVoidedInvoiceId: latest.id } })).attempt;
+    });
+  }
   let coupon: string | undefined;
   if (saved.discount > 0) {
     coupon = (await stripeClient.coupons.create({
@@ -72,7 +86,7 @@ export async function payCreditUpgrade(quote: Awaited<ReturnType<typeof prepareC
     billing_cycle_anchor: "now", proration_behavior: "none", payment_behavior: "pending_if_incomplete",
     discounts: coupon ? [{ coupon }] : [],
     expand: ["latest_invoice"],
-  }, { idempotencyKey: `credit-upgrade-payment-${saved.id}` });
+  }, { idempotencyKey: `credit-upgrade-payment-${saved.id}-${attempt}` });
   return upgradeResult(updated);
 }
 
@@ -83,21 +97,29 @@ async function upgradeResult(sub: Stripe.Subscription) {
     if (!invoice?.hosted_invoice_url) throw new CreditUpgradeError("Payment requires attention. Open billing settings to complete it.");
     return { changed: false, pending: true, url: invoice.hosted_invoice_url };
   }
-  if (!await applyCreditUpgrade(sub, invoice)) throw new CreditUpgradeError("Payment received. Your upgrade is still being confirmed; refresh billing settings shortly.");
+  if (await applyCreditUpgrade(sub, invoice) !== "applied") throw new CreditUpgradeError("Payment received. Your upgrade is still being confirmed; refresh billing settings shortly.");
   return { changed: true, effective: "immediate", plan: "pro", billingInterval: "monthly" };
 }
 
+/** Delayed Premium events must not overwrite a completed Pro exchange. */
+export async function currentCreditUpgradeSubscription(subscription: Stripe.Subscription) {
+  if (!stripeClient || (!creditUpgradeEnabled() && process.env.CREDIT_UPGRADE_WEBHOOKS_ENABLED !== "true")) return subscription;
+  const exchange = await prisma.creditUpgrade.findFirst({ where: { subscriptionId: subscription.id }, select: { id: true } });
+  return exchange ? stripeClient.subscriptions.retrieve(subscription.id) : subscription;
+}
+
 /** Shared by the API and signed webhooks. Locks the same row used by backend debits. */
-export async function applyCreditUpgrade(sub: Stripe.Subscription, paidInvoice?: Stripe.Invoice | null) {
-  if (!stripeClient || (!creditUpgradeEnabled() && process.env.CREDIT_UPGRADE_WEBHOOKS_ENABLED !== "true")) return false;
+export async function applyCreditUpgrade(sub: Stripe.Subscription, paidInvoice?: Stripe.Invoice | null): Promise<"unrelated" | "pending" | "applied"> {
+  if (!stripeClient || (!creditUpgradeEnabled() && process.env.CREDIT_UPGRADE_WEBHOOKS_ENABLED !== "true")) return "unrelated";
   const latestId = typeof sub.latest_invoice === "string" ? sub.latest_invoice : sub.latest_invoice?.id;
   const upgrade = await prisma.creditUpgrade.findFirst({ where: { subscriptionId: sub.id }, orderBy: { createdAt: "desc" } });
-  if (!upgrade || (upgrade.appliedAt && upgrade.invoiceId !== latestId)) return false;
-  if (upgrade.appliedAt) return true;
+  if (!upgrade || (upgrade.appliedAt && upgrade.invoiceId !== latestId)) return "unrelated";
+  if (upgrade.appliedAt) return "applied";
   // Pending updates retain Premium; do not interpret the old paid invoice as the upgrade.
-  if (sub.status !== "active" || sub.pending_update || sub.items.data[0]?.price.id !== upgrade.priceId || latestId === upgrade.oldInvoiceId) return false;
+  if (sub.status !== "active" || sub.pending_update || sub.items.data[0]?.price.id !== upgrade.priceId || latestId === upgrade.oldInvoiceId) return "pending";
   const invoice = paidInvoice || (typeof sub.latest_invoice === "string" ? await stripeClient.invoices.retrieve(sub.latest_invoice) : sub.latest_invoice);
-  if (!invoice || invoice.id !== latestId || invoice.status !== "paid" || invoice.billing_reason !== "subscription_update") return false;
+  if (!invoice || invoice.id !== latestId || invoice.status !== "paid") return "pending";
+  if (invoice.billing_reason !== "subscription_update") return "unrelated";
   if (upgrade.discount > 0 && invoice.discount?.coupon?.metadata?.note2tabsCreditUpgrade !== upgrade.id) throw new CreditUpgradeError("Upgrade invoice does not contain the confirmed credit exchange.");
   const applied = await prisma.$transaction(async tx => {
     const [locked] = await tx.$queryRaw<Array<{ appliedAt: Date | null }>>`SELECT "appliedAt" FROM "CreditUpgrade" WHERE id=${upgrade.id} FOR UPDATE`;
@@ -118,5 +140,5 @@ export async function applyCreditUpgrade(sub: Stripe.Subscription, paidInvoice?:
       await analytics?.flush();
     } catch { /* Billing and credit fulfillment must not depend on analytics. */ }
   }
-  return true;
+  return "applied";
 }

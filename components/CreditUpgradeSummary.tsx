@@ -9,6 +9,6 @@ export default function CreditUpgradeSummary({ quote }: { quote: CreditUpgradeQu
   const { t, locale } = useLocale();
   return <div className="credit-upgrade-summary">
     <p>{t("Then {amount}/month", { amount: upgradeMoney(quote, quote.regularAmount, locale) })}</p>
-    <p>{t("{credits} credits exchanged · −{amount} (month 1)", { credits: quote.credits, amount: upgradeMoney(quote, quote.discount, locale) })}</p>
+    <p>{t("{credits} credits exchanged · {amount} off your first month", { credits: quote.credits, amount: upgradeMoney(quote, quote.discount, locale) })}</p>
   </div>;
 }

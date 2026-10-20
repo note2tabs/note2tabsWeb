@@ -1,4 +1,4 @@
-import { applyCreditUpgrade } from "../../../lib/creditUpgrade";
+import { applyCreditUpgrade, currentCreditUpgradeSubscription } from "../../../lib/creditUpgrade";
 import { withAffiliatePayoutLock, reverseCommissionTransfer } from "../../../lib/affiliatePayouts";
 import { queuePaidCreditReset } from "../../../lib/creditResetNotices";
 import { checkoutForPaymentIntent, checkoutPaymentDiagnostics, safeCheckoutPaymentDiagnostics } from "../../../lib/checkoutDiagnostics";
@@ -1130,12 +1130,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (event.type === "customer.subscription.updated") {
-      const subscription = event.data.object as Stripe.Subscription;
+      const subscription = await currentCreditUpgradeSubscription(event.data.object as Stripe.Subscription);
       const plan = stripeSubscriptionPlan(subscription);
       if (!plan) {
         return res.status(200).json({ received: true, ignored: "unrelated_subscription" });
       }
-      if (plan === "PRO" && await applyCreditUpgrade(subscription)) return res.status(200).json({ received: true, creditUpgrade: true });
+      const creditUpgrade = plan === "PRO" && await applyCreditUpgrade(subscription) !== "unrelated";
       const email = await resolveEmailFromCustomerRef(subscription.customer);
       const userId = await resolveUserIdFromSubscription(subscription, email);
       const previous = event.data.previous_attributes as
@@ -1161,7 +1161,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           event.created
         );
       }
-      if (ENTITLED_SUBSCRIPTION_STATUSES.has(subscription.status)) {
+      if (ENTITLED_SUBSCRIPTION_STATUSES.has(subscription.status) && !creditUpgrade) {
         if (userId) await setPremiumForIdentifier({ id: userId }, plan);
         else if (email) await setPremiumForIdentifier({ email }, plan);
       }
@@ -1218,7 +1218,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json({ received: true, ignored: "unrelated_invoice" });
       }
       const { subscription: premiumSubscription, plan, config: paidConfig } = paidSubscription;
-      const creditUpgrade = plan === "PRO" && invoice.billing_reason === "subscription_update" && await applyCreditUpgrade(premiumSubscription, invoice);
+      const creditUpgrade = plan === "PRO" && invoice.billing_reason === "subscription_update" && await applyCreditUpgrade(premiumSubscription, invoice) !== "unrelated";
       if (!ENTITLED_SUBSCRIPTION_STATUSES.has(premiumSubscription.status)) {
         return res.status(200).json({ received: true, ignored: "subscription_not_entitled" });
       }

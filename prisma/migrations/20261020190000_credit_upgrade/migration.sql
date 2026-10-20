@@ -1,6 +1,7 @@
 CREATE TABLE "CreditUpgrade" (
  "id" TEXT PRIMARY KEY, "userId" TEXT NOT NULL, "subscriptionId" TEXT NOT NULL,
  "oldPeriodStart" INTEGER NOT NULL, "oldInvoiceId" TEXT NOT NULL, "priceId" TEXT NOT NULL, "currency" TEXT NOT NULL,
+ "attempt" INTEGER NOT NULL DEFAULT 0 CHECK ("attempt" >= 0), "lastVoidedInvoiceId" TEXT,
  "credits" INTEGER NOT NULL CHECK ("credits" >= 0), "discount" INTEGER NOT NULL CHECK ("discount" >= 0),
  "regularAmount" INTEGER NOT NULL CHECK ("regularAmount" >= "discount"),
  "invoiceId" TEXT, "appliedAt" TIMESTAMP(3), "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP

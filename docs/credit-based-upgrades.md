@@ -42,3 +42,13 @@ The Pro card on pricing now loads a read-only server quote and displays the firs
 Development-only visual review: `/dev/pro-upgrade?view=pricing`, or `?view=popup&reason=file_size_limit`, `youtube_duration_limit`, `credits_low`. These render the actual pricing/transcriber and dialog components with a synthetic Premium account. Payments are blocked; the route returns 404 outside development. The sample uses 200 remaining credits for file/YouTube limits and 3 for the credit shortfall.
 
 Entry-point checks: 166 focused tests and TypeScript passed; browser verified all three limit states, pricing review, and preview payment blocking. Nothing merged or enabled on production.
+
+## Final merge-readiness verification
+
+- 221 focused tests passed (one opt-in real Stripe test skipped in the normal run). Separate opt-in real Stripe + local PostgreSQL run passed all 17 tests.
+- Actual API and signed webhook tested together against Stripe TEST mode: decline retains Premium; repeated confirmation reuses the invoice; voided/expired invoice can be retried; payment grants Pro once; delayed Premium events cannot revert Pro; next paid month charges $14.99 and grants credits once.
+- Fixed early-event fulfillment and stale-event ordering; expired invoices receive an atomically incremented attempt key.
+- TypeScript, production build, and final migration SQL check passed.
+- Full suite has the same 33 failing tests as clean main, with no new failures (baseline logs compared by failing test name).
+- Browser verified final percentage badge and first-month savings wording; Arabic translated popup checked. Prior mobile checks confirmed the popup fits at 375px.
+- Migration has not been applied in production. Flags remain off; no merge or production billing changes.

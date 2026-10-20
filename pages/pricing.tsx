@@ -308,7 +308,7 @@ export default function PricingPage() {
           const current = currentPlan === plan.id && paid;
           return <article key={plan.id} className={`pricing-plan pricing-plan--${plan.id.toLowerCase()}`}>
             {plan.id === "PREMIUM" && !upgrade.quote && <div className="pricing-plan__badge">{t("Recommended")}</div>}
-            {creditQuote && creditQuote.discount > 0 && <div className="pricing-plan__badge">{t("{percent}% off · month 1", { percent: upgradeDiscountPercent(creditQuote) })}</div>}
+            {creditQuote && creditQuote.discount > 0 && <div className="pricing-plan__badge">{t("{percent}% off", { percent: upgradeDiscountPercent(creditQuote) })}</div>}
             <div className="pricing-plan__top"><h2>{t(plan.name)}</h2>
               <p>{plan.id === "FREE" ? t("Try short recordings.") : plan.id === "PREMIUM" ? t("For full songs.") : t("For frequent transcription.")}</p>
               <div className="pricing-plan__price"><strong>{creditQuote ? upgradeMoney(creditQuote, creditQuote.dueNow, locale) : paid ? formatLocalizedPrice(paidId, billingInterval, displayCurrency) : formatLocalizedAmount(0, displayCurrency)}</strong><span>{creditQuote ? t("today") : <>/ {paid && billingInterval === "yearly" ? t("year") : t("month")}</>}</span></div>

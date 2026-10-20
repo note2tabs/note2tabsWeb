@@ -1843,6 +1843,6 @@
   "Then {amount}/month": "次回から{amount}/月",
   "Review before payment": "支払い前に確認",
   "Upgrade to Pro — {price}": "Proにアップグレード — {price}",
-  "{percent}% off · month 1": "初月{percent}%オフ",
-  "{credits} credits exchanged · −{amount} (month 1)": "{credits}クレジットを換算 · 初月{amount}割引"
+  "{credits} credits exchanged · {amount} off your first month": "{credits}クレジットを換算 · 初月{amount}割引",
+  "{percent}% off": "{percent}%オフ"
 }

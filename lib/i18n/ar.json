@@ -1843,6 +1843,6 @@
   "Then {amount}/month": "ثم {amount} شهريًا",
   "Review before payment": "المراجعة قبل الدفع",
   "Upgrade to Pro — {price}": "الترقية إلى Pro — {price}",
-  "{percent}% off · month 1": "خصم {percent}٪ · الشهر الأول",
-  "{credits} credits exchanged · −{amount} (month 1)": "استبدال {credits} رصيدًا · خصم {amount} (الشهر الأول)"
+  "{credits} credits exchanged · {amount} off your first month": "استبدال {credits} رصيدًا · خصم {amount} على شهرك الأول",
+  "{percent}% off": "خصم {percent}٪"
 }

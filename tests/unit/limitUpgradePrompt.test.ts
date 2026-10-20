@@ -192,7 +192,7 @@ it("shows the subscriber's credit-based price and confirms the existing subscrip
   const before = vi.fn().mockResolvedValue(undefined);
   await render({ plan: "PREMIUM", remaining: 200, fileBytes: 350 * 1024 * 1024, beforeCheckout: before }, { tracking: { ...tracking, reason: "file_size_limit" } });
   expect(el.textContent).toContain("Then $14.99/month");
-  expect(el.textContent).toContain("200 credits exchanged · −$11.98 (month 1)");
+  expect(el.textContent).toContain("200 credits exchanged · $11.98 off your first month");
   expect(el.querySelector(".limit-upgrade-primary")?.textContent).toContain("Upgrade to Pro — $3.01");
   expect(JSON.parse(m.fetch.mock.calls[0][1].body)).toMatchObject({ action: "quote" });
   await act(async () => el.querySelector<HTMLButtonElement>(".limit-upgrade-primary")!.click());
