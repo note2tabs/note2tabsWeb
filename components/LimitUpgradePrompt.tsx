@@ -383,7 +383,7 @@ function SubscriptionLimitPrompt({
 
 export default function LimitUpgradePrompt(props:Props){
  const reason=props.tracking?.reason||'credits_low';
- const blocked=props.context.remaining===0 || (props.context.required||0)>(props.context.remaining||0);
+ const blocked=(props.context.plan!=='FREE' && props.context.remaining===0) || (reason==='credits_exhausted' && (props.context.required||0)>(props.context.remaining||0));
  if(process.env.NEXT_PUBLIC_CREDIT_TOPUPS_ENABLED==='true' && ['credits_low','credits_exhausted'].includes(reason)&&blocked)return <CreditShortfallDialog context={props.context} preview={props.preview}/>;
  return <SubscriptionLimitPrompt {...props}/>;
 }

@@ -1,3 +1,4 @@
+import {shouldOfferCreditPurchase} from "../lib/creditPurchaseEligibility";
 import CreditPurchaseLink from "../components/CreditPurchaseLink";
 import dynamic from "next/dynamic";
 const PaywallDesignPreview = process.env.NODE_ENV === "development" ? dynamic(()=>import("../components/PaywallDesignPreview"),{ssr:false}) : ()=>null;
@@ -1569,7 +1570,7 @@ export default function TranscriberPage() {
                 {isSignedIn && displayedCredits && (
                   <p className="hero-credits-inline">{t(" Credits: ")}<strong>{creditsUsageLabel}</strong>
                     <span className="hero-credits-next">• {resetLabelText} {creditsResetLabel}</span>
-                  <CreditPurchaseLink beforeNavigate={limitContext.beforeCheckout}/></p>
+                  {!isStaffUser && shouldOfferCreditPurchase(entitlementPlan,displayedCredits?.remaining,blockedCredits?blockedRequiredCredits:undefined) && <CreditPurchaseLink beforeNavigate={limitContext.beforeCheckout}/>}</p>
                 )}
               </div>
 

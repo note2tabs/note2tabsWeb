@@ -1,3 +1,4 @@
+import {shouldOfferCreditPurchase} from "../lib/creditPurchaseEligibility";
 import {creditPlacementPreview} from "../lib/creditPlacementPreview";
 import CreditPurchaseLink from "../components/CreditPurchaseLink";
 import {usesCreditWallet,walletCredits} from "../lib/creditWallet";
@@ -594,7 +595,7 @@ function AccountSettingsPage({ user, stripeReady, credits }: Props) {
       </div>
       <div className="settingsRows">
         <SettingRow label="Next credit refresh" value={resetLabel} />
-        {process.env.NEXT_PUBLIC_CREDIT_TOPUPS_ENABLED === "true" && <SettingRow label="Buy credits"><CreditPurchaseLink button/></SettingRow>}
+        {process.env.NEXT_PUBLIC_CREDIT_TOPUPS_ENABLED === "true" && !isAdminOrMod && shouldOfferCreditPurchase(currentPlan,credits.remaining) && <SettingRow label="Buy credits"><CreditPurchaseLink button/></SettingRow>}
         <SettingRow label="Billing and plan">
           <div className="settingsActions">
             {!isPremium && (
