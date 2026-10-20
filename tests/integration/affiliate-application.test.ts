@@ -13,7 +13,7 @@ describe("affiliate application email delivery",()=>{
  beforeEach(()=>{vi.clearAllMocks();m.send.mockResolvedValue(true);});
  it("sends an internal notification to the same inbox as internship applications",async()=>{
   const res=await request();expect(res._getStatusCode()).toBe(200);
-  expect(m.send).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({to:"admin@note2tabs.com",language:{kind:"internal"},subject:"Affiliate application — Note2Tabs",html:expect.stringContaining("creator@example.test"),text:expect.stringContaining("guitar lessons")}));
+  expect(m.send).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({to:"business@note2tabs.com",language:{kind:"internal"},subject:"Affiliate application — Note2Tabs",html:expect.stringContaining("creator@example.test"),text:expect.stringContaining("guitar lessons")}));
  });
  it("rejects other methods and cross-origin submissions before emailing",async()=>{
   expect((await request({method:"GET"}))._getStatusCode()).toBe(405);

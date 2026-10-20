@@ -36,7 +36,7 @@ export default function AffiliateApplicationForm() {
     } finally { inFlight.current = false; }
   }
   return <section id="affiliate-application" className="affiliateApplication" aria-labelledby="affiliate-application-heading">
-    <header><p className="affiliateInfoLabel">{t("Interested in partnering?")}</p>
+    <header>
       <h2 id="affiliate-application-heading">{t("Apply to become an affiliate")}</h2>
       <p>{t("We review partnerships individually and will reply with the next steps if there is a good fit.")}</p></header>
     {state === "success" ? <div role="status" className="affiliateApplicationSuccess"><h3>{t("Application sent")}</h3>

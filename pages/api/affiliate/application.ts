@@ -65,7 +65,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const email = buildAffiliateApplicationEmail(result.application);
-    const sent = await sendTransactionalEmail({ language:{kind:"internal"}, to: "admin@note2tabs.com", ...email });
+    const sent = await sendTransactionalEmail({ language:{kind:"internal"}, to: "business@note2tabs.com", ...email });
     if (!sent) throw new Error("Application email not accepted");
     return res.status(200).json({ ok: true });
   } catch (error) {
