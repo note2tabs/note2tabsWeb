@@ -93,17 +93,14 @@ it("shows actual missing credits, the price, benefits, and no cross", async () =
   expect(el.querySelector('[aria-label="Close upgrade popup"]')).toBeNull();
   expect(el.querySelector("dialog")?.open).toBe(true);
 });
-it("dismisses without a request and can be reopened", async () => {
+it("dismisses without a request or standalone upgrade button", async () => {
   await render({ plan: "FREE", remaining: 0 });
   await act(async () =>
     el.querySelector<HTMLButtonElement>(".limit-upgrade-back")!.click(),
   );
   expect(el.querySelector("dialog")?.open).toBe(false);
   expect(m.fetch).not.toHaveBeenCalled();
-  await act(async () =>
-    el.querySelector<HTMLButtonElement>(".button-link")!.click(),
-  );
-  expect(el.querySelector("dialog")?.open).toBe(true);
+  expect(el.querySelector("button:not(dialog button)")).toBeNull();
 });
 it("keeps positive low credits nonblocking", async () => {
   await render(
