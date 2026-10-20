@@ -819,6 +819,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .status(403)
         .json({
           error: errorMessage,
+          requiredCredits,
           credits: refreshedCredits,
         });
     }

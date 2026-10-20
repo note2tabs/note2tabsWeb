@@ -168,7 +168,7 @@ export default function PricingPage() {
       ...premiumOfferExperimentProperties(offerVariant),
     });
     if (!session) {
-      const callbackUrl = `${premiumPricingHref(funnel)}&checkout=1&plan=${plan.toLowerCase()}&billing=${billingInterval}`;
+      const callbackUrl = `${premiumPricingHref(funnel)}&checkout=1&plan=${plan.toLowerCase()}&billing=${billingInterval}${router.query.resumeTranscription === "1" ? "&resumeTranscription=1" : ""}`;
       sendEvent(ANALYTICS_EVENTS.pricingAuthHandoff, {
         ...measurementContext(), plan: plan.toLowerCase(),
         ...premiumFunnelProperties(funnel), ...premiumOfferExperimentProperties(offerVariant),
@@ -196,6 +196,7 @@ export default function PricingPage() {
           offerVariant,
           plan: plan.toLowerCase(),
           billingInterval,
+          ...(router.query.resumeTranscription === "1" ? {returnTo:"/transcribe?resumeTranscription=1"} : {}),
           displayCurrency: displayCurrency.toLowerCase(),
         }),
       });
