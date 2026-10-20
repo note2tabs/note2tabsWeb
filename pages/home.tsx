@@ -8,6 +8,7 @@ import { getServerSession } from "next-auth/next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocaleRouter as useRouter } from "../lib/i18n/react";
 import NoIndexHead from "../components/NoIndexHead";
+import { proPlanPresentationEnabled } from "../lib/subscriptionPlans";
 import WorkspaceSidebar from "../components/WorkspaceSidebar";
 import { ANALYTICS_EVENTS, sendEvent, trackCtaClick } from "../lib/analytics";
 import { gteApi } from "../lib/gteApi";
@@ -444,6 +445,7 @@ export default function ProductHome({
             recentEditors={recentEditors}
             loading={loading}
             isPremium={isPremium}
+            canUpgradeToPro={proPlanPresentationEnabled() && role === "PREMIUM" && subscriptionPlan === "PREMIUM"}
             analyticsSurface="product_home"
           />
           <div className="product-studio">

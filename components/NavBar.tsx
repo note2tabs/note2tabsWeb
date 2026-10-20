@@ -1,3 +1,4 @@
+import { proPlanPresentationEnabled } from "../lib/subscriptionPlans";
 import LanguageSelector from "./LanguageSelector";
 import { stripLocale } from "../lib/i18n/locale";
 import { localizedSignIn as signIn } from "../lib/i18n/auth";
@@ -50,9 +51,10 @@ export const isPrimaryNavSectionActive = (
 export const shouldShowPremiumNav = (
   sessionStatus: "loading" | "authenticated" | "unauthenticated",
   hasSession: boolean,
-  hasPremiumAccess: boolean
+  hasPremiumAccess: boolean,
+  canUpgrade = false
 ) =>
-  sessionStatus !== "loading" && (!hasSession || !hasPremiumAccess);
+  sessionStatus !== "loading" && (!hasSession || !hasPremiumAccess || canUpgrade);
 
 export default function NavBar({ editorRevealMode = false }: NavBarProps) {
   const { t, href: localePath } = useLocale();
@@ -78,6 +80,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
   const role = session?.user?.role || "";
   const isAdmin = role === "ADMIN";
   const hasPremiumAccess = ["PREMIUM", "ADMIN", "MODERATOR", "MOD"].includes(role);
+  const canUpgrade = proPlanPresentationEnabled() && role === "PREMIUM" && session?.user?.subscriptionPlan !== "PRO";
   const premiumHref = "/pricing?source=navigation&reason=nav_premium";
   const editorHref = sessionStatus === "authenticated" ? "/gte" : "/editor";
   const logoHref = sessionStatus === "authenticated" ? "/home" : "/";
@@ -232,13 +235,13 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
             className={navPillClass("transcriber")}
             aria-current={isPrimaryNavSectionActive(stripLocale(router.pathname), "transcriber") ? "page" : undefined}
           >{t(" Transcriber ")}</Link>
-          {shouldShowPremiumNav(sessionStatus, Boolean(session), hasPremiumAccess) && (
+          {shouldShowPremiumNav(sessionStatus, Boolean(session), hasPremiumAccess, canUpgrade) && (
             <Link
               href={session ? premiumHref : "/pricing"}
               className={navPillClass("premium", session ? "nav-premium-link" : "")}
               aria-current={isPrimaryNavSectionActive(stripLocale(router.pathname), "premium") ? "page" : undefined}
             >
-              {session ? "Premium" : t("Pricing")}
+              {canUpgrade ? t("Upgrade") : session ? "Premium" : t("Pricing")}
             </Link>
           )}
           <Link
