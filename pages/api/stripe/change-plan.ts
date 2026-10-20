@@ -1,3 +1,4 @@
+import { CreditUpgradeError, creditUpgradeEnabled, prepareCreditUpgrade, payCreditUpgrade, applyCreditUpgrade } from "../../../lib/creditUpgrade";
 import { marketCheckoutConfig } from "../../../lib/pricingMarket";
 import type { NextApiRequest, NextApiResponse } from "next";
 import type Stripe from "stripe";
@@ -52,11 +53,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     const currentPlan = stripeSubscriptionPlan(current);
     if (!currentPlan) return res.status(409).json({ error: "This subscription cannot be changed here." });
-    if (currentPlan === requestedPlan) return res.status(200).json({ changed: false, plan: rawPlan });
+    if (currentPlan === requestedPlan) {
+      if (req.body?.action === "quote") return res.status(200).json({ quote: null });
+      if (currentPlan === "PRO") await applyCreditUpgrade(current);
+      return res.status(200).json({ changed: false, plan: rawPlan });
+    }
     const item = current.items.data[0];
     if (!item) return res.status(409).json({ error: "The subscription has no plan item." });
 
+    if (req.body?.action === "quote" && !(creditUpgradeEnabled() && currentPlan === "PREMIUM" && requestedPlan === "PRO" && billingInterval === "monthly" && item.price.recurring?.interval === "month")) return res.status(200).json({ quote: null });
+    if (req.body?.action === "confirm" && (currentPlan !== "PREMIUM" || requestedPlan !== "PRO" || billingInterval !== "monthly" || item.price.recurring?.interval !== "month" || !creditUpgradeEnabled())) return res.status(409).json({ error: "Review the upgrade again before confirming." });
     if (currentPlan === "PREMIUM" && requestedPlan === "PRO") {
+      if (creditUpgradeEnabled() && billingInterval === "monthly" && item.price.recurring?.interval === "month") {
+        const quote = await prepareCreditUpgrade(session.user.id, current, targetConfig.priceId);
+        if (req.body?.action !== "confirm") {
+          return res.status(200).json({ quote: { id: quote.id, currency: quote.currency, credits: quote.credits, discount: quote.discount, regularAmount: quote.regularAmount, dueNow: quote.regularAmount - quote.discount } });
+        }
+        const result = await payCreditUpgrade(quote, String(req.body?.quoteId || ""));
+        return res.status(200).json(result);
+      }
       await stripeClient.subscriptions.update(current.id, {
         items: [{ id: item.id, price: targetConfig.priceId }],
         proration_behavior: "always_invoice",
@@ -105,6 +120,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       effective: currentPlan === "PREMIUM" ? "immediate" : "renewal",
     });
   } catch (error) {
+    if (error instanceof CreditUpgradeError) return res.status(409).json({ error: error.message });
     console.error("stripe plan change error", error);
     return res.status(500).json({ error: "Could not change the subscription. Please try again." });
   }

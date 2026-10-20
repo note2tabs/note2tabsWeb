@@ -1,3 +1,6 @@
+import { useCreditUpgradeQuote } from "../lib/useCreditUpgradeQuote";
+import CreditUpgradeSummary, { upgradeMoney, upgradeDiscountPercent } from "../components/CreditUpgradeSummary";
+import CreditUpgradeReview, { type CreditUpgradeQuote } from "../components/CreditUpgradeReview";
 import PriceTaxNote from "../components/PriceTaxNote";
 import MonthlyCredits from "../components/MonthlyCredits";
 import { localizedSignIn as signIn } from "../lib/i18n/auth";
@@ -41,6 +44,7 @@ export default function PricingPage() {
   const formatLocalizedAmount = (...args: Parameters<typeof rawAmount>) => rawAmount(args[0], args[1], locale);
   const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
+  const [upgradeQuote, setUpgradeQuote] = useState<CreditUpgradeQuote | null>(null);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [billingInterval, setBillingInterval] = useState<BillingInterval>("monthly");
@@ -52,6 +56,7 @@ export default function PricingPage() {
   const showPro = proPlanPresentationEnabled();
   const hasPaidPremium = currentRole === "PREMIUM";
   const currentPlan = session?.user?.subscriptionPlan || (hasPaidPremium ? "PREMIUM" : "FREE");
+  const upgrade = useCreditUpgradeQuote(hasPaidPremium && currentPlan === "PREMIUM" && billingInterval === "monthly");
   const hasStaffAccess = ["ADMIN", "MODERATOR", "MOD"].includes(currentRole);
   const hasPremiumAccess = hasPaidPremium || hasStaffAccess;
   const { variant: offerVariant, resolved: offerVariantResolved } =
@@ -153,7 +158,7 @@ export default function PricingPage() {
     });
   }, [getFunnelContext, measurementContext, offerVariant, offerVariantResolved, router.isReady, sessionStatus]);
 
-  const startCheckout = useCallback(async (plan: PaidSubscriptionPlan = "PREMIUM", resumed = false) => {
+  const startCheckout = useCallback(async (plan: PaidSubscriptionPlan = "PREMIUM", resumed = false, quoteId?: string) => {
     if (checkoutBusy) return;
     const funnel = getFunnelContext();
     sendEvent(resumed ? ANALYTICS_EVENTS.pricingCheckoutResumed : ANALYTICS_EVENTS.pricingCtaClicked, {
@@ -181,6 +186,11 @@ export default function PricingPage() {
       return;
     }
 
+    if (upgrade.preview) {
+      if (quoteId) { setUpgradeQuote(null); setCheckoutError(t("Preview only — no checkout opened.")); }
+      else setUpgradeQuote(upgrade.quote);
+      return;
+    }
     setCheckoutBusy(true);
     setCheckoutError(null);
     let failureStatus: number | undefined;
@@ -189,6 +199,7 @@ export default function PricingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          ...(quoteId ? { action: "confirm", quoteId } : {}),
           locale,
           source: funnel.source,
           reason: funnel.reason,
@@ -204,6 +215,13 @@ export default function PricingPage() {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || (!hasPaidPremium && !payload?.url)) {
         throw new Error(payload?.error || t("Checkout is temporarily unavailable. Please try again in a moment."));
+      }
+      if (payload.quote) { setUpgradeQuote(payload.quote); return; }
+      setUpgradeQuote(null);
+      if (hasPaidPremium) {
+        if (payload.url) window.location.assign(payload.url);
+        else await router.push("/settings?planChanged=1");
+        return;
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
         ...measurementContext(),
@@ -229,6 +247,7 @@ export default function PricingPage() {
       if (payload.url) window.location.assign(payload.url);
       else await router.push("/settings?planChanged=1");
     } catch (error) {
+      setUpgradeQuote(null);
       sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
         ...measurementContext(),
         failure_category: failureStatus === undefined ? "network" : failureStatus >= 400 ? "http_error" : "invalid_response_or_navigation",
@@ -245,7 +264,7 @@ export default function PricingPage() {
       );
       setCheckoutBusy(false);
     }
-  }, [billingInterval, checkoutBusy, currentPlan, displayCurrency, getFunnelContext, hasPaidPremium, hasStaffAccess, measurementContext, offerVariant, router, session]);
+  }, [billingInterval, checkoutBusy, currentPlan, displayCurrency, getFunnelContext, hasPaidPremium, hasStaffAccess, measurementContext, offerVariant, router, session, upgrade.preview, upgrade.quote, locale, t]);
 
   useEffect(() => {
     if (!router.isReady || router.query.checkout !== "1") return;
@@ -265,6 +284,7 @@ export default function PricingPage() {
     ? ["PREMIUM", "FREE", ...(showPro ? ["PRO"] : [])]
     : ["FREE", "PREMIUM", ...(showPro ? ["PRO"] : [])];
   return <>
+    <CreditUpgradeReview quote={upgradeQuote} busy={checkoutBusy} onCancel={() => setUpgradeQuote(null)} onConfirm={() => void startCheckout("PRO", false, upgradeQuote?.id)} />
     <SeoHead title={t("Pricing | Note2Tabs")} description={description} canonicalPath="/pricing" jsonLd={pricingJsonLd} />
     <main className="page page-pricing"><section className="pricing-page pricing-page--focused"><div className="container pricing-page__container">
       <header className="pricing-page__hero"><h1>{t("More music. More room to transcribe.")}</h1></header>
@@ -276,28 +296,31 @@ export default function PricingPage() {
             ...premiumFunnelProperties(getFunnelContext()), ...premiumOfferExperimentProperties(offerVariant),
           });
           setBillingInterval(interval);
-        }} disabled={checkoutBusy}>{interval === "monthly" ? t("Monthly") : <>{t("Yearly")}<span className="pricing-billing-toggle__saving">{t("Save {amount}!", {amount: localizedAnnualSaving(showPro ? "PRO" : "PREMIUM", displayCurrency)})}</span></>}</button>)}
+        }} disabled={checkoutBusy || Boolean(upgradeQuote)}>{interval === "monthly" ? t("Monthly") : <>{t("Yearly")}<span className="pricing-billing-toggle__saving">{t("Save {amount}!", {amount: localizedAnnualSaving(showPro ? "PRO" : "PREMIUM", displayCurrency)})}</span></>}</button>)}
       </div>
-      <section className={`pricing-page__plans${showPro ? " pricing-page__plans--three" : ""}`} aria-label={t("Note2Tabs plans")}>
+      <section className={`pricing-page__plans${showPro ? " pricing-page__plans--three" : ""}${upgrade.quote ? " pricing-page__plans--credit-upgrade" : ""}`} aria-label={t("Note2Tabs plans")}>
         {planOrder.map((id) => {
           const plan = PLAN_CATALOG[id as keyof typeof PLAN_CATALOG];
           const paid = plan.id !== "FREE";
           const paidId = plan.id as PaidSubscriptionPlan;
           const included = hasStaffAccess && paid;
+          const creditQuote = plan.id === "PRO" ? upgrade.quote : null;
           const current = currentPlan === plan.id && paid;
           return <article key={plan.id} className={`pricing-plan pricing-plan--${plan.id.toLowerCase()}`}>
-            {plan.id === "PREMIUM" && <div className="pricing-plan__badge">{t("Recommended")}</div>}
+            {plan.id === "PREMIUM" && !upgrade.quote && <div className="pricing-plan__badge">{t("Recommended")}</div>}
+            {creditQuote && creditQuote.discount > 0 && <div className="pricing-plan__badge">{t("{percent}% off", { percent: upgradeDiscountPercent(creditQuote) })}</div>}
             <div className="pricing-plan__top"><h2>{t(plan.name)}</h2>
               <p>{plan.id === "FREE" ? t("Try short recordings.") : plan.id === "PREMIUM" ? t("For full songs.") : t("For frequent transcription.")}</p>
-              <div className="pricing-plan__price"><strong>{paid ? formatLocalizedPrice(paidId, billingInterval, displayCurrency) : formatLocalizedAmount(0, displayCurrency)}</strong><span>/ {paid && billingInterval === "yearly" ? t("year") : t("month")}</span></div>
+              <div className="pricing-plan__price"><strong>{creditQuote ? upgradeMoney(creditQuote, creditQuote.dueNow, locale) : paid ? formatLocalizedPrice(paidId, billingInterval, displayCurrency) : formatLocalizedAmount(0, displayCurrency)}</strong><span>{creditQuote ? t("today") : <>/ {paid && billingInterval === "yearly" ? t("year") : t("month")}</>}</span></div>
+              {creditQuote && <CreditUpgradeSummary quote={creditQuote} />}
               {paid && <PriceTaxNote />}
               <p className="pricing-plan__saving">{paid && billingInterval === "yearly" && <><span className="pricing-plan__saving-amount">{t("Save {amount} per year", {amount: localizedAnnualSaving(paidId, displayCurrency)})}</span>{t(" · Billed annually")}</>}</p>
             </div>
             {!paid ? <Link href="/transcribe" className="pricing-plan__cta pricing-plan__cta--secondary" onClick={() => trackCtaClick("pricing_start_free", { surface: "pricing_page" })}>{t("Start free")}</Link>
               : included || current ? <Link href={included ? "/transcribe" : "/settings"} className="pricing-plan__cta pricing-plan__cta--secondary">{included ? t("{plan} access included", { plan: plan.name }) : t("Manage current plan")}</Link>
-              : <button type="button" className={`pricing-plan__cta pricing-plan__cta--${plan.id === "PREMIUM" ? "primary" : "secondary"}`} onClick={() => void startCheckout(paidId)} disabled={checkoutBusy || sessionStatus === "loading"}>{checkoutBusy ? t("Opening checkout…") : hasPaidPremium ? t("Switch to {plan}", { plan: plan.name }) : plan.id === "PREMIUM" ? t("Get Premium") : t("Choose Pro")}</button>}
+              : <button type="button" className={`pricing-plan__cta pricing-plan__cta--${creditQuote ? "upgrade" : plan.id === "PREMIUM" ? "primary" : "secondary"}`} onClick={() => void startCheckout(paidId)} disabled={checkoutBusy || sessionStatus === "loading"}>{checkoutBusy ? t("Opening checkout…") : creditQuote ? t("Upgrade to Pro") : hasPaidPremium ? t("Switch to {plan}", { plan: plan.name }) : plan.id === "PREMIUM" ? t("Get Premium") : t("Choose Pro")}</button>}
             <div className="pricing-plan__reassurance">
-              {!paid ? t("No credit card required") : included || current ? t("Manage your subscription in your account.") : <>
+              {creditQuote ? t("Review before payment") : !paid ? t("No credit card required") : included || current ? t("Manage your subscription in your account.") : <>
                 {t("{price}/{period} billed today. Cancel anytime.", {price: formatLocalizedPrice(paidId, billingInterval, displayCurrency), period: billingInterval === "yearly" ? t("year") : t("month")})}</>}
             </div>
             <div className="pricing-plan__divider" />

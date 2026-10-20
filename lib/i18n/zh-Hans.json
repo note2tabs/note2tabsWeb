@@ -1832,5 +1832,17 @@
   "Compare plans": "比较套餐",
   "Back to transcriber": "返回转换页面",
   "/ month": "/ 月",
-  "Could not save your selection. Please try again.": "无法保存您的选择，请重试。"
+  "Could not save your selection. Please try again.": "无法保存您的选择，请重试。",
+  "Pro monthly price": "Pro 月费",
+  "Credit exchange ({credits} credits)": "积分折抵（{credits} 积分）",
+  "Due today": "今日应付",
+  "Your remaining credits are exchanged for this discount. You start a new month with 250 Pro credits. Then {amount} per month, starting one month after the upgrade.": "剩余积分将折算为此优惠。您将获得 250 个 Pro 积分，开始新的一个月。升级一个月后开始按每月 {amount} 续费。",
+  "Confirm upgrade": "确认升级",
+  "Processing…": "处理中…",
+  "today": "今日",
+  "Then {amount}/month": "之后每月 {amount}",
+  "Review before payment": "付款前确认",
+  "Upgrade to Pro — {price}": "升级至 Pro — {price}",
+  "{credits} credits exchanged · {amount} off your first month": "折抵 {credits} 积分 · 首月优惠 {amount}",
+  "{percent}% off": "优惠 {percent}%"
 }

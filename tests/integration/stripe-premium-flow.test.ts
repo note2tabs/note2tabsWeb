@@ -962,6 +962,24 @@ describe("stripe premium flow", () => {
   });
 
   describe("change-plan", () => {
+    it("never changes an annual subscription when only requesting an inline quote", async () => {
+      process.env.STRIPE_PRICE_PRO_MONTHLY = "price_test_pro";
+      process.env.STRIPE_PRODUCT_PRO = "prod_test_pro";
+      process.env.PRO_PLAN_ENABLED = "true";
+      process.env.CREDIT_UPGRADE_ENABLED = "true";
+      prismaMock.user.findUnique.mockResolvedValue({ role: "PREMIUM", subscriptionPlan: "PREMIUM" });
+      stripeMock.customers.list.mockResolvedValue({ data: [{ id: "cus_1" }] });
+      stripeMock.subscriptions.list.mockResolvedValue({ data: [premiumSubscription({ items: { data: [{ id: "si_premium", price: { id: "price_test_premium", recurring: { interval: "year" } } }] } })] });
+      const handler = (await import("../../pages/api/stripe/change-plan")).default;
+      const { req, res } = createMocks({ method: "POST", body: { plan: "pro", billingInterval: "monthly", action: "quote" } });
+      await handler(req as any, res as any);
+      expect(res._getStatusCode()).toBe(200);
+      expect(res._getJSONData()).toEqual({ quote: null });
+      expect(stripeMock.subscriptions.update).not.toHaveBeenCalled();
+      expect(stripeMock.subscriptionSchedules.create).not.toHaveBeenCalled();
+      delete process.env.CREDIT_UPGRADE_ENABLED;
+    });
+
     it("preserves a purchased LatAm tier on upgrade even when rollout is paused and the buyer travels",async()=>{
       process.env.STRIPE_PRICE_PRO_MONTHLY="price_test_pro";process.env.STRIPE_PRODUCT_PRO="prod_test_pro";process.env.PRO_PLAN_ENABLED="true";
       process.env.STRIPE_MARKET_LATAM_PRO_MONTHLY="price_latam_PRO_MONTHLY";

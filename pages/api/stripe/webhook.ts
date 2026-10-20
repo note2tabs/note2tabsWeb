@@ -1,3 +1,4 @@
+import { applyCreditUpgrade, currentCreditUpgradeSubscription } from "../../../lib/creditUpgrade";
 import { withAffiliatePayoutLock, reverseCommissionTransfer } from "../../../lib/affiliatePayouts";
 import { queuePaidCreditReset } from "../../../lib/creditResetNotices";
 import { checkoutForPaymentIntent, checkoutPaymentDiagnostics, safeCheckoutPaymentDiagnostics } from "../../../lib/checkoutDiagnostics";
@@ -1020,6 +1021,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    // Live endpoint events may use a newer shape than the pinned billing SDK.
+    // Preserve the event invoice ID (not latest_invoice), then retrieve that
+    // invoice through the pinned client before reading subscription/line fields.
+    if ((process.env.CREDIT_UPGRADE_ENABLED === "true" || process.env.CREDIT_UPGRADE_WEBHOOKS_ENABLED === "true") && event.api_version && event.api_version !== "2024-06-20" && (event.type === "invoice.paid" || event.type === "invoice.payment_succeeded")) {
+      const invoice = event.data.object as Stripe.Invoice;
+      event.data.object = await stripeClient.invoices.retrieve(invoice.id);
+    }
     if (event.type === "checkout.session.expired") {
       const checkoutSession = event.data.object as Stripe.Checkout.Session;
       if (checkoutSession.metadata?.userId && checkoutSession.metadata?.note2tabsPlan) {
@@ -1129,11 +1137,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (event.type === "customer.subscription.updated") {
-      const subscription = event.data.object as Stripe.Subscription;
+      const subscription = await currentCreditUpgradeSubscription(event.data.object as Stripe.Subscription);
       const plan = stripeSubscriptionPlan(subscription);
       if (!plan) {
         return res.status(200).json({ received: true, ignored: "unrelated_subscription" });
       }
+      const creditUpgrade = plan === "PRO" && await applyCreditUpgrade(subscription) !== "unrelated";
       const email = await resolveEmailFromCustomerRef(subscription.customer);
       const userId = await resolveUserIdFromSubscription(subscription, email);
       const previous = event.data.previous_attributes as
@@ -1159,7 +1168,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           event.created
         );
       }
-      if (ENTITLED_SUBSCRIPTION_STATUSES.has(subscription.status)) {
+      if (ENTITLED_SUBSCRIPTION_STATUSES.has(subscription.status) && !creditUpgrade) {
         if (userId) await setPremiumForIdentifier({ id: userId }, plan);
         else if (email) await setPremiumForIdentifier({ email }, plan);
       }
@@ -1199,6 +1208,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
+    // Zero-charge exchanges can settle without a PaymentIntent. The ordinary
+    // payment_succeeded path still owns payment analytics and affiliate commissions.
+    if (event.type === "invoice.paid") {
+      const invoice = event.data.object as Stripe.Invoice;
+      if (invoice.billing_reason === "subscription_update") {
+        const paid = await paidSubscriptionForInvoice(invoice);
+        if (paid?.plan === "PRO") await applyCreditUpgrade(paid.subscription, invoice);
+      }
+    }
+
     if (event.type === "invoice.payment_succeeded") {
       const invoice = event.data.object as Stripe.Invoice;
       const paidSubscription = await paidSubscriptionForInvoice(invoice);
@@ -1206,6 +1225,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json({ received: true, ignored: "unrelated_invoice" });
       }
       const { subscription: premiumSubscription, plan, config: paidConfig } = paidSubscription;
+      const creditUpgrade = plan === "PRO" && invoice.billing_reason === "subscription_update" && await applyCreditUpgrade(premiumSubscription, invoice) !== "unrelated";
       if (!ENTITLED_SUBSCRIPTION_STATUSES.has(premiumSubscription.status)) {
         return res.status(200).json({ received: true, ignored: "subscription_not_entitled" });
       }
@@ -1234,6 +1254,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       await createAffiliateCommission(invoice, premiumSubscription);
       if (userId) await trackAffiliatePayment(invoice, premiumSubscription, userId, isRenewal);
+      if (creditUpgrade) return res.status(200).json({ received: true, creditUpgrade: true });
       if (isRenewal) {
         const subscriptionId = stripeSubscriptionId(premiumSubscription);
         const renewalAt = stripeInvoiceRenewalAt(invoice, paidConfig);

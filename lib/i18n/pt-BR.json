@@ -1832,5 +1832,17 @@
   "Compare plans": "Comparar planos",
   "Back to transcriber": "Voltar ao transcritor",
   "/ month": "/ mês",
-  "Could not save your selection. Please try again.": "Não foi possível salvar sua seleção. Tente novamente."
+  "Could not save your selection. Please try again.": "Não foi possível salvar sua seleção. Tente novamente.",
+  "Pro monthly price": "Preço mensal do Pro",
+  "Credit exchange ({credits} credits)": "Troca de créditos ({credits} créditos)",
+  "Due today": "Total a pagar hoje",
+  "Your remaining credits are exchanged for this discount. You start a new month with 250 Pro credits. Then {amount} per month, starting one month after the upgrade.": "Seus créditos restantes são trocados por este desconto. Você começa um novo mês com 250 créditos Pro. Depois, {amount} por mês, a partir de um mês após a mudança para o Pro.",
+  "Confirm upgrade": "Confirmar mudança",
+  "Processing…": "Processando…",
+  "today": "hoje",
+  "Then {amount}/month": "Depois, {amount}/mês",
+  "Review before payment": "Revise antes de pagar",
+  "Upgrade to Pro — {price}": "Mudar para o Pro — {price}",
+  "{credits} credits exchanged · {amount} off your first month": "{credits} créditos trocados · {amount} de desconto no primeiro mês",
+  "{percent}% off": "−{percent}%"
 }

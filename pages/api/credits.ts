@@ -68,10 +68,11 @@ async function buildUserCredits(user: {
       const backendRemaining = await raiseBackendCreditsToFloor(
         user.id,
         credits.remaining,
-        buildBackendCreditHeaders(user.id)
+        buildBackendCreditHeaders(user.id),
+        subscriptionPlan === "PRO" ? 500 : 200
       );
       if (typeof backendRemaining === "number") {
-        credits = withBackendRemainingCredits(credits, backendRemaining);
+        credits = withBackendRemainingCredits(credits, backendRemaining, subscriptionPlan === "PRO" ? 500 : 200);
         source = "backend";
       }
     } catch (error) {

@@ -1832,5 +1832,17 @@
   "Compare plans": "요금제 비교",
   "Back to transcriber": "변환 화면으로 돌아가기",
   "/ month": "/ 월",
-  "Could not save your selection. Please try again.": "선택 내용을 저장하지 못했습니다. 다시 시도해 주세요."
+  "Could not save your selection. Please try again.": "선택 내용을 저장하지 못했습니다. 다시 시도해 주세요.",
+  "Pro monthly price": "Pro 월 요금",
+  "Credit exchange ({credits} credits)": "크레딧 전환 ({credits}크레딧)",
+  "Due today": "오늘 결제 금액",
+  "Your remaining credits are exchanged for this discount. You start a new month with 250 Pro credits. Then {amount} per month, starting one month after the upgrade.": "남은 크레딧은 이 할인으로 전환됩니다. Pro 크레딧 250개로 새로운 한 달을 시작합니다. 업그레이드 한 달 후부터 매월 {amount}가 청구됩니다.",
+  "Confirm upgrade": "업그레이드 확인",
+  "Processing…": "처리 중…",
+  "today": "오늘",
+  "Then {amount}/month": "이후 월 {amount}",
+  "Review before payment": "결제 전 확인",
+  "Upgrade to Pro — {price}": "Pro로 업그레이드 — {price}",
+  "{credits} credits exchanged · {amount} off your first month": "{credits}크레딧 전환 · 첫 달 {amount} 할인",
+  "{percent}% off": "{percent}% 할인"
 }

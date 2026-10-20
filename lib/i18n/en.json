@@ -1808,5 +1808,17 @@
   "One or more answers are too long.": "One or more answers are too long.",
   "Please complete the required fields.": "Please complete the required fields.",
   "The application could not be submitted.": "The application could not be submitted.",
-  "Too many attempts. Please try again later.": "Too many attempts. Please try again later."
+  "Too many attempts. Please try again later.": "Too many attempts. Please try again later.",
+  "Pro monthly price": "Pro monthly price",
+  "Credit exchange ({credits} credits)": "Credit exchange ({credits} credits)",
+  "Due today": "Due today",
+  "Your remaining credits are exchanged for this discount. You start a new month with 250 Pro credits. Then {amount} per month, starting one month after the upgrade.": "Your remaining credits are exchanged for this discount. You start a new month with 250 Pro credits. Then {amount} per month, starting one month after the upgrade.",
+  "Confirm upgrade": "Confirm upgrade",
+  "Processing…": "Processing…",
+  "today": "today",
+  "Then {amount}/month": "Then {amount}/month",
+  "Review before payment": "Review before payment",
+  "Upgrade to Pro — {price}": "Upgrade to Pro — {price}",
+  "{credits} credits exchanged · {amount} off your first month": "{credits} credits exchanged · {amount} off your first month",
+  "{percent}% off": "{percent}% off"
 }
