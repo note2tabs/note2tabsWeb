@@ -1841,7 +1841,8 @@
   "Processing…": "처리 중…",
   "today": "오늘",
   "Then {amount}/month": "이후 월 {amount}",
-  "{credits} credits exchanged · {amount} off": "{credits}크레딧 전환 · {amount} 할인",
   "Review before payment": "결제 전 확인",
-  "Upgrade to Pro — {price}": "Pro로 업그레이드 — {price}"
+  "Upgrade to Pro — {price}": "Pro로 업그레이드 — {price}",
+  "{percent}% off · month 1": "첫 달 {percent}% 할인",
+  "{credits} credits exchanged · −{amount} (month 1)": "{credits}크레딧 전환 · 첫 달 {amount} 할인"
 }

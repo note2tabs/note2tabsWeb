@@ -1841,7 +1841,8 @@
   "Processing…": "処理中…",
   "today": "本日",
   "Then {amount}/month": "次回から{amount}/月",
-  "{credits} credits exchanged · {amount} off": "{credits}クレジットを換算 · {amount}割引",
   "Review before payment": "支払い前に確認",
-  "Upgrade to Pro — {price}": "Proにアップグレード — {price}"
+  "Upgrade to Pro — {price}": "Proにアップグレード — {price}",
+  "{percent}% off · month 1": "初月{percent}%オフ",
+  "{credits} credits exchanged · −{amount} (month 1)": "{credits}クレジットを換算 · 初月{amount}割引"
 }

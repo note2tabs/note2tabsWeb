@@ -1841,7 +1841,8 @@
   "Processing…": "Traitement…",
   "today": "aujourd’hui",
   "Then {amount}/month": "Puis {amount}/mois",
-  "{credits} credits exchanged · {amount} off": "{credits} crédits échangés · {amount} de réduction",
   "Review before payment": "Vérifiez avant de payer",
-  "Upgrade to Pro — {price}": "Passer à Pro — {price}"
+  "Upgrade to Pro — {price}": "Passer à Pro — {price}",
+  "{percent}% off · month 1": "−{percent} % · 1er mois",
+  "{credits} credits exchanged · −{amount} (month 1)": "{credits} crédits échangés · −{amount} (1er mois)"
 }
