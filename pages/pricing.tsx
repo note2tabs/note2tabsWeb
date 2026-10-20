@@ -280,7 +280,8 @@ export default function PricingPage() {
     void startCheckout(router.query.plan === "pro" ? "PRO" : "PREMIUM", true);
   }, [billingInterval, getFunnelContext, offerVariantResolved, router.isReady, router.query.billing, router.query.checkout, router.query.plan, sessionStatus, startCheckout]);
 
-  const planOrder = compact
+  const comparisonPlans = [...(!hasPaidPremium ? ["FREE"] : []), "PREMIUM", ...(showPro ? ["PRO"] : [])];
+  const planOrder = hasPaidPremium ? comparisonPlans : compact
     ? ["PREMIUM", "FREE", ...(showPro ? ["PRO"] : [])]
     : ["FREE", "PREMIUM", ...(showPro ? ["PRO"] : [])];
   return <>
@@ -298,7 +299,7 @@ export default function PricingPage() {
           setBillingInterval(interval);
         }} disabled={checkoutBusy || Boolean(upgradeQuote)}>{interval === "monthly" ? t("Monthly") : <>{t("Yearly")}<span className="pricing-billing-toggle__saving">{t("Save {amount}!", {amount: localizedAnnualSaving(showPro ? "PRO" : "PREMIUM", displayCurrency)})}</span></>}</button>)}
       </div>
-      <section className={`pricing-page__plans${showPro ? " pricing-page__plans--three" : ""}${upgrade.quote ? " pricing-page__plans--credit-upgrade" : ""}`} aria-label={t("Note2Tabs plans")}>
+      <section className={`pricing-page__plans${planOrder.length === 3 ? " pricing-page__plans--three" : ""}${upgrade.quote ? " pricing-page__plans--credit-upgrade" : ""}`} aria-label={t("Note2Tabs plans")}>
         {planOrder.map((id) => {
           const plan = PLAN_CATALOG[id as keyof typeof PLAN_CATALOG];
           const paid = plan.id !== "FREE";
@@ -334,10 +335,10 @@ export default function PricingPage() {
         })}
       </section>
       <p className="pricing-credit-note">{t("A 60-second recording uses {light} credits with Light or {heavy} with Heavy.", {light: calculateTranscriptionCredits(60, "light"), heavy: calculateTranscriptionCredits(60, "super_heavy")})} {t("Credits refresh monthly.")}</p>
-      <details className="pricing-comparison"><summary>{t("Compare all limits")}</summary><div className="pricing-comparison-scroll"><table><caption>{t("Recording and upload limits")}</caption><thead><tr><th scope="col">{t("Limit")}</th>{["FREE", "PREMIUM", ...(showPro ? ["PRO"] : [])].map((id) => <th scope="col" key={id}>{t(PLAN_CATALOG[id as keyof typeof PLAN_CATALOG].name)}</th>)}</tr></thead><tbody>
-        <tr><th scope="row">{t("Upload size")}</th>{["FREE", "PREMIUM", ...(showPro ? ["PRO"] : [])].map((id) => <td key={id}>{PLAN_CATALOG[id as keyof typeof PLAN_CATALOG].maxUploadBytes / (1024 * 1024)} MB</td>)}</tr>
-        <tr><th scope="row">{t("YouTube clip length")}</th><td>{t("Up to {seconds} seconds", {seconds: MAX_FREE_YOUTUBE_SNIPPET_SEC})}</td><td>{t("Within selected window")}</td>{showPro && <td>{t("Within selected window")}</td>}</tr>
-        <tr><th scope="row">{t("YouTube selection window")}</th>{["FREE", "PREMIUM", ...(showPro ? ["PRO"] : [])].map((id) => <td key={id}>{t("First {minutes} minutes", {minutes: PLAN_CATALOG[id as keyof typeof PLAN_CATALOG].youtubePositionLimitSeconds / 60})}</td>)}</tr>
+      <details className="pricing-comparison"><summary>{t("Compare all limits")}</summary><div className="pricing-comparison-scroll"><table><caption>{t("Recording and upload limits")}</caption><thead><tr><th scope="col">{t("Limit")}</th>{comparisonPlans.map((id) => <th scope="col" key={id}>{t(PLAN_CATALOG[id as keyof typeof PLAN_CATALOG].name)}</th>)}</tr></thead><tbody>
+        <tr><th scope="row">{t("Upload size")}</th>{comparisonPlans.map((id) => <td key={id}>{PLAN_CATALOG[id as keyof typeof PLAN_CATALOG].maxUploadBytes / (1024 * 1024)} MB</td>)}</tr>
+        <tr><th scope="row">{t("YouTube clip length")}</th>{!hasPaidPremium && <td>{t("Up to {seconds} seconds", {seconds: MAX_FREE_YOUTUBE_SNIPPET_SEC})}</td>}<td>{t("Within selected window")}</td>{showPro && <td>{t("Within selected window")}</td>}</tr>
+        <tr><th scope="row">{t("YouTube selection window")}</th>{comparisonPlans.map((id) => <td key={id}>{t("First {minutes} minutes", {minutes: PLAN_CATALOG[id as keyof typeof PLAN_CATALOG].youtubePositionLimitSeconds / 60})}</td>)}</tr>
       </tbody></table></div><p>{t("Light handles guitar and multi-instrument recordings. Heavy is our most detailed model and requires Premium or Pro.")}</p></details>
       <section className="pricing-page__faq" aria-labelledby="pricing-faq-title"><div className="pricing-page__section-heading"><h2 id="pricing-faq-title">{t("Questions before you start?")}</h2></div><div className="pricing-page__faq-list">{pricingFaqs.map((faq) => <details key={faq.question}><summary>{faq.question}</summary><p>{faq.answer}</p></details>)}</div></section>
       {checkoutError && <div className="error pricing-page__error" role="alert">{translatedError(checkoutError, locale)}</div>}

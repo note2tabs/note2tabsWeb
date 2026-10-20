@@ -33,6 +33,7 @@ describe("primary navigation active states", () => {
 
   it("removes pricing from the header for Premium accounts", () => {
     expect(shouldShowPremiumNav("authenticated", true, true)).toBe(false);
+    expect(shouldShowPremiumNav("authenticated", true, true, true)).toBe(true);
     expect(shouldShowPremiumNav("authenticated", true, false)).toBe(true);
     expect(shouldShowPremiumNav("unauthenticated", false, false)).toBe(true);
     expect(shouldShowPremiumNav("loading", false, false)).toBe(false);

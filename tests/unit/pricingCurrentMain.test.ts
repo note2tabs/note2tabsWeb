@@ -3,13 +3,13 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DISPLAY_CURRENCIES, formatLocalizedAmount, formatLocalizedPrice, localizedAnnualSaving, type DisplayCurrency } from "../../lib/localizedPricing";
 
-const state = vi.hoisted(() => ({ currency: "USD" as string, billing: "monthly" as string, market: "standard" as string }));
+const state = vi.hoisted(() => ({ currency: "USD" as string, billing: "monthly" as string, market: "standard" as string, session: null as any }));
 vi.mock("react", async () => {
   const actual = await vi.importActual<typeof import("react")>("react");
   return { ...actual, useState: (initial: unknown) => actual.useState(initial === "monthly" ? state.billing : initial) };
 });
 vi.mock("next/router", () => ({ useRouter: () => ({ query: {}, isReady: false }) }));
-vi.mock("next-auth/react", () => ({ useSession: () => ({ data: null, status: "unauthenticated" }), signIn: vi.fn() }));
+vi.mock("next-auth/react", () => ({ useSession: () => ({ data: state.session, status: state.session ? "authenticated" : "unauthenticated" }), signIn: vi.fn() }));
 vi.mock("next/link", () => ({ default: ({ children, href, ...props }: any) => createElement("a", { href, ...props }, children) }));
 vi.mock("../../lib/useDisplayCurrency", () => ({ useDisplayCurrency: () => state.currency, usePricingMarket: () => state.market }));
 vi.mock("../../lib/usePremiumOfferExperiment", () => ({ usePremiumOfferExperiment: () => ({ variant: "control", resolved: true }) }));
@@ -17,11 +17,31 @@ vi.mock("../../lib/usePremiumOfferEligibility", () => ({ usePremiumOfferEligibil
 vi.mock("../../lib/analytics", () => ({ ANALYTICS_EVENTS: {}, sendEvent: vi.fn(), trackCtaClick: vi.fn() }));
 vi.mock("../../components/SeoHead", () => ({ default: () => null, WEBSITE_ID: "website", absoluteUrl: (path: string) => `https://note2tabs.com${path}` }));
 import PricingPage from "../../pages/pricing";
+import WorkspaceSidebar from "../../components/WorkspaceSidebar";
 
 const escape = (value: string) => value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("'", "&#x27;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 describe("pricing design uses current offers and localized pricing", () => {
-  beforeEach(() => {state.market="standard"; vi.stubEnv("NEXT_PUBLIC_PRO_PLAN_ENABLED", "true");});
+  beforeEach(() => {state.session=null;state.market="standard"; vi.stubEnv("NEXT_PUBLIC_PRO_PLAN_ENABLED", "true");});
   afterEach(() => vi.unstubAllEnvs());
+  it("offers the Pro sidebar card to eligible Premium users only", () => {
+    const props = {active: "home" as const, recentEditors: [], loading: false, isPremium: true, analyticsSurface: "product_home"};
+    const premium = renderToStaticMarkup(createElement(WorkspaceSidebar, {...props, canUpgradeToPro: true}));
+    expect(premium).toContain("250 monthly credits and larger uploads");
+    expect(premium).toContain("reason=pro_upgrade");
+    expect(renderToStaticMarkup(createElement(WorkspaceSidebar, props))).not.toContain("product-studio-sidebar__premium");
+    const free = renderToStaticMarkup(createElement(WorkspaceSidebar, {...props, isPremium: false}));
+    expect(free).toContain("More credits and full-song uploads");
+  });
+  it("shows paid members only Premium and Pro, including aligned comparison columns", () => {
+    state.session = {user: {role: "PREMIUM", subscriptionPlan: "PREMIUM"}};
+    const html = renderToStaticMarkup(createElement(PricingPage));
+    expect(html).not.toContain('pricing-plan--free');
+    expect(html).toContain('pricing-plan--premium');
+    expect(html).toContain('pricing-plan--pro');
+    expect(html).not.toContain('pricing-page__plans--three');
+    expect(html).not.toContain('<th scope="col">Free</th>');
+    expect(html).toContain('Manage current plan');
+  });
   it("renders lower regional USD totals in cards, billing explanation and schema", () => {
     state.market="latam";state.currency="USD";state.billing="monthly";
     let html=renderToStaticMarkup(createElement(PricingPage));

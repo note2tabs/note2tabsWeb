@@ -33,6 +33,7 @@ type WorkspaceSidebarProps = {
   recentEditors: EditorListItem[];
   loading: boolean;
   isPremium: boolean;
+  canUpgradeToPro?: boolean;
   analyticsSurface: string;
 };
 
@@ -41,6 +42,7 @@ export default function WorkspaceSidebar({
   recentEditors,
   loading,
   isPremium,
+  canUpgradeToPro = false,
   analyticsSurface,
 }: WorkspaceSidebarProps) {
   const { t } = useLocale();
@@ -79,15 +81,15 @@ export default function WorkspaceSidebar({
         ))}
         {!loading && recentEditors.length === 0 && <small>{t("No tabs yet")}</small>}
       </div>
-      {!isPremium && (
+      {(!isPremium || canUpgradeToPro) && (
         <Link
           className="product-studio-sidebar__premium"
-          href="/pricing?source=product_home"
-          onClick={() => track(`${analyticsSurface}_sidebar_premium`)}
+          href={canUpgradeToPro ? "/pricing?source=product_home&reason=pro_upgrade" : "/pricing?source=product_home"}
+          onClick={() => track(`${analyticsSurface}_sidebar_${canUpgradeToPro ? "pro" : "premium"}`)}
         >
-          <strong>{t("Premium")}</strong>
-          <span>{t("More credits and full-song uploads")}</span>
-          <i>{t("Explore →")}</i>
+          <strong>{t(canUpgradeToPro ? "Pro" : "Premium")}</strong>
+          <span>{canUpgradeToPro ? t("250 monthly credits and larger uploads") : t("More credits and full-song uploads")}</span>
+          <i>{t(canUpgradeToPro ? "Upgrade subscription →" : "Explore →")}</i>
         </Link>
       )}
     </aside>
