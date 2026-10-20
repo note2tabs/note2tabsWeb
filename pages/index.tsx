@@ -66,7 +66,8 @@ import TranscriptionModelDropdown from "../components/TranscriptionModelDropdown
 import TranscriptionModelValueNote from "../components/TranscriptionModelValueNote";
 import HeavyPreviewIntroDialog from "../components/HeavyPreviewIntroDialog";
 import HeavyPreviewOffer from "../components/HeavyPreviewOffer";
-import PremiumConversionCard from "../components/PremiumConversionCard";
+import LimitUpgradePrompt from "../components/LimitUpgradePrompt";
+import {calculateTranscriptionCredits} from "../lib/transcriptionModels";
 import { publishCreditsForPremiumPrompt } from "../lib/premiumPromptSignals";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
 import PremiumHomeCallout from "../components/PremiumHomeCallout";
@@ -265,6 +266,10 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   const [showHeavyPreviewIntro, setShowHeavyPreviewIntro] = useState(false);
   const [heavyPreviewConfirmationIntent, setHeavyPreviewConfirmationIntent] = useState<"select" | "start">("start");
   const [showHeavyUpgrade, setShowHeavyUpgrade] = useState(false);
+  const [blockedCredits, setBlockedCredits] = useState(false);
+  const [limitAttempt, setLimitAttempt] = useState(0);
+  const [blockedRequiredCredits, setBlockedRequiredCredits] = useState<number|undefined>(undefined);
+  const [blockedYoutube, setBlockedYoutube] = useState(false);
   const heavyPreviewAcknowledgedRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragCounter = useRef(0);
@@ -288,13 +293,13 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     sessionStatus === "authenticated" && !isPremiumUser
   );
   const needsPremiumForSelectedFile = Boolean(
-    !isPremiumUser && selectedFile && selectedFile.size > MAX_FREE_BYTES && selectedFile.size <= MAX_PRESERVABLE_UPLOAD_BYTES
+    selectedFile && selectedFile.size > maxUploadBytes && selectedFile.size <= PLAN_CATALOG.PRO.maxUploadBytes
   );
   const needsProForSelectedFile = Boolean(
     selectedFile && selectedFile.size > PLAN_CATALOG.PREMIUM.maxUploadBytes
   );
   const needsPremiumForFileDuration = Boolean(
-    !isPremiumUser && selectedFile && fileDuration && fileDuration > MAX_FREE_FILE_SNIPPET_SEC
+    !isPremiumUser && selectedFile && fileStartTime !== null && fileEndTime !== null && fileEndTime - fileStartTime > MAX_FREE_FILE_SNIPPET_SEC
   );
   const requireVerifiedEmail = process.env.NODE_ENV === "production";
   const isEmailVerified = !requireVerifiedEmail || Boolean(transcriberSession?.user?.isEmailVerified);
@@ -464,6 +469,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   };
 
   function reportBlockedSubmission(reason: SubmissionBlockReason, stage: SubmissionBlockStage = "validation", details: SubmissionBlockDetails = {}) {
+    if (["credits_exhausted","clip_duration_limit","file_too_large"].includes(reason)) setLimitAttempt(value=>value+1);
+    if (reason === "credits_exhausted") setBlockedCredits(true);
+    if (reason === "clip_duration_limit" && mode === "YOUTUBE") setBlockedYoutube(true);
     trackBlockedTranscriptionSubmission({
       surface: "home_transcriber", mode, model: transcriptionModel, plan: currentPlan,
       signedIn: Boolean(transcriberSession), sessionStatus,
@@ -1050,7 +1058,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         throw new Error(t("Upload failed before transcription could start."));
       }
 
-      const data = (await response.json().catch(() => ({}))) as { error?: string } & TabsResponse;
+      const data = (await response.json().catch(() => ({}))) as { error?: string; requiredCredits?: number } & TabsResponse;
       submissionAccepted = response.ok && ((response.status === 202 && Boolean(data.jobId)) || Array.isArray(data.tabs));
       if (response.status === 202 && data.jobId) {
         const accessType = getAcceptedTranscriptionAccessType(
@@ -1125,6 +1133,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
           return;
         }
         if (response.status === 403 && data.credits) {
+          setBlockedRequiredCredits(data.requiredCredits);
           reportBlockedSubmission("credits_exhausted", "server", { http_status: response.status, request_id: response.headers.get("x-request-id") || undefined });
           setError(null);
           return;
@@ -1555,69 +1564,6 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     }
   };
 
-  const handlePreservedUploadUpgrade = async () => {
-    if (!selectedFile || pricingBusy) return;
-    const funnel = getOrCreatePremiumFunnelContext({
-      source: "large_upload_gate",
-      reason: "file_size_limit",
-    });
-    setPricingBusy(true);
-    setPricingError(null);
-    try {
-      await savePendingTranscription({
-        mode: "FILE",
-        file: selectedFile,
-        fileStartTime: Math.max(0, fileStartTime ?? 0),
-        fileEndTime: Math.max(1, fileEndTime ?? DEFAULT_FILE_SNIPPET_SEC),
-        savedAt: Date.now(),
-      });
-      const response = await fetch("/api/stripe/create-checkout-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          locale,
-          returnTo: "/?resumeTranscription=1",
-          source: funnel.source,
-          reason: funnel.reason,
-          funnelId: funnel.funnelId,
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload?.url) {
-        throw new Error(payload?.error || t("Checkout is temporarily unavailable. Please try again in a moment."));
-      }
-      sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
-        plan: "premium_monthly",
-        checkout_attempt_id: payload.checkoutAttemptId,
-        checkout_session_id: payload.checkoutSessionId,
-        checkout_currency: payload.checkoutCurrency,
-        local_currency_eligible: payload.localCurrencyEligible,
-        ...premiumFunnelProperties(funnel),
-      });
-      rememberCheckoutAttempt({
-        checkoutSessionId: payload.checkoutSessionId,
-        checkoutAttemptId: payload.checkoutAttemptId,
-        funnelId: funnel.funnelId,
-        plan: "premium_monthly",
-        billingInterval: "monthly",
-        checkoutCurrency: payload.checkoutCurrency,
-        source: funnel.source,
-        reason: funnel.reason,
-      });
-      window.location.assign(payload.url);
-    } catch (upgradeError) {
-      sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
-        plan: "premium_monthly",
-        ...premiumFunnelProperties(funnel),
-      });
-      setPricingError(
-        upgradeError instanceof Error
-          ? upgradeError.message
-          : t("We could not reach checkout. Check your connection and try again.")
-      );
-      setPricingBusy(false);
-    }
-  };
 
   const creditsSummaryLabel = displayedCredits ? String(displayedCredits.remaining) : "0";
   const creditsResetDate = isSignedIn && displayedCredits ? new Date(displayedCredits.resetAt) : null;
@@ -1652,6 +1598,20 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
   if (shouldRedirectToProductHome) return null;
 
+  useEffect(()=>{setBlockedCredits(false);setBlockedYoutube(false);},[selectedFile,mode,ytStartTime,ytEndTime,fileStartTime,fileEndTime,entitlementPlan]);
+  const limitContext = {
+    plan: entitlementPlan,
+    attempt: limitAttempt,
+    fileBytes: mode === "FILE" ? selectedFile?.size : undefined,
+    clipSeconds: Math.max(0, mode === "FILE" ? (fileEndTime ?? 0) - (fileStartTime ?? 0) : (ytEndTime ?? 0) - (ytStartTime ?? 0)),
+    remaining: displayedCredits?.remaining,
+    required: blockedCredits && blockedRequiredCredits !== undefined ? blockedRequiredCredits : calculateTranscriptionCredits(Math.max(1, mode === "FILE" ? (fileEndTime ?? 0) - (fileStartTime ?? 0) : (ytEndTime ?? 0) - (ytStartTime ?? 0)), transcriptionModel),
+    resetLabel: creditsResetLabel,
+    beforeCheckout: async () => {
+      if (mode === "FILE" && selectedFile) await savePendingTranscription({mode:"FILE",file:selectedFile,fileStartTime:Math.max(0,fileStartTime??0),fileEndTime:Math.max(1,fileEndTime??DEFAULT_FILE_SNIPPET_SEC),savedAt:Date.now()});
+      else if (mode === "YOUTUBE" && youtubeUrl.trim()) await savePendingTranscription({mode:"YOUTUBE",youtubeUrl:youtubeUrl.trim(),startTime:Math.max(0,ytStartTime??0),endTime:Math.max(1,ytEndTime??DEFAULT_YOUTUBE_SNIPPET_SEC),savedAt:Date.now()});
+    },
+  };
   return (
     <>
       <HeavyPreviewIntroDialog
@@ -1958,22 +1918,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
               {status && !loading && !authHandoffBusy && <div className="status">{status}</div>}
               {error && <div className="error" role="alert">{translatedError(error, locale)}</div>}
-              {needsPremiumForSelectedFile && !showHeavyUpgrade && (
-                isSignedIn && !needsProForSelectedFile ? (
-                  <PremiumConversionCard title={t("Continue with this upload")} description={t("Your file is still selected. Premium supports audio files up to 200 MB and full-length transcription.")} actionLabel={t("Continue with Premium")} onAction={() => void handlePreservedUploadUpgrade()} busy={pricingBusy} tracking={{ source: "large_upload_gate", reason: "file_size_limit", surface: "file_size_limit_card", trigger: "oversized_file_selected" }} />
-                ) : (
-                  <PremiumConversionCard title={needsProForSelectedFile ? t("This file needs Pro") : t("This file needs Premium")} description={needsProForSelectedFile ? t("This file is larger than Premium's 200 MB limit. Pro supports files up to 500 MB.") : t("Free uploads are limited to 50 MB. Premium supports files up to 200 MB.")} actionLabel={needsProForSelectedFile ? t("See Pro") : t("See Premium")} planLabel={needsProForSelectedFile ? "Note2Tabs Pro" : undefined}  href={premiumPricingHref({ source: "large_upload_gate", reason: needsProForSelectedFile ? "pro_file_size_limit" : "file_size_limit" })} tracking={{ source: "large_upload_gate", reason: needsProForSelectedFile ? "pro_file_size_limit" : "file_size_limit", surface: needsProForSelectedFile ? "pro_file_size_limit_card" : "file_size_limit_card", trigger: "oversized_file_selected" }} />
-                )
-              )}
-              {!needsPremiumForSelectedFile && needsPremiumForFileDuration && !showHeavyUpgrade && (
-                <PremiumConversionCard title={t("Transcribe more of this file")} description={t("Free accounts can select up to 60 seconds. Premium unlocks full-length audio-file transcription.")} actionLabel={t("See longer options")} href={premiumPricingHref({ source: "premium_prompt", reason: "file_duration_limit" })} tracking={{ source: "premium_prompt", reason: "file_duration_limit", surface: "file_duration_limit_card", trigger: "long_file_selected" }} />
-              )}
-              {showHeavyUpgrade && !isPremiumUser && (
-                <PremiumConversionCard title={t("Use the Heavy model")} description={t("The Heavy model is available with Premium or Pro for our highest transcription accuracy.")} actionLabel={t("See plans")} href={premiumPricingHref({ source: "heavy_model", reason: "heavy_model_locked" })} tracking={{ source: "heavy_model", reason: "heavy_model_locked", surface: "heavy_model_locked_card", trigger: "locked_model_selected" }} />
-              )}
-              {needsPremiumForSelectedFile && pricingError && (
-                <div className="error" role="alert">{pricingError}</div>
-              )}
+              {needsPremiumForSelectedFile && !showHeavyUpgrade && <LimitUpgradePrompt context={limitContext} tracking={{source:"large_upload_gate",reason:needsProForSelectedFile?"pro_file_size_limit":"file_size_limit",surface:"file_size_limit_dialog",trigger:"oversized_file_selected"}}/>}
+              {!needsPremiumForSelectedFile && needsPremiumForFileDuration && !showHeavyUpgrade && <LimitUpgradePrompt context={limitContext} tracking={{source:"premium_prompt",reason:"file_duration_limit",surface:"file_duration_limit_dialog",trigger:"long_clip_selected"}}/>}
+              {showHeavyUpgrade && !isPremiumUser && <LimitUpgradePrompt context={limitContext} tracking={{source:"heavy_model",reason:"heavy_model_locked",surface:"heavy_model_locked_dialog",trigger:"locked_model_selected"}}/>}
               {isSignedIn && !isEmailVerified && (
                 <div className="notice">
                   {unverifiedTranscriptionUsed
@@ -1982,22 +1929,11 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   <Link href={verifyHref} className="button-link">{t(" Verify now ")}</Link>
                 </div>
               )}
-              {isSignedIn && showCreditsLow && !needsPremiumForSelectedFile && !needsPremiumForFileDuration && !showHeavyUpgrade && (
-                isPremiumRole(transcriberSession?.user?.role) ? (
-                  <div className="notice">{t(" Your credits will be refreshed on ")}{creditsResetLabel}.
-                  </div>
-                ) : (
-                  <PremiumConversionCard
-                    title={t("Keep transcribing today")}
-                    description={t("Premium includes 100 monthly credits, rollover, and full-song audio uploads.")}
-                    actionLabel={t("Get Premium")}
-                    onAction={() => void handlePricingClick("low_credits", "credits_low")}
-                    busy={pricingBusy}
-                    resetMessage={t("Free credits reset {date}", { date: creditsResetLabel })}
-                    tracking={{ source: "low_credits", reason: "credits_low", surface: "low_credits_card", trigger: "credits_threshold_reached" }}
-                  />
-                )
+              {isSignedIn && (showCreditsLow || blockedCredits) && !needsPremiumForSelectedFile && !needsPremiumForFileDuration && !showHeavyUpgrade && !blockedYoutube && (
+                <LimitUpgradePrompt context={limitContext} resetMessage={t("Your credits reset {date}", {date:creditsResetLabel})} tracking={{source:"low_credits",reason:blockedCredits?"credits_exhausted":"credits_low",surface:"low_credits_dialog",trigger:blockedCredits?"credits_exhausted":"credits_threshold_reached"}}/>
               )}
+              {blockedYoutube && <LimitUpgradePrompt context={limitContext} tracking={{source:"premium_prompt",reason:"youtube_duration_limit",surface:"youtube_limit_dialog",trigger:"clip_duration_limit"}}/>}
+
             </form>
 
             <div className="hero-outcome-row" data-reveal>
