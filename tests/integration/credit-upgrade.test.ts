@@ -93,7 +93,7 @@ describe.skipIf(!url)("credit upgrade with real isolated PostgreSQL", () => {
     const first = createMocks({ method: "POST", body: { plan: "pro", billingInterval: "monthly" } });
     await changePlan(first.req as any, first.res as any);
     expect(first.res.statusCode).toBe(200);
-    expect(first.res._getJSONData().quote).toMatchObject({ dueNow: 301, credits: 200 });
+    expect(first.res._getJSONData().quote).toMatchObject({ dueNow: 299, credits: 200 });
     expect(m.stripe.subscriptions.update).not.toHaveBeenCalled();
     const second = createMocks({ method: "POST", body: { plan: "pro", billingInterval: "monthly", action: "confirm", quoteId: first.res._getJSONData().quote.id } });
     await changePlan(second.req as any, second.res as any);
@@ -132,7 +132,7 @@ describe.skipIf(!url)("credit upgrade with real isolated PostgreSQL", () => {
   });
   it("quotes authoritative rollover balance without charging or mutating credits", async () => {
     const quote = await prepareCreditUpgrade(user.id, subscription(), "price_pro");
-    expect(quote).toMatchObject({ credits: 200, discount: 1198, regularAmount: 1499 });
+    expect(quote).toMatchObject({ credits: 200, discount: 1200, regularAmount: 1499 });
     expect(await balance()).toBe(200); expect(m.stripe.subscriptions.update).not.toHaveBeenCalled();
   });
   it("rejects stale confirmation before any billing operation", async () => {
@@ -143,7 +143,7 @@ describe.skipIf(!url)("credit upgrade with real isolated PostgreSQL", () => {
   it("creates a one-invoice discount and full monthly renewal without time proration", async () => {
     const quote = await prepareCreditUpgrade(user.id, subscription(), "price_pro");
     expect(await payCreditUpgrade(quote, quote.id)).toMatchObject({ changed: true });
-    expect(m.stripe.coupons.create).toHaveBeenCalledWith(expect.objectContaining({ amount_off: 1198, duration: "once" }), expect.anything());
+    expect(m.stripe.coupons.create).toHaveBeenCalledWith(expect.objectContaining({ amount_off: 1200, duration: "once" }), expect.anything());
     expect(m.stripe.subscriptions.update).toHaveBeenCalledWith("sub_upgrade", expect.objectContaining({ billing_cycle_anchor: "now", proration_behavior: "none", payment_behavior: "pending_if_incomplete" }), expect.anything());
     expect(await balance()).toBe(250);
   });
@@ -217,7 +217,7 @@ describe.skipIf(!url)("credit upgrade with real isolated PostgreSQL", () => {
       m.stripe.coupons.create.mockImplementation(async (params,options) => cli("/v1/coupons",params,"post",options));
       const review = createMocks({method:"POST",body:{plan:"pro",action:"quote"}});
       await changePlan(review.req as any, review.res as any);
-      expect(review.res._getJSONData().quote).toMatchObject({dueNow:301,credits:200});
+      expect(review.res._getJSONData().quote).toMatchObject({dueNow:299,credits:200});
       const decline = cli("/v1/payment_methods/pm_card_chargeCustomerFail/attach",{customer:customer.id}); setCard(decline.id);
       for (let attempt=0;attempt<2;attempt++) {
         const pay = createMocks({method:"POST",body:{plan:"pro",action:"confirm",quoteId:review.res._getJSONData().quote.id}});
@@ -239,7 +239,7 @@ describe.skipIf(!url)("credit upgrade with real isolated PostgreSQL", () => {
       expect(cli("/v1/invoices",{subscription:sub.id},"get").data.filter((item:any)=>item.status === "open")).toHaveLength(1);
       setCard(card.id);
       const paid = cli(`/v1/invoices/${pending.latest_invoice}/pay`,{payment_method:card.id});
-      expect(paid.amount_paid).toBe(301);
+      expect(paid.amount_paid).toBe(299);
       await deliver("invoice.paid",paid);
       expect(await balance()).toBe(250);
       await db.$executeRaw`UPDATE user_credits SET credits=230 WHERE "userId"=${user.id}`;

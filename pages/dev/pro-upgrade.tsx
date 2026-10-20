@@ -15,7 +15,7 @@ export default function ProUpgradePreview({view,reason,locale="en"}:{view:string
   useEffect(() => { let active=true; setReady(false); void loadPublicCatalog(locale).then(()=>{if(active)setReady(true);}); return()=>{active=false;}; },[locale]);
   if (!ready) return <p>Loading preview…</p>;
   const credits = reason === "credits_low" ? 3 : 200;
-  const quote = { id:"design-preview-only",currency:"usd",...creditUpgradePrice(599,1499,credits) };
+  const quote = { id:"design-preview-only",currency:"usd",...creditUpgradePrice(599,1499,credits,"usd") };
   return <div lang={locale} dir={locale === "ar" ? "rtl" : "ltr"}><LocaleProvider path={locale === "en" ? "/dev/pro-upgrade" : `/${locale}/dev/pro-upgrade`}><SessionContext.Provider value={{status:"authenticated",update:async()=>null,data:{user:{id:"design-preview-only",name:"Premium preview",email:"preview@example.test",role:"PREMIUM",subscriptionPlan:"PREMIUM"},expires:"2050-01-01T00:00:00Z"}}}>
     <CreditUpgradePreviewContext.Provider value={{quote,preview:true}}>
       <nav aria-label="Upgrade preview" className="upgrade-preview-nav">Design preview · Premium account · Payments disabled <a href="?view=pricing">Pricing</a><a href="?view=popup&reason=file_size_limit">File limit</a><a href="?view=popup&reason=youtube_duration_limit">YouTube limit</a><a href="?view=popup&reason=credits_low">Credits</a></nav>

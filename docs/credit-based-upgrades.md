@@ -52,3 +52,9 @@ Entry-point checks: 166 focused tests and TypeScript passed; browser verified al
 - Full suite has the same 33 failing tests as clean main, with no new failures (baseline logs compared by failing test name).
 - Browser verified final percentage badge and first-month savings wording; Arabic translated popup checked. Prior mobile checks confirmed the popup fits at 375px.
 - Migration has not been applied in production. Flags remain off; no merge or production billing changes.
+
+## First-payment rounding
+
+For currencies with two decimal places, the first upgrade charge is rounded to the nearest minor-unit amount ending in 9 (e.g. $3.01 → $2.99; $14.81 → $14.79). Halfway values round upward. Zero stays zero; charges never exceed the regular price. Zero-decimal currencies keep their whole-number calculation. The Stripe one-time discount is regular price minus the rounded charge, so the displayed savings and invoice agree. Renewal prices are unchanged. Previously persisted payment attempts retain their original confirmed valuation.
+
+Rounded-charge verification: real Stripe application integration passed all 17 cases, including $2.99 paid invoice, failure/void retry and $14.99 renewal. 158 focused regression tests and TypeScript passed. An initially incorrect halfway test fixture was corrected and rerun successfully.

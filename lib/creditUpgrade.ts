@@ -40,7 +40,7 @@ export async function prepareCreditUpgrade(userId: string, sub: Stripe.Subscript
   // Read the backend's actual debit balance, never the cached session balance.
   const rows = await prisma.$queryRaw<Array<{ credits: number }>>`SELECT credits FROM user_credits WHERE "userId"=${userId}`;
   if (!rows.length) throw new CreditUpgradeError("Your credit balance is unavailable. Please try again.");
-  const valuation = creditUpgradePrice(premiumAmount, proAmount, rows[0].credits);
+  const valuation = creditUpgradePrice(premiumAmount, proAmount, rows[0].credits, currency);
   const id = createHash("sha256").update(JSON.stringify([sub.id, sub.current_period_start, priceId, currency, valuation])).digest("hex").slice(0, 40);
   return { id, userId, subscriptionId: sub.id, oldPeriodStart: sub.current_period_start, oldInvoiceId: invoice.id, priceId, currency, ...valuation };
 }

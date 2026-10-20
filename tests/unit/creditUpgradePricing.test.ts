@@ -30,3 +30,16 @@ describe("upgrade review localization", () => {
     }
   });
 });
+
+describe("nearest 9-cent upgrade charge", () => {
+  it.each([[200,299],[100,899],[50,1199],[3,1479],[0,1499],[300,0]])("rounds %i credits to %i minor units", (credits,dueNow) => {
+    const quote=creditUpgradePrice(599,1499,credits,"usd");
+    expect(quote.dueNow).toBe(dueNow);
+    expect(quote.dueNow+quote.discount).toBe(1499);
+  });
+  it("does not round zero-decimal currency",()=>expect(creditUpgradePrice(600,1500,200,"jpy").dueNow).toBe(300));
+  it("rounds halfway upward, but never above the plan price",()=>{
+    expect(creditUpgradePrice(100,1000,56,"usd").dueNow).toBe(949);
+    expect(creditUpgradePrice(100,1000,0,"usd").dueNow).toBe(999);
+  });
+});
