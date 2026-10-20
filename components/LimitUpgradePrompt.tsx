@@ -1,3 +1,4 @@
+import { limitPopupTracking } from "../lib/limitPopupTracking";
 import { useCreditUpgradeQuote } from "../lib/useCreditUpgradeQuote";
 import CreditUpgradeSummary, { upgradeMoney } from "./CreditUpgradeSummary";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
@@ -73,6 +74,8 @@ export default function LimitUpgradePrompt({
     surface: tracking?.surface || "limit_dialog",
     trigger: tracking?.trigger || reason,
     placement: "transcriber_limit",
+    ...limitPopupTracking(reason, context),
+    locale,
     target_plan: plan?.toLowerCase(),
     ...(funnel.current ? premiumFunnelProperties(funnel.current) : {}),
   });
@@ -128,9 +131,9 @@ export default function LimitUpgradePrompt({
       document.removeEventListener("visibilitychange", record);
     };
   }, [open, key, plan, preview]);
-  function dismiss() {
+  function dismiss(method: "escape" | "back_to_transcriber" = "back_to_transcriber") {
     if (busy) return;
-    if (!preview) sendEvent(ANALYTICS_EVENTS.premiumPromptDismissed, props());
+    if (!preview) sendEvent(ANALYTICS_EVENTS.premiumPromptDismissed, { ...props(), dismiss_method: method });
     setOpen(false);
   }
   const isFile = reason.includes("file_size"),
@@ -205,7 +208,7 @@ export default function LimitUpgradePrompt({
         reason,
       });
     funnel.current = current;
-    sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, props());
+    sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, { ...props(), cta: context.plan === "FREE" ? "start_checkout" : upgrade.quote ? "confirm_pro_upgrade" : "review_upgrade" });
     try {
       await context.beforeCheckout?.();
       if (context.plan === "PREMIUM" && upgrade.quote) {
@@ -308,7 +311,7 @@ export default function LimitUpgradePrompt({
         aria-describedby={`${id}-description`}
         onCancel={(event) => {
           event.preventDefault();
-          dismiss();
+          dismiss("escape");
         }}
         onClose={() => setOpen(false)}
       >
@@ -384,7 +387,7 @@ export default function LimitUpgradePrompt({
           type="button"
           className="limit-upgrade-back"
           disabled={busy}
-          onClick={dismiss}
+          onClick={() => dismiss("back_to_transcriber")}
         >
           {t("Back to transcriber")}
         </button>

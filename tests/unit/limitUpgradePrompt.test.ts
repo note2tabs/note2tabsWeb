@@ -203,3 +203,12 @@ it("shows the subscriber's credit-based price and confirms the existing subscrip
     return body.action === "confirm" && body.quoteId === "quote_1" && body.plan === "pro";
   })).toBe(true);
 });
+it("attaches the same explicit limit type to shown, clicked and dismissed events", async () => {
+  m.fetch.mockResolvedValue({ok:false,json:async()=>({})});
+  await render({plan:"FREE",fileBytes:60*1024*1024},{tracking:{...tracking,reason:"file_size_limit"}});
+  expect(m.send.mock.calls.find(([event])=>event==="shown")?.[1]).toMatchObject({limit_type:"file_size",current_plan:"free",popup_version:"priced_limit_v2",upload_limit_bytes:50*1024*1024});
+  await act(async()=>el.querySelector<HTMLButtonElement>(".limit-upgrade-primary")!.click());
+  expect(m.send.mock.calls.find(([event])=>event==="clicked")?.[1]).toMatchObject({limit_type:"file_size",cta:"start_checkout"});
+  await act(async()=>el.querySelector<HTMLButtonElement>(".limit-upgrade-back")!.click());
+  expect(m.send.mock.calls.find(([event])=>event==="dismissed")?.[1]).toMatchObject({limit_type:"file_size",dismiss_method:"back_to_transcriber"});
+});
