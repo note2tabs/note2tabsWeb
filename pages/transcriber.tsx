@@ -294,8 +294,8 @@ export default function TranscriberPage() {
   const canUseHeavy = isPremiumUser || heavyPreviewAvailable;
   const canTranscribe = !requireVerifiedEmail || isEmailVerified || !unverifiedTranscriptionUsed;
   const displayedCredits = useMemo(
-    () => credits ?? (disableDbInDev ? buildDevCreditsSummary() : null),
-    [credits, disableDbInDev]
+    () => process.env.NODE_ENV === "development" && router.query.creditPreview === "1" ? {used:92,limit:100,remaining:8,resetAt:"2026-11-10T12:00:00Z",unlimited:false} : credits ?? (disableDbInDev ? buildDevCreditsSummary() : null),
+    [credits, disableDbInDev, router.query.creditPreview]
   );
   const verifyHref = `/auth/verify-email?next=${encodeURIComponent("/transcribe")}${
     transcriberSession?.user?.email
