@@ -69,7 +69,8 @@ export async function fetchBackendCredits(
 export async function setBackendCredits(
   userId: string,
   credits: number,
-  headers: Record<string, string>
+  headers: Record<string, string>,
+  cap = 200
 ) {
   const response = await fetch(`${API_BASE}/api/v1/credits/set`, {
     method: "POST",
@@ -79,33 +80,35 @@ export async function setBackendCredits(
     },
     body: JSON.stringify({
       userId,
-      credits: capCreditBalance(credits),
+      credits: capCreditBalance(credits, cap),
     }),
   });
   if (!response.ok) {
     throw new Error(await response.text().catch(() => "Failed to sync backend credits."));
   }
   const payload = await response.json().catch(() => null);
-  return capCreditBalance(extractRemainingCredits(payload) ?? credits);
+  return capCreditBalance(extractRemainingCredits(payload) ?? credits, cap);
 }
 
 export async function raiseBackendCreditsToFloor(
   userId: string,
   minimumCredits: number,
-  headers: Record<string, string>
+  headers: Record<string, string>,
+  cap = 200
 ) {
   const read = await fetchBackendCredits(headers);
   if (!read.available) return null;
-  const floor = capCreditBalance(minimumCredits);
+  const floor = capCreditBalance(minimumCredits, cap);
   if (typeof read.remainingCredits === "number" && read.remainingCredits === floor) {
-    return capCreditBalance(read.remainingCredits);
+    return capCreditBalance(read.remainingCredits, cap);
   }
-  return setBackendCredits(userId, floor, headers);
+  return setBackendCredits(userId, floor, headers, cap);
 }
 
 export function withBackendRemainingCredits(
   credits: CreditsSummary,
-  backendRemaining: number | null | undefined
+  backendRemaining: number | null | undefined,
+  cap = 200
 ): CreditsSummary {
   if (typeof backendRemaining !== "number" || !Number.isFinite(backendRemaining)) {
     return credits;
@@ -113,7 +116,7 @@ export function withBackendRemainingCredits(
   if (backendRemaining >= LEGACY_UNLIMITED_CREDIT_BALANCE) {
     return credits;
   }
-  const remaining = capCreditBalance(backendRemaining);
+  const remaining = capCreditBalance(backendRemaining, cap);
   if (remaining >= credits.remaining) {
     return credits;
   }

@@ -1832,5 +1832,11 @@
   "Compare plans": "プランを比較",
   "Back to transcriber": "変換画面に戻る",
   "/ month": "/ 月",
-  "Could not save your selection. Please try again.": "選択内容を保存できませんでした。もう一度お試しください。"
+  "Could not save your selection. Please try again.": "選択内容を保存できませんでした。もう一度お試しください。",
+  "Pro monthly price": "Proの月額料金",
+  "Credit exchange ({credits} credits)": "クレジットの換算（{credits}クレジット）",
+  "Due today": "本日のお支払い額",
+  "Your remaining credits are exchanged for this discount. You start a new month with 250 Pro credits. Then {amount} per month, starting one month after the upgrade.": "残りのクレジットをこの割引に換算します。250 Proクレジットで新しい1か月が始まります。アップグレードの1か月後から、毎月{amount}が請求されます。",
+  "Confirm upgrade": "アップグレードを確定",
+  "Processing…": "処理中…"
 }

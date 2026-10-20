@@ -790,10 +790,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const backendRemaining = await raiseBackendCreditsToFloor(
             user.id,
             refreshedCredits.remaining,
-            backendHeaders
+            backendHeaders,
+            PLAN_CATALOG[subscriptionPlan].rolloverCap
           );
           if (typeof backendRemaining === "number") {
-            refreshedCredits = withBackendRemainingCredits(refreshedCredits, backendRemaining);
+            refreshedCredits = withBackendRemainingCredits(refreshedCredits, backendRemaining, PLAN_CATALOG[subscriptionPlan].rolloverCap);
             user.tokensRemaining = refreshedCredits.remaining;
           }
         } catch (error) {

@@ -1,3 +1,4 @@
+import CreditUpgradeReview, { type CreditUpgradeQuote } from "../components/CreditUpgradeReview";
 import PriceTaxNote from "../components/PriceTaxNote";
 import MonthlyCredits from "../components/MonthlyCredits";
 import { localizedSignIn as signIn } from "../lib/i18n/auth";
@@ -41,6 +42,7 @@ export default function PricingPage() {
   const formatLocalizedAmount = (...args: Parameters<typeof rawAmount>) => rawAmount(args[0], args[1], locale);
   const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
+  const [upgradeQuote, setUpgradeQuote] = useState<CreditUpgradeQuote | null>(null);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [billingInterval, setBillingInterval] = useState<BillingInterval>("monthly");
@@ -153,7 +155,7 @@ export default function PricingPage() {
     });
   }, [getFunnelContext, measurementContext, offerVariant, offerVariantResolved, router.isReady, sessionStatus]);
 
-  const startCheckout = useCallback(async (plan: PaidSubscriptionPlan = "PREMIUM", resumed = false) => {
+  const startCheckout = useCallback(async (plan: PaidSubscriptionPlan = "PREMIUM", resumed = false, quoteId?: string) => {
     if (checkoutBusy) return;
     const funnel = getFunnelContext();
     sendEvent(resumed ? ANALYTICS_EVENTS.pricingCheckoutResumed : ANALYTICS_EVENTS.pricingCtaClicked, {
@@ -189,6 +191,7 @@ export default function PricingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          ...(quoteId ? { action: "confirm", quoteId } : {}),
           locale,
           source: funnel.source,
           reason: funnel.reason,
@@ -204,6 +207,13 @@ export default function PricingPage() {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || (!hasPaidPremium && !payload?.url)) {
         throw new Error(payload?.error || t("Checkout is temporarily unavailable. Please try again in a moment."));
+      }
+      if (payload.quote) { setUpgradeQuote(payload.quote); return; }
+      setUpgradeQuote(null);
+      if (hasPaidPremium) {
+        if (payload.url) window.location.assign(payload.url);
+        else await router.push("/settings?planChanged=1");
+        return;
       }
       sendEvent(ANALYTICS_EVENTS.checkoutRedirected, {
         ...measurementContext(),
@@ -229,6 +239,7 @@ export default function PricingPage() {
       if (payload.url) window.location.assign(payload.url);
       else await router.push("/settings?planChanged=1");
     } catch (error) {
+      setUpgradeQuote(null);
       sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, {
         ...measurementContext(),
         failure_category: failureStatus === undefined ? "network" : failureStatus >= 400 ? "http_error" : "invalid_response_or_navigation",
@@ -265,6 +276,7 @@ export default function PricingPage() {
     ? ["PREMIUM", "FREE", ...(showPro ? ["PRO"] : [])]
     : ["FREE", "PREMIUM", ...(showPro ? ["PRO"] : [])];
   return <>
+    <CreditUpgradeReview quote={upgradeQuote} busy={checkoutBusy} onCancel={() => setUpgradeQuote(null)} onConfirm={() => void startCheckout("PRO", false, upgradeQuote?.id)} />
     <SeoHead title={t("Pricing | Note2Tabs")} description={description} canonicalPath="/pricing" jsonLd={pricingJsonLd} />
     <main className="page page-pricing"><section className="pricing-page pricing-page--focused"><div className="container pricing-page__container">
       <header className="pricing-page__hero"><h1>{t("More music. More room to transcribe.")}</h1></header>
@@ -276,7 +288,7 @@ export default function PricingPage() {
             ...premiumFunnelProperties(getFunnelContext()), ...premiumOfferExperimentProperties(offerVariant),
           });
           setBillingInterval(interval);
-        }} disabled={checkoutBusy}>{interval === "monthly" ? t("Monthly") : <>{t("Yearly")}<span className="pricing-billing-toggle__saving">{t("Save {amount}!", {amount: localizedAnnualSaving(showPro ? "PRO" : "PREMIUM", displayCurrency)})}</span></>}</button>)}
+        }} disabled={checkoutBusy || Boolean(upgradeQuote)}>{interval === "monthly" ? t("Monthly") : <>{t("Yearly")}<span className="pricing-billing-toggle__saving">{t("Save {amount}!", {amount: localizedAnnualSaving(showPro ? "PRO" : "PREMIUM", displayCurrency)})}</span></>}</button>)}
       </div>
       <section className={`pricing-page__plans${showPro ? " pricing-page__plans--three" : ""}`} aria-label={t("Note2Tabs plans")}>
         {planOrder.map((id) => {

@@ -791,3 +791,21 @@ model AffiliatePayout {
 
   @@unique([affiliateId, month])
 }
+
+// One immutable credit valuation per Premium billing period. Stripe retries reuse it.
+model CreditUpgrade {
+  id String @id
+  userId String
+  subscriptionId String
+  oldPeriodStart Int
+  oldInvoiceId String
+  priceId String
+  currency String
+  credits Int
+  discount Int
+  regularAmount Int
+  invoiceId String? @unique
+  appliedAt DateTime?
+  createdAt DateTime @default(now())
+  @@unique([subscriptionId, oldPeriodStart])
+}
