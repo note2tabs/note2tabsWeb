@@ -1,3 +1,5 @@
+import CreditPurchaseLink from "../components/CreditPurchaseLink";
+import {usesCreditWallet,walletCredits} from "../lib/creditWallet";
 import LanguagePreference from "../components/LanguagePreference";
 import ReminderEmailPreference from "../components/ReminderEmailPreference";
 import { translatedError } from "../lib/i18n/translate";
@@ -591,6 +593,7 @@ function AccountSettingsPage({ user, stripeReady, credits }: Props) {
       </div>
       <div className="settingsRows">
         <SettingRow label="Next credit refresh" value={resetLabel} />
+        {process.env.NEXT_PUBLIC_CREDIT_TOPUPS_ENABLED === "true" && <SettingRow label="Buy credits"><CreditPurchaseLink button/></SettingRow>}
         <SettingRow label="Billing and plan">
           <div className="settingsActions">
             {!isPremium && (
@@ -987,7 +990,9 @@ export const getServerSideProps: GetServerSideProps<Props|GuestSettingsProps> = 
   let credits = isPremium
     ? reconcileCreditsWithStoredBalance(computedCredits, user?.tokensRemaining, PLAN_CATALOG[subscriptionPlan].rolloverCap)
     : computedCredits;
-  if (isPremium && user?.id) {
+  if (user?.id && await usesCreditWallet(user.id)) {
+    credits=await walletCredits(user,credits);
+  } else if (isPremium && user?.id) {
     try {
       const backendRemaining = await raiseBackendCreditsToFloor(
         user.id,

@@ -310,7 +310,6 @@ export default function PricingPage() {
           </article>;
         })}
       </section>
-      {process.env.NEXT_PUBLIC_CREDIT_TOPUPS_ENABLED === "true" && <p><Link href="/credits">{t("Buy more credits")}</Link></p>}
       <p className="pricing-credit-note">{t("A 60-second recording uses {light} credits with Light or {heavy} with Heavy.", {light: calculateTranscriptionCredits(60, "light"), heavy: calculateTranscriptionCredits(60, "super_heavy")})} {t("Credits refresh monthly.")}</p>
       <details className="pricing-comparison"><summary>{t("Compare all limits")}</summary><div className="pricing-comparison-scroll"><table><caption>{t("Recording and upload limits")}</caption><thead><tr><th scope="col">{t("Limit")}</th>{["FREE", "PREMIUM", ...(showPro ? ["PRO"] : [])].map((id) => <th scope="col" key={id}>{t(PLAN_CATALOG[id as keyof typeof PLAN_CATALOG].name)}</th>)}</tr></thead><tbody>
         <tr><th scope="row">{t("Upload size")}</th>{["FREE", "PREMIUM", ...(showPro ? ["PRO"] : [])].map((id) => <td key={id}>{PLAN_CATALOG[id as keyof typeof PLAN_CATALOG].maxUploadBytes / (1024 * 1024)} MB</td>)}</tr>

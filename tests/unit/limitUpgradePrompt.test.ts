@@ -184,3 +184,5 @@ it("reopens on a new blocked attempt after dismissal", async () => {
   await render({ plan: "FREE", remaining: 0, attempt: 2 });
   expect(el.querySelector("dialog")?.open).toBe(true);
 });
+it('shows a one-time credit offer for Premium shortfalls when sales are enabled',async()=>{vi.stubEnv('NEXT_PUBLIC_CREDIT_TOPUPS_ENABLED','true');try{await render({plan:'PREMIUM',remaining:8,required:15});expect(el.querySelector('a[href="/credits?credits=15"]')).not.toBeNull();expect(el.textContent).toContain('USD');expect(el.textContent).toContain('One-time purchase');}finally{vi.unstubAllEnvs();}});
+it('does not offer credits to bypass the file-size entitlement',async()=>{vi.stubEnv('NEXT_PUBLIC_CREDIT_TOPUPS_ENABLED','true');try{await render({plan:'FREE',fileBytes:320*1024*1024},{tracking:{...tracking,reason:'pro_file_size_limit'}});expect(el.querySelector('a[href^="/credits"]')).toBeNull();expect(el.textContent).toContain('Get Pro');}finally{vi.unstubAllEnvs();}});

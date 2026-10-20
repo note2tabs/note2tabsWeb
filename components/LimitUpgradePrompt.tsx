@@ -1,3 +1,4 @@
+import CreditShortfallDialog from "./CreditShortfallDialog";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import { localizedSignIn } from "../lib/i18n/auth";
@@ -31,7 +32,7 @@ type Props = {
   };
   resetMessage?: string;
 };
-export default function LimitUpgradePrompt({
+function SubscriptionLimitPrompt({
   context,
   tracking,
   resetMessage,
@@ -378,4 +379,11 @@ export default function LimitUpgradePrompt({
       </dialog>
     </>
   );
+}
+
+export default function LimitUpgradePrompt(props:Props){
+ const reason=props.tracking?.reason||'credits_low';
+ const blocked=props.context.remaining===0 || (props.context.required||0)>(props.context.remaining||0);
+ if(process.env.NEXT_PUBLIC_CREDIT_TOPUPS_ENABLED==='true' && ['credits_low','credits_exhausted'].includes(reason)&&blocked)return <CreditShortfallDialog context={props.context} preview={props.preview}/>;
+ return <SubscriptionLimitPrompt {...props}/>;
 }
