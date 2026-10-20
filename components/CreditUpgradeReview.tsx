@@ -1,3 +1,4 @@
+import { upgradeMoney } from "./CreditUpgradeSummary";
 import { useEffect, useRef } from "react";
 import { useLocale } from "../lib/i18n/react";
 
@@ -10,7 +11,7 @@ export default function CreditUpgradeReview({ quote, busy, onCancel, onConfirm }
     if (quote && dialog && !dialog.open) dialog.showModal();
     if (!quote && dialog?.open) dialog.close();
   }, [quote]);
-  const money = (amount: number) => new Intl.NumberFormat(locale, { style: "currency", currency: quote?.currency || "USD" }).format(amount / 10 ** new Intl.NumberFormat(locale, { style: "currency", currency: quote?.currency || "USD" }).resolvedOptions().maximumFractionDigits!);
+  const money = (amount: number) => quote ? upgradeMoney(quote, amount, locale) : "";
   return <dialog ref={ref} aria-labelledby="credit-upgrade-heading" onCancel={event => { event.preventDefault(); if (!busy) onCancel(); }} className="w-[calc(100%-2rem)] max-w-md rounded-2xl bg-white p-7 text-slate-950 shadow-2xl backdrop:bg-slate-950/40">
     {quote && <>
       <h2 id="credit-upgrade-heading" className="text-2xl font-semibold tracking-tight">{t("Upgrade to Pro")}</h2>

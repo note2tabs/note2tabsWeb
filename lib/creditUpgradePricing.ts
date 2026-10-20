@@ -1,3 +1,7 @@
+/** Stripe charge units for the currencies supported by this application.
+ * Display precision from Intl is locale-dependent and must never determine units. */
+export const stripeCurrencyScale = (currency: string) => ["JPY", "KRW"].includes(currency.toUpperCase()) ? 1 : 100;
+
 /** Amounts are integer Stripe currency minor units, including zero-decimal currencies. */
 export function creditUpgradePrice(premiumAmount: number, proAmount: number, credits: number, currency?: string) {
   if (![premiumAmount, proAmount, credits].every(Number.isSafeInteger) || premiumAmount <= 0 || proAmount <= 0 || credits < 0) {
@@ -7,7 +11,7 @@ export function creditUpgradePrice(premiumAmount: number, proAmount: number, cre
   const exactDue = proAmount - creditDiscount;
   // Two-decimal currencies only. Nearest x.x9; ties round upward.
   // Never charge more than the regular Pro price or turn zero into a charge.
-  const twoDecimal = currency && new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits === 2;
+  const twoDecimal = currency && stripeCurrencyScale(currency) === 100;
   const dueNow = twoDecimal && exactDue > 0
     ? Math.min(proAmount, Math.max(0, Math.round((exactDue - 9) / 10) * 10 + 9))
     : exactDue;
