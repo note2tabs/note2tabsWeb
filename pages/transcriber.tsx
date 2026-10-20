@@ -253,7 +253,7 @@ export default function TranscriberPage() {
     ? "PRO"
     : effectiveSubscriptionPlan(transcriberSession?.user?.role, transcriberSession?.user?.subscriptionPlan);
   const maxUploadBytes = PLAN_CATALOG[entitlementPlan].maxUploadBytes;
-  const youtubeWindowSeconds = PLAN_CATALOG[entitlementPlan].youtubePositionLimitSeconds;
+  const youtubeMaxClipSeconds = PLAN_CATALOG[entitlementPlan].youtubeMaxClipSeconds;
   const selectTranscriptionModel = (model: TranscriptionModelChoice) => {
     transcriptionModelTouchedRef.current = true;
     setTranscriptionModel(model);
@@ -311,11 +311,11 @@ export default function TranscriberPage() {
   }, [appendEditorId, editorChoices]);
   const youtubeId = useMemo(() => parseYouTubeId(youtubeUrl), [youtubeUrl]);
   const resolvedYtDuration = useMemo(() => {
-    return resolveYoutubeClipDuration(ytStartTime, ytEndTime, isPremiumUser, youtubeWindowSeconds);
-  }, [isPremiumUser, ytStartTime, ytEndTime, youtubeWindowSeconds]);
+    return resolveYoutubeClipDuration(ytStartTime, ytEndTime, isPremiumUser, youtubeMaxClipSeconds);
+  }, [isPremiumUser, ytStartTime, ytEndTime, youtubeMaxClipSeconds]);
   const youtubeTimeRangeValid = useMemo(
-    () => isYoutubeClipRangeValid(ytStartTime, ytEndTime, isPremiumUser, youtubeWindowSeconds),
-    [isPremiumUser, ytStartTime, ytEndTime, youtubeWindowSeconds]
+    () => isYoutubeClipRangeValid(ytStartTime, ytEndTime, isPremiumUser, youtubeMaxClipSeconds),
+    [isPremiumUser, ytStartTime, ytEndTime, youtubeMaxClipSeconds]
   );
   const resolvedFileDuration = useMemo(() => {
     if (fileStartTime === null || fileEndTime === null) return 0;
@@ -670,7 +670,7 @@ export default function TranscriberPage() {
       setYtStartInput("");
       return;
     }
-    const nextRange = clampYoutubeClipStart(ytStartTime, ytEndTime, isPremiumUser, youtubeWindowSeconds);
+    const nextRange = clampYoutubeClipStart(ytStartTime, ytEndTime, isPremiumUser, youtubeMaxClipSeconds);
     setYtStartTime(nextRange.start);
     setYtStartInput(formatTimestamp(nextRange.start));
     setYtEndTime(nextRange.end);
@@ -682,7 +682,7 @@ export default function TranscriberPage() {
       setYtEndInput("");
       return;
     }
-    const nextEnd = clampYoutubeClipEnd(ytStartTime, ytEndTime, isPremiumUser, youtubeWindowSeconds);
+    const nextEnd = clampYoutubeClipEnd(ytStartTime, ytEndTime, isPremiumUser, youtubeMaxClipSeconds);
     setYtEndTime(nextEnd);
     setYtEndInput(formatTimestamp(nextEnd));
   };
@@ -965,19 +965,14 @@ export default function TranscriberPage() {
         setError(t("Start time must be 0 or greater."));
         return;
       }
-      if (ytStartTime !== null && ytStartTime >= youtubeWindowSeconds) {
-        reportBlockedSubmission("clip_start_out_of_bounds", "validation", { limit_seconds: youtubeWindowSeconds });
-        setError(t("Start time must be before {time}.", { time: formatTimestamp(youtubeWindowSeconds) }));
-        return;
-      }
       if (ytEndTime !== null && ytEndTime <= 0) {
         reportBlockedSubmission("invalid_clip_end", "validation");
         setError(t("End time must be greater than 0."));
         return;
       }
-      if (ytEndTime !== null && ytEndTime > youtubeWindowSeconds) {
-        reportBlockedSubmission("clip_end_out_of_bounds", "validation", { limit_seconds: youtubeWindowSeconds });
-        setError(t("End time must be {time} or earlier.", { time: formatTimestamp(youtubeWindowSeconds) }));
+      if (ytStartTime !== null && ytEndTime !== null && ytEndTime - ytStartTime > youtubeMaxClipSeconds) {
+        reportBlockedSubmission("clip_duration_limit", "validation", { limit_seconds: youtubeMaxClipSeconds });
+        setError(t("YouTube clips are limited to {seconds} seconds.", { seconds: youtubeMaxClipSeconds }));
         return;
       }
     }
@@ -1739,7 +1734,7 @@ export default function TranscriberPage() {
                     <label>{t("End time")}<input type="text" inputMode="numeric" pattern="[0-9:]*" autoComplete="off" placeholder="0:30" value={ytEndInput} onChange={(event) => handleYtEndInputChange(event.target.value)} onBlur={handleYtEndInputBlur} required /></label>
                     <p className="advanced-note">
                       {isPremiumUser
-                        ? t("Choose any clip length within the first {minutes} minutes.", { minutes: youtubeWindowSeconds / 60 })
+                        ? t("Choose any section up to {minutes} minutes long.", { minutes: youtubeMaxClipSeconds / 60 })
                         : t("Free clips can be up to 30 s.")}
                     </p>
                     </div>

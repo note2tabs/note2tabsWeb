@@ -11,7 +11,7 @@ export type SubscriptionPlanDefinition = {
   rolloverCap: number;
   trialDays: number;
   maxUploadBytes: number;
-  youtubePositionLimitSeconds: number;
+  youtubeMaxClipSeconds: number;
   prioritySupport: boolean;
   earlyAccessEligible: boolean;
 };
@@ -22,19 +22,19 @@ export const PLAN_CATALOG: Record<SubscriptionPlan, SubscriptionPlanDefinition> 
   FREE: {
     id: "FREE", name: "Free", analyticsId: "free", monthlyPriceUsd: 0,
     monthlyCredits: 10, rolloverCap: 10, trialDays: 0,
-    maxUploadBytes: 50 * MB, youtubePositionLimitSeconds: 10 * 60,
+    maxUploadBytes: 50 * MB, youtubeMaxClipSeconds: 30,
     prioritySupport: false, earlyAccessEligible: false,
   },
   PREMIUM: {
     id: "PREMIUM", name: "Premium", analyticsId: "premium_monthly", monthlyPriceUsd: 5.99,
     monthlyCredits: 100, rolloverCap: 200, trialDays: 7,
-    maxUploadBytes: 200 * MB, youtubePositionLimitSeconds: 10 * 60,
+    maxUploadBytes: 200 * MB, youtubeMaxClipSeconds: 10 * 60,
     prioritySupport: false, earlyAccessEligible: false,
   },
   PRO: {
     id: "PRO", name: "Pro", analyticsId: "pro_monthly", monthlyPriceUsd: 14.99,
     monthlyCredits: 250, rolloverCap: 500, trialDays: 0,
-    maxUploadBytes: 500 * MB, youtubePositionLimitSeconds: 20 * 60,
+    maxUploadBytes: 500 * MB, youtubeMaxClipSeconds: 20 * 60,
     prioritySupport: true, earlyAccessEligible: true,
   },
 };

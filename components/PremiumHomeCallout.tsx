@@ -25,7 +25,7 @@ export function PremiumHomeCalloutCard({ href, onClick }: PremiumHomeCalloutCard
     <aside className="premium-home-callout" aria-label={t("Longer YouTube transcription options")}>
       <div>
         <strong>{t("Need a longer section?")}</strong>
-        <p>{t("Free accounts can transcribe 30 seconds at a time. Premium unlocks longer YouTube sections within the first 10 minutes.")}</p>
+        <p>{t("Choose any part of a YouTube video: up to 30 seconds on Free, 10 minutes on Premium, or 20 minutes on Pro.")}</p>
       </div>
       <Link href={href} onClick={onClick}>{t("See longer options")}</Link>
     </aside>

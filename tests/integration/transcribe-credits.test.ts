@@ -87,8 +87,8 @@ async function callTranscribe(
   mocks.session.mockResolvedValue({ user: { id: "user_1" } });
   const user = {
     id: "user_1",
-    role,
-    subscriptionPlan: role === "PREMIUM" ? "PREMIUM" : "FREE",
+    role: role === "PRO" ? "PREMIUM" : role,
+    subscriptionPlan: role === "PRO" ? "PRO" : role === "PREMIUM" ? "PREMIUM" : "FREE",
     tokensRemaining: 10,
     emailVerified: new Date("2026-01-01T00:00:00.000Z"),
     emailVerifiedBool: true,
@@ -490,11 +490,17 @@ describe("transcribe credits", () => {
     }
   );
 
-  it("rejects Premium YouTube clips extending beyond the first ten minutes", async () => {
-    const res = await callTranscribe("PREMIUM", false, "light", 31, 570);
-
+  it.each([["FREE", 30], ["PREMIUM", 90], ["PRO", 90]])("allows %s YouTube clips starting an hour into the video", async (role, duration) => {
+    const res = await callTranscribe(role, false, "light", duration, 3600);
+    expect(res.statusCode).toBe(202);
+    const body = (mocks.fetch.mock.calls[0] as [string, RequestInit])[1].body as FormData;
+    expect(body.get("start_time")).toBe("3600");
+    expect(body.get("duration")).toBe(String(duration));
+  });
+  it("rejects Premium YouTube clips longer than ten minutes", async () => {
+    const res = await callTranscribe("PREMIUM", false, "light", 601, 3600);
     expect(res.statusCode).toBe(400);
-    expect(res.body).toMatchObject({ maxEndTimeSec: 600 });
+    expect(res.body).toMatchObject({ maxDurationSec: 600 });
     expect(mocks.fetch).not.toHaveBeenCalled();
   });
 

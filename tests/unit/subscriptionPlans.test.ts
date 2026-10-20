@@ -9,10 +9,14 @@ describe("subscription plan catalogue", () => {
       rolloverCap: 500,
       trialDays: 0,
       maxUploadBytes: 500 * 1024 * 1024,
-      youtubePositionLimitSeconds: 1200,
+      youtubeMaxClipSeconds: 1200,
       prioritySupport: true,
       earlyAccessEligible: true,
     });
+  });
+
+  it("defines duration caps independently of position in the video", () => {
+    expect([PLAN_CATALOG.FREE.youtubeMaxClipSeconds, PLAN_CATALOG.PREMIUM.youtubeMaxClipSeconds, PLAN_CATALOG.PRO.youtubeMaxClipSeconds]).toEqual([30, 600, 1200]);
   });
 
   it("keeps legacy paid roles on Premium and rejects unknown plans", () => {

@@ -29,7 +29,7 @@ export default function YoutubeToGuitarTabsPage() {
         title: "Focus the transcription on the exact riff you need",
         paragraphs: [
           "Paste a public YouTube URL, set the start and end times, and transcribe a focused clip. The link mode opens automatically, so you can go straight from this page to choosing the section.",
-          "Selecting a precise segment makes the result faster to review and avoids spending credits on parts you do not need. Free accounts can transcribe clips up to 30 seconds; Premium accounts can choose longer clips within the first ten minutes of a video.",
+          "Choose any part of a YouTube video: up to 30 seconds on Free, 10 minutes on Premium, or 20 minutes on Pro.",
         ],
         benefits: [
           { title: "Timestamp controls", body: "Choose a specific solo, riff, or chord passage instead of processing the whole video." },
@@ -53,7 +53,7 @@ export default function YoutubeToGuitarTabsPage() {
           ],
           bullets: [
             "Prefer a video where the guitar is clearly audible.",
-            "Free accounts can choose up to 30 seconds; Premium accounts can choose longer clips within the first ten minutes.",
+            "Choose any part of a YouTube video: up to 30 seconds on Free, 10 minutes on Premium, or 20 minutes on Pro.",
             "Avoid intros, talking, or silence outside the section you need.",
             "Use the same timestamp when you want to play the tab alongside the original performance.",
           ],
@@ -67,10 +67,10 @@ export default function YoutubeToGuitarTabsPage() {
         },
       ]}
       faqs={[
-        { question: "How long can the YouTube clip be?", answer: "Free accounts can select up to 30 seconds. Premium accounts can select longer clips, with an end time no later than 10:00 in the video." },
+        { question: "How long can the YouTube clip be?", answer: "Choose any part of a YouTube video: up to 30 seconds on Free, 10 minutes on Premium, or 20 minutes on Pro." },
         { question: "Can I edit the generated YouTube tab?", answer: "Yes. The transcription opens as a native Note2Tabs editor project with writing, arrangement, fingering, playback, practice, and export tools." },
         { question: "Do I need to download the YouTube video first?", answer: "No. Paste the public YouTube URL directly, choose the timestamps, and start the transcription from the link." },
-        { question: "Is the YouTube-to-tabs converter free?", answer: "You can try it with the free monthly transcription credits and clips up to 30 seconds. Premium supports longer YouTube clips within the first ten minutes." },
+        { question: "Is the YouTube-to-tabs converter free?", answer: "Choose any part of a YouTube video: up to 30 seconds on Free, 10 minutes on Premium, or 20 minutes on Pro." },
         { question: "What can I do with the generated tab?", answer: "Play it, arrange sections, choose alternate fingerings and chord shapes, add guitar techniques, practise loops, and export it from the editor." },
         { question: "Can I convert only one riff or solo from a YouTube video?", answer: "Yes. Enter the start and end timestamps for the exact section you want instead of converting unrelated parts of the video." },
       ]}

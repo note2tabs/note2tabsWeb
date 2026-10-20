@@ -63,16 +63,14 @@ describe("YouTube clip limits", () => {
     expect(resolveYoutubeClipDuration(60, 300, true)).toBe(240);
   });
 
-  it("keeps every YouTube clip inside the first ten minutes", () => {
-    expect(isYoutubeClipRangeValid(300, 600, true)).toBe(true);
-    expect(isYoutubeClipRangeValid(300, 601, true)).toBe(false);
-    expect(isYoutubeClipRangeValid(600, 601, true)).toBe(false);
+  it.each([[false, 30], [true, 600], [true, 1200]] as const)("allows a late start while enforcing a %s/%s duration", (paid, limit) => {
+    expect(isYoutubeClipRangeValid(3600, 3600 + limit, paid, limit)).toBe(true);
+    expect(isYoutubeClipRangeValid(3600, 3601 + limit, paid, limit)).toBe(false);
+    expect(clampYoutubeClipEnd(3600, 7200, paid, limit)).toBe(3600 + limit);
+    expect(clampYoutubeClipStart(3600, 0, paid, limit)).toEqual({start:3600,end:3630});
   });
-
-  it("allows Pro selections through the first twenty minutes", () => {
-    expect(isYoutubeClipRangeValid(1190, 1200, true, 1200)).toBe(true);
-    expect(isYoutubeClipRangeValid(1190, 1201, true, 1200)).toBe(false);
-    expect(clampYoutubeClipEnd(1190, 1300, true, 1200)).toBe(1200);
+  it.each([[-1, 20], [NaN, 20], [0, Infinity], [Infinity, Infinity], [20, 20]])("rejects invalid timestamps %s–%s", (start, end) => {
+    expect(isYoutubeClipRangeValid(start, end, true)).toBe(false);
   });
 
   it("clamps free ranges without shortening Premium ranges", () => {
