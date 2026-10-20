@@ -791,3 +791,24 @@ model AffiliatePayout {
 
   @@unique([affiliateId, month])
 }
+
+model CreditWalletState {
+  userId        String @id
+  freeMonth     String
+}
+
+model CreditTopUpOrder {
+  id                String @id @default(cuid())
+  userId            String
+  credits           Int
+  amountCents       Int
+  currency          String @default("usd")
+  checkoutSessionId String? @unique
+  paymentIntentId   String? @unique
+  fulfilled         Boolean @default(false)
+  refundedCents     Int @default(0)
+  revokedCredits    Int @default(0)
+  createdAt         DateTime @default(now())
+  fulfilledAt       DateTime?
+  @@index([userId, createdAt])
+}

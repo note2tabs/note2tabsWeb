@@ -1,3 +1,5 @@
+import {shouldOfferCreditPurchase} from "../lib/creditPurchaseEligibility";
+import CreditPurchaseLink from "../components/CreditPurchaseLink";
 import PriceTaxNote from "../components/PriceTaxNote";
 import { uploadTranscriptionFile, TranscriptionUploadError } from "../lib/transcriptionUpload";
 import { trackBlockedTranscriptionSubmission, type SubmissionBlockReason, type SubmissionBlockStage, type SubmissionBlockDetails } from "../lib/transcriptionSubmission";
@@ -1703,7 +1705,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                           : `• ${t(creditsDaysUntilReset === 1 ? "Next credits in {days} day" : "Next credits in {days} days", {days: creditsDaysUntilReset})}`}
                       </span>
                     )}
-                  </p>
+                  {!isStaffUser && shouldOfferCreditPurchase(entitlementPlan,displayedCredits?.remaining,blockedCredits?blockedRequiredCredits:undefined) && <CreditPurchaseLink beforeNavigate={limitContext.beforeCheckout}/>}</p>
                 )}
               </div>
               {heavyPreviewAvailable ? (

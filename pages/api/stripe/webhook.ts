@@ -1,3 +1,5 @@
+import {fulfillCreditTopUp} from "../../../lib/creditTopUps";
+import {grantWalletAllowance,usesCreditWallet,activateWalletPlan} from "../../../lib/creditWallet";
 import { withAffiliatePayoutLock, reverseCommissionTransfer } from "../../../lib/affiliatePayouts";
 import { queuePaidCreditReset } from "../../../lib/creditResetNotices";
 import { checkoutForPaymentIntent, checkoutPaymentDiagnostics, safeCheckoutPaymentDiagnostics } from "../../../lib/checkoutDiagnostics";
@@ -202,6 +204,9 @@ async function setPremiumForIdentifier(identifier: UserIdentifier, plan: PaidSub
             : user.tokensRemaining,
           definition.rolloverCap
         );
+  if (await usesCreditWallet(user.id)) {
+    await activateWalletPlan(user,plan,definition.monthlyCredits,definition.rolloverCap);
+  } else {
   await prisma.user.update({
     where: { id: user.id },
     data: {
@@ -210,6 +215,7 @@ async function setPremiumForIdentifier(identifier: UserIdentifier, plan: PaidSub
       tokensRemaining,
     },
   });
+  }
   return user.id;
 }
 
@@ -903,8 +909,9 @@ async function grantRenewalForIdentifier(
           if (isOutOfOrder) return "out_of_order" as const;
 
           const definition = PLAN_CATALOG[renewal.plan];
-          const tokensRemaining =
-            user.role === "PREMIUM"
+          const tokensRemaining = await usesCreditWallet(user.id)
+            ? await grantWalletAllowance(tx,user,definition.monthlyCredits,definition.rolloverCap)
+            : user.role === "PREMIUM"
               ? capCreditBalance(user.tokensRemaining + definition.monthlyCredits, definition.rolloverCap)
               : definition.monthlyCredits;
           await tx.user.update({
@@ -1020,6 +1027,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    if (["checkout.session.completed","checkout.session.async_payment_succeeded"].includes(event.type)) {
+      const topUpSession=event.data.object as Stripe.Checkout.Session;
+      if (topUpSession.metadata?.creditTopUpOrderId) {
+        const fresh=await stripeClient.checkout.sessions.retrieve(topUpSession.id,{expand:["payment_intent.latest_charge"]});
+        await fulfillCreditTopUp(fresh);
+        return res.status(200).json({received:true});
+      }
+    }
+    if (event.type === "charge.refunded") {
+      const charge=event.data.object as Stripe.Charge;
+      const paymentId=typeof charge.payment_intent==='string'?charge.payment_intent:charge.payment_intent?.id;
+      if (paymentId) {
+        const intent=await stripeClient.paymentIntents.retrieve(paymentId);
+        const orderId=intent.metadata?.creditTopUpOrderId;
+        if(orderId){
+          const order=await prisma.creditTopUpOrder.findUnique({where:{id:orderId}});
+          if(order?.checkoutSessionId) await fulfillCreditTopUp(await stripeClient.checkout.sessions.retrieve(order.checkoutSessionId,{expand:["payment_intent.latest_charge"]}));
+          return res.status(200).json({received:true});
+        }
+      }
+    }
+
     if (event.type === "checkout.session.expired") {
       const checkoutSession = event.data.object as Stripe.Checkout.Session;
       if (checkoutSession.metadata?.userId && checkoutSession.metadata?.note2tabsPlan) {

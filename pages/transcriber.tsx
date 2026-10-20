@@ -1,3 +1,5 @@
+import {shouldOfferCreditPurchase} from "../lib/creditPurchaseEligibility";
+import CreditPurchaseLink from "../components/CreditPurchaseLink";
 import dynamic from "next/dynamic";
 const PaywallDesignPreview = process.env.NODE_ENV === "development" ? dynamic(()=>import("../components/PaywallDesignPreview"),{ssr:false}) : ()=>null;
 import { uploadTranscriptionFile, TranscriptionUploadError } from "../lib/transcriptionUpload";
@@ -197,7 +199,7 @@ const parseYouTubeId = (value: string): string | null => {
   return null;
 };
 
-export default function TranscriberPage() {
+export default function TranscriberPage({creditPlacementReview=false}:{creditPlacementReview?:boolean}) {
   const { t, locale } = useLocale();
   const { data: session, status: sessionStatus, update: updateSession } = useSession();
   const router = useRouter();
@@ -293,8 +295,8 @@ export default function TranscriberPage() {
   const canUseHeavy = isPremiumUser || heavyPreviewAvailable;
   const canTranscribe = !requireVerifiedEmail || isEmailVerified || !unverifiedTranscriptionUsed;
   const displayedCredits = useMemo(
-    () => credits ?? (disableDbInDev ? buildDevCreditsSummary() : null),
-    [credits, disableDbInDev]
+    () => creditPlacementReview ? {used:92,limit:100,remaining:router.query.creditState === "empty" ? 0 : 8,resetAt:"2026-11-10T12:00:00Z",unlimited:false} : credits ?? (disableDbInDev ? buildDevCreditsSummary() : null),
+    [credits, disableDbInDev, creditPlacementReview,router.query.creditState]
   );
   const verifyHref = `/auth/verify-email?next=${encodeURIComponent("/transcribe")}${
     transcriberSession?.user?.email
@@ -1568,7 +1570,7 @@ export default function TranscriberPage() {
                 {isSignedIn && displayedCredits && (
                   <p className="hero-credits-inline">{t(" Credits: ")}<strong>{creditsUsageLabel}</strong>
                     <span className="hero-credits-next">• {resetLabelText} {creditsResetLabel}</span>
-                  </p>
+                  {!isStaffUser && shouldOfferCreditPurchase(entitlementPlan,displayedCredits?.remaining,blockedCredits?blockedRequiredCredits:undefined) && <CreditPurchaseLink beforeNavigate={limitContext.beforeCheckout}/>}</p>
                 )}
               </div>
 

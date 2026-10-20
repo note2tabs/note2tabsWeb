@@ -1,3 +1,4 @@
+import {walletCredits,usesCreditWallet} from "../../lib/creditWallet";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "./auth/[...nextauth]";
@@ -61,6 +62,7 @@ async function buildUserCredits(user: {
   let credits: CreditsSummary = isPremium
     ? reconcileCreditsWithStoredBalance(computedCredits, user.tokensRemaining, subscriptionPlan === "PRO" ? 500 : 200)
     : computedCredits;
+  if (await usesCreditWallet(user.id)) return {credits:await walletCredits(user,credits),source:"backend" as const};
   let source: "computed" | "stored" | "backend" = isPremium ? "stored" : "computed";
 
   if (isPremium) {

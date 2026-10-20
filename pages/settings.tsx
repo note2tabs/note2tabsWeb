@@ -1,3 +1,7 @@
+import {shouldOfferCreditPurchase} from "../lib/creditPurchaseEligibility";
+import {creditPlacementPreview,creditPlacementReviewEnabled} from "../lib/creditPlacementPreview";
+import CreditPurchaseLink from "../components/CreditPurchaseLink";
+import {usesCreditWallet,walletCredits} from "../lib/creditWallet";
 import LanguagePreference from "../components/LanguagePreference";
 import ReminderEmailPreference from "../components/ReminderEmailPreference";
 import { translatedError } from "../lib/i18n/translate";
@@ -45,6 +49,7 @@ import {
 import { rememberCheckoutAttempt } from "../lib/checkoutTracking";
 
 type Props = {
+  creditPlacementReview?:boolean;
   user: {
     email: string;
     name: string | null;
@@ -131,11 +136,11 @@ function SettingRow({ label, description, value, children }: SettingRowProps) {
   );
 }
 
-function AccountSettingsPage({ user, stripeReady, credits }: Props) {
+function AccountSettingsPage({ user, stripeReady, credits,creditPlacementReview=false }: Props) {
   const { t, locale, href: localePath } = useLocale();
   const router = useRouter();
   const { update: updateSession } = useSession();
-  const [selectedSection, setSelectedSection] = useState<SettingsSection>("account");
+  const [selectedSection, setSelectedSection] = useState<SettingsSection>(creditPlacementReview ? "plan" : "account");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleteFlowOpen, setDeleteFlowOpen] = useState(false);
@@ -591,6 +596,7 @@ function AccountSettingsPage({ user, stripeReady, credits }: Props) {
       </div>
       <div className="settingsRows">
         <SettingRow label="Next credit refresh" value={resetLabel} />
+        {process.env.NEXT_PUBLIC_CREDIT_TOPUPS_ENABLED === "true" && !isAdminOrMod && shouldOfferCreditPurchase(currentPlan,credits.remaining) && <SettingRow label="Buy credits"><CreditPurchaseLink button/></SettingRow>}
         <SettingRow label="Billing and plan">
           <div className="settingsActions">
             {!isPremium && (
@@ -930,6 +936,7 @@ function GuestLanguageSettings() {
 }
 
 export const getServerSideProps: GetServerSideProps<Props|GuestSettingsProps> = async (ctx) => {
+  if(creditPlacementReviewEnabled()&&ctx.query.creditPreview==='1')return {props:{user:creditPlacementPreview.user,creditPlacementReview:true,session:creditPlacementPreview,stripeReady:false,credits:{used:92,limit:100,remaining:8,resetAt:'2026-11-10T12:00:00Z',unlimited:false}}};
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
   if (!session?.user?.email || !session.user.id) {
     return {props:{guest:true}};
@@ -987,7 +994,9 @@ export const getServerSideProps: GetServerSideProps<Props|GuestSettingsProps> = 
   let credits = isPremium
     ? reconcileCreditsWithStoredBalance(computedCredits, user?.tokensRemaining, PLAN_CATALOG[subscriptionPlan].rolloverCap)
     : computedCredits;
-  if (isPremium && user?.id) {
+  if (user?.id && await usesCreditWallet(user.id)) {
+    credits=await walletCredits(user,credits);
+  } else if (isPremium && user?.id) {
     try {
       const backendRemaining = await raiseBackendCreditsToFloor(
         user.id,

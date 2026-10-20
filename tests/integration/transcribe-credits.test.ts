@@ -1,9 +1,12 @@
+vi.mock('../../lib/creditWallet',()=>({usesCreditWallet:(...args:unknown[])=>mocks.useWallet(...args),walletCredits:(...args:unknown[])=>mocks.wallet(...args),grantWalletAllowance:vi.fn(),lockCreditWallet:vi.fn()}));
 import { Readable } from "node:stream";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextApiRequest, NextApiResponse } from "next";
 
 const mocks = vi.hoisted(() => ({
   session: vi.fn(),
+  useWallet: vi.fn(),
+  wallet: vi.fn(),
   fetch: vi.fn(),
   setBackendCredits: vi.fn(),
   raiseBackendCreditsToFloor: vi.fn(),
@@ -146,6 +149,8 @@ describe("transcribe credits", () => {
   beforeEach(() => {
     vi.resetModules();
     mocks.session.mockReset();
+    mocks.useWallet.mockReset().mockResolvedValue(false);
+    mocks.wallet.mockReset();
     mocks.fetch.mockReset();
     mocks.setBackendCredits.mockReset();
     mocks.raiseBackendCreditsToFloor.mockReset();
@@ -173,6 +178,18 @@ describe("transcribe credits", () => {
     const res = await callTranscribe("PREMIUM", false, "light", 150);
     expect(res.statusCode).toBe(202);
     expect(res.body).toMatchObject({ durationSec: 150, tokensRemaining: 0 });
+  });
+
+  it("uses the backend wallet for purchased Free credits without a second deduction or capped sync", async () => {
+    mocks.useWallet.mockResolvedValue(true);
+    mocks.wallet.mockImplementation(async (_user, summary) => ({...summary, remaining: mocks.wallet.mock.calls.length === 1 ? 40 : 38}));
+    const res = await callTranscribe("FREE");
+    expect(res.statusCode).toBe(202);
+    expect(res.body).toMatchObject({credits:{remaining:38},tokensRemaining:38});
+    expect(mocks.setBackendCredits).not.toHaveBeenCalled();
+    expect(mocks.raiseBackendCreditsToFloor).not.toHaveBeenCalled();
+    expect(mocks.prisma.user.updateMany).not.toHaveBeenCalled();
+    expect(mocks.wallet).toHaveBeenCalledTimes(2);
   });
 
   it("deducts credits for free users", async () => {

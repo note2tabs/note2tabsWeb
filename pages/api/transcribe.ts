@@ -1,3 +1,4 @@
+import {walletCredits,usesCreditWallet} from "../../lib/creditWallet";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { attachFunctionTiming } from "../../lib/functionTiming";
 import { publicTranscriptionError } from "../../lib/backendError";
@@ -500,6 +501,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       createdAt: Date;
     } | null = null;
     let isPremium = false;
+    let useCreditWallet = false;
     let subscriptionPlan: SubscriptionPlan = "FREE";
     let refreshedCredits: CreditsSummary = buildDevCreditsSummary();
 
@@ -526,6 +528,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
           console.warn("transcribe user lookup returned no user, using dev guest fallback");
         } else {
+          useCreditWallet = await usesCreditWallet(user.id);
           const isEmailVerified = Boolean((user as any).emailVerifiedBool || user.emailVerified);
           if (isEmailVerificationRequiredServer && !isEmailVerified && user.unverifiedTranscriptionUsed) {
             return res.status(403).json({
@@ -572,7 +575,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           refreshedCredits = isPremium
             ? reconcileCreditsWithStoredBalance(computedCredits, user.tokensRemaining, PLAN_CATALOG[subscriptionPlan].rolloverCap)
             : computedCredits;
-          if (!isPremium && user.tokensRemaining !== refreshedCredits.remaining) {
+          if (!useCreditWallet && !isPremium && user.tokensRemaining !== refreshedCredits.remaining) {
             const storedTokens = user.tokensRemaining;
             user.tokensRemaining = refreshedCredits.remaining;
             try {
@@ -784,7 +787,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ? 0
       : calculateTranscriptionCredits(durationSec, transcriptionModel);
 
-    if (user?.id) {
+    if (user?.id && useCreditWallet) {
+      refreshedCredits = await walletCredits(user,refreshedCredits);
+    }
+    if (user?.id && !useCreditWallet) {
       if (isPremium) {
         try {
           const backendRemaining = await raiseBackendCreditsToFloor(
@@ -1021,14 +1027,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let updatedTokens = user?.tokensRemaining ?? refreshedCredits.remaining;
     const updatedUsed = refreshedCredits.used + requiredCredits;
     const updatedRemaining = Math.max(0, refreshedCredits.remaining - requiredCredits);
-    const creditsAfter = {
+    let creditsAfter = {
       ...refreshedCredits,
       used: updatedUsed,
       limit: Math.max(refreshedCredits.limit, updatedUsed + updatedRemaining),
       remaining: updatedRemaining,
     };
     let persistedUser = user;
-    if (persistedUser && (persistedUser.role === "FREE" || isPremium)) {
+    if (persistedUser && useCreditWallet) {
+      creditsAfter=await walletCredits(persistedUser,creditsAfter);
+      updatedTokens=creditsAfter.remaining;
+    }
+    if (!useCreditWallet && persistedUser && (persistedUser.role === "FREE" || isPremium)) {
       updatedTokens = updatedRemaining;
       try {
         const result = await prisma.user.updateMany({

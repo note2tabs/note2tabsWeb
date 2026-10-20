@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   session: vi.fn(),
   raiseBackendCreditsToFloor: vi.fn(),
   prisma: {
+    creditWalletState: {findUnique: vi.fn().mockResolvedValue(null)},
     user: {
       findUnique: vi.fn(),
       update: vi.fn(),
