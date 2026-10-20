@@ -1,13 +1,16 @@
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
-import { signIn, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { localizedSignIn as signIn } from "../lib/i18n/auth";
 import Link from "../components/LocaleLink";
 import { useLocale } from "../lib/i18n/react";
 import { creditTopUpQuote, MAX_CREDIT_PACKS } from "../lib/creditTopUpPricing";
 
 export default function CreditsPage() {
   const router = useRouter();
+  const [balance, setBalance] = useState<number | null>(null);
+  const [custom, setCustom] = useState(false);
   const [added, setAdded] = useState<number | null>(null);
   const { t, locale } = useLocale();
   const { status } = useSession();
@@ -27,6 +30,37 @@ export default function CreditsPage() {
         currencyDisplay: "code",
       }).format(quote.amountCents / 100)
     : "—";
+  useEffect(() => {
+    if (status !== "authenticated") {
+      setBalance(null);
+      return;
+    }
+    let active = true;
+    void fetch("/api/credits")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const remaining = data?.credits?.remaining;
+        if (
+          active &&
+          data.source !== "dev" &&
+          Number.isSafeInteger(remaining) &&
+          remaining >= 0
+        )
+          setBalance(remaining);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [status, added]);
+  useEffect(() => {
+    const amount = Number(router.query.credits);
+    try {
+      creditTopUpQuote(amount);
+      setDraft(String(amount));
+      setCustom(![15, 30, 60].includes(amount));
+    } catch {}
+  }, [router.query.credits]);
   useEffect(() => {
     if (
       status !== "authenticated" ||
@@ -62,7 +96,9 @@ export default function CreditsPage() {
   async function buy() {
     if (inFlight.current || !quote) return;
     if (status !== "authenticated") {
-      void signIn(undefined, { callbackUrl: window.location.href });
+      void signIn(undefined, {
+        callbackUrl: `${window.location.origin}${router.asPath.split("?")[0]}?credits=${credits}`,
+      });
       return;
     }
     inFlight.current = true;
@@ -90,9 +126,10 @@ export default function CreditsPage() {
         <meta name="robots" content="noindex,nofollow" />
       </Head>
       <main className="credit-top-up-page">
-        <Link href="/pricing">{t("Compare plans")}</Link>
-        <h1>{t("Buy more credits")}</h1>
-        <p>{t("One-time purchase. No subscription change.")}</p>
+        <header className="credit-top-up-heading">
+          <h1>{t("Buy credits")}</h1>
+          <p>{t("One-time purchase. No subscription change.")}</p>
+        </header>
         {added !== null ? (
           <p role="status">
             {t("{credits} credits added to your balance.", { credits: added })}
@@ -105,53 +142,106 @@ export default function CreditsPage() {
           <p role="status">{t("Checkout closed.")}</p>
         ) : null}
         <div className="credit-top-up-picker">
-          <label htmlFor="top-up-credits">{t("Credits")}</label>
-          <div className="credit-top-up-stepper">
-            <button
-              type="button"
-              aria-label={t("Fewer credits")}
-              disabled={!quote || credits === 15 || busy}
-              onClick={() => setDraft(String(credits - 15))}
-            >
-              −
-            </button>
-            <input
-              id="top-up-credits"
-              type="number"
-              min={15}
-              step={15}
-              max={MAX_CREDIT_PACKS * 15}
-              value={draft}
-              disabled={busy}
-              onChange={(e) => setDraft(e.target.value)}
-            />
-            <button
-              type="button"
-              aria-label={t("More credits")}
-              disabled={!quote || credits >= MAX_CREDIT_PACKS * 15 || busy}
-              onClick={() => setDraft(String(credits + 15))}
-            >
-              +
-            </button>
+          {status === "authenticated" && balance !== null && (
+            <div className="credit-top-up-balance">
+              <span>{t("Current balance")}</span>
+              <strong>{t("{credits} credits", { credits: balance })}</strong>
+            </div>
+          )}
+          <fieldset className="credit-top-up-amounts" disabled={busy}>
+            <legend>{t("Credits to add")}</legend>
+            <div className="credit-top-up-presets">
+              {[15, 30, 60].map((amount) => (
+                <label key={amount} className="credit-top-up-option">
+                  <input
+                    type="radio"
+                    name="credit-amount"
+                    value={amount}
+                    checked={!custom && credits === amount}
+                    onChange={() => {
+                      setCustom(false);
+                      setDraft(String(amount));
+                    }}
+                  />
+                  <span>
+                    <strong>{amount}</strong>
+                    <small>
+                      {new Intl.NumberFormat(locale, {
+                        style: "currency",
+                        currency: "USD",
+                        currencyDisplay: "code",
+                      }).format(creditTopUpQuote(amount).amountCents / 100)}
+                    </small>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <label className="credit-top-up-custom-choice">
+              <input
+                type="radio"
+                name="credit-amount"
+                checked={custom}
+                onChange={() => setCustom(true)}
+              />
+              {t("Custom amount")}
+            </label>
+          </fieldset>
+          {custom && (
+            <div className="credit-top-up-custom">
+              <label htmlFor="top-up-credits">{t("Credits")}</label>
+              <div className="credit-top-up-stepper">
+                <button
+                  type="button"
+                  aria-label={t("Fewer credits")}
+                  disabled={credits <= 15 || !quote || busy}
+                  onClick={() => setDraft(String(credits - 15))}
+                >
+                  −
+                </button>
+                <input
+                  id="top-up-credits"
+                  type="number"
+                  min={15}
+                  step={15}
+                  max={MAX_CREDIT_PACKS * 15}
+                  value={draft}
+                  disabled={busy}
+                  aria-describedby="credit-increments"
+                  onChange={(e) => setDraft(e.target.value)}
+                />
+                <button
+                  type="button"
+                  aria-label={t("More credits")}
+                  disabled={!quote || credits >= MAX_CREDIT_PACKS * 15 || busy}
+                  onClick={() => setDraft(String(credits + 15))}
+                >
+                  +
+                </button>
+              </div>
+              <small id="credit-increments">
+                {t("Minimum 15 credits. Add in steps of 15.")}
+              </small>
+            </div>
+          )}
+          <div className="credit-top-up-total">
+            <span>{t("Total")}</span>
+            <strong dir="ltr" aria-live="polite">
+              {price}
+            </strong>
           </div>
-          <strong className="credit-top-up-price" dir="ltr">
-            {price}
-          </strong>
-          <p>
-            {t(
-              "Purchased credits stay in your balance each month. Your plan’s models and limits remain unchanged.",
-            )}
-          </p>
           <button
-            className="button-primary"
+            className="credit-top-up-buy"
             type="button"
             onClick={() => void buy()}
             disabled={!quote || busy || status === "loading"}
           >
             {busy
               ? t("Opening checkout…")
-              : t("Buy {credits} credits", { credits })}
+              : t("Buy {credits} credits — {price}", { credits, price })}
           </button>
+          <p className="credit-top-up-carry">
+            {t("Unused credits carry over. No expiry.")}
+          </p>
           {(!quote || error) && (
             <p role="alert">
               {!quote
@@ -160,7 +250,10 @@ export default function CreditsPage() {
             </p>
           )}
         </div>
-        <p>{t("Your credits appear after Stripe confirms payment.")}</p>
+        <div className="credit-top-up-footer">
+          <p>{t("Your plan’s models and upload limits stay the same.")}</p>
+          <Link href="/pricing">{t("Compare plans")}</Link>
+        </div>
       </main>
     </>
   );

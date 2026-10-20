@@ -1823,5 +1823,14 @@
   "Payment processing. Credits appear after confirmation.": "支払いを処理中です。確認後にクレジットが反映されます。",
   "Checkout closed.": "決済画面を閉じました。",
   "Compare plans": "プランを比較",
-  "Credits": "クレジット"
+  "Credits": "クレジット",
+  "Current balance": "現在の残高",
+  "{credits} credits": "{credits}クレジット",
+  "Credits to add": "追加するクレジット",
+  "Custom amount": "数量を指定",
+  "Minimum 15 credits. Add in steps of 15.": "15クレジット以上、15クレジット単位で選択。",
+  "Total": "合計",
+  "Buy {credits} credits — {price}": "{credits}クレジットを購入 — {price}",
+  "Unused credits carry over. No expiry.": "未使用のクレジットは繰り越されます。有効期限はありません。",
+  "Your plan’s models and upload limits stay the same.": "プランの利用可能モデルやアップロード上限は変わりません。"
 }

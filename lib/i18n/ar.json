@@ -1823,5 +1823,14 @@
   "Payment processing. Credits appear after confirmation.": "جارٍ معالجة الدفع. ستظهر الأرصدة بعد التأكيد.",
   "Checkout closed.": "تم إغلاق صفحة الدفع.",
   "Compare plans": "مقارنة الخطط",
-  "Credits": "الأرصدة"
+  "Credits": "الأرصدة",
+  "Current balance": "الرصيد الحالي",
+  "{credits} credits": "{credits} من الأرصدة",
+  "Credits to add": "الأرصدة المراد إضافتها",
+  "Custom amount": "كمية مخصصة",
+  "Minimum 15 credits. Add in steps of 15.": "الحد الأدنى 15 رصيدًا، بزيادات قدرها 15.",
+  "Total": "الإجمالي",
+  "Buy {credits} credits — {price}": "شراء {credits} من الأرصدة — {price}",
+  "Unused credits carry over. No expiry.": "تُرحّل الأرصدة غير المستخدمة دون انتهاء صلاحية.",
+  "Your plan’s models and upload limits stay the same.": "لن تتغير النماذج وحدود الرفع المتاحة في خطتك."
 }

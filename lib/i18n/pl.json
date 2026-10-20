@@ -1823,5 +1823,14 @@
   "Payment processing. Credits appear after confirmation.": "Przetwarzanie płatności. Kredyty pojawią się po potwierdzeniu.",
   "Checkout closed.": "Płatność zamknięta.",
   "Compare plans": "Porównaj plany",
-  "Credits": "Kredyty"
+  "Credits": "Kredyty",
+  "Current balance": "Aktualne saldo",
+  "{credits} credits": "{credits} kredytów",
+  "Credits to add": "Liczba dodawanych kredytów",
+  "Custom amount": "Inna liczba",
+  "Minimum 15 credits. Add in steps of 15.": "Minimum 15 kredytów, w wielokrotnościach 15.",
+  "Total": "Razem",
+  "Buy {credits} credits — {price}": "Kup {credits} kredytów — {price}",
+  "Unused credits carry over. No expiry.": "Niewykorzystane kredyty pozostają na saldzie. Bez terminu ważności.",
+  "Your plan’s models and upload limits stay the same.": "Modele i limity przesyłania Twojego planu się nie zmienią."
 }
