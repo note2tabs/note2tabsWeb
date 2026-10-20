@@ -139,6 +139,8 @@ export default function PremiumUpgradePrompt() {
     let timeout: number | null = null;
     let activityCleanup: (() => void) | null = null;
     const schedule = (nextReason: PromptReason, delay: number) => {
+      // Limit prompts on the transcription surfaces use the shared dialog now.
+      if (nextReason !== "returning_user" && ["/", "/transcribe", "/transcriber"].includes(stripLocale(router.pathname))) return;
       const now = Date.now();
       const frequency = nextReason === "returning_user" ? SEVEN_DAYS_MS : URGENT_FREQUENCY_MS;
       if (now - readTimestamp(storageKey("shown", nextReason)) < frequency) return;
@@ -171,6 +173,7 @@ export default function PremiumUpgradePrompt() {
         };
       }
       timeout = window.setTimeout(async () => {
+        if (document.querySelector("dialog[data-limit-upgrade][open]")) return;
         const ticket = await claimLegacy();
         if (!ticket || disposed) return;
         contactRef.current = ticket.contactId;
