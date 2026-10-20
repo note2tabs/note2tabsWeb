@@ -1,17 +1,15 @@
+import AffiliateApplicationForm from "../components/AffiliateApplicationForm";
 import { AFFILIATE_PAYOUT_NOTICE } from "../lib/affiliatePayoutPolicy";
 import { useLocale } from "../lib/i18n/react";
 import Link from "../components/LocaleLink";
 import SeoHead, { ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../components/SeoHead";
 import { DEFAULT_AFFILIATE_TERMS } from "../lib/affiliate";
 
-const inviteEmail =
-  "mailto:business@note2tabs.com?subject=Note2Tabs%20affiliate%20partnership&body=Tell%20us%20a%20little%20about%20your%20audience%20and%20where%20you%20would%20share%20Note2Tabs.";
-
 const faq = [
   {
     question: "Who can become an affiliate?",
     answer:
-      "The program is invite-only and best suited to guitar educators, creators, music communities, and others with an audience that would benefit from Note2Tabs. Email business@note2tabs.com to introduce yourself and your audience.",
+      "Apply using the form below. We review each application and invite partners whose audiences would benefit from Note2Tabs.",
   },
   {
     question: "What counts as a referral?",
@@ -33,7 +31,7 @@ export default function AffiliateProgramPage() {
   const title = "Note2Tabs Affiliate Program";
   const description =
     "Earn commission by introducing guitarists to Note2Tabs. See the standard affiliate offer, how referrals work, and how to request an invitation.";
-  const translatedFaq = faq.map(item => ({...item, answer: t(item.answer, {days: item.question === "What counts as a referral?" ? DEFAULT_AFFILIATE_TERMS.cookieDays : DEFAULT_AFFILIATE_TERMS.payoutHoldDays})}));
+  const translatedFaq = faq.map(item => ({...item, answer: t(item.answer, {days: item.question === "What counts as a referral?" ? DEFAULT_AFFILIATE_TERMS.cookieDays : DEFAULT_AFFILIATE_TERMS.payoutHoldDays}) + (item.question === "How and when do I get paid?" ? " " + t(AFFILIATE_PAYOUT_NOTICE) : "")}));
   const jsonLd = [
     {
       "@context": "https://schema.org",
@@ -49,7 +47,7 @@ export default function AffiliateProgramPage() {
       "@type": "FAQPage",
       mainEntity: translatedFaq.map((item) => ({
         "@type": "Question",
-        name: item.question,
+        name: t(item.question),
         acceptedAnswer: { "@type": "Answer", text: item.answer },
       })),
     },
@@ -66,10 +64,10 @@ export default function AffiliateProgramPage() {
             <p className="affiliateInfoIntro">
               {t("Recommend Note2Tabs to your audience with a personal link and discount code. You earn commission; they save on a tool that turns music into editable guitar tabs.")}</p>
             <div className="affiliateInfoActions">
-              <a className="affiliateInfoPrimary" href={inviteEmail}>{t("Request an invitation")}</a>
+              <a className="affiliateInfoPrimary" href="#affiliate-application">{t("Apply to become an affiliate")}</a>
               <Link className="affiliateInfoSecondary" href="/affiliate">{t("Affiliate sign in")}</Link>
             </div>
-            <p className="affiliateInfoInviteNote">{t("Invite-only · Tell us about your audience at ")}<a href="mailto:business@note2tabs.com">{t("business@note2tabs.com")}</a></p>
+            <p className="affiliateInfoInviteNote">{t("Applications are reviewed individually.")}</p>
           </header>
 
           <section className="affiliateInfoOffer" aria-labelledby="affiliate-offer-heading">
@@ -133,20 +131,13 @@ export default function AffiliateProgramPage() {
               {translatedFaq.map((item) => (
                 <details key={item.question}>
                   <summary>{t(item.question)}<span aria-hidden="true">{t("+")}</span></summary>
-                  <p>{t(item.answer)}{item.question === "How and when do I get paid?" && <> {t(AFFILIATE_PAYOUT_NOTICE)}</>}</p>
+                  <p>{item.answer}</p>
                 </details>
               ))}
             </div>
           </section>
 
-          <section className="affiliateInfoClosing affiliateInfoClosing--invite">
-            <div>
-              <p className="affiliateInfoLabel">{t("Interested in partnering?")}</p>
-              <h2>{t("Tell us about you and your audience.")}</h2>
-              <p>{t("We review partnerships individually and will reply with the next steps if there is a good fit.")}</p>
-            </div>
-            <a className="affiliateInfoPrimary" href={inviteEmail}>{t("Email business@note2tabs.com")}</a>
-          </section>
+          <AffiliateApplicationForm />
 
           <p className="affiliateInfoProgramNote">
             {t("Please promote Note2Tabs honestly, disclose your affiliate relationship, and do not use spam, self-referrals, misleading claims, or coupon-site dumping. Refunds and disputes reverse the related commission. See our ")}<Link href="/terms">{t("Terms")}</Link> {t(" and ")}<Link href="/privacy">{t("Privacy Policy")}</Link>{t(".")}</p>

@@ -1795,5 +1795,18 @@
   "Thanks for your feedback.": "شكرًا لملاحظاتك.",
   "Payment not completed": "لم يكتمل الدفع",
   "Retry payment": "إعادة محاولة الدفع",
-  "Eligible earnings are paid at most once per month after reaching US$25 equivalent. Smaller balances carry forward.": "تُدفع الأرباح المؤهلة مرة واحدة شهريًا كحد أقصى بعد بلوغ ما يعادل 25 دولارًا أمريكيًا. وتُرحَّل الأرصدة الأقل إلى الأشهر التالية."
+  "Eligible earnings are paid at most once per month after reaching US$25 equivalent. Smaller balances carry forward.": "تُدفع الأرباح المؤهلة مرة واحدة شهريًا كحد أقصى بعد بلوغ ما يعادل 25 دولارًا أمريكيًا. وتُرحَّل الأرصدة الأقل إلى الأشهر التالية.",
+  "Apply to become an affiliate": "قدّم طلبًا للانضمام إلى برنامج الشركاء",
+  "Applications are reviewed individually.": "نراجع كل طلب على حدة.",
+  "Apply using the form below. We review each application and invite partners whose audiences would benefit from Note2Tabs.": "قدّم طلبك عبر النموذج أدناه. نراجع كل طلب وندعو الشركاء الذين يمكن أن يستفيد جمهورهم من Note2Tabs.",
+  "Audience size": "حجم الجمهور",
+  "Website or social profile": "الموقع الإلكتروني أو حساب التواصل الاجتماعي",
+  "How would you share Note2Tabs?": "كيف تنوي التعريف بـ Note2Tabs؟",
+  "Enter a valid website or social profile URL.": "أدخل رابطًا صالحًا لموقع إلكتروني أو حساب على وسائل التواصل الاجتماعي.",
+  "Please complete all required fields.": "يرجى تعبئة جميع الحقول المطلوبة.",
+  "Please wait a moment and try again.": "انتظر قليلًا ثم حاول مرة أخرى.",
+  "One or more answers are too long.": "إجابة واحدة أو أكثر أطول من الحد المسموح.",
+  "Please complete the required fields.": "يرجى تعبئة الحقول المطلوبة.",
+  "The application could not be submitted.": "تعذّر إرسال الطلب.",
+  "Too many attempts. Please try again later.": "محاولات كثيرة جدًا. يرجى المحاولة لاحقًا."
 }
