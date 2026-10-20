@@ -14610,8 +14610,8 @@ html[lang="ar"] [data-editor-locale="ar"] :is(input[type="text"], textarea) {
  .limit-upgrade-dialog{position:fixed;inset:0;margin:auto;width:390px;max-width:calc(100vw - 32px);max-height:calc(100dvh - 100px);overflow:auto;padding:36px;border:1px solid #e4e7df;border-radius:16px;background:#fffefb;color:#14291f;box-shadow:0 20px 80px #152e1726;font-family:inherit}
  .limit-upgrade-dialog::backdrop{background:#101c184d;backdrop-filter:blur(3px)}.limit-upgrade-dialog button:focus-visible,.limit-upgrade-dialog a:focus-visible{outline:2px solid #214b34;outline-offset:4px}
  .limit-upgrade-dialog h2{font-size:29px;line-height:1.13;letter-spacing:-1px;font-weight:550;margin:14px 0 12px}.limit-upgrade-description{color:#626d65;font-size:14px;line-height:1.6;margin:0}
- .limit-upgrade-dialog ul{list-style:none;padding:0;margin:20px 0 0;display:grid;gap:7px;font-size:13px}.limit-upgrade-dialog li::before{content:'✓';margin-inline-end:10px;color:#214b34}
- .limit-upgrade-offer{margin:28px 0 22px}.limit-upgrade-price{font-size:44px;letter-spacing:-1.7px;line-height:1.2;font-weight:500;white-space:nowrap}.limit-upgrade-price small{font-size:14px;color:#626d65;letter-spacing:0;font-weight:400}.limit-upgrade-offer p{font-size:12px;color:#626d65;margin:5px 0 0}
+ .limit-upgrade-dialog ul{list-style:none;padding:0;margin:0 0 24px;display:grid;gap:7px;font-size:13px}.limit-upgrade-dialog li::before{content:'✓';margin-inline-end:10px;color:#214b34}
+ .limit-upgrade-offer{margin:20px 0 22px}.limit-upgrade-price{font-size:44px;letter-spacing:-1.7px;line-height:1.2;font-weight:500;white-space:nowrap}.limit-upgrade-price small{font-size:14px;color:#626d65;letter-spacing:0;font-weight:400}.limit-upgrade-offer p{font-size:12px;color:#626d65;margin:5px 0 0}
  .limit-upgrade-primary{background:#141414;width:100%;min-height:48px;color:#fff;border:0;border-radius:8px;font-size:14px;font-weight:550;padding:12px 10px}.limit-upgrade-compare{display:flex;justify-content:center;align-items:center;min-height:44px;color:#14291f;font-size:13px;text-decoration:underline;text-underline-offset:3px;margin-top:3px}.limit-upgrade-back{display:block;width:100%;border:0;background:transparent;font-size:13px;color:#626d65;min-height:44px;margin-top:6px;padding:10px 0;text-decoration:underline;text-underline-offset:3px}
 
 @media(max-width:480px){.limit-upgrade-dialog{padding:28px 24px;max-height:calc(100dvh - 32px)}.limit-upgrade-dialog h2{font-size:27px}}
@@ -14642,3 +14642,4 @@ html[lang="ar"] [data-editor-locale="ar"] :is(input[type="text"], textarea) {
   color: #fff;
 }
 .pricing-page--focused .pricing-plan__cta--upgrade:hover { background: #262626; }
+

@@ -288,21 +288,6 @@ export default function LimitUpgradePrompt({
     );
   return (
     <>
-      {!open && (
-        <button
-          type="button"
-          className="button-link"
-          onClick={() => {
-            shown.current = null;
-            viewed.current = null;
-            setOpen(true);
-          }}
-        >
-          {isCredits && context.remaining !== 0
-            ? t("See plans")
-            : t("See upgrade options")}
-        </button>
-      )}
       <dialog
         ref={dialog}
         className="limit-upgrade-dialog"
@@ -320,6 +305,13 @@ export default function LimitUpgradePrompt({
         <p id={`${id}-description`} className="limit-upgrade-description">
           {description}
         </p>
+        <div className="limit-upgrade-offer">
+          <div className="limit-upgrade-price">
+            <bdi>{price}</bdi>
+            <small>{upgrade.quote ? t("today") : t(" / month")}</small>
+          </div>
+          {upgrade.quote ? <CreditUpgradeSummary quote={upgrade.quote} /> : <p>{t("Billed monthly · Cancel anytime")}</p>}
+        </div>
         <ul>
           <li>
             {t("{count} credits every month", {
@@ -338,13 +330,6 @@ export default function LimitUpgradePrompt({
             })}
           </li>
         </ul>
-        <div className="limit-upgrade-offer">
-          <div className="limit-upgrade-price">
-            <bdi>{price}</bdi>
-            <small>{upgrade.quote ? t("today") : t(" / month")}</small>
-          </div>
-          {upgrade.quote ? <CreditUpgradeSummary quote={upgrade.quote} /> : <p>{t("Billed monthly · Cancel anytime")}</p>}
-        </div>
         <button
           type="button"
           className="limit-upgrade-primary"
