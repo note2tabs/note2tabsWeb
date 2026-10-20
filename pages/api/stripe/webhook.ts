@@ -1021,6 +1021,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    // Live endpoint events may use a newer shape than the pinned billing SDK.
+    // Preserve the event invoice ID (not latest_invoice), then retrieve that
+    // invoice through the pinned client before reading subscription/line fields.
+    if ((process.env.CREDIT_UPGRADE_ENABLED === "true" || process.env.CREDIT_UPGRADE_WEBHOOKS_ENABLED === "true") && event.api_version && event.api_version !== "2024-06-20" && (event.type === "invoice.paid" || event.type === "invoice.payment_succeeded")) {
+      const invoice = event.data.object as Stripe.Invoice;
+      event.data.object = await stripeClient.invoices.retrieve(invoice.id);
+    }
     if (event.type === "checkout.session.expired") {
       const checkoutSession = event.data.object as Stripe.Checkout.Session;
       if (checkoutSession.metadata?.userId && checkoutSession.metadata?.note2tabsPlan) {

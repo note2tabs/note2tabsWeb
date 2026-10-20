@@ -43,3 +43,22 @@ describe("nearest 9-cent upgrade charge", () => {
     expect(creditUpgradePrice(100,1000,0,"usd").dueNow).toBe(999);
   });
 });
+
+it("reconciles all allowed rollover balances across local prices and rounding directions", () => {
+  for (const currency of ["usd","eur","brl","mxn","jpy","krw"]) {
+    for (const [premium,pro] of [[599,1499],[1499,3999],[299,749],[600,1500]]) {
+      let last = pro;
+      for (let credits=0;credits<=200;credits++) {
+        const quote=creditUpgradePrice(premium,pro,credits,currency);
+        const exact=pro-Math.min(pro,Math.round(credits*premium/100));
+        expect(quote.dueNow+quote.discount).toBe(pro);
+        expect(quote.dueNow).toBeGreaterThanOrEqual(0);
+        expect(quote.dueNow).toBeLessThanOrEqual(last);
+        expect(Math.abs(quote.dueNow-exact)).toBeLessThanOrEqual(5);
+        if (["jpy","krw"].includes(currency)) expect(quote.dueNow).toBe(exact);
+        else if (quote.dueNow > 0 && quote.dueNow < pro) expect(quote.dueNow%10).toBe(9);
+        last=quote.dueNow;
+      }
+    }
+  }
+});

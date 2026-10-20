@@ -58,3 +58,13 @@ Entry-point checks: 166 focused tests and TypeScript passed; browser verified al
 For currencies with two decimal places, the first upgrade charge is rounded to the nearest minor-unit amount ending in 9 (e.g. $3.01 → $2.99; $14.81 → $14.79). Halfway values round upward. Zero stays zero; charges never exceed the regular price. Zero-decimal currencies keep their whole-number calculation. The Stripe one-time discount is regular price minus the rounded charge, so the displayed savings and invoice agree. Renewal prices are unchanged. Previously persisted payment attempts retain their original confirmed valuation.
 
 Rounded-charge verification: real Stripe application integration passed all 17 cases, including $2.99 paid invoice, failure/void retry and $14.99 renewal. 158 focused regression tests and TypeScript passed. An initially incorrect halfway test fixture was corrected and rerun successfully.
+
+## Production-readiness follow-up
+
+Read-only Stripe configuration inspection found the live endpoint is enabled with API version `2025-11-17.clover`, while the app uses `2024-06-20`. Paid-invoice events are now re-fetched by their original invoice ID through the pinned client before inspecting subscription/line fields, when upgrade handling is enabled. No Stripe endpoint setting was changed. The already-subscribed `invoice.payment_succeeded` event was tested with an actual newer-format invoice; enabling `invoice.paid` is not required for this flow.
+
+Archived source Premium prices remain valid for credit valuation; an inactive target Pro price is rejected. Existing tax settings are preserved.
+
+Release sequence remains: merge reviewed code with flags off; apply the additive migration; enable webhook settlement; enable new offers; smoke-test the read-only quote with a designated eligible account. Do not run all unrelated pending migrations or charge a customer for a smoke test. Production activation has not been performed.
+
+The integration test suite holds a dedicated PostgreSQL advisory lock for its entire run, so concurrent test processes cannot delete each other's disposable wallets. Run full tests with and without CREDIT_UPGRADE_STRIPE_TEST separately; test mode creates real Stripe test objects and removes its test clocks afterward.

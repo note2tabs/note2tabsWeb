@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { Readable } from "node:stream";
 import Stripe from "stripe";
 import { createMocks, createResponse } from "node-mocks-http";
+import { Client as PgClient } from "pg";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { beforeAll, beforeEach, afterAll, describe, it, expect, vi } from "vitest";
@@ -16,14 +17,18 @@ import changePlan from "../../pages/api/stripe/change-plan";
 import { prepareCreditUpgrade, payCreditUpgrade, applyCreditUpgrade } from "../../lib/creditUpgrade";
 const url = process.env.CREDIT_UPGRADE_TEST_DATABASE_URL;
 describe.skipIf(!url)("credit upgrade with real isolated PostgreSQL", () => {
-  let db: PrismaClient, user: any;
+  let db: PrismaClient, user: any, testLock: PgClient;
   const invoice: any = { id: "in_upgrade", status: "paid", billing_reason: "subscription_update", hosted_invoice_url: "https://invoice.stripe.com/test" };
   const subscription = (overrides: any = {}) => ({ id: "sub_upgrade", status: "active", currency: "usd", collection_method: "charge_automatically", current_period_start: 100, latest_invoice: { id: "in_old", status: "paid" }, items: { data: [{ id: "si_1", price: { id: "price_premium", recurring: { interval: "month" } }, quantity: 1 }] }, ...overrides }) as any;
   const upgraded = () => subscription({ current_period_start: 100, latest_invoice: invoice, items: { data: [{ id: "si_1", price: { id: "price_pro" } }] } });
   const balance = async () => (await db.$queryRaw<Array<{ credits: number }>>`SELECT credits FROM user_credits WHERE "userId"=${user.id}`)[0].credits;
-  beforeAll(() => {
+  beforeAll(async () => {
     const parsed = new URL(url!);
     if (!["127.0.0.1", "localhost"].includes(parsed.hostname) || parsed.pathname !== "/n2t_upgrade_test") throw Error("Disposable local database required");
+    testLock = new PgClient({connectionString:url!});
+    await testLock.connect();
+    // A second test process must not clear another process's test wallet.
+    await testLock.query("SELECT pg_advisory_lock(23520261020)");
     db = new PrismaClient({ adapter: new PrismaPg({ connectionString: url! }) }); m.db = db;
     vi.stubEnv("CREDIT_UPGRADE_ENABLED", "true");
     vi.stubEnv("PRO_PLAN_ENABLED", "true");
@@ -51,9 +56,9 @@ describe.skipIf(!url)("credit upgrade with real isolated PostgreSQL", () => {
       return { id: "coupon_once" };
     });
   });
-  afterAll(async () => { await db?.$disconnect(); vi.unstubAllEnvs(); });
-  async function deliver(type: string, object: unknown) {
-    const payload = JSON.stringify({ id: `evt_test_${type}`, type, created: 100, data: { object } });
+  afterAll(async () => { await db?.$disconnect(); await testLock?.end(); vi.unstubAllEnvs(); });
+  async function deliver(type: string, object: unknown, apiVersion?: string) {
+    const payload = JSON.stringify({ id: `evt_test_${type}`, api_version: apiVersion, type, created: 100, data: { object } });
     const request = Readable.from([Buffer.from(payload)]) as any;
     request.method = "POST";
     request.headers = { "stripe-signature": m.stripe.webhooks.generateTestHeaderString({ payload, secret: "whsec_local_credit_upgrade" }) };
@@ -130,6 +135,12 @@ describe.skipIf(!url)("credit upgrade with real isolated PostgreSQL", () => {
     expect(second.res.statusCode).toBe(409);
     expect(m.stripe.subscriptions.update).not.toHaveBeenCalled();
   });
+  it("values an archived legacy Premium price but rejects an inactive target", async () => {
+    m.stripe.prices.retrieve.mockImplementation(async (id: string) => ({id,active:id === "price_pro",currency:"usd",unit_amount:id === "price_pro"?1499:499,recurring:{interval:"month"}}));
+    expect(await prepareCreditUpgrade(user.id,subscription(),"price_pro")).toMatchObject({regularAmount:1499,discount:1000});
+    m.stripe.prices.retrieve.mockImplementation(async (id: string) => ({id,active:false,currency:"usd",unit_amount:599,recurring:{interval:"month"}}));
+    await expect(prepareCreditUpgrade(user.id,subscription(),"price_pro")).rejects.toThrow();
+  });
   it("quotes authoritative rollover balance without charging or mutating credits", async () => {
     const quote = await prepareCreditUpgrade(user.id, subscription(), "price_pro");
     expect(quote).toMatchObject({ credits: 200, discount: 1200, regularAmount: 1499 });
@@ -180,9 +191,14 @@ describe.skipIf(!url)("credit upgrade with real isolated PostgreSQL", () => {
   it.each([{ status: "past_due" }, { schedule: "sched_1" }, { pending_update: {} }])("rejects subscriptions requiring review: %s", async overrides => {
     await expect(prepareCreditUpgrade(user.id, subscription(overrides), "price_pro")).rejects.toThrow();
   });
-  it.skipIf(process.env.CREDIT_UPGRADE_STRIPE_TEST !== "1")("runs real TEST-mode API, decline/retry, signed webhooks and full-price renewal", async () => {
+  it.skipIf(process.env.CREDIT_UPGRADE_STRIPE_TEST !== "1").each([
+    { currency: "usd", premiumAmount: 599, proAmount: 1499, due: 299 },
+    { currency: "eur", premiumAmount: 599, proAmount: 1499, due: 299 },
+    { currency: "jpy", premiumAmount: 600, proAmount: 1500, due: 300 },
+    { currency: "usd", premiumAmount: 599, proAmount: 999, due: 0 },
+  ])("real Stripe $currency/$proAmount: quote, decline/retry, signed webhooks and full-price renewal", async ({ currency, premiumAmount, proAmount, due }) => {
     function cli(path: string, params: Record<string, unknown> = {}, method = "post", options: any = {}) {
-      const args = [method, path, "--stripe-version", "2024-06-20"];
+      const args = [method, path, "--stripe-version", options.apiVersion || "2024-06-20"];
       if (method === "delete") args.push("--confirm");
       if (options.idempotencyKey) args.push("-i", options.idempotencyKey);
       const add = (key: string, value: unknown) => {
@@ -203,8 +219,8 @@ describe.skipIf(!url)("credit upgrade with real isolated PostgreSQL", () => {
       const card = cli("/v1/payment_methods/pm_card_visa/attach", { customer: customer.id });
       const setCard = (id: string) => cli(`/v1/customers/${customer.id}`, { invoice_settings: { default_payment_method: id } });
       setCard(card.id);
-      const price = (amount: number, name: string) => cli("/v1/prices", { currency: "usd", unit_amount: amount, recurring: { interval: "month" }, product_data: { name } });
-      const premium = price(599,"TEST app Premium upgrade"), pro = price(1499,"TEST app Pro upgrade");
+      const price = (amount: number, name: string) => cli("/v1/prices", { currency, unit_amount: amount, recurring: { interval: "month" }, product_data: { name } });
+      const premium = price(premiumAmount,"TEST app Premium upgrade"), pro = price(proAmount,"TEST app Pro upgrade");
       [premium.id,premium.product,pro.id,pro.product].forEach((value,index) => vi.stubEnv(configKeys[index],value));
       const sub = cli("/v1/subscriptions", { customer: customer.id, items: [{ price: premium.id }] });
       m.stripe.customers.list.mockResolvedValue({data:[customer]});
@@ -217,7 +233,16 @@ describe.skipIf(!url)("credit upgrade with real isolated PostgreSQL", () => {
       m.stripe.coupons.create.mockImplementation(async (params,options) => cli("/v1/coupons",params,"post",options));
       const review = createMocks({method:"POST",body:{plan:"pro",action:"quote"}});
       await changePlan(review.req as any, review.res as any);
-      expect(review.res._getJSONData().quote).toMatchObject({dueNow:299,credits:200});
+      expect(review.res._getJSONData().quote).toMatchObject({dueNow:due,credits:200,currency});
+      let paid: any;
+      if (due === 0) {
+        const pay = createMocks({method:"POST",body:{plan:"pro",action:"confirm",quoteId:review.res._getJSONData().quote.id}});
+        await changePlan(pay.req as any,pay.res as any);
+        expect(pay.res._getJSONData()).toMatchObject({changed:true,plan:"pro"});
+        const current = cli(`/v1/subscriptions/${sub.id}`,{},"get");
+        paid = cli(`/v1/invoices/${current.latest_invoice}`,{},"get");
+        expect(paid).toMatchObject({status:"paid",amount_paid:0});
+      } else {
       const decline = cli("/v1/payment_methods/pm_card_chargeCustomerFail/attach",{customer:customer.id}); setCard(decline.id);
       for (let attempt=0;attempt<2;attempt++) {
         const pay = createMocks({method:"POST",body:{plan:"pro",action:"confirm",quoteId:review.res._getJSONData().quote.id}});
@@ -238,9 +263,11 @@ describe.skipIf(!url)("credit upgrade with real isolated PostgreSQL", () => {
       expect(pending.latest_invoice).not.toBe(voidedId);
       expect(cli("/v1/invoices",{subscription:sub.id},"get").data.filter((item:any)=>item.status === "open")).toHaveLength(1);
       setCard(card.id);
-      const paid = cli(`/v1/invoices/${pending.latest_invoice}/pay`,{payment_method:card.id});
-      expect(paid.amount_paid).toBe(299);
-      await deliver("invoice.paid",paid);
+      paid = cli(`/v1/invoices/${pending.latest_invoice}/pay`,{payment_method:card.id});
+      }
+      expect(paid.amount_paid).toBe(due);
+      const liveShape = cli(`/v1/invoices/${paid.id}`,{},"get",{apiVersion:"2025-11-17.clover"});
+      await deliver("invoice.payment_succeeded",liveShape,"2025-11-17.clover");
       expect(await balance()).toBe(250);
       await db.$executeRaw`UPDATE user_credits SET credits=230 WHERE "userId"=${user.id}`;
       await db.user.update({where:{id:user.id},data:{tokensRemaining:230}});
@@ -258,7 +285,7 @@ describe.skipIf(!url)("credit upgrade with real isolated PostgreSQL", () => {
       expect(ready).toBe(true);
       const renewed = cli(`/v1/subscriptions/${sub.id}`,{},"get");
       const renewalInvoice = cli(`/v1/invoices/${renewed.latest_invoice}`,{},"get");
-      expect(renewalInvoice).toMatchObject({total:1499,status:"paid",billing_reason:"subscription_cycle"});
+      expect(renewalInvoice).toMatchObject({total:proAmount,status:"paid",billing_reason:"subscription_cycle"});
       await deliver("invoice.payment_succeeded",renewalInvoice);
       await deliver("invoice.payment_succeeded",renewalInvoice);
       expect((await db.user.findUniqueOrThrow({where:{id:user.id}})).tokensRemaining).toBe(480);

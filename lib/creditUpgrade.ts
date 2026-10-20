@@ -9,9 +9,9 @@ export class CreditUpgradeError extends Error {}
 
 export const creditUpgradeEnabled = () => process.env.CREDIT_UPGRADE_ENABLED === "true";
 
-function monthlyAmount(price: Stripe.Price, currency: string) {
+function monthlyAmount(price: Stripe.Price, currency: string, requireActive = false) {
   const amount = price.currency === currency ? price.unit_amount : price.currency_options?.[currency]?.unit_amount;
-  if (!price.active || price.recurring?.interval !== "month" || (price.recurring.interval_count || 1) !== 1 || !Number.isSafeInteger(amount) || !amount || amount < 0) {
+  if ((requireActive && !price.active) || price.recurring?.interval !== "month" || (price.recurring.interval_count || 1) !== 1 || !Number.isSafeInteger(amount) || !amount || amount < 0) {
     throw new CreditUpgradeError("This subscription price cannot be upgraded automatically.");
   }
   return amount;
@@ -36,7 +36,7 @@ export async function prepareCreditUpgrade(userId: string, sub: Stripe.Subscript
   ]);
   const currency = sub.currency;
   const premiumAmount = monthlyAmount(premium, currency);
-  const proAmount = monthlyAmount(pro, currency);
+  const proAmount = monthlyAmount(pro, currency, true);
   // Read the backend's actual debit balance, never the cached session balance.
   const rows = await prisma.$queryRaw<Array<{ credits: number }>>`SELECT credits FROM user_credits WHERE "userId"=${userId}`;
   if (!rows.length) throw new CreditUpgradeError("Your credit balance is unavailable. Please try again.");
