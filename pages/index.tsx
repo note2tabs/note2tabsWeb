@@ -283,7 +283,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   const currentPlan = transcriberSession?.user?.subscriptionPlan || (isPremiumUser ? "PREMIUM" : "FREE");
   const entitlementPlan = isStaffUser ? "PRO" : effectiveSubscriptionPlan(transcriberSession?.user?.role, currentPlan);
   const maxUploadBytes = PLAN_CATALOG[entitlementPlan].maxUploadBytes;
-  const youtubeWindowSeconds = PLAN_CATALOG[entitlementPlan].youtubePositionLimitSeconds;
+  const youtubeMaxClipSeconds = PLAN_CATALOG[entitlementPlan].youtubeMaxClipSeconds;
   const offerEligibility = usePremiumOfferEligibility(
     sessionStatus === "authenticated" && !isPremiumUser
   );
@@ -337,11 +337,11 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   }, [appendEditorId, editorChoices]);
   const youtubeId = useMemo(() => parseYouTubeId(youtubeUrl), [youtubeUrl]);
   const resolvedYtDuration = useMemo(() => {
-    return resolveYoutubeClipDuration(ytStartTime, ytEndTime, isPremiumUser, youtubeWindowSeconds);
-  }, [isPremiumUser, ytStartTime, ytEndTime, youtubeWindowSeconds]);
+    return resolveYoutubeClipDuration(ytStartTime, ytEndTime, isPremiumUser, youtubeMaxClipSeconds);
+  }, [isPremiumUser, ytStartTime, ytEndTime, youtubeMaxClipSeconds]);
   const youtubeTimeRangeValid = useMemo(
-    () => isYoutubeClipRangeValid(ytStartTime, ytEndTime, isPremiumUser, youtubeWindowSeconds),
-    [isPremiumUser, ytStartTime, ytEndTime, youtubeWindowSeconds]
+    () => isYoutubeClipRangeValid(ytStartTime, ytEndTime, isPremiumUser, youtubeMaxClipSeconds),
+    [isPremiumUser, ytStartTime, ytEndTime, youtubeMaxClipSeconds]
   );
   const resolvedFileDuration = useMemo(() => {
     if (fileStartTime === null || fileEndTime === null) return 0;
@@ -652,7 +652,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       setYtStartInput("");
       return;
     }
-    const nextRange = clampYoutubeClipStart(ytStartTime, ytEndTime, isPremiumUser, youtubeWindowSeconds);
+    const nextRange = clampYoutubeClipStart(ytStartTime, ytEndTime, isPremiumUser, youtubeMaxClipSeconds);
     setYtStartTime(nextRange.start);
     setYtStartInput(formatTimestamp(nextRange.start));
     setYtEndTime(nextRange.end);
@@ -664,7 +664,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       setYtEndInput("");
       return;
     }
-    const nextEnd = clampYoutubeClipEnd(ytStartTime, ytEndTime, isPremiumUser, youtubeWindowSeconds);
+    const nextEnd = clampYoutubeClipEnd(ytStartTime, ytEndTime, isPremiumUser, youtubeMaxClipSeconds);
     setYtEndTime(nextEnd);
     setYtEndInput(formatTimestamp(nextEnd));
   };
@@ -910,19 +910,14 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         setError(t("Start time must be 0 or greater."));
         return false;
       }
-      if (ytStartTime !== null && ytStartTime >= youtubeWindowSeconds) {
-        reportBlockedSubmission("clip_start_out_of_bounds", "validation", { limit_seconds: youtubeWindowSeconds });
-        setError(t("Start time must be before {time}.", { time: formatTimestamp(youtubeWindowSeconds) }));
-        return false;
-      }
       if (ytEndTime !== null && ytEndTime <= 0) {
         reportBlockedSubmission("invalid_clip_end", "validation");
         setError(t("End time must be greater than 0."));
         return false;
       }
-      if (ytEndTime !== null && ytEndTime > youtubeWindowSeconds) {
-        reportBlockedSubmission("clip_end_out_of_bounds", "validation", { limit_seconds: youtubeWindowSeconds });
-        setError(t("End time must be {time} or earlier.", { time: formatTimestamp(youtubeWindowSeconds) }));
+      if (ytStartTime !== null && ytEndTime !== null && ytEndTime - ytStartTime > youtubeMaxClipSeconds) {
+        reportBlockedSubmission("clip_duration_limit", "validation", { limit_seconds: youtubeMaxClipSeconds });
+        setError(t("YouTube clips are limited to {seconds} seconds.", { seconds: youtubeMaxClipSeconds }));
         return false;
       }
     }
@@ -1914,7 +1909,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                     </label>
                     <p className="advanced-note">
                       {isPremiumUser
-                        ? t("Choose any clip length within the first {minutes} minutes.", { minutes: youtubeWindowSeconds / 60 })
+                        ? t("Choose any section up to {minutes} minutes long.", { minutes: youtubeMaxClipSeconds / 60 })
                         : t("Free clips can be up to 30 s.")}
                     </p>
                     </div>
@@ -2279,7 +2274,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   <li>{t("Unused credits roll over, up to 200")}</li>
                   <li>{t("Full-length audio-file transcription")}</li>
                   <li>{t("Uploads up to 200 MB")}</li>
-                  <li>{t("Longer YouTube clips within the first 10 minutes")}</li>
+                  <li>{t("YouTube clips up to 10 minutes")}</li>
                 </ul>
               </article>
               {proPlanPresentationEnabled() && <article className="pricing-plan pricing-plan--pro" data-reveal>
@@ -2298,7 +2293,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   <li><MonthlyCredits count={250} /></li>
                   <li>{t("Unused credits roll over, up to 500")}</li>
                   <li>{t("Uploads up to 500 MB")}</li>
-                  <li>{t("YouTube selections within the first 20 minutes")}</li>
+                  <li>{t("YouTube clips up to 20 minutes")}</li>
                   <li>{t("Priority email support and future early-access eligibility")}</li>
                 </ul>
               </article>}

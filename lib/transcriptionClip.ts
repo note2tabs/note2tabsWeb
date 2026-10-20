@@ -2,8 +2,8 @@ export const MAX_FREE_FILE_SNIPPET_SEC = 60;
 export const DEFAULT_FILE_SNIPPET_SEC = 60;
 export const MAX_FREE_YOUTUBE_SNIPPET_SEC = 30;
 export const DEFAULT_YOUTUBE_SNIPPET_SEC = 30;
-export const MAX_YOUTUBE_WINDOW_SEC = 10 * 60;
-export const MAX_PRO_YOUTUBE_WINDOW_SEC = 20 * 60;
+export const MAX_PREMIUM_YOUTUBE_CLIP_SEC = 10 * 60;
+export const MAX_PRO_YOUTUBE_CLIP_SEC = 20 * 60;
 
 export type FileClipRange = {
   start: number;
@@ -73,19 +73,19 @@ export function isFileClipRangeValid(
   return isPremiumUser || endTime - startTime <= MAX_FREE_FILE_SNIPPET_SEC;
 }
 
-export function getYoutubeClipMaxLengthSec(isPremiumUser: boolean, paidWindowSec = MAX_YOUTUBE_WINDOW_SEC) {
-  return isPremiumUser ? paidWindowSec : MAX_FREE_YOUTUBE_SNIPPET_SEC;
+export function getYoutubeClipMaxLengthSec(isPremiumUser: boolean, paidMaxClipSec = MAX_PREMIUM_YOUTUBE_CLIP_SEC) {
+  return isPremiumUser ? paidMaxClipSec : MAX_FREE_YOUTUBE_SNIPPET_SEC;
 }
 
 export function resolveYoutubeClipDuration(
   startTime: number | null,
   endTime: number | null,
   isPremiumUser: boolean,
-  paidWindowSec = MAX_YOUTUBE_WINDOW_SEC
+  paidMaxClipSec = MAX_PREMIUM_YOUTUBE_CLIP_SEC
 ) {
   if (startTime === null || endTime === null) return 0;
   return Math.min(
-    getYoutubeClipMaxLengthSec(isPremiumUser, paidWindowSec),
+    getYoutubeClipMaxLengthSec(isPremiumUser, paidMaxClipSec),
     Math.max(1, endTime - startTime)
   );
 }
@@ -94,29 +94,25 @@ export function isYoutubeClipRangeValid(
   startTime: number | null,
   endTime: number | null,
   isPremiumUser: boolean,
-  paidWindowSec = MAX_YOUTUBE_WINDOW_SEC
+  paidMaxClipSec = MAX_PREMIUM_YOUTUBE_CLIP_SEC
 ) {
   if (startTime === null || endTime === null) return false;
-  const windowSec = isPremiumUser ? paidWindowSec : MAX_YOUTUBE_WINDOW_SEC;
-  if (startTime < 0 || startTime >= windowSec) return false;
-  if (endTime <= startTime || endTime > windowSec) return false;
-  return isPremiumUser || endTime - startTime <= MAX_FREE_YOUTUBE_SNIPPET_SEC;
+  if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) return false;
+  return startTime >= 0 && endTime > startTime &&
+    endTime - startTime <= getYoutubeClipMaxLengthSec(isPremiumUser, paidMaxClipSec);
 }
 
 export function clampYoutubeClipStart(
   startTime: number,
   endTime: number | null,
   isPremiumUser: boolean,
-  paidWindowSec = MAX_YOUTUBE_WINDOW_SEC
+  paidMaxClipSec = MAX_PREMIUM_YOUTUBE_CLIP_SEC
 ): YouTubeClipRange {
-  const windowSec = isPremiumUser ? paidWindowSec : MAX_YOUTUBE_WINDOW_SEC;
-  const start = Math.min(windowSec - 1, Math.max(0, startTime));
-  const maxEnd = Math.min(
-    windowSec,
-    start + getYoutubeClipMaxLengthSec(isPremiumUser, paidWindowSec)
-  );
-  const fallbackEnd = Math.min(windowSec, start + DEFAULT_YOUTUBE_SNIPPET_SEC);
-  const end = endTime === null || endTime <= start ? fallbackEnd : Math.min(maxEnd, endTime);
+  const start = Number.isFinite(startTime) ? Math.max(0, startTime) : 0;
+  const maxEnd = start + getYoutubeClipMaxLengthSec(isPremiumUser, paidMaxClipSec);
+  const fallbackEnd = start + DEFAULT_YOUTUBE_SNIPPET_SEC;
+  const end = endTime === null || !Number.isFinite(endTime) || endTime <= start
+    ? Math.min(maxEnd, fallbackEnd) : Math.min(maxEnd, endTime);
   return { start, end };
 }
 
@@ -124,15 +120,9 @@ export function clampYoutubeClipEnd(
   startTime: number | null,
   endTime: number,
   isPremiumUser: boolean,
-  paidWindowSec = MAX_YOUTUBE_WINDOW_SEC
+  paidMaxClipSec = MAX_PREMIUM_YOUTUBE_CLIP_SEC
 ) {
-  const windowSec = isPremiumUser ? paidWindowSec : MAX_YOUTUBE_WINDOW_SEC;
-  const start = startTime === null
-    ? 0
-    : Math.min(windowSec - 1, Math.max(0, startTime));
-  const maxEnd = Math.min(
-    windowSec,
-    start + getYoutubeClipMaxLengthSec(isPremiumUser, paidWindowSec)
-  );
-  return Math.min(maxEnd, Math.max(start + 1, endTime));
+  const start = startTime !== null && Number.isFinite(startTime) ? Math.max(0, startTime) : 0;
+  const maxEnd = start + getYoutubeClipMaxLengthSec(isPremiumUser, paidMaxClipSec);
+  return Math.min(maxEnd, Math.max(start + 1, Number.isFinite(endTime) ? endTime : start + 1));
 }

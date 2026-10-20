@@ -766,11 +766,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           maxDurationSec: MAX_FREE_YOUTUBE_SNIPPET_SEC,
         });
       }
-      const youtubeWindow = PLAN_CATALOG[subscriptionPlan].youtubePositionLimitSeconds;
+      const youtubeWindow = PLAN_CATALOG[subscriptionPlan].youtubeMaxClipSeconds;
       if (!isYoutubeClipRangeValid(startTime, startTime + duration, isPremium, youtubeWindow)) {
         return res.status(400).json({
-          error: `YouTube clips must stay within the first ${youtubeWindow / 60} minutes.`,
-          maxEndTimeSec: youtubeWindow,
+          error: `YouTube clips are limited to ${youtubeWindow} seconds and must start at 0 or later.`,
+          maxDurationSec: youtubeWindow,
         });
       }
     }
