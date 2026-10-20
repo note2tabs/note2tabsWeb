@@ -69,7 +69,7 @@ describe("credit purchase checkout", () => {
     expect(params.customer).toBeUndefined();
     expect(params.subscription_data).toBeUndefined();
     expect(params.cancel_url).toBe(
-      "https://note2tabs.com/fr/credits?payment=cancelled",
+      "https://note2tabs.com/fr/credits?credits=30&payment=cancelled",
     );
     expect(options.idempotencyKey).toBe("credit-top-up:order_test");
     expect(m.update).toHaveBeenCalledWith({

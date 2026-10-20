@@ -1,3 +1,4 @@
+import { shouldOfferCreditPurchase } from "../lib/creditPurchaseEligibility";
 import CreditShortfallDialog from "./CreditShortfallDialog";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
@@ -381,9 +382,31 @@ function SubscriptionLimitPrompt({
   );
 }
 
-export default function LimitUpgradePrompt(props:Props){
- const reason=props.tracking?.reason||'credits_low';
- const blocked=(props.context.plan!=='FREE' && props.context.remaining===0) || (reason==='credits_exhausted' && (props.context.required||0)>(props.context.remaining||0));
- if(process.env.NEXT_PUBLIC_CREDIT_TOPUPS_ENABLED==='true' && ['credits_low','credits_exhausted'].includes(reason)&&blocked)return <CreditShortfallDialog context={props.context} preview={props.preview}/>;
- return <SubscriptionLimitPrompt {...props}/>;
+export default function LimitUpgradePrompt(props: Props) {
+  const reason = props.tracking?.reason || "credits_low";
+  const eligible =
+    props.context.plan !== "FREE" &&
+    shouldOfferCreditPurchase(
+      props.context.plan,
+      props.context.remaining,
+      reason === "credits_exhausted" ? props.context.required : undefined,
+    );
+  if (
+    process.env.NEXT_PUBLIC_CREDIT_TOPUPS_ENABLED === "true" &&
+    ["credits_low", "credits_exhausted"].includes(reason) &&
+    eligible
+  )
+    return (
+      <CreditShortfallDialog
+        context={{...props.context,required:reason === "credits_exhausted" ? props.context.required : undefined}}
+        preview={props.preview}
+        tracking={props.tracking}
+        autoOpen={
+          Boolean(props.preview) ||
+          props.context.remaining === 0 ||
+          reason === "credits_exhausted"
+        }
+      />
+    );
+  return <SubscriptionLimitPrompt {...props} />;
 }

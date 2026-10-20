@@ -85,8 +85,8 @@ export default async function handler(
           },
         },
       ],
-      success_url: `${base}${path}?payment=processing&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${base}${path}?payment=cancelled`,
+      success_url: `${base}${path}?credits=${quote.credits}&payment=processing&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${base}${path}?credits=${quote.credits}&payment=cancelled`,
       adaptive_pricing: { enabled: false },
     } as Stripe.Checkout.SessionCreateParams & {
       adaptive_pricing: { enabled: boolean };

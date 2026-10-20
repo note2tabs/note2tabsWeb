@@ -199,7 +199,7 @@ const parseYouTubeId = (value: string): string | null => {
   return null;
 };
 
-export default function TranscriberPage() {
+export default function TranscriberPage({creditPlacementReview=false}:{creditPlacementReview?:boolean}) {
   const { t, locale } = useLocale();
   const { data: session, status: sessionStatus, update: updateSession } = useSession();
   const router = useRouter();
@@ -295,8 +295,8 @@ export default function TranscriberPage() {
   const canUseHeavy = isPremiumUser || heavyPreviewAvailable;
   const canTranscribe = !requireVerifiedEmail || isEmailVerified || !unverifiedTranscriptionUsed;
   const displayedCredits = useMemo(
-    () => process.env.NODE_ENV === "development" && router.query.creditPreview === "1" ? {used:92,limit:100,remaining:8,resetAt:"2026-11-10T12:00:00Z",unlimited:false} : credits ?? (disableDbInDev ? buildDevCreditsSummary() : null),
-    [credits, disableDbInDev, router.query.creditPreview]
+    () => creditPlacementReview ? {used:92,limit:100,remaining:router.query.creditState === "empty" ? 0 : 8,resetAt:"2026-11-10T12:00:00Z",unlimited:false} : credits ?? (disableDbInDev ? buildDevCreditsSummary() : null),
+    [credits, disableDbInDev, creditPlacementReview,router.query.creditState]
   );
   const verifyHref = `/auth/verify-email?next=${encodeURIComponent("/transcribe")}${
     transcriberSession?.user?.email

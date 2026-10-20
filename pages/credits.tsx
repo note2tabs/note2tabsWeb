@@ -1,3 +1,4 @@
+import {creditPlacementReviewEnabled} from "../lib/creditPlacementPreview";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
@@ -7,7 +8,7 @@ import Link from "../components/LocaleLink";
 import { useLocale } from "../lib/i18n/react";
 import { creditTopUpQuote, MAX_CREDIT_PACKS } from "../lib/creditTopUpPricing";
 
-export default function CreditsPage() {
+export default function CreditsPage({creditPlacementReview=false}:{creditPlacementReview?:boolean}) {
   const router = useRouter();
   const [balance, setBalance] = useState<number | null>(null);
   const [custom, setCustom] = useState(false);
@@ -95,6 +96,7 @@ export default function CreditsPage() {
   }, [status, router.query.session_id]);
   async function buy() {
     if (inFlight.current || !quote) return;
+    if(creditPlacementReview && process.env.NODE_ENV === "production"){setError(t("Preview only — no checkout opened."));return;}
     if (status !== "authenticated") {
       void signIn(undefined, {
         callbackUrl: `${window.location.origin}${router.asPath.split("?")[0]}?credits=${credits}`,
@@ -260,5 +262,5 @@ export default function CreditsPage() {
 }
 export const getServerSideProps = async () =>
   process.env.CREDIT_TOPUPS_ENABLED === "true"
-    ? { props: {} }
+    ? { props: {creditPlacementReview:creditPlacementReviewEnabled()} }
     : { notFound: true };

@@ -1,5 +1,5 @@
 import {shouldOfferCreditPurchase} from "../lib/creditPurchaseEligibility";
-import {creditPlacementPreview} from "../lib/creditPlacementPreview";
+import {creditPlacementPreview,creditPlacementReviewEnabled} from "../lib/creditPlacementPreview";
 import CreditPurchaseLink from "../components/CreditPurchaseLink";
 import {usesCreditWallet,walletCredits} from "../lib/creditWallet";
 import LanguagePreference from "../components/LanguagePreference";
@@ -49,6 +49,7 @@ import {
 import { rememberCheckoutAttempt } from "../lib/checkoutTracking";
 
 type Props = {
+  creditPlacementReview?:boolean;
   user: {
     email: string;
     name: string | null;
@@ -135,11 +136,11 @@ function SettingRow({ label, description, value, children }: SettingRowProps) {
   );
 }
 
-function AccountSettingsPage({ user, stripeReady, credits }: Props) {
+function AccountSettingsPage({ user, stripeReady, credits,creditPlacementReview=false }: Props) {
   const { t, locale, href: localePath } = useLocale();
   const router = useRouter();
   const { update: updateSession } = useSession();
-  const [selectedSection, setSelectedSection] = useState<SettingsSection>(process.env.NODE_ENV === "development" && router.query.creditPreview === "1" ? "plan" : "account");
+  const [selectedSection, setSelectedSection] = useState<SettingsSection>(creditPlacementReview ? "plan" : "account");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleteFlowOpen, setDeleteFlowOpen] = useState(false);
@@ -935,7 +936,7 @@ function GuestLanguageSettings() {
 }
 
 export const getServerSideProps: GetServerSideProps<Props|GuestSettingsProps> = async (ctx) => {
-  if(process.env.NODE_ENV==='development'&&ctx.query.creditPreview==='1')return {props:{user:creditPlacementPreview.user,session:creditPlacementPreview,stripeReady:false,credits:{used:92,limit:100,remaining:8,resetAt:'2026-11-10T12:00:00Z',unlimited:false}}};
+  if(creditPlacementReviewEnabled()&&ctx.query.creditPreview==='1')return {props:{user:creditPlacementPreview.user,creditPlacementReview:true,session:creditPlacementPreview,stripeReady:false,credits:{used:92,limit:100,remaining:8,resetAt:'2026-11-10T12:00:00Z',unlimited:false}}};
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
   if (!session?.user?.email || !session.user.id) {
     return {props:{guest:true}};

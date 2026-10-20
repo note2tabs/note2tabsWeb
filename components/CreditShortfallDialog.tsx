@@ -1,3 +1,10 @@
+import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
+import {
+  getOrCreatePremiumFunnelContext,
+  premiumFunnelProperties,
+  premiumPricingHref,
+  type PremiumFunnelSource,
+} from "../lib/premiumFunnel";
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "./LocaleLink";
 import { useLocale } from "../lib/i18n/react";
@@ -6,14 +13,42 @@ import type { LimitContext } from "../lib/limitUpgrade";
 export default function CreditShortfallDialog({
   context,
   preview = false,
+  tracking,
+  autoOpen = true,
 }: {
   context: LimitContext;
   preview?: boolean;
+  autoOpen?: boolean;
+  tracking?: {
+    source: PremiumFunnelSource;
+    reason: string;
+    surface: string;
+    trigger: string;
+  };
 }) {
   const { t, locale, href } = useLocale(),
     id = useId(),
     dialog = useRef<HTMLDialogElement>(null);
-  const [open, setOpen] = useState(true),
+  const inFlight = useRef(false),
+    seen = useRef<string | null>(null),
+    viewed = useRef<string | null>(null),
+    funnel = useRef<ReturnType<typeof getOrCreatePremiumFunnelContext> | null>(
+      null,
+    );
+  const key = [
+    context.plan,
+    context.attempt,
+    context.remaining,
+    context.required,
+  ].join(":");
+  const properties = () => ({
+    surface: tracking?.surface || "credit_shortfall_dialog",
+    trigger: tracking?.trigger || "credits_exhausted",
+    placement: "transcriber_limit",
+    purchase_type: "credit_top_up",
+    ...(funnel.current ? premiumFunnelProperties(funnel.current) : {}),
+  });
+  const [open, setOpen] = useState(autoOpen),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(false);
   const amount = Math.max(
@@ -26,20 +61,74 @@ export default function CreditShortfallDialog({
     currencyDisplay: "code",
   }).format(creditTopUpQuote(amount).amountCents / 100);
   useEffect(() => {
-    setOpen(true);
-  }, [context.attempt, context.remaining, context.required]);
+    setOpen(autoOpen);
+  }, [context.attempt, context.remaining, context.required, autoOpen]);
   useEffect(() => {
     if (open && !dialog.current?.open) dialog.current?.showModal();
     else if (!open) dialog.current?.close();
   }, [open]);
+  useEffect(() => {
+    const node = dialog.current;
+    if (!open || !node || preview) return;
+    if (seen.current !== key) {
+      seen.current = key;
+      funnel.current = getOrCreatePremiumFunnelContext({
+        source: tracking?.source || "low_credits",
+        reason: "credits_exhausted",
+      });
+      [
+        ANALYTICS_EVENTS.premiumPromptEligible,
+        ANALYTICS_EVENTS.premiumPromptRendered,
+        ANALYTICS_EVENTS.premiumPromptShown,
+      ].forEach((event) => sendEvent(event, properties()));
+    }
+    let visible = false;
+    const record = () => {
+      if (
+        visible &&
+        document.visibilityState === "visible" &&
+        viewed.current !== key
+      ) {
+        viewed.current = key;
+        sendEvent(ANALYTICS_EVENTS.premiumPromptViewed, properties());
+      }
+    };
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        visible = entry.isIntersecting && entry.intersectionRatio >= 0.5;
+        record();
+      },
+      { threshold: 0.5 },
+    );
+    observer.observe(node);
+    document.addEventListener("visibilitychange", record);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", record);
+    };
+  }, [open, key, preview]);
+  function dismiss() {
+    if (inFlight.current) return;
+    if (!preview)
+      sendEvent(ANALYTICS_EVENTS.premiumPromptDismissed, properties());
+    setOpen(false);
+  }
   async function go(event: React.MouseEvent, target: string) {
     event.preventDefault();
-    if (busy) return;
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
+    setError(false);
     try {
       if (!preview) await context.beforeCheckout?.();
+      if (!preview)
+        sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, {
+          ...properties(),
+          cta: target.startsWith("/credits") ? "buy_credits" : "compare_plans",
+        });
       window.location.assign(href(target));
     } catch {
+      inFlight.current = false;
       setBusy(false);
       setError(true);
     }
@@ -50,7 +139,11 @@ export default function CreditShortfallDialog({
         <button
           className="button-link"
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            seen.current = null;
+            viewed.current = null;
+            setOpen(true);
+          }}
         >
           {t("Buy credits")}
         </button>
@@ -62,7 +155,7 @@ export default function CreditShortfallDialog({
         aria-labelledby={id}
         onCancel={(e) => {
           e.preventDefault();
-          if (!busy) setOpen(false);
+          dismiss();
         }}
         onClose={() => setOpen(false)}
       >
@@ -70,11 +163,13 @@ export default function CreditShortfallDialog({
           {t(
             context.remaining === 0
               ? "You’ve used all your credits"
-              : "Not enough credits for this transcription",
+              : (context.required || 0) > (context.remaining || 0)
+                ? "Not enough credits for this transcription"
+                : "You’re running low on credits",
           )}
         </h2>
         <p className="limit-upgrade-description">
-          {context.required
+          {context.required && context.required > (context.remaining || 0)
             ? t(
                 "This transcription needs {required} credits. You have {remaining} left.",
                 {
@@ -109,11 +204,23 @@ export default function CreditShortfallDialog({
         {context.plan !== "PRO" && (
           <Link
             className="limit-upgrade-compare"
-            href={`/pricing?plan=${context.plan === "PREMIUM" ? "pro" : "premium"}&resumeTranscription=1`}
+            href={
+              premiumPricingHref({
+                source: tracking?.source || "low_credits",
+                reason: "credits_exhausted",
+              }) +
+              `&plan=${context.plan === "PREMIUM" ? "pro" : "premium"}&resumeTranscription=1`
+            }
             onClick={(event) =>
               void go(
                 event,
-                `/pricing?plan=${context.plan === "PREMIUM" ? "pro" : "premium"}&resumeTranscription=1`,
+                premiumPricingHref(
+                  funnel.current || {
+                    source: tracking?.source || "low_credits",
+                    reason: "credits_exhausted",
+                  },
+                ) +
+                  `&plan=${context.plan === "PREMIUM" ? "pro" : "premium"}&resumeTranscription=1`,
               )
             }
           >
@@ -124,7 +231,7 @@ export default function CreditShortfallDialog({
           className="limit-upgrade-back"
           type="button"
           disabled={busy}
-          onClick={() => setOpen(false)}
+          onClick={dismiss}
         >
           {t("Back to transcriber")}
         </button>
