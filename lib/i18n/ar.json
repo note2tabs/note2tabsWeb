@@ -1838,5 +1838,10 @@
   "Due today": "المستحق اليوم",
   "Your remaining credits are exchanged for this discount. You start a new month with 250 Pro credits. Then {amount} per month, starting one month after the upgrade.": "يُستبدل رصيدك المتبقي بهذا الخصم. تبدأ شهرًا جديدًا برصيد 250 في Pro. ثم تدفع {amount} شهريًا، بدءًا من شهر بعد الترقية.",
   "Confirm upgrade": "تأكيد الترقية",
-  "Processing…": "جارٍ المعالجة…"
+  "Processing…": "جارٍ المعالجة…",
+  "today": "اليوم",
+  "Then {amount}/month": "ثم {amount} شهريًا",
+  "{credits} credits exchanged · {amount} off": "استبدال {credits} رصيدًا · خصم {amount}",
+  "Review before payment": "المراجعة قبل الدفع",
+  "Upgrade to Pro — {price}": "الترقية إلى Pro — {price}"
 }

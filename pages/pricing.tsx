@@ -1,3 +1,5 @@
+import { useCreditUpgradeQuote } from "../lib/useCreditUpgradeQuote";
+import CreditUpgradeSummary, { upgradeMoney } from "../components/CreditUpgradeSummary";
 import CreditUpgradeReview, { type CreditUpgradeQuote } from "../components/CreditUpgradeReview";
 import PriceTaxNote from "../components/PriceTaxNote";
 import MonthlyCredits from "../components/MonthlyCredits";
@@ -54,6 +56,7 @@ export default function PricingPage() {
   const showPro = proPlanPresentationEnabled();
   const hasPaidPremium = currentRole === "PREMIUM";
   const currentPlan = session?.user?.subscriptionPlan || (hasPaidPremium ? "PREMIUM" : "FREE");
+  const upgrade = useCreditUpgradeQuote(hasPaidPremium && currentPlan === "PREMIUM" && billingInterval === "monthly");
   const hasStaffAccess = ["ADMIN", "MODERATOR", "MOD"].includes(currentRole);
   const hasPremiumAccess = hasPaidPremium || hasStaffAccess;
   const { variant: offerVariant, resolved: offerVariantResolved } =
@@ -183,6 +186,11 @@ export default function PricingPage() {
       return;
     }
 
+    if (upgrade.preview) {
+      if (quoteId) { setUpgradeQuote(null); setCheckoutError(t("Preview only — no checkout opened.")); }
+      else setUpgradeQuote(upgrade.quote);
+      return;
+    }
     setCheckoutBusy(true);
     setCheckoutError(null);
     let failureStatus: number | undefined;
@@ -256,7 +264,7 @@ export default function PricingPage() {
       );
       setCheckoutBusy(false);
     }
-  }, [billingInterval, checkoutBusy, currentPlan, displayCurrency, getFunnelContext, hasPaidPremium, hasStaffAccess, measurementContext, offerVariant, router, session]);
+  }, [billingInterval, checkoutBusy, currentPlan, displayCurrency, getFunnelContext, hasPaidPremium, hasStaffAccess, measurementContext, offerVariant, router, session, upgrade.preview, upgrade.quote, locale, t]);
 
   useEffect(() => {
     if (!router.isReady || router.query.checkout !== "1") return;
@@ -296,20 +304,22 @@ export default function PricingPage() {
           const paid = plan.id !== "FREE";
           const paidId = plan.id as PaidSubscriptionPlan;
           const included = hasStaffAccess && paid;
+          const creditQuote = plan.id === "PRO" ? upgrade.quote : null;
           const current = currentPlan === plan.id && paid;
           return <article key={plan.id} className={`pricing-plan pricing-plan--${plan.id.toLowerCase()}`}>
             {plan.id === "PREMIUM" && <div className="pricing-plan__badge">{t("Recommended")}</div>}
             <div className="pricing-plan__top"><h2>{t(plan.name)}</h2>
               <p>{plan.id === "FREE" ? t("Try short recordings.") : plan.id === "PREMIUM" ? t("For full songs.") : t("For frequent transcription.")}</p>
-              <div className="pricing-plan__price"><strong>{paid ? formatLocalizedPrice(paidId, billingInterval, displayCurrency) : formatLocalizedAmount(0, displayCurrency)}</strong><span>/ {paid && billingInterval === "yearly" ? t("year") : t("month")}</span></div>
+              <div className="pricing-plan__price"><strong>{creditQuote ? upgradeMoney(creditQuote, creditQuote.dueNow, locale) : paid ? formatLocalizedPrice(paidId, billingInterval, displayCurrency) : formatLocalizedAmount(0, displayCurrency)}</strong><span>{creditQuote ? t("today") : <>/ {paid && billingInterval === "yearly" ? t("year") : t("month")}</>}</span></div>
+              {creditQuote && <CreditUpgradeSummary quote={creditQuote} />}
               {paid && <PriceTaxNote />}
               <p className="pricing-plan__saving">{paid && billingInterval === "yearly" && <><span className="pricing-plan__saving-amount">{t("Save {amount} per year", {amount: localizedAnnualSaving(paidId, displayCurrency)})}</span>{t(" · Billed annually")}</>}</p>
             </div>
             {!paid ? <Link href="/transcribe" className="pricing-plan__cta pricing-plan__cta--secondary" onClick={() => trackCtaClick("pricing_start_free", { surface: "pricing_page" })}>{t("Start free")}</Link>
               : included || current ? <Link href={included ? "/transcribe" : "/settings"} className="pricing-plan__cta pricing-plan__cta--secondary">{included ? t("{plan} access included", { plan: plan.name }) : t("Manage current plan")}</Link>
-              : <button type="button" className={`pricing-plan__cta pricing-plan__cta--${plan.id === "PREMIUM" ? "primary" : "secondary"}`} onClick={() => void startCheckout(paidId)} disabled={checkoutBusy || sessionStatus === "loading"}>{checkoutBusy ? t("Opening checkout…") : hasPaidPremium ? t("Switch to {plan}", { plan: plan.name }) : plan.id === "PREMIUM" ? t("Get Premium") : t("Choose Pro")}</button>}
+              : <button type="button" className={`pricing-plan__cta pricing-plan__cta--${plan.id === "PREMIUM" ? "primary" : "secondary"}`} onClick={() => void startCheckout(paidId)} disabled={checkoutBusy || sessionStatus === "loading"}>{checkoutBusy ? t("Opening checkout…") : creditQuote ? t("Upgrade to Pro") : hasPaidPremium ? t("Switch to {plan}", { plan: plan.name }) : plan.id === "PREMIUM" ? t("Get Premium") : t("Choose Pro")}</button>}
             <div className="pricing-plan__reassurance">
-              {!paid ? t("No credit card required") : included || current ? t("Manage your subscription in your account.") : <>
+              {creditQuote ? t("Review before payment") : !paid ? t("No credit card required") : included || current ? t("Manage your subscription in your account.") : <>
                 {t("{price}/{period} billed today. Cancel anytime.", {price: formatLocalizedPrice(paidId, billingInterval, displayCurrency), period: billingInterval === "yearly" ? t("year") : t("month")})}</>}
             </div>
             <div className="pricing-plan__divider" />

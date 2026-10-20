@@ -14617,3 +14617,11 @@ html[lang="ar"] [data-editor-locale="ar"] :is(input[type="text"], textarea) {
 @media(max-width:480px){.limit-upgrade-dialog{padding:28px 24px;max-height:calc(100dvh - 32px)}.limit-upgrade-dialog h2{font-size:27px}}
 .paywall-preview-tools{position:fixed;z-index:1001;top:10px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:14px;background:#fffefb;color:#14291f;padding:10px 16px;border:1px solid #e4e7df;border-radius:10px;font-size:12px;max-width:calc(100vw - 24px)}
 .paywall-preview-tools select{max-width:220px;background:transparent}
+
+.credit-upgrade-summary { margin-top: 8px; font-size: 13px; line-height: 1.5; color: #626d65; }
+.credit-upgrade-summary p { margin: 4px 0; }
+.credit-upgrade-summary p:first-child { color: #14291f; font-weight: 500; }
+.pricing-page--focused .pricing-plan__price:has(+ .credit-upgrade-summary) span { margin-inline-start: 2px; }
+.limit-upgrade-price:has(+ .credit-upgrade-summary) small { margin-inline-start: 8px; }
+.upgrade-preview-nav { padding: 12px 24px; background: #f0f4ee; font-size: 12px; display: flex; gap: 16px; flex-wrap: wrap; }
+.upgrade-preview-nav a { text-decoration: underline; }

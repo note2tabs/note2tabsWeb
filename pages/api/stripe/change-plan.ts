@@ -54,12 +54,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const currentPlan = stripeSubscriptionPlan(current);
     if (!currentPlan) return res.status(409).json({ error: "This subscription cannot be changed here." });
     if (currentPlan === requestedPlan) {
+      if (req.body?.action === "quote") return res.status(200).json({ quote: null });
       if (currentPlan === "PRO") await applyCreditUpgrade(current);
       return res.status(200).json({ changed: false, plan: rawPlan });
     }
     const item = current.items.data[0];
     if (!item) return res.status(409).json({ error: "The subscription has no plan item." });
 
+    if (req.body?.action === "quote" && !(creditUpgradeEnabled() && currentPlan === "PREMIUM" && requestedPlan === "PRO" && billingInterval === "monthly" && item.price.recurring?.interval === "month")) return res.status(200).json({ quote: null });
     if (req.body?.action === "confirm" && (currentPlan !== "PREMIUM" || requestedPlan !== "PRO" || billingInterval !== "monthly" || item.price.recurring?.interval !== "month" || !creditUpgradeEnabled())) return res.status(409).json({ error: "Review the upgrade again before confirming." });
     if (currentPlan === "PREMIUM" && requestedPlan === "PRO") {
       if (creditUpgradeEnabled() && billingInterval === "monthly" && item.price.recurring?.interval === "month") {

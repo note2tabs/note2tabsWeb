@@ -1838,5 +1838,10 @@
   "Due today": "本日のお支払い額",
   "Your remaining credits are exchanged for this discount. You start a new month with 250 Pro credits. Then {amount} per month, starting one month after the upgrade.": "残りのクレジットをこの割引に換算します。250 Proクレジットで新しい1か月が始まります。アップグレードの1か月後から、毎月{amount}が請求されます。",
   "Confirm upgrade": "アップグレードを確定",
-  "Processing…": "処理中…"
+  "Processing…": "処理中…",
+  "today": "本日",
+  "Then {amount}/month": "次回から{amount}/月",
+  "{credits} credits exchanged · {amount} off": "{credits}クレジットを換算 · {amount}割引",
+  "Review before payment": "支払い前に確認",
+  "Upgrade to Pro — {price}": "Proにアップグレード — {price}"
 }

@@ -1838,5 +1838,10 @@
   "Due today": "Do zapłaty dzisiaj",
   "Your remaining credits are exchanged for this discount. You start a new month with 250 Pro credits. Then {amount} per month, starting one month after the upgrade.": "Pozostałe kredyty są wymieniane na tę zniżkę. Rozpoczynasz nowy miesiąc z 250 kredytami Pro. Następnie {amount} miesięcznie, od miesiąca po przejściu na Pro.",
   "Confirm upgrade": "Potwierdź zmianę",
-  "Processing…": "Przetwarzanie…"
+  "Processing…": "Przetwarzanie…",
+  "today": "dzisiaj",
+  "Then {amount}/month": "Następnie {amount}/mies.",
+  "{credits} credits exchanged · {amount} off": "Wymienione kredyty: {credits} · zniżka {amount}",
+  "Review before payment": "Sprawdź przed zapłatą",
+  "Upgrade to Pro — {price}": "Przejdź na Pro — {price}"
 }

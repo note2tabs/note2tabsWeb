@@ -1,3 +1,5 @@
+import { useCreditUpgradeQuote } from "../lib/useCreditUpgradeQuote";
+import CreditUpgradeSummary, { upgradeMoney } from "./CreditUpgradeSummary";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import { localizedSignIn } from "../lib/i18n/auth";
@@ -44,6 +46,7 @@ export default function LimitUpgradePrompt({
     market = usePricingMarket();
   const reason = tracking?.reason || "credits_low",
     plan = limitUpgradePlan(reason, context);
+  const upgrade = useCreditUpgradeQuote(context.plan === "PREMIUM" && plan === "PRO", context.remaining);
   const dialog = useRef<HTMLDialogElement>(null),
     id = useId(),
     busyRef = useRef(false),
@@ -178,7 +181,7 @@ export default function LimitUpgradePrompt({
               remaining: context.remaining || 0,
             });
   const definition = plan ? PLAN_CATALOG[plan] : null;
-  const price = plan
+  const price = upgrade.quote ? upgradeMoney(upgrade.quote, upgrade.quote.dueNow, locale) : plan
     ? formatLocalizedPrice(plan, "monthly", currency, locale, market)
     : "";
   const compare =
@@ -205,6 +208,16 @@ export default function LimitUpgradePrompt({
     sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, props());
     try {
       await context.beforeCheckout?.();
+      if (context.plan === "PREMIUM" && upgrade.quote) {
+        const response = await fetch("/api/stripe/change-plan", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ plan: "pro", billingInterval: "monthly", action: "confirm", quoteId: upgrade.quote.id, locale }),
+        });
+        const result = await response.json();
+        if (!response.ok) { upgrade.refresh(); throw Error(); }
+        window.location.assign(result.url || localizedHref("/transcribe?resumeTranscription=1"));
+        return;
+      }
       // Existing subscribers review the upgrade on pricing; never create a second subscription.
       if (context.plan !== "FREE") {
         window.location.assign(localizedHref(compare));
@@ -325,9 +338,9 @@ export default function LimitUpgradePrompt({
         <div className="limit-upgrade-offer">
           <div className="limit-upgrade-price">
             <bdi>{price}</bdi>
-            <small>{t(" / month")}</small>
+            <small>{upgrade.quote ? t("today") : t(" / month")}</small>
           </div>
-          <p>{t("Billed monthly · Cancel anytime")}</p>
+          {upgrade.quote ? <CreditUpgradeSummary quote={upgrade.quote} /> : <p>{t("Billed monthly · Cancel anytime")}</p>}
         </div>
         <button
           type="button"
@@ -337,7 +350,7 @@ export default function LimitUpgradePrompt({
         >
           {busy
             ? t("Opening checkout…")
-            : t("Get {plan} — {price}/month", { plan: definition.name, price })}
+            : upgrade.quote ? t("Upgrade to Pro — {price}", { price }) : t("Get {plan} — {price}/month", { plan: definition.name, price })}
         </button>
         {error && <p role="alert">{error}</p>}
         <Link

@@ -58,6 +58,7 @@ async function render(context: any, extra: any = {}) {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  m.fetch.mockReset().mockResolvedValue({ ok: false, json: async () => ({}) });
   m.session = { data: { user: { id: "test" } }, status: "authenticated" };
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal(
@@ -183,4 +184,22 @@ it("reopens on a new blocked attempt after dismissal", async () => {
   );
   await render({ plan: "FREE", remaining: 0, attempt: 2 });
   expect(el.querySelector("dialog")?.open).toBe(true);
+});
+
+it("shows the subscriber's credit-based price and confirms the existing subscription", async () => {
+  const quote = { id: "quote_1", currency: "usd", credits: 200, discount: 1198, regularAmount: 1499, dueNow: 301 };
+  m.fetch.mockResolvedValueOnce({ ok: true, json: async () => ({ quote }) });
+  const before = vi.fn().mockResolvedValue(undefined);
+  await render({ plan: "PREMIUM", remaining: 200, fileBytes: 350 * 1024 * 1024, beforeCheckout: before }, { tracking: { ...tracking, reason: "file_size_limit" } });
+  expect(el.textContent).toContain("Then $14.99/month");
+  expect(el.textContent).toContain("200 credits exchanged · $11.98 off");
+  expect(el.querySelector(".limit-upgrade-primary")?.textContent).toContain("Upgrade to Pro — $3.01");
+  expect(JSON.parse(m.fetch.mock.calls[0][1].body)).toMatchObject({ action: "quote" });
+  await act(async () => el.querySelector<HTMLButtonElement>(".limit-upgrade-primary")!.click());
+  expect(before).toHaveBeenCalledOnce();
+  expect(m.fetch.mock.calls.every(([url]) => url === "/api/stripe/change-plan")).toBe(true);
+  expect(m.fetch.mock.calls.some(([,options]) => {
+    const body = JSON.parse(options.body);
+    return body.action === "confirm" && body.quoteId === "quote_1" && body.plan === "pro";
+  })).toBe(true);
 });

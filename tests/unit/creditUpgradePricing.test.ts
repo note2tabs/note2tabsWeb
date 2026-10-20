@@ -19,7 +19,7 @@ describe("credit-based Pro upgrade", () => {
 
 describe("upgrade review localization", () => {
   it("has every review message in all ten catalogs with matching placeholders", () => {
-    const source = readFileSync("components/CreditUpgradeReview.tsx", "utf8");
+    const source = readFileSync("components/CreditUpgradeReview.tsx", "utf8") + readFileSync("components/CreditUpgradeSummary.tsx", "utf8");
     const keys = Array.from(source.matchAll(/t\("([^"]+)"/g), match => match[1]);
     for (const locale of ["en","fr","it","es","pt-BR","pl","ja","ko","zh-Hans","ar"]) {
       const catalog = JSON.parse(readFileSync(`lib/i18n/${locale}.json`, "utf8"));

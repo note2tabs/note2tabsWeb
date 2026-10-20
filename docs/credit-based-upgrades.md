@@ -34,3 +34,11 @@ The shared credit-sync helpers now take the plan cap explicitly: Premium 200, Pr
 - Stripe test mode (API 2024-06-20): 200 rollover credits gave a $3.01 first invoice; a decline retained Premium; paying the invoice activated Pro; the next monthly invoice was paid at $14.99.
 - Browser review checked amounts, confirmation layout, Cancel, Escape, and focus restoration. All dialog messages/placeholders exist in all ten locale catalogs.
 - No production deployment, migration, billing changes or merge performed.
+
+## Subscriber entry points
+
+The Pro card on pricing now loads a read-only server quote and displays the first-month charge, regular renewal, and credit exchange. The existing payment review follows its upgrade button. Premium subscribers' limit dialogs use the same quote and can confirm the existing subscription directly, preserving the selected transcription. Unsupported/annual quote requests return no offer and never execute a plan change.
+
+Development-only visual review: `/dev/pro-upgrade?view=pricing`, or `?view=popup&reason=file_size_limit`, `youtube_duration_limit`, `credits_low`. These render the actual pricing/transcriber and dialog components with a synthetic Premium account. Payments are blocked; the route returns 404 outside development. The sample uses 200 remaining credits for file/YouTube limits and 3 for the credit shortfall.
+
+Entry-point checks: 166 focused tests and TypeScript passed; browser verified all three limit states, pricing review, and preview payment blocking. Nothing merged or enabled on production.

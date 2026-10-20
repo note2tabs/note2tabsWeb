@@ -1838,5 +1838,10 @@
   "Due today": "A pagar hoy",
   "Your remaining credits are exchanged for this discount. You start a new month with 250 Pro credits. Then {amount} per month, starting one month after the upgrade.": "Tus créditos restantes se canjean por este descuento. Empiezas un nuevo mes con 250 créditos Pro. Después, {amount} al mes, a partir de un mes después del cambio a Pro.",
   "Confirm upgrade": "Confirmar cambio",
-  "Processing…": "Procesando…"
+  "Processing…": "Procesando…",
+  "today": "hoy",
+  "Then {amount}/month": "Después, {amount}/mes",
+  "{credits} credits exchanged · {amount} off": "{credits} créditos canjeados · {amount} de descuento",
+  "Review before payment": "Revisa antes de pagar",
+  "Upgrade to Pro — {price}": "Cambiar a Pro — {price}"
 }
