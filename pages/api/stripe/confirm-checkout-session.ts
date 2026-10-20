@@ -1,3 +1,4 @@
+import {usesCreditWallet,activateWalletPlan} from "../../../lib/creditWallet";
 import type { NextApiRequest, NextApiResponse } from "next";
 import type Stripe from "stripe";
 import { getServerSession } from "next-auth/next";
@@ -123,10 +124,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           definition.rolloverCap
         )
       : definition.monthlyCredits;
+    if (await usesCreditWallet(user.id)) {
+      await activateWalletPlan(user,subscriptionPlan,definition.monthlyCredits,definition.rolloverCap);
+    } else {
     await prisma.user.update({
       where: { id: user.id },
       data: { role: "PREMIUM", subscriptionPlan, tokensRemaining },
     });
+    }
 
     return res.status(200).json({ confirmed: true, role: "PREMIUM", subscriptionPlan });
   } catch (error) {

@@ -1,3 +1,6 @@
+const topUpFulfill = vi.hoisted(()=>vi.fn().mockResolvedValue(true));
+vi.mock('../../lib/creditTopUps',()=>({fulfillCreditTopUp:topUpFulfill}));
+vi.mock('../../lib/creditWallet',()=>({usesCreditWallet:vi.fn().mockResolvedValue(false),walletCredits:vi.fn(),grantWalletAllowance:vi.fn(),lockCreditWallet:vi.fn()}));
 import { Readable } from "stream";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMocks, createResponse } from "node-mocks-http";
@@ -1402,6 +1405,18 @@ describe("stripe premium flow", () => {
   });
 
   describe("stripe webhook", () => {
+    it.each(["checkout.session.completed","checkout.session.async_payment_succeeded"])("routes %s top-ups through fresh payment verification without activating Premium",async type=>{
+      stripeMock.webhooks.constructEvent.mockReturnValue({id:"evt_topup",type,data:{object:{id:"cs_topup",metadata:{creditTopUpOrderId:"order_test"}}}});
+      const fresh={id:"cs_topup",payment_status:"paid",metadata:{creditTopUpOrderId:"order_test"}};
+      stripeMock.checkout.sessions.retrieve.mockResolvedValue(fresh);
+      const handler=(await import("../../pages/api/stripe/webhook")).default;
+      const res=createResponse();await handler(buildWebhookReq(),res as any);
+      expect(res.statusCode).toBe(200);
+      expect(stripeMock.checkout.sessions.retrieve).toHaveBeenCalledWith("cs_topup",{expand:["payment_intent.latest_charge"]});
+      expect(topUpFulfill).toHaveBeenCalledWith(fresh);
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
     it("tracks an expired Note2Tabs Checkout session as abandoned", async () => {
       stripeMock.webhooks.constructEvent.mockReturnValue({
         id: "evt_checkout_expired",

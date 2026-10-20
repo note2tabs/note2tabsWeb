@@ -1808,5 +1808,20 @@
   "One or more answers are too long.": "Uma ou mais respostas são longas demais.",
   "Please complete the required fields.": "Preencha os campos obrigatórios.",
   "The application could not be submitted.": "Não foi possível enviar a candidatura.",
-  "Too many attempts. Please try again later.": "Muitas tentativas. Tente novamente mais tarde."
+  "Too many attempts. Please try again later.": "Muitas tentativas. Tente novamente mais tarde.",
+  "Buy credits": "Comprar créditos",
+  "Buy more credits": "Comprar mais créditos",
+  "One-time purchase. No subscription change.": "Compra única. Sua assinatura não muda.",
+  "Fewer credits": "Menos créditos",
+  "More credits": "Mais créditos",
+  "Purchased credits stay in your balance each month. Your plan’s models and limits remain unchanged.": "Os créditos comprados continuam no seu saldo de um mês para o outro. Os modelos e limites do seu plano não mudam.",
+  "Buy {credits} credits": "Comprar {credits} créditos",
+  "Could not open checkout. Please try again.": "Não foi possível abrir o pagamento. Tente novamente.",
+  "Choose at least 15 credits, in increments of 15.": "Escolha pelo menos 15 créditos, em incrementos de 15.",
+  "Your credits appear after Stripe confirms payment.": "Seus créditos aparecerão após a confirmação do pagamento pelo Stripe.",
+  "{credits} credits added to your balance.": "{credits} créditos adicionados ao seu saldo.",
+  "Payment processing. Credits appear after confirmation.": "Pagamento em processamento. Os créditos aparecerão após a confirmação.",
+  "Checkout closed.": "Pagamento fechado.",
+  "Compare plans": "Comparar planos",
+  "Credits": "Créditos"
 }

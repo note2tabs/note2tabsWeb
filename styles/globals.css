@@ -14605,3 +14605,7 @@ html[lang="ar"] [data-editor-locale="ar"] :is(input[type="text"], textarea) {
 .affiliateApplicationSuccess p { margin: 0; line-height: 1.6; }
 @media (max-width: 760px) { .affiliateApplication { grid-template-columns: 1fr; gap: 22px; padding: 24px; } }
 @media (max-width: 430px) { .affiliateApplicationRow { grid-template-columns: 1fr; } }
+
+.credit-top-up-page{max-width:520px;margin:64px auto;padding:0 24px 64px}.credit-top-up-page h1{margin:28px 0 12px;letter-spacing:-.04em}.credit-top-up-page p{line-height:1.6;color:var(--muted-text,#59645d)}.credit-top-up-picker{margin:30px 0;padding:24px;border:1px solid #dce3dc;border-radius:14px}.credit-top-up-stepper{display:flex;gap:12px;margin:12px 0 24px}.credit-top-up-stepper input{width:100%;min-width:0;text-align:center;font-size:20px;border:1px solid #dce3dc;border-radius:8px}.credit-top-up-stepper button{width:48px;min-height:48px;flex-shrink:0;border:1px solid #dce3dc;background:transparent;border-radius:8px;font-size:22px}.credit-top-up-price{font-size:36px;letter-spacing:-.04em}.credit-top-up-price small{font-size:13px;font-weight:400;letter-spacing:0}.credit-top-up-picker>.button-primary{width:100%;margin-top:12px}
+
+.credit-top-up-page h1 {font-size:2rem;font-weight:700;letter-spacing:-.035em;line-height:1.2;margin-block:1.5rem .75rem;}
