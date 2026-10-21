@@ -1861,5 +1861,9 @@
   "MIDI": "MIDI",
   "Guitar Pro": "Guitar Pro",
   "Note2Tabs JSON": "Note2Tabs JSON",
-  "Related features": "関連機能"
+  "Related features": "関連機能",
+  "Audio": "音声",
+  "Example tab in the Note2Tabs editor": "Note2Tabsエディターのタブ譜の例",
+  "Free: 30 seconds. Premium: 10 minutes. Pro: 20 minutes. Your clip can start anywhere in the video.": "無料：30秒。Premium：10分。Pro：20分。動画のどの位置からでも選択できます。",
+  "Choose any section of a public video. Clip length depends on your plan; you do not need to start at the beginning.": "公開動画の好きな部分を選択できます。選択できる長さはプランによって異なり、動画の冒頭から始める必要はありません。"
 }

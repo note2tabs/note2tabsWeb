@@ -29,12 +29,6 @@ export default function AudioToGuitarTabConverterPage() {
         title: "Turn a recording into a tab you can actually work with",
         paragraphs: [
           "Note2Tabs turns a selected part of an MP3, WAV, or other recording into structured tablature with notes, timing, and playable guitar positions. The result opens as a native editor project, ready for playback, arrangement, practice, and export.",
-          "Use a clear guitar recording when possible and start with the section you care about most. Short, focused clips process quickly, while Premium supports full-length audio-file transcription for complete songs.",
-        ],
-        benefits: [
-          { title: "Common audio formats", body: "Upload MP3, WAV, M4A, and other common browser-supported audio files." },
-          { title: "Structured guitar tab", body: "Move from a recording to timed, playable tablature instead of a static block of text." },
-          { title: "Complete editor included", body: "Write, arrange, play, practise, and export from the browser editor." },
         ],
       }}
       contentSections={[
@@ -42,20 +36,6 @@ export default function AudioToGuitarTabConverterPage() {
           title: "Which recordings convert best?",
           paragraphs: [
             "A clear guitar recording, isolated stem, direct input, or rehearsal clip gives the model the most detail to work with. Guitar that is clearly audible and separated from vocals, bass, drums, or another guitar helps preserve the performance in the tab.",
-            "You do not need studio-quality audio. Removing long silent sections and choosing the clearest available version helps the transcriber focus its processing on the music you want.",
-          ],
-          bullets: [
-            "Use MP3 for convenient, smaller files.",
-            "Use WAV or FLAC when you have a cleaner lossless source.",
-            "Choose a focused clip when you only need one riff or solo.",
-            "Use full-length audio-file transcription on Premium when you need the complete song.",
-          ],
-        },
-        {
-          title: "Converter or guide: choose the right page",
-          paragraphs: [
-            "This page is the direct product workflow: upload audio, generate a tab, and open it in the editor. If you are still deciding how to prepare a source or isolate guitar in a dense mix, use the detailed audio-to-tabs guide linked below.",
-            "Keeping those jobs separate makes the next action clear: use the converter when your file is ready, and use the guide when you want technique and source-preparation advice.",
           ],
         },
       ]}

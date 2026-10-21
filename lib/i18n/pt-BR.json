@@ -1861,5 +1861,9 @@
   "MIDI": "MIDI",
   "Guitar Pro": "Guitar Pro",
   "Note2Tabs JSON": "Note2Tabs JSON",
-  "Related features": "Recursos relacionados"
+  "Related features": "Recursos relacionados",
+  "Audio": "Áudio",
+  "Example tab in the Note2Tabs editor": "Exemplo de tablatura no editor do Note2Tabs",
+  "Free: 30 seconds. Premium: 10 minutes. Pro: 20 minutes. Your clip can start anywhere in the video.": "Grátis: 30 segundos. Premium: 10 minutos. Pro: 20 minutos. O trecho pode começar em qualquer ponto do vídeo.",
+  "Choose any section of a public video. Clip length depends on your plan; you do not need to start at the beginning.": "Escolha qualquer trecho de um vídeo público. A duração depende do seu plano; não precisa começar no início."
 }

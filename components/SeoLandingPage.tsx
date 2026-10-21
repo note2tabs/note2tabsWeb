@@ -1,5 +1,7 @@
 import { useLocale } from "../lib/i18n/react";
 import Link from "./LocaleLink";
+import Image from "next/image";
+import { trackCtaClick } from "../lib/analytics";
 import SeoHead, { ORGANIZATION_ID, SITE_NAME, WEBSITE_ID, absoluteUrl } from "./SeoHead";
 
 type SeoLandingPageProps = {
@@ -22,7 +24,6 @@ type SeoLandingPageProps = {
   detail?: {
     title: string;
     paragraphs: string[];
-    benefits: Array<{ title: string; body: string }>;
   };
   contentSections?: Array<{
     title: string;
@@ -111,132 +112,84 @@ export default function SeoLandingPage({
       : []),
   ];
 
+  const editorFirst = primaryCta.href === "/gte/new";
+  const sourceLabel = canonicalPath.includes("youtube") ? "YouTube"
+    : canonicalPath.includes("mp3") ? "MP3"
+    : editorFirst ? "Guitar tab editor" : "Audio";
+  const trackAction = (href: string, placement: string) => trackCtaClick(
+    href.startsWith("/gte/") ? "seo_editor" : "seo_transcribe",
+    { surface: "seo_landing", destination: href, placement, landing_path: canonicalPath },
+  );
+  const primaryAction = (placement: string) => <Link href={primaryCta.href} className="search-landing-primary"
+    onClick={() => trackAction(primaryCta.href, placement)}>
+    {t(primaryCta.label)} <span aria-hidden="true">→</span>
+  </Link>;
+
   return (
     <>
       <SeoHead title={t(metaTitle)} description={description} canonicalPath={canonicalPath} jsonLd={jsonLd} />
-      <main className="page page-home">
-        <section className="hero editor-landing-hero">
-          <div className="container hero-stack hero-stack--centered editor-landing-shell">
-            <div className="hero-heading">
-              <div className="hero-title-row">
-                <h1 className="hero-title">{t(title)}</h1>
+      <main className="search-landing">
+        <div className="container search-landing-shell">
+          <section className="search-landing-hero" aria-labelledby="search-landing-title">
+            <div className="search-landing-intro">
+              <p className="search-landing-kicker">Note2Tabs <span aria-hidden="true">/</span> {t(sourceLabel)}</p>
+              <h1 id="search-landing-title">{t(title)}</h1>
+              <p className="search-landing-description">{t(description)}</p>
+              <div className="search-landing-actions">
+                {primaryAction("search_hero")}
+                <span className="search-landing-note">{t(editorFirst ? "Guest mode" : "Free to try")}</span>
               </div>
-              <p className="hero-subtitle editor-landing-subtitle">{t(description)}</p>
-              <div className="button-row hero-cta-row editor-landing-hero-actions">
-                <Link href={primaryCta.href} className="button-primary">
-                  {t(primaryCta.label)}
-                </Link>
-                {secondaryCta && (
-                  <Link href={secondaryCta.href} className="button-secondary">
-                    {t(secondaryCta.label)}
-                  </Link>
-                )}
-              </div>
+              {secondaryCta && <Link href={secondaryCta.href} className="search-landing-alternative"
+                onClick={() => trackAction(secondaryCta.href, "search_alternative")}>
+                {t(secondaryCta.label)} <span aria-hidden="true">↗</span>
+              </Link>}
             </div>
-          </div>
-        </section>
-
-        <section className="steps">
-          <div className="container">
-            <h2 className="section-title">{t("How it works")}</h2>
-            <div className="how-flow">
-              {steps.map((step, index) => (
-                <article className="how-step" key={step.title}>
-                  <span className="how-step-index">{index + 1}</span>
-                  <h3>{t(step.title)}</h3>
-                  <p>{t(step.body)}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {detail && (
-          <section className="seo-landing-detail">
-            <div className="container seo-landing-detail-layout">
-              <div className="seo-landing-copy">
-                <h2>{t(detail.title)}</h2>
-                {detail.paragraphs.map((paragraph) => (
-                  <p key={paragraph}>{t(paragraph)}</p>
-                ))}
+            <figure className="search-landing-preview">
+              <div className="search-landing-preview-label">
+                <span>{t("Guitar tab editor")}</span><span aria-hidden="true" dir="ltr">01 — 02</span>
               </div>
-              <div className="seo-landing-benefits">
-                {detail.benefits.map((benefit) => (
-                  <article key={benefit.title}>
-                    <h3>{t(benefit.title)}</h3>
-                    <p>{t(benefit.body)}</p>
-                  </article>
-                ))}
+              <div className="search-landing-score">
+                <Image src="/images/editor-previews/search-editor.png" width={790} height={170}
+                  alt={t("Example tab in the Note2Tabs editor")}
+                  priority sizes="(max-width: 800px) 100vw, 650px" />
               </div>
-            </div>
+              <figcaption><span>{t("Write, arrange, play, and practice")}</span><span dir="ltr">TXT · MIDI · MusicXML</span></figcaption>
+            </figure>
           </section>
-        )}
 
-        {contentSections.length > 0 && (
-          <section className="seo-landing-content">
-            <div className="container seo-landing-content-list">
-              {contentSections.map((section) => (
-                <article className="seo-landing-content-section" key={section.title}>
-                  <h2>{t(section.title)}</h2>
-                  <div>
-                    {section.paragraphs.map((paragraph) => (
-                      <p key={paragraph}>{t(paragraph)}</p>
-                    ))}
-                    {section.bullets && section.bullets.length > 0 && (
-                      <ul>
-                        {section.bullets.map((bullet) => (
-                          <li key={bullet}>{t(bullet)}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </article>
-              ))}
-            </div>
+          <section className="search-landing-workflow" aria-labelledby="search-workflow-title">
+            <h2 id="search-workflow-title">{t("How it works")}</h2>
+            <ol>{steps.map((step, index) => <li key={step.title}>
+              <span className="search-landing-step-number" aria-hidden="true">0{index + 1}</span>
+              <div><h3>{t(step.title)}</h3><p>{t(step.body)}</p></div>
+            </li>)}</ol>
           </section>
-        )}
 
-        {faqs.length > 0 && (
-          <section className="seo-landing-faq">
-            <div className="container seo-landing-faq-layout">
-              <div>
-                <span className="pill">{t("Questions")}</span>
-                <h2>{t("Frequently asked questions")}</h2>
-              </div>
-              <div className="seo-landing-faq-list">
-                {faqs.map((faq) => (
-                  <details key={faq.question}>
-                    <summary>{t(faq.question)}</summary>
-                    <p>{t(faq.answer)}</p>
-                  </details>
-                ))}
-              </div>
-            </div>
-          </section>
-        )}
-
-        <section className="seo-landing-related">
-          <div className="container">
-            <h2>{t(relatedLinks.length > 0 ? "Related guides and tools" : "Keep creating")}</h2>
-            {relatedLinks.length > 0 ? (
-              <div className="seo-landing-resource-grid">
-                {relatedLinks.map((link) => (
-                  <Link href={link.href} className="seo-landing-resource-card" key={link.href}>
-                    <strong>{t(link.label)}</strong>
-                    <span>{t(link.description)}</span>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <div className="seo-landing-related-links">
-                <Link href="/transcribe">{t("Audio transcriber")}</Link>
-                <Link href="/editor">{t("Guitar tab editor")}</Link>
-                <Link href="/pricing">{t("Plans and limits")}</Link>
-                <Link href="/blog">{t("Guitar tab guides")}</Link>
-              </div>
-            )}
+          <div className="search-landing-reference">
+            {detail && <section className="search-landing-detail"><h2>{t(detail.title)}</h2>
+              {detail.paragraphs.map(paragraph => <p key={paragraph}>{t(paragraph)}</p>)}
+            </section>}
+            {contentSections.map(section => <section className="search-landing-detail" key={section.title}>
+              <h2>{t(section.title)}</h2>
+              {section.paragraphs.map(paragraph => <p key={paragraph}>{t(paragraph)}</p>)}
+              {section.bullets?.length ? <ul>{section.bullets.map(bullet => <li key={bullet}>{t(bullet)}</li>)}</ul> : null}
+            </section>)}
           </div>
-        </section>
+
+          {faqs.length > 0 && <section className="search-landing-faq" aria-labelledby="search-faq-title">
+            <h2 id="search-faq-title">{t("Frequently asked questions")}</h2>
+            <div>{faqs.map(faq => <details key={faq.question}>
+              <summary>{t(faq.question)}<span aria-hidden="true">+</span></summary><p>{t(faq.answer)}</p>
+            </details>)}</div>
+          </section>}
+
+          <section className="search-landing-next" aria-label={t(primaryCta.label)}>
+            {primaryAction("search_end")}<Link href="/pricing">{t("Plans and limits")} <span aria-hidden="true">↗</span></Link>
+          </section>
+          <nav className="search-landing-related" aria-label={t("Related guides and tools")}>
+            {relatedLinks.map(link => <Link href={link.href} key={link.href}>{t(link.label)} <span aria-hidden="true">↗</span></Link>)}
+          </nav>
+        </div>
       </main>
     </>
   );

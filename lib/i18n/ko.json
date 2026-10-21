@@ -1861,5 +1861,9 @@
   "MIDI": "MIDI",
   "Guitar Pro": "Guitar Pro",
   "Note2Tabs JSON": "Note2Tabs JSON",
-  "Related features": "관련 기능"
+  "Related features": "관련 기능",
+  "Audio": "오디오",
+  "Example tab in the Note2Tabs editor": "Note2Tabs 편집기의 타브 악보 예시",
+  "Free: 30 seconds. Premium: 10 minutes. Pro: 20 minutes. Your clip can start anywhere in the video.": "무료: 30초. Premium: 10분. Pro: 20분. 영상의 어느 지점에서든 구간을 선택할 수 있습니다.",
+  "Choose any section of a public video. Clip length depends on your plan; you do not need to start at the beginning.": "공개 영상에서 원하는 구간을 선택하세요. 구간 길이는 요금제에 따라 다르며, 영상의 처음부터 시작할 필요는 없습니다."
 }
