@@ -3,12 +3,12 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DISPLAY_CURRENCIES, formatLocalizedAmount, formatLocalizedPrice, localizedAnnualSaving, type DisplayCurrency } from "../../lib/localizedPricing";
 
-const state = vi.hoisted(() => ({ currency: "USD" as string, billing: "monthly" as string, market: "standard" as string, session: null as any }));
+const state = vi.hoisted(() => ({ currency: "USD" as string, billing: "monthly" as string, market: "standard" as string, session: null as any, query: {} as Record<string,string> }));
 vi.mock("react", async () => {
   const actual = await vi.importActual<typeof import("react")>("react");
   return { ...actual, useState: (initial: unknown) => actual.useState(initial === "monthly" ? state.billing : initial) };
 });
-vi.mock("next/router", () => ({ useRouter: () => ({ query: {}, isReady: false }) }));
+vi.mock("next/router", () => ({ useRouter: () => ({ query: state.query, isReady: false }) }));
 vi.mock("next-auth/react", () => ({ useSession: () => ({ data: state.session, status: state.session ? "authenticated" : "unauthenticated" }), signIn: vi.fn() }));
 vi.mock("next/link", () => ({ default: ({ children, href, ...props }: any) => createElement("a", { href, ...props }, children) }));
 vi.mock("../../lib/useDisplayCurrency", () => ({ useDisplayCurrency: () => state.currency, usePricingMarket: () => state.market }));
@@ -21,8 +21,18 @@ import WorkspaceSidebar from "../../components/WorkspaceSidebar";
 
 const escape = (value: string) => value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("'", "&#x27;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 describe("pricing design uses current offers and localized pricing", () => {
-  beforeEach(() => {state.session=null;state.market="standard"; vi.stubEnv("NEXT_PUBLIC_PRO_PLAN_ENABLED", "true");});
+  beforeEach(() => {state.query={};state.session=null;state.market="standard"; vi.stubEnv("NEXT_PUBLIC_PRO_PLAN_ENABLED", "true");});
   afterEach(() => vi.unstubAllEnvs());
+  it("recommends Pro after a Pro-only limit rather than recommending an insufficient plan", () => {
+    state.query = {plan: "pro", reason: "pro_file_size_limit"};
+    const html = renderToStaticMarkup(createElement(PricingPage));
+    const premium = html.split('pricing-plan--premium')[1].split('</article>')[0];
+    const pro = html.split('pricing-plan--pro')[1].split('</article>')[0];
+    expect(premium).not.toContain('Recommended');
+    expect(pro).toContain('Recommended');
+    expect(pro).toContain('pricing-plan__cta--upgrade');
+    expect(html).toContain('pricing-page__plans--pro-recommended');
+  });
   it("offers the Pro sidebar card to eligible Premium users only", () => {
     const props = {active: "home" as const, recentEditors: [], loading: false, isPremium: true, analyticsSurface: "product_home"};
     const premium = renderToStaticMarkup(createElement(WorkspaceSidebar, {...props, canUpgradeToPro: true}));

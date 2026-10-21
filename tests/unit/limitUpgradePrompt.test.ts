@@ -209,3 +209,21 @@ it("attaches the same explicit limit type to shown, clicked and dismissed events
   await act(async()=>el.querySelector<HTMLButtonElement>(".limit-upgrade-back")!.click());
   expect(m.send.mock.calls.find(([event])=>event==="dismissed")?.[1]).toMatchObject({limit_type:"file_size",dismiss_method:"back_to_transcriber"});
 });
+
+it("does not reopen a dismissed file-size dialog while the user edits the clip", async () => {
+  const context = { plan: "FREE", fileBytes: 60 * 1024 * 1024, clipSeconds: 60, remaining: 10, required: 4, attempt: 0 };
+  const props = { tracking: { ...tracking, reason: "file_size_limit" } };
+  await render(context, props);
+  await act(async () => el.querySelector<HTMLButtonElement>(".limit-upgrade-back")!.click());
+  await render({ ...context, clipSeconds: 30, required: 2 }, props);
+  expect(el.querySelector("dialog")?.open).toBe(false);
+  await render({ ...context, clipSeconds: 30, required: 2, attempt: 1 }, props);
+  expect(el.querySelector("dialog")?.open).toBe(true);
+});
+
+it("does not show a passive zero-balance warning again after editing a blocked selection", async () => {
+  await render({plan:"FREE",remaining:0,required:4,attempt:0});
+  await act(async () => el.querySelector<HTMLButtonElement>(".limit-upgrade-back")!.click());
+  await render({plan:"FREE",remaining:0,required:2,attempt:0}, {tracking:{...tracking,reason:"credits_low"}});
+  expect(el.querySelector("dialog")?.open).toBe(false);
+});

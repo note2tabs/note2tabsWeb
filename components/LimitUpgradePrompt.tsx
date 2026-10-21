@@ -54,7 +54,7 @@ export default function LimitUpgradePrompt({
     shown = useRef<string | null>(null),
     viewed = useRef<string | null>(null);
   const [open, setOpen] = useState(
-      reason !== "credits_low" || context.remaining === 0,
+      reason !== "credits_low",
     ),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -62,9 +62,6 @@ export default function LimitUpgradePrompt({
     reason,
     context.plan,
     context.fileBytes,
-    context.clipSeconds,
-    context.remaining,
-    context.required,
     context.attempt,
   ].join(":");
   const funnel = useRef<ReturnType<
@@ -80,7 +77,7 @@ export default function LimitUpgradePrompt({
     ...(funnel.current ? premiumFunnelProperties(funnel.current) : {}),
   });
   useEffect(() => {
-    setOpen(reason !== "credits_low" || context.remaining === 0);
+    setOpen(reason !== "credits_low");
     setError("");
   }, [key]);
   useEffect(() => {

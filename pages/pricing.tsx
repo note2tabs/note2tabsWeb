@@ -280,6 +280,8 @@ export default function PricingPage() {
     void startCheckout(router.query.plan === "pro" ? "PRO" : "PREMIUM", true);
   }, [billingInterval, getFunnelContext, offerVariantResolved, router.isReady, router.query.billing, router.query.checkout, router.query.plan, sessionStatus, startCheckout]);
 
+  const recommendPro = showPro && (router.query.plan === "pro" || (hasPaidPremium && currentPlan === "PREMIUM"));
+  const recommendedPlan = recommendPro ? "PRO" : "PREMIUM";
   const comparisonPlans = [...(!hasPaidPremium ? ["FREE"] : []), "PREMIUM", ...(showPro ? ["PRO"] : [])];
   const planOrder = hasPaidPremium ? comparisonPlans : compact
     ? ["PREMIUM", "FREE", ...(showPro ? ["PRO"] : [])]
@@ -299,7 +301,7 @@ export default function PricingPage() {
           setBillingInterval(interval);
         }} disabled={checkoutBusy || Boolean(upgradeQuote)}>{interval === "monthly" ? t("Monthly") : <>{t("Yearly")}<span className="pricing-billing-toggle__saving">{t("Save {amount}!", {amount: localizedAnnualSaving(showPro ? "PRO" : "PREMIUM", displayCurrency)})}</span></>}</button>)}
       </div>
-      <section className={`pricing-page__plans${planOrder.length === 3 ? " pricing-page__plans--three" : ""}${upgrade.quote ? " pricing-page__plans--credit-upgrade" : ""}`} aria-label={t("Note2Tabs plans")}>
+      <section className={`pricing-page__plans${planOrder.length === 3 ? " pricing-page__plans--three" : ""}${upgrade.quote ? " pricing-page__plans--credit-upgrade" : ""}${recommendPro ? " pricing-page__plans--pro-recommended" : ""}`} aria-label={t("Note2Tabs plans")}>
         {planOrder.map((id) => {
           const plan = PLAN_CATALOG[id as keyof typeof PLAN_CATALOG];
           const paid = plan.id !== "FREE";
@@ -308,7 +310,7 @@ export default function PricingPage() {
           const creditQuote = plan.id === "PRO" ? upgrade.quote : null;
           const current = currentPlan === plan.id && paid;
           return <article key={plan.id} className={`pricing-plan pricing-plan--${plan.id.toLowerCase()}`}>
-            {plan.id === "PREMIUM" && !upgrade.quote && <div className="pricing-plan__badge">{t("Recommended")}</div>}
+            {plan.id === recommendedPlan && !upgrade.quote && <div className="pricing-plan__badge">{t("Recommended")}</div>}
             {creditQuote && creditQuote.discount > 0 && <div className="pricing-plan__badge">{t("{percent}% off", { percent: upgradeDiscountPercent(creditQuote) })}</div>}
             <div className="pricing-plan__top"><h2>{t(plan.name)}</h2>
               <p>{plan.id === "FREE" ? t("Try short recordings.") : plan.id === "PREMIUM" ? t("For full songs.") : t("For frequent transcription.")}</p>
@@ -319,7 +321,7 @@ export default function PricingPage() {
             </div>
             {!paid ? <Link href="/transcribe" className="pricing-plan__cta pricing-plan__cta--secondary" onClick={() => trackCtaClick("pricing_start_free", { surface: "pricing_page" })}>{t("Start free")}</Link>
               : included || current ? <Link href={included ? "/transcribe" : "/settings"} className="pricing-plan__cta pricing-plan__cta--secondary">{included ? t("{plan} access included", { plan: plan.name }) : t("Manage current plan")}</Link>
-              : <button type="button" className={`pricing-plan__cta pricing-plan__cta--${creditQuote ? "upgrade" : plan.id === "PREMIUM" ? "primary" : "secondary"}`} onClick={() => void startCheckout(paidId)} disabled={checkoutBusy || sessionStatus === "loading"}>{checkoutBusy ? t("Opening checkout…") : creditQuote ? t("Upgrade to Pro") : hasPaidPremium ? t("Switch to {plan}", { plan: plan.name }) : plan.id === "PREMIUM" ? t("Get Premium") : t("Choose Pro")}</button>}
+              : <button type="button" className={`pricing-plan__cta pricing-plan__cta--${creditQuote || (recommendPro && plan.id === "PRO") ? "upgrade" : plan.id === recommendedPlan ? "primary" : "secondary"}`} onClick={() => void startCheckout(paidId)} disabled={checkoutBusy || sessionStatus === "loading"}>{checkoutBusy ? t("Opening checkout…") : creditQuote ? t("Upgrade to Pro") : hasPaidPremium ? t("Switch to {plan}", { plan: plan.name }) : plan.id === "PREMIUM" ? t("Get Premium") : t("Choose Pro")}</button>}
             <div className="pricing-plan__reassurance">
               {creditQuote ? t("Review before payment") : !paid ? t("No credit card required") : included || current ? t("Manage your subscription in your account.") : <>
                 {t("{price}/{period} billed today. Cancel anytime.", {price: formatLocalizedPrice(paidId, billingInterval, displayCurrency), period: billingInterval === "yearly" ? t("year") : t("month")})}</>}
