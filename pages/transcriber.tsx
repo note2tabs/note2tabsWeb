@@ -1688,7 +1688,7 @@ export default function TranscriberPage() {
                     >
                       {submitLabel}
                     </button>
-                    {!isSignedIn && <p>{canSubmit ? t("A free account is required. Your selection will be saved.") : <>{t("Start free")} · {t("No credit card required")}</>}</p>}
+                    {!isSignedIn && <p>{canSubmit ? t("A free account is required. Your selection will be saved.") : t("Creating an account is free.")}</p>}
                   </div>
                 </div>
               </div>

@@ -19,7 +19,7 @@ afterEach(() => vi.unstubAllEnvs());
 describe.each(ALL_LOCALES)('%s account access', locale => {
   it('renders translated signup labels and preserves localized upload intent across modes', () => {
     const html = renderToStaticMarkup(createElement(LocaleProvider, {path:localeHref('/auth/signup',locale),children:createElement(SignupPage)}));
-    for (const key of ['Account access','Show password','Password must be at least 10 characters.','No credit card required']) {
+    for (const key of ['Account access','Show password','Password must be at least 10 characters.']) {
       expect(catalogs[locale][key], key).toBeTruthy();
       expect(html,key).toContain(escaped(catalogs[locale][key]));
       if(locale !== 'en') expect(catalogs[locale][key],key).not.toBe(key);
@@ -27,6 +27,10 @@ describe.each(ALL_LOCALES)('%s account access', locale => {
     const href = `${localeHref('/auth/login',locale)}?next=${encodeURIComponent(localeHref(m.query.next,locale))}`;
     expect(html).toContain(escaped(href));
     expect(html).not.toContain('signup-name');
+    for (const key of ['Hide password','Creating an account is free.']) {
+      expect(catalogs[locale][key],key).toBeTruthy();
+      if(locale !== 'en') expect(catalogs[locale][key],key).not.toBe(key);
+    }
   });
   it('renders the account-created recovery message in the same language', () => {
     const html = renderToStaticMarkup(createElement(LocaleProvider,{path:localeHref('/auth/login',locale),children:createElement(LoginPage)}));

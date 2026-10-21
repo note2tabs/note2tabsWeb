@@ -166,7 +166,6 @@ export default function SignupPage() {
           <AuthModeSwitch mode="signup" alternateHref={loginHref} />
           <div className="auth-card-header">
             <h1 className="page-title">{t("Create your account")}</h1>
-            <p className="page-subtitle">{t("No credit card required")}</p>
           </div>
           <button type="button" onClick={() => void handleGoogleSignIn()} disabled={loading} className="button-secondary">
             <img src="/icons/google.svg" alt="" width={17} height={16} aria-hidden="true" />{t(" Continue with Google ")}
@@ -204,23 +203,31 @@ export default function SignupPage() {
             </div>
             <div className="form-group">
               <label className="label" htmlFor="signup-password">{t("Password")}</label>
-              <input
-                id="signup-password"
-                type={showPassword ? "text" : "password"}
-                name="new-password"
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={10}
-                aria-describedby="signup-password-hint"
-                className="form-input"
-              />
+              <div className="auth-password-field">
+                <input
+                  id="signup-password"
+                  type={showPassword ? "text" : "password"}
+                  name="new-password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={10}
+                  aria-describedby="signup-password-hint"
+                  className="form-input"
+                />
+                <button type="button" className="auth-password-toggle"
+                  aria-label={t(showPassword ? "Hide password" : "Show password")}
+                  aria-pressed={showPassword} aria-controls="signup-password"
+                  onClick={() => setShowPassword(value => !value)}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                    <circle cx="12" cy="12" r="3" />
+                    {showPassword && <path d="m3 3 18 18" />}
+                  </svg>
+                </button>
+              </div>
               <p id="signup-password-hint" className="auth-field-hint">{t("Password must be at least 10 characters.")}</p>
-              <label className="auth-password-toggle">
-                <input type="checkbox" checked={showPassword} onChange={event => setShowPassword(event.target.checked)} />
-                {t("Show password")}
-              </label>
             </div>
             {(error || routeError) && <div className="error" role="alert">{translatedError(error || routeError, locale)}</div>}
             <button type="submit" disabled={loading} className="button-primary">

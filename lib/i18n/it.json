@@ -1850,5 +1850,7 @@
   "{percent}% off": "−{percent}%",
   "Account access": "Accesso all’account",
   "Show password": "Mostra password",
-  "Account created. Log in to continue.": "Account creato. Accedi per continuare."
+  "Account created. Log in to continue.": "Account creato. Accedi per continuare.",
+  "Hide password": "Nascondi password",
+  "Creating an account is free.": "Creare un account è gratis."
 }

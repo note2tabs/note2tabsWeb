@@ -1850,5 +1850,7 @@
   "{percent}% off": "خصم {percent}٪",
   "Account access": "الوصول إلى الحساب",
   "Show password": "إظهار كلمة المرور",
-  "Account created. Log in to continue.": "تم إنشاء الحساب. سجّل الدخول للمتابعة."
+  "Account created. Log in to continue.": "تم إنشاء الحساب. سجّل الدخول للمتابعة.",
+  "Hide password": "إخفاء كلمة المرور",
+  "Creating an account is free.": "إنشاء حساب مجاني."
 }

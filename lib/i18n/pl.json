@@ -1850,5 +1850,7 @@
   "{percent}% off": "−{percent}%",
   "Account access": "Dostęp do konta",
   "Show password": "Pokaż hasło",
-  "Account created. Log in to continue.": "Konto zostało utworzone. Zaloguj się, aby kontynuować."
+  "Account created. Log in to continue.": "Konto zostało utworzone. Zaloguj się, aby kontynuować.",
+  "Hide password": "Ukryj hasło",
+  "Creating an account is free.": "Utworzenie konta jest bezpłatne."
 }

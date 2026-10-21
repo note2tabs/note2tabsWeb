@@ -57,8 +57,12 @@ describe("signup and login recovery", () => {
     expect(google.compareDocumentPosition(container.querySelector("form")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const login = container.querySelector<HTMLAnchorElement>('.auth-mode-switch a')!;
     expect(new URL(login.href).searchParams.get("next")).toBe(m.query.next);
-    await act(async () => { container.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click(); });
+    await act(async () => { container.querySelector<HTMLButtonElement>('[aria-controls="signup-password"]')!.click(); });
     expect(container.querySelector('#signup-password')?.getAttribute("type")).toBe("text");
+    expect(container.querySelector('[aria-controls="signup-password"]')?.getAttribute('aria-label')).toBe('Hide password');
+    await act(async () => { container.querySelector<HTMLButtonElement>('[aria-controls="signup-password"]')!.click(); });
+    expect(container.querySelector('#signup-password')?.getAttribute('type')).toBe('password');
+    expect(container.textContent).not.toContain('No credit card required');
   });
   it("counts first form interaction once and never includes input values", async () => {
     await render();

@@ -1850,5 +1850,7 @@
   "{percent}% off": "{percent}% 할인",
   "Account access": "계정 접속",
   "Show password": "비밀번호 표시",
-  "Account created. Log in to continue.": "계정이 생성되었습니다. 로그인하여 계속하세요."
+  "Account created. Log in to continue.": "계정이 생성되었습니다. 로그인하여 계속하세요.",
+  "Hide password": "비밀번호 숨기기",
+  "Creating an account is free.": "계정은 무료로 만들 수 있습니다."
 }

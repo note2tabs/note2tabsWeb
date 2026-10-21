@@ -1839,7 +1839,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                     >
                       {submitLabel}
                     </button>
-                    {!isSignedIn && <p>{canSubmit ? t("A free account is required. Your selection will be saved.") : <>{t("Start free")} · {t("No credit card required")}</>}</p>}
+                    {!isSignedIn && <p>{canSubmit ? t("A free account is required. Your selection will be saved.") : t("Creating an account is free.")}</p>}
                   </div>
                 </div>
               </div>
@@ -2166,7 +2166,6 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   </div>
                 </div>
                 <Link href="/transcribe" className="pricing-plan__cta pricing-plan__cta--secondary">{t(" Start free ")}</Link>
-                <p className="pricing-plan__reassurance">{t("No credit card required")}</p>
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
                   <li><MonthlyCredits count={10} /></li>
