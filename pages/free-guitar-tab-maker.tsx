@@ -26,10 +26,10 @@ export default function FreeGuitarTabMakerPage() {
         },
       ]}
       detail={{
-        title: "Create tabs from a recording or start with a blank editor",
+        title: "A free online tab maker built for guitar",
         paragraphs: [
-          "Use the free plan to try audio transcription on short clips, or open the browser editor and write tablature yourself. Both routes lead to the same editable workspace, so you can combine generated notes with your own changes.",
-          "The editor is designed around guitar work: multiple tracks, playback, practice loops, fretboard-aware note positions, keyboard shortcuts, and import or export tools are available from the browser.",
+          "Start a blank tab without installing software or creating an account. Add notes and chords on a guitar-aware timeline, choose playable strings and frets, organize the song into sections, and listen back while you work.",
+          "Unlike a plain text tab creator, Note2Tabs keeps timing, pitch, fingering, playback, and practice connected. Sign in only when you want to save the project to your library and continue on another device.",
         ],
         benefits: [
           { title: "Start without installing software", body: "Create and edit tablature in a modern browser on desktop or mobile." },
@@ -39,10 +39,10 @@ export default function FreeGuitarTabMakerPage() {
       }}
       contentSections={[
         {
-          title: "A free online tab maker built for guitar",
+          title: "Create tabs from a recording or start with a blank editor",
           paragraphs: [
-            "Start a blank tab without installing software or creating an account. Add notes and chords on a guitar-aware timeline, choose playable strings and frets, organize the song into sections, and listen back while you work.",
-            "Unlike a plain text tab creator, Note2Tabs keeps timing, pitch, fingering, playback, and practice connected. Sign in only when you want to save the project to your library and continue on another device.",
+            "Use the free plan to try audio transcription on short clips, or open the browser editor and write tablature yourself. Both routes lead to the same editable workspace, so you can combine generated notes with your own changes.",
+            "The editor is designed around guitar work: multiple tracks, playback, practice loops, fretboard-aware note positions, keyboard shortcuts, and import or export tools are available from the browser.",
           ],
           bullets: [
             "Write riffs, solos, chord progressions, and complete arrangements.",

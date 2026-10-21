@@ -2,7 +2,7 @@ import { beginTransfer } from "./engagement/transferTracking";
 import { buildTabTextFromSnapshot } from "./gteTabText";
 import type { EditorSnapshot, TabCoord, TimingMapV2 } from "../types/gte";
 import { normalizeTimingMap } from "./gteTiming";
-import { getTabMidi } from "./gteTuning";
+import { getOpenStringMidiFromSnapshot, getTabMidi, isBassSnapshot } from "./gteTuning";
 
 export type GteExportFormat = "json" | "txt" | "musicxml" | "midi";
 
@@ -142,7 +142,7 @@ export const buildMusicXmlFromSnapshot = (
     '<score-partwise version="3.1">',
     `  <work><work-title>${xmlEscape(title)}</work-title></work>`,
     "  <part-list>",
-    '    <score-part id="P1"><part-name>Guitar</part-name></score-part>',
+    `    <score-part id="P1"><part-name>${isBassSnapshot(snapshot) ? "Bass" : "Guitar"}</part-name></score-part>`,
     "  </part-list>",
     '  <part id="P1">',
   ];
@@ -164,6 +164,15 @@ export const buildMusicXmlFromSnapshot = (
     if (measureIndex === 0) {
       lines.push("        <key><fifths>0</fifths></key>");
       lines.push("        <clef><sign>TAB</sign><line>5</line></clef>");
+      if (isBassSnapshot(snapshot)) {
+        const tuning = [...getOpenStringMidiFromSnapshot(snapshot)].reverse();
+        lines.push("        <staff-details><staff-lines>4</staff-lines>");
+        tuning.forEach((midi, index) => {
+          const pitch = midiToPitch(midi);
+          lines.push(`          <staff-tuning line="${index + 1}"><tuning-step>${pitch.step}</tuning-step>${pitch.alter ? `<tuning-alter>${pitch.alter}</tuning-alter>` : ""}<tuning-octave>${pitch.octave}</tuning-octave></staff-tuning>`);
+        });
+        lines.push("        </staff-details>");
+      }
     }
     lines.push(`        <time><beats>${beatsPerBar}</beats><beat-type>${beatType}</beat-type></time>`);
     lines.push("      </attributes>");
@@ -294,6 +303,11 @@ export const buildMidiFromSnapshot = (
     );
   };
   const events: Array<{ tick: number; bytes: number[]; order: number }> = [];
+  if (isBassSnapshot(snapshot)) {
+    // General MIDI Electric Bass (finger), zero-based program 33. This also
+    // lets importers identify bass without guessing from the project name.
+    events.push({ tick: 0, bytes: [0xc0, 33], order: -1 });
+  }
   timingMap.bars.forEach((bar, index) => {
     if (bar.startFrame > totalFrames) return;
     const tick = barStartTicks[index];
