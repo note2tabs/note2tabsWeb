@@ -7,7 +7,7 @@ describe("blog product paths", () => {
     ["mp3-to-guitar-tabs", "/mp3-to-guitar-tabs"],
     ["best-ai-guitar-tab-generator", "/ai-guitar-tab-generator"],
     ["how-to-convert-audio-to-guitar-tabs", "/audio-to-guitar-tab-converter"],
-    ["how-to-write-guitar-tabs", "/editor"],
+    ["how-to-write-guitar-tabs", "/gte/new"],
   ])("maps %s to its intended product page", (slug, expectedPath) => {
     expect(getBlogProductPaths(slug, "Guide")[0]?.href).toBe(expectedPath);
   });
@@ -25,9 +25,9 @@ describe("direct product entry", () => {
   it.each([
     ["youtube-to-guitar-tabs", "Guide", "/transcribe?mode=youtube"],
     ["wav-to-guitar-tabs", "Guide", "/transcribe"],
-    ["note-to-tab-converter", "Turn notes or audio into tabs", "/editor"],
-    ["how-to-edit-guitar-tabs-for-practice", "AI editor", "/editor"],
-    ["guitar-pro-alternative-online", "Audio transcription", "/editor"],
+    ["note-to-tab-converter", "Turn notes or audio into tabs", "/gte/new"],
+    ["how-to-edit-guitar-tabs-for-practice", "AI editor", "/gte/new"],
+    ["guitar-pro-alternative-online", "Audio transcription", "/gte/new"],
   ])("matches %s to the actual task", (slug,title,expected) => {
     expect(getBlogPrimaryAction(slug,title).href).toBe(expected);
   });

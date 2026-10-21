@@ -15,7 +15,7 @@ export default function NotFoundPage() {
           <div className="button-row">
             <Link href="/" className="button-primary">{t("Go home")}</Link>
             <Link href="/transcribe" className="button-secondary">{t("Open transcriber")}</Link>
-            <Link href="/editor" className="button-secondary">{t("Try the editor")}</Link>
+            <Link href="/gte/new" className="button-secondary">{t("Try the editor")}</Link>
           </div>
         </div>
       </main>

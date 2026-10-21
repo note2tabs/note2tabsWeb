@@ -71,7 +71,7 @@ export default function FeaturesPage() {
               <p>
                 {t("Go beyond placing fret numbers. Shape fingerings, harmony, rhythm, file workflows, and practice—all inside the same browser-based editor.")}</p>
               <div className="feature-story-actions">
-                <Link href="/editor" className="button-primary">{t("Try the editor free")}</Link>
+                <Link href="/gte/new" className="button-primary">{t("Try the editor free")}</Link>
                 <Link href="/transcribe" className="button-secondary">{t("Create a tab from audio")}</Link>
               </div>
             </div>
@@ -126,7 +126,7 @@ export default function FeaturesPage() {
         <section className="features-hub-path">
           <div className="container features-hub-path-grid">
             <article><span>{t("01")}</span><h2>{t("Create from sound")}</h2><p>{t("Turn audio or a YouTube segment into an editable guitar tab.")}</p><Link href="/transcribe">{t("Open the transcriber →")}</Link></article>
-            <article><span>{t("02")}</span><h2>{t("Build in the editor")}</h2><p>{t("Write and arrange notes, positions, chords, techniques, and song structure.")}</p><Link href="/editor">{t("Open the editor →")}</Link></article>
+            <article><span>{t("02")}</span><h2>{t("Build in the editor")}</h2><p>{t("Write and arrange notes, positions, chords, techniques, and song structure.")}</p><Link href="/gte/new">{t("Open the editor →")}</Link></article>
             <article><span>{t("03")}</span><h2>{t("Practise your tab")}</h2><p>{t("Loop difficult bars, slow playback down, and build toward full speed.")}</p><Link href="/features/guitar-tab-practice-trainer">{t("Explore practice tools →")}</Link></article>
           </div>
         </section>
@@ -135,7 +135,7 @@ export default function FeaturesPage() {
           <div className="container feature-story-cta-card">
             <div><span>{t("A complete guitar workspace")}</span><h2>{t("Write from scratch or start from audio.")}</h2><p>{t("The editor stands on its own, while the transcriber gives you another powerful way to begin. No installation required.")}</p></div>
             <div className="feature-story-actions">
-              <Link href="/editor" className="button-primary">{t("Try the editor free")}</Link>
+              <Link href="/gte/new" className="button-primary">{t("Try the editor free")}</Link>
               <Link href="/transcribe" className="button-secondary">{t("Transcribe a song")}</Link>
             </div>
           </div>

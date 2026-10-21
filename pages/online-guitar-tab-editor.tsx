@@ -7,7 +7,7 @@ export default function OnlineGuitarTabEditorPage() {
       metaTitle="Online Guitar Tab Editor | Note2Tabs"
       description="Write, edit, organize, and refine guitar tabs online with controls for timing, chord shapes, and playable fingerings."
       canonicalPath="/online-guitar-tab-editor"
-      primaryCta={{ label: "Open editor", href: "/gte" }}
+      primaryCta={{ label: "Open editor", href: "/gte/new" }}
       secondaryCta={{ label: "Start transcribing", href: "/transcribe" }}
       steps={[
         {

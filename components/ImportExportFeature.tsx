@@ -7,7 +7,7 @@ import { getSeoFeaturePage, type SeoFeaturePage } from "../lib/seoFeaturePages";
 export default function ImportExportFeature({ page }: { page: SeoFeaturePage }) {
   const { t } = useLocale();
   const trackEditor = (placement: string) => trackCtaClick("feature_editor", {
-    surface: "feature", feature_slug: page.slug, destination: "/editor", placement,
+    surface: "feature", feature_slug: page.slug, destination: "/gte/new", placement,
   });
   return <main className="import-export-page">
     <div className="container import-export-content">
@@ -17,7 +17,7 @@ export default function ImportExportFeature({ page }: { page: SeoFeaturePage }) 
       <header className="import-export-header">
         <h1>{t(page.title)}</h1>
         <p>{t(page.description)}</p>
-        <Link href="/editor" className="button-primary" onClick={() => trackEditor("feature_intro")}>
+        <Link href="/gte/new" className="button-primary" onClick={() => trackEditor("feature_intro")}>
           {t("Open the editor")} <span aria-hidden="true">→</span>
         </Link>
         <small>{t("Open the editor in guest mode, then sign in only when you want to save your work.")}</small>
@@ -58,7 +58,7 @@ export default function ImportExportFeature({ page }: { page: SeoFeaturePage }) 
         })}
       </nav>
       <footer className="import-export-next">
-        <Link href="/editor" className="button-primary" onClick={() => trackEditor("feature_end")}>{t("Open the editor")} <span aria-hidden="true">→</span></Link>
+        <Link href="/gte/new" className="button-primary" onClick={() => trackEditor("feature_end")}>{t("Open the editor")} <span aria-hidden="true">→</span></Link>
         <Link href="/transcribe" className="button-link" onClick={() => trackCtaClick("feature_transcribe", { surface: "feature", feature_slug: page.slug, destination: "/transcribe", placement: "feature_end" })}>{t("Transcribe audio to tabs")}</Link>
         <Link href="/features" className="button-link">{t("View all features →")}</Link>
       </footer>

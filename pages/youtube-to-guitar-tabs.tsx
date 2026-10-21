@@ -10,7 +10,7 @@ export default function YoutubeToGuitarTabsPage() {
       description="Paste a YouTube link, choose a riff or solo, and convert the clip into a structured, editable guitar tab—without downloading the video first."
       canonicalPath="/youtube-to-guitar-tabs"
       primaryCta={{ label: "Convert a YouTube link", href: "/transcribe?mode=youtube" }}
-      secondaryCta={{ label: "Open editor", href: "/editor" }}
+      secondaryCta={{ label: "Open editor", href: "/gte/new" }}
       steps={[
         {
           title: "Paste a link",

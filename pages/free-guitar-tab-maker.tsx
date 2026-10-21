@@ -9,7 +9,7 @@ export default function FreeGuitarTabMakerPage() {
       metaTitle="Free Guitar Tab Maker | Note2Tabs"
       description="Make guitar tabs online for free. Write notes and chords, arrange sections, play and practise your tab, or start from an audio transcription."
       canonicalPath="/free-guitar-tab-maker"
-      primaryCta={{ label: "Open free tab maker", href: "/editor" }}
+      primaryCta={{ label: "Open free tab maker", href: "/gte/new" }}
       secondaryCta={{ label: "Create tabs from audio", href: "/transcribe" }}
       steps={[
         {

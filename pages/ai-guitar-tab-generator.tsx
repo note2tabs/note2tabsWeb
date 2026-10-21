@@ -13,7 +13,7 @@ export default function AiGuitarTabGeneratorPage() {
       description="Try an AI guitar tab generator free with audio or YouTube. Create structured, editable tabs you can play, arrange, practise, and export online."
       canonicalPath="/ai-guitar-tab-generator"
       primaryCta={{ label: "Generate tabs", href: "/transcribe" }}
-      secondaryCta={{ label: "Open editor", href: "/editor" }}
+      secondaryCta={{ label: "Open editor", href: "/gte/new" }}
       steps={[
         {
           title: "Add a clear source",
@@ -90,7 +90,7 @@ export default function AiGuitarTabGeneratorPage() {
         { label: "How to use an AI tab generator", href: "/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes", description: "Follow the full source, generation, review, and editing workflow." },
         { label: "Compare AI guitar-tab tools", href: "/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly", description: "See which transcription, editing, playback, and export features matter." },
         { label: "Explore editor features", href: "/features", description: "See the tools for writing, arranging, fingering, playback, practice, import, and export." },
-        { label: "Open the guitar tab editor", href: "/editor", description: "Write from scratch, import a file, or open a generated transcription." },
+        { label: "Open the guitar tab editor", href: "/gte/new", description: "Write from scratch, import a file, or open a generated transcription." },
       ]}
     />
   );

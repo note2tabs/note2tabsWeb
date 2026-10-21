@@ -27,6 +27,6 @@ it('records feature primary action with the feature identity and clear destinati
  await act(async()=>root.render(createElement(ImportExportFeature,{page:getSeoFeaturePage('guitar-tab-import-export')!})));
  const link=el.querySelector<HTMLAnchorElement>('.import-export-header a')!;
  link.addEventListener('click',e=>e.preventDefault());link.click();
- expect(tracked).toHaveBeenCalledExactlyOnceWith('feature_editor',{surface:'feature',feature_slug:'guitar-tab-import-export',destination:'/editor',placement:'feature_intro'});
+ expect(tracked).toHaveBeenCalledExactlyOnceWith('feature_editor',{surface:'feature',feature_slug:'guitar-tab-import-export',destination:'/gte/new',placement:'feature_intro'});
  await act(async()=>root.unmount());
 });

@@ -107,7 +107,7 @@ export default function BlogIndexPage({
             <p className="page-subtitle">
               {t("Thoughtful guides on hearing, writing, transcribing, and practising music on guitar.")}</p>
             <div className="blog-product-links" aria-label={t("Try Note2Tabs")}>
-              <BlogProductLink href="/editor" cta="blog_editor" placement="blog_index_hero" className="button-primary">{t("Try the tab editor")}</BlogProductLink>
+              <BlogProductLink href="/gte/new" cta="blog_editor" placement="blog_index_hero" className="button-primary">{t("Try the tab editor")}</BlogProductLink>
               <BlogProductLink href="/transcribe" cta="blog_transcribe" placement="blog_index_hero" className="button-secondary">{t("Transcribe audio")}</BlogProductLink>
             </div>
           </div>
@@ -184,7 +184,7 @@ export default function BlogIndexPage({
               {dataUnavailable && (
                 <div className="button-row">
                   <Link href="/blog" className="button-secondary button-small">{t("Try again")}</Link>
-                  <Link href="/editor" className="button-primary button-small">{t("Open the editor")}</Link>
+                  <Link href="/gte/new" className="button-primary button-small">{t("Open the editor")}</Link>
                 </div>
               )}
             </div>
