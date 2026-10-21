@@ -7,6 +7,7 @@ import {
   type SeoFeaturePage,
 } from "../lib/seoFeaturePages";
 import SeoHead, { EDITOR_APPLICATION_ID, absoluteUrl } from "./SeoHead";
+import ImportExportFeature from "./ImportExportFeature";
 
 type FeatureVisual = {
   image: string;
@@ -115,6 +116,7 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
   return (
     <>
       <SeoHead title={t(page.metaTitle)} description={page.description} canonicalPath={canonicalPath} jsonLd={jsonLd} />
+      {page.slug === "guitar-tab-import-export" ? <ImportExportFeature page={page} /> : (
       <main className={`feature-story feature-story--${visual.tone}`}>
         <section className="feature-story-hero">
           <div className="container feature-story-hero-grid">
@@ -271,6 +273,7 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
           </div>
         </section>
       </main>
+      )}
     </>
   );
 }

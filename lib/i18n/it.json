@@ -1852,5 +1852,14 @@
   "Show password": "Mostra password",
   "Account created. Log in to continue.": "Account creato. Accedi per continuare.",
   "Hide password": "Nascondi password",
-  "Create free account": "Crea un account gratuito"
+  "Create free account": "Crea un account gratuito",
+  "Supported formats": "Formati supportati",
+  "Format": "Formato",
+  "Import": "Importa",
+  "ASCII tab": "Tablatura ASCII",
+  "MusicXML": "MusicXML",
+  "MIDI": "MIDI",
+  "Guitar Pro": "Guitar Pro",
+  "Note2Tabs JSON": "Note2Tabs JSON",
+  "Related features": "Funzioni correlate"
 }

@@ -1852,5 +1852,14 @@
   "Show password": "显示密码",
   "Account created. Log in to continue.": "账户已创建，请登录后继续。",
   "Hide password": "隐藏密码",
-  "Create free account": "免费注册账户"
+  "Create free account": "免费注册账户",
+  "Supported formats": "支持的格式",
+  "Format": "格式",
+  "Import": "导入",
+  "ASCII tab": "ASCII 吉他谱",
+  "MusicXML": "MusicXML",
+  "MIDI": "MIDI",
+  "Guitar Pro": "Guitar Pro",
+  "Note2Tabs JSON": "Note2Tabs JSON",
+  "Related features": "相关功能"
 }

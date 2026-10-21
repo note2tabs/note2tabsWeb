@@ -1852,5 +1852,14 @@
   "Show password": "إظهار كلمة المرور",
   "Account created. Log in to continue.": "تم إنشاء الحساب. سجّل الدخول للمتابعة.",
   "Hide password": "إخفاء كلمة المرور",
-  "Create free account": "إنشاء حساب مجاني"
+  "Create free account": "إنشاء حساب مجاني",
+  "Supported formats": "الصيغ المدعومة",
+  "Format": "الصيغة",
+  "Import": "استيراد",
+  "ASCII tab": "تابلاتشر ASCII",
+  "MusicXML": "MusicXML",
+  "MIDI": "MIDI",
+  "Guitar Pro": "Guitar Pro",
+  "Note2Tabs JSON": "Note2Tabs JSON",
+  "Related features": "ميزات ذات صلة"
 }

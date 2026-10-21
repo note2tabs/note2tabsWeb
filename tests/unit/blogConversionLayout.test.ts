@@ -8,7 +8,7 @@ const styles = readFileSync("styles/globals.css", "utf8");
 describe("blog conversion layout", () => {
   it("offers product paths without interrupting desktop reading", () => {
     expect(indexSource).toContain('placement="blog_index_hero"');
-    expect(postSource).toContain('placement="article_sidebar_primary"');
+    expect(postSource).toContain('placement="article_intro"');
     expect(postSource).toContain('placement="article_contextual_links"');
     expect(postSource).toContain('placement="article_end"');
   });
