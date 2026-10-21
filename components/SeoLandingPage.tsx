@@ -9,6 +9,8 @@ type SeoLandingPageProps = {
   metaTitle: string;
   description: string;
   canonicalPath: string;
+  hasTranslation?: boolean;
+  preview?: { src: string; width: number; height: number; alt: string; label: string };
   primaryCta: {
     label: string;
     href: string;
@@ -44,6 +46,8 @@ export default function SeoLandingPage({
   metaTitle,
   description,
   canonicalPath,
+  hasTranslation = true,
+  preview,
   primaryCta,
   secondaryCta,
   steps,
@@ -113,7 +117,7 @@ export default function SeoLandingPage({
       : []),
   ];
 
-  const editorFirst = primaryCta.href === "/gte/new";
+  const editorFirst = primaryCta.href.startsWith("/gte/new");
   const sourceLabel = canonicalPath.includes("youtube") ? "YouTube"
     : canonicalPath.includes("mp3") ? "MP3"
     : editorFirst ? "Guitar tab editor" : "Audio";
@@ -128,12 +132,12 @@ export default function SeoLandingPage({
 
   return (
     <>
-      <SeoHead title={t(metaTitle)} description={description} canonicalPath={canonicalPath} jsonLd={jsonLd} />
+      <SeoHead title={t(metaTitle)} description={description} canonicalPath={canonicalPath} hasTranslation={hasTranslation} jsonLd={jsonLd} />
       <main className="search-landing">
         <div className="container search-landing-shell">
           <section className="search-landing-hero" aria-labelledby="search-landing-title">
             <div className="search-landing-intro">
-              <p className="search-landing-kicker">Note2Tabs <span aria-hidden="true">/</span> {t(sourceLabel)}</p>
+              <p className="search-landing-kicker">Note2Tabs <span aria-hidden="true">/</span> {t(preview?.label || sourceLabel)}</p>
               <h1 id="search-landing-title">{t(title)}</h1>
               <p className="search-landing-description">{t(description)}</p>
               <div className="search-landing-actions">
@@ -147,11 +151,11 @@ export default function SeoLandingPage({
             </div>
             <figure className="search-landing-preview">
               <div className="search-landing-preview-label">
-                <span>{t("Guitar tab editor")}</span><span aria-hidden="true" dir="ltr">01 — 02</span>
+                <span>{t(preview?.label || "Guitar tab editor")}</span><span aria-hidden="true" dir="ltr">01 — 02</span>
               </div>
               <div className="search-landing-score">
-                <Image src="/images/editor-previews/search-editor.png" width={790} height={170}
-                  alt={t("Example tab in the Note2Tabs editor")}
+                <Image src={preview?.src || "/images/editor-previews/search-editor.png"} width={preview?.width || 790} height={preview?.height || 170}
+                  alt={t(preview?.alt || "Example tab in the Note2Tabs editor")}
                   priority sizes="(max-width: 800px) 100vw, 650px" />
               </div>
               <figcaption><span>{t("Write, arrange, play, and practice")}</span><span dir="ltr">TXT · MIDI · MusicXML</span></figcaption>
@@ -186,7 +190,7 @@ export default function SeoLandingPage({
           </section>}
 
           <section className="search-landing-next" aria-label={t(primaryCta.label)}>
-            {primaryAction("search_end")}<Link href="/pricing">{t("Plans and limits")} <span aria-hidden="true">↗</span></Link>
+            {primaryAction("search_end")}<Link href="/pricing">{t("Plans and pricing")} <span aria-hidden="true">↗</span></Link>
           </section>
           <nav className="search-landing-related" aria-label={t("Related guides and tools")}>
             {relatedLinks.map(link => <Link href={link.href} key={link.href}>{t(link.label)} <span aria-hidden="true">↗</span></Link>)}

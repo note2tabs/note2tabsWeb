@@ -81,6 +81,7 @@ export default function FooterBar() {
             <div className="footer-section-links">
               <Link href="/transcribe">{t("Audio-to-tab transcriber")}</Link>
               <Link href="/editor">{t("Guitar tab editor")}</Link>
+              <Link href="/bass-tab-editor">{t("Bass tab editor")}</Link>
               <Link href="/pricing">{t("Plans and pricing")}</Link>
             </div>
           </section>

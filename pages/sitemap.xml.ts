@@ -86,7 +86,7 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   });
 
   const releasedLocales = TRANSLATED_LOCALES.filter(localizedPilotIndexable);
-  const paths = [...staticPaths, ...releasedLocales.flatMap(locale => staticPaths.map(path => localeHref(path, locale)))];
+  const paths = [...staticPaths, "/bass-tab-editor", ...releasedLocales.flatMap(locale => staticPaths.map(path => localeHref(path, locale)))];
   const entries: SitemapEntry[] = paths.map((path) => ({
     loc: buildUrl(baseUrl, path),
     ...(localeFromPath(path) !== "en"

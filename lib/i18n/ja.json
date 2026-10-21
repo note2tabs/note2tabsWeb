@@ -1866,5 +1866,6 @@
   "Example tab in the Note2Tabs editor": "Note2Tabsエディターのタブ譜の例",
   "Free: 30 seconds. Premium: 10 minutes. Pro: 20 minutes. Your clip can start anywhere in the video.": "無料：30秒。Premium：10分。Pro：20分。動画のどの位置からでも選択できます。",
   "Choose any section of a public video. Clip length depends on your plan; you do not need to start at the beginning.": "公開動画の好きな部分を選択できます。選択できる長さはプランによって異なり、動画の冒頭から始める必要はありません。",
-  "Selecting a precise segment makes the result faster to review and avoids spending credits on parts you do not need.": "必要な区間だけを選ぶと結果を確認しやすくなり、不要な部分にクレジットを使わずに済みます。"
+  "Selecting a precise segment makes the result faster to review and avoids spending credits on parts you do not need.": "必要な区間だけを選ぶと結果を確認しやすくなり、不要な部分にクレジットを使わずに済みます。",
+  "Bass tab editor": "ベースTAB譜エディター"
 }

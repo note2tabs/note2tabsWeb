@@ -52,6 +52,7 @@ export default function ImportExportFeature({ page }: { page: SeoFeaturePage }) 
         {page.faqs.map(faq => <details key={faq.question}><summary>{t(faq.question)}</summary><p>{t(faq.answer)}</p></details>)}
       </section>
       <nav className="import-export-related" aria-label={t("Related features")}>
+        <Link href="/bass-tab-editor">{t("Bass tab editor")} <span aria-hidden="true">→</span></Link>
         {page.relatedSlugs.map(slug => {
           const related = getSeoFeaturePage(slug);
           return related ? <Link key={slug} href={`/features/${slug}`}>{t(related.title)} <span aria-hidden="true">→</span></Link> : null;
