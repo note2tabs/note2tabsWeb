@@ -1847,5 +1847,8 @@
   "Review before payment": "Riepilogo prima del pagamento",
   "Upgrade to Pro — {price}": "Passa a Pro — {price}",
   "{credits} credits exchanged · {amount} off your first month": "{credits} crediti convertiti · {amount} di sconto sul primo mese",
-  "{percent}% off": "−{percent}%"
+  "{percent}% off": "−{percent}%",
+  "Account access": "Accesso all’account",
+  "Show password": "Mostra password",
+  "Account created. Log in to continue.": "Account creato. Accedi per continuare."
 }

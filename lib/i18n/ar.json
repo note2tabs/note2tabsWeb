@@ -1847,5 +1847,8 @@
   "Review before payment": "المراجعة قبل الدفع",
   "Upgrade to Pro — {price}": "الترقية إلى Pro — {price}",
   "{credits} credits exchanged · {amount} off your first month": "استبدال {credits} رصيدًا · خصم {amount} على شهرك الأول",
-  "{percent}% off": "خصم {percent}٪"
+  "{percent}% off": "خصم {percent}٪",
+  "Account access": "الوصول إلى الحساب",
+  "Show password": "إظهار كلمة المرور",
+  "Account created. Log in to continue.": "تم إنشاء الحساب. سجّل الدخول للمتابعة."
 }

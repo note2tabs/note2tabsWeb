@@ -1847,5 +1847,8 @@
   "Review before payment": "支払い前に確認",
   "Upgrade to Pro — {price}": "Proにアップグレード — {price}",
   "{credits} credits exchanged · {amount} off your first month": "{credits}クレジットを換算 · 初月{amount}割引",
-  "{percent}% off": "{percent}%オフ"
+  "{percent}% off": "{percent}%オフ",
+  "Account access": "アカウントへのアクセス",
+  "Show password": "パスワードを表示",
+  "Account created. Log in to continue.": "アカウントを作成しました。ログインして続けてください。"
 }

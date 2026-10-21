@@ -2,7 +2,6 @@ import { normalizeSafeReturnPath } from "../../lib/safeReturnPath";
 import { translatedError } from "../../lib/i18n/translate";
 import { useLocale } from "../../lib/i18n/react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import Link from "../../components/LocaleLink";
 import { useLocaleRouter as useRouter } from "../../lib/i18n/react";
 import { signIn } from "next-auth/react";
 import { generateFingerprint } from "../../lib/fingerprint";
@@ -14,6 +13,7 @@ import { categorizeAnalyticsDestination } from "../../lib/analyticsPrivacy";
 import { categorizeAnalyticsError } from "../../lib/analyticsErrors";
 import { premiumFunnelProperties, readPremiumFunnelContext } from "../../lib/premiumFunnel";
 import { isTabShareEmailDestination, TAB_SHARE_EMAIL_SOURCE } from "../../lib/tabShareAnalytics";
+import AuthModeSwitch from "../../components/AuthModeSwitch";
 
 const authErrorMessage = (error?: string | string[]) => {
   const value = Array.isArray(error) ? error[0] : error;
@@ -31,11 +31,14 @@ export default function SignupPage() {
   const { t, locale, href: localePath } = useLocale();
   const router = useRouter();
   const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const shareEmailClickTracked = useRef(false);
+  const formInteracted = useRef(false);
+  const validationReported = useRef(false);
+  const submitting = useRef(false);
   const nextHref = useMemo(() => {
     const raw = Array.isArray(router.query.next) ? router.query.next[0] : router.query.next;
     return localePath(normalizeSafeReturnPath(raw, locale !== "en" ? "/transcribe" : "/transcriber"));
@@ -61,6 +64,8 @@ export default function SignupPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (submitting.current) return;
+    submitting.current = true;
     clearOAuthIntent();
     setError(null);
     setLoading(true);
@@ -85,7 +90,6 @@ export default function SignupPage() {
         body: JSON.stringify({
           email,
           password,
-          name,
           fingerprintId,
           funnelId: premiumFunnel?.funnelId,
           funnelSource: premiumFunnel?.source,
@@ -108,13 +112,18 @@ export default function SignupPage() {
       // their intended destination. New accounts may complete one standard
       // transcription before verification; Heavy preview access still
       // requires a verified email.
-      await signIn("credentials", {
+      const signedIn = await signIn("credentials", {
         redirect: false,
         email,
         password,
         fingerprintId,
         callbackUrl: nextHref,
       }).catch(() => null);
+      if (!signedIn?.ok || signedIn.error) {
+        sendEvent(ANALYTICS_EVENTS.loginFailed, { method: "credentials", error_code: "signup_auto_login_failed", surface: "signup_page" });
+        await router.push(`${loginHref}${loginHref.includes("?") ? "&" : "?"}accountCreated=1`);
+        return;
+      }
       await router.push(nextHref);
     } catch (requestError) {
       setError(t("We could not reach the sign-up service. Check your connection and try again."));
@@ -123,12 +132,14 @@ export default function SignupPage() {
         error_code: categorizeAnalyticsError(requestError, "signup_network_error"),
       });
     } finally {
+      submitting.current = false;
       setLoading(false);
     }
   };
 
   const handleGoogleSignIn = async () => {
-    if (loading) return;
+    if (submitting.current) return;
+    submitting.current = true;
     setError(null);
     setLoading(true);
     const premiumFunnel = readPremiumFunnelContext();
@@ -143,6 +154,7 @@ export default function SignupPage() {
       sendEvent(ANALYTICS_EVENTS.signupFailed, { method: "google", error_code: "oauth_start_failed" });
     }
     setLoading(false);
+    submitting.current = false;
   };
 
   return (
@@ -151,22 +163,32 @@ export default function SignupPage() {
     <main className="page page-tight">
       <div className="container">
         <div className="card auth-card auth-card--expanded stack">
+          <AuthModeSwitch mode="signup" alternateHref={loginHref} />
           <div className="auth-card-header">
             <h1 className="page-title">{t("Create your account")}</h1>
+            <p className="page-subtitle">{t("No credit card required")}</p>
           </div>
-          <form className="stack" onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label className="label" htmlFor="signup-name">{t("Name (optional)")}</label>
-              <input
-                id="signup-name"
-                type="text"
-                name="name"
-                autoComplete="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="form-input"
-              />
-            </div>
+          <button type="button" onClick={() => void handleGoogleSignIn()} disabled={loading} className="button-secondary">
+            <img src="/icons/google.svg" alt="" width={17} height={16} aria-hidden="true" />{t(" Continue with Google ")}
+          </button>
+          <div className="auth-card-divider" aria-hidden="true"><span>{t("or")}</span></div>
+          <form className="stack" onSubmit={handleSubmit}
+            onFocus={() => {
+              if (formInteracted.current) return;
+              formInteracted.current = true;
+              sendEvent("signup_form_interacted", { method: "email", surface: "signup_page" });
+            }}
+            onChange={() => { validationReported.current = false; }}
+            onInvalidCapture={event => {
+              if (validationReported.current) return;
+              validationReported.current = true;
+              const input = event.target as HTMLInputElement;
+              sendEvent("signup_validation_failed", {
+                method: "email", surface: "signup_page",
+                error_code: input.validity.valueMissing ? "required_field" : input.type === "email" ? "invalid_email" : "password_too_short",
+                field: input.name === "email" ? "email" : "password",
+              });
+            }}>
             <div className="form-group">
               <label className="label" htmlFor="signup-email">{t("Email")}</label>
               <input
@@ -184,34 +206,27 @@ export default function SignupPage() {
               <label className="label" htmlFor="signup-password">{t("Password")}</label>
               <input
                 id="signup-password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 name="new-password"
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={10}
+                aria-describedby="signup-password-hint"
                 className="form-input"
               />
+              <p id="signup-password-hint" className="auth-field-hint">{t("Password must be at least 10 characters.")}</p>
+              <label className="auth-password-toggle">
+                <input type="checkbox" checked={showPassword} onChange={event => setShowPassword(event.target.checked)} />
+                {t("Show password")}
+              </label>
             </div>
             {(error || routeError) && <div className="error" role="alert">{translatedError(error || routeError, locale)}</div>}
             <button type="submit" disabled={loading} className="button-primary">
               {loading ? t("Creating account...") : t("Sign up")}
             </button>
           </form>
-          <div className="auth-card-divider" aria-hidden="true">
-            <span>{t("or")}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => void handleGoogleSignIn()}
-            disabled={loading}
-            className="button-secondary"
-          >
-            <img src="/icons/google.svg" alt="" width={17} height={16} aria-hidden="true" />{t(" Continue with Google ")}</button>
-          <div className="auth-links-row auth-links-row--center">
-            <Link href={loginHref} className="button-link">{t(" Already have an account? Log in ")}</Link>
-          </div>
         </div>
       </div>
     </main>
