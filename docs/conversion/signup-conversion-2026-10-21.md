@@ -55,3 +55,11 @@ No claimed conversion lift, copied ecommerce benchmark, new promotional popup, a
 ## After release
 
 Compare mature, same-weekday 24-hour visitor cohorts by source, entry page, language and viewport. Follow auth-page reach, first form interaction, validation rejection, submission and real account creation separately. Preserve login-based Google signup in the overall conversion measure. Also check first successful transcription and subscriber conversion: a signup increase with worse activation would not be a useful improvement. Do not infer impact from an uncontrolled before/after percentage alone.
+
+## Follow-up: field recovery and free-account CTA
+
+- Signup submit now says “Create free account” in all ten languages, without extra reassurance banners.
+- Native validation and recognized server rejections appear alongside the affected field, linked using aria-describedby/aria-invalid. Account-exists errors offer direct login and password-reset actions. General service/OAuth errors remain form-level.
+- Switching account modes, recovering failed automatic login, or opening password reset preserves only the email in same-tab session storage, consumed on arrival and expiring after 15 minutes. No passwords, URL query email, or new email analytics properties. Storage failure is nonblocking.
+- The transcription-first entry still saves the selected audio/YouTube range before authentication; localized return paths retain resumeTranscription=1. No extra gate or anonymous transcription was introduced.
+- Validation: 54 focused signup/recovery/localization/account-lifecycle tests plus the existing pending-upload, middleware and device-locale checks.

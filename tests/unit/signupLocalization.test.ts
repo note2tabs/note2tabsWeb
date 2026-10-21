@@ -19,7 +19,7 @@ afterEach(() => vi.unstubAllEnvs());
 describe.each(ALL_LOCALES)('%s account access', locale => {
   it('renders translated signup labels and preserves localized upload intent across modes', () => {
     const html = renderToStaticMarkup(createElement(LocaleProvider, {path:localeHref('/auth/signup',locale),children:createElement(SignupPage)}));
-    for (const key of ['Account access','Show password','Password must be at least 10 characters.']) {
+    for (const key of ['Account access','Show password','Password must be at least 10 characters.','Create free account']) {
       expect(catalogs[locale][key], key).toBeTruthy();
       expect(html,key).toContain(escaped(catalogs[locale][key]));
       if(locale !== 'en') expect(catalogs[locale][key],key).not.toBe(key);

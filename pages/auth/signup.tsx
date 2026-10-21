@@ -14,6 +14,8 @@ import { categorizeAnalyticsError } from "../../lib/analyticsErrors";
 import { premiumFunnelProperties, readPremiumFunnelContext } from "../../lib/premiumFunnel";
 import { isTabShareEmailDestination, TAB_SHARE_EMAIL_SOURCE } from "../../lib/tabShareAnalytics";
 import AuthModeSwitch from "../../components/AuthModeSwitch";
+import Link from "../../components/LocaleLink";
+import { saveAuthEmail, takeAuthEmail } from "../../lib/authEmailHandoff";
 
 const authErrorMessage = (error?: string | string[]) => {
   const value = Array.isArray(error) ? error[0] : error;
@@ -34,6 +36,8 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldError, setFieldError] = useState<"email" | "password" | null>(null);
+  const [accountExists, setAccountExists] = useState(false);
   const [loading, setLoading] = useState(false);
   const shareEmailClickTracked = useRef(false);
   const formInteracted = useRef(false);
@@ -47,6 +51,7 @@ export default function SignupPage() {
     nextHref === "/" ? "/auth/login" : `/auth/login?next=${encodeURIComponent(nextHref)}`;
   const routeError = useMemo(() => authErrorMessage(router.query.error), [router.query.error]);
   const fromTabShareEmail = useMemo(() => isTabShareEmailDestination(nextHref), [nextHref]);
+  useEffect(() => { const restored = takeAuthEmail(); if (restored) setEmail(restored); }, []);
 
   useEffect(() => {
     if (!router.isReady || !fromTabShareEmail || shareEmailClickTracked.current) return;
@@ -68,6 +73,8 @@ export default function SignupPage() {
     submitting.current = true;
     clearOAuthIntent();
     setError(null);
+    setFieldError(null);
+    setAccountExists(false);
     setLoading(true);
     const destination = categorizeAnalyticsDestination(nextHref);
     const premiumFunnel = readPremiumFunnelContext();
@@ -100,6 +107,9 @@ export default function SignupPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        const code = categorizeAnalyticsError(data?.error, "signup_failed");
+        setFieldError(code === "account_exists" || code === "invalid_email" ? "email" : code === "weak_password" ? "password" : null);
+        setAccountExists(code === "account_exists");
         setError(data?.error || t("We could not create your account. Please check the details and try again."));
         sendEvent(ANALYTICS_EVENTS.signupFailed, {
           method: "email",
@@ -120,6 +130,7 @@ export default function SignupPage() {
         callbackUrl: nextHref,
       }).catch(() => null);
       if (!signedIn?.ok || signedIn.error) {
+        saveAuthEmail(email);
         sendEvent(ANALYTICS_EVENTS.loginFailed, { method: "credentials", error_code: "signup_auto_login_failed", surface: "signup_page" });
         await router.push(`${loginHref}${loginHref.includes("?") ? "&" : "?"}accountCreated=1`);
         return;
@@ -141,6 +152,8 @@ export default function SignupPage() {
     if (submitting.current) return;
     submitting.current = true;
     setError(null);
+    setFieldError(null);
+    setAccountExists(false);
     setLoading(true);
     const premiumFunnel = readPremiumFunnelContext();
     sendEvent(ANALYTICS_EVENTS.signupStarted, {
@@ -163,7 +176,7 @@ export default function SignupPage() {
     <main className="page page-tight">
       <div className="container">
         <div className="card auth-card auth-card--expanded stack">
-          <AuthModeSwitch mode="signup" alternateHref={loginHref} />
+          <AuthModeSwitch mode="signup" alternateHref={loginHref} onSwitch={() => saveAuthEmail(email)} />
           <div className="auth-card-header">
             <h1 className="page-title">{t("Create your account")}</h1>
           </div>
@@ -179,9 +192,14 @@ export default function SignupPage() {
             }}
             onChange={() => { validationReported.current = false; }}
             onInvalidCapture={event => {
+              event.preventDefault();
               if (validationReported.current) return;
               validationReported.current = true;
               const input = event.target as HTMLInputElement;
+              input.focus();
+              setFieldError(input.name === "email" ? "email" : "password");
+              setAccountExists(false);
+              setError(input.name === "email" ? "Enter a valid email address." : "Password must be at least 10 characters.");
               sendEvent("signup_validation_failed", {
                 method: "email", surface: "signup_page",
                 error_code: input.validity.valueMissing ? "required_field" : input.type === "email" ? "invalid_email" : "password_too_short",
@@ -196,10 +214,19 @@ export default function SignupPage() {
                 name="email"
                 autoComplete="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); if (fieldError === "email") { setError(null); setFieldError(null); setAccountExists(false); } }}
+                aria-invalid={fieldError === "email" || undefined}
+                aria-describedby={fieldError === "email" ? "signup-email-error" : undefined}
                 required
                 className="form-input"
               />
+              {fieldError === "email" && <div id="signup-email-error" className="error" role="alert">
+                {translatedError(error, locale)}
+                {accountExists && <div className="auth-links-row">
+                  <Link href={loginHref} onClick={() => saveAuthEmail(email)} className="button-link">{t("Log in")}</Link>
+                  <Link href="/reset-password" onClick={() => saveAuthEmail(email)} className="button-link">{t("Forgot password?")}</Link>
+                </div>}
+              </div>}
             </div>
             <div className="form-group">
               <label className="label" htmlFor="signup-password">{t("Password")}</label>
@@ -210,10 +237,11 @@ export default function SignupPage() {
                   name="new-password"
                   autoComplete="new-password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => { setPassword(e.target.value); if (fieldError === "password") { setError(null); setFieldError(null); } }}
                   required
                   minLength={10}
-                  aria-describedby="signup-password-hint"
+                  aria-invalid={fieldError === "password" || undefined}
+                  aria-describedby={fieldError === "password" ? "signup-password-hint signup-password-error" : "signup-password-hint"}
                   className="form-input"
                 />
                 <button type="button" className="auth-password-toggle"
@@ -228,10 +256,11 @@ export default function SignupPage() {
                 </button>
               </div>
               <p id="signup-password-hint" className="auth-field-hint">{t("Password must be at least 10 characters.")}</p>
+              {fieldError === "password" && <div id="signup-password-error" className="error" role="alert">{translatedError(error, locale)}</div>}
             </div>
-            {(error || routeError) && <div className="error" role="alert">{translatedError(error || routeError, locale)}</div>}
+            {((error && !fieldError) || routeError) && <div className="error" role="alert">{translatedError((!fieldError && error) || routeError, locale)}</div>}
             <button type="submit" disabled={loading} className="button-primary">
-              {loading ? t("Creating account...") : t("Sign up")}
+              {loading ? t("Creating account...") : t("Create free account")}
             </button>
           </form>
         </div>

@@ -1,6 +1,7 @@
 import { translatedError } from "../../lib/i18n/translate";
 import { useLocale } from "../../lib/i18n/react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { takeAuthEmail } from "../../lib/authEmailHandoff";
 import Link from "../../components/LocaleLink";
 import NoIndexHead from "../../components/NoIndexHead";
 
@@ -10,6 +11,7 @@ export default function RequestResetPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  useEffect(() => { const restored = takeAuthEmail(); if (restored) setEmail(restored); }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();

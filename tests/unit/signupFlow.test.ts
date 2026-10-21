@@ -22,11 +22,14 @@ vi.mock("../../lib/analytics", () => ({
 }));
 import SignupPage from "../../pages/auth/signup";
 import LoginPage from "../../pages/auth/login";
+import RequestResetPage from "../../pages/reset-password";
+import { saveAuthEmail } from "../../lib/authEmailHandoff";
 let root: Root;
 let container: HTMLDivElement;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  sessionStorage.clear();
   m.query = { next: "/transcribe?resumeTranscription=1" };
   m.signIn.mockResolvedValue({ ok: true, error: null, url: null });
   m.push.mockResolvedValue(true);
@@ -107,6 +110,39 @@ describe("signup and login recovery", () => {
     vi.mocked(fetch).mockResolvedValueOnce({ ok: false, json: async () => ({ error: 'An account with this email already exists.' }) } as Response);
     await render(); await submit(); expect(m.signIn).not.toHaveBeenCalled(); await submit();
     expect(fetch).toHaveBeenCalledTimes(2); expect(m.push).toHaveBeenCalledWith(m.query.next);
+  });
+  it("places an existing-account error beside email with direct recovery and keeps the email out of URLs", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: false, json: async () => ({ error: 'An account with this email already exists.' }) } as Response);
+    await render(); await change('#signup-email','existing@example.com'); await submit();
+    const error = container.querySelector('#signup-email-error')!;
+    expect(error.textContent).toContain('An account with this email already exists.');
+    expect(error.textContent).toContain('Forgot password?');
+    expect(container.querySelector('#signup-email')?.getAttribute('aria-invalid')).toBe('true');
+    const login = error.querySelector<HTMLAnchorElement>('a')!;
+    expect(login.href).not.toContain('existing');
+    expect(new URL(login.href).searchParams.get('next')).toBe(m.query.next);
+    login.addEventListener('click', event => event.preventDefault());
+    await act(async () => { login.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true})); });
+    await act(async () => { root.render(createElement(LoginPage)); });
+    expect(container.querySelector<HTMLInputElement>('#login-email')!.value).toBe('existing@example.com');
+    expect(container.querySelector<HTMLInputElement>('#login-password')!.value).toBe('');
+  });
+  it("places a password rejection beside the password and clears it when corrected", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ ok:false,json:async()=>({error:'Password must be at least 10 characters.'}) } as Response);
+    await render(); await submit();
+    expect(container.querySelector('#signup-password-error')?.textContent).toContain('10 characters');
+    expect(container.querySelector('#signup-password')?.getAttribute('aria-invalid')).toBe('true');
+    await change('#signup-password','corrected-password');
+    expect(container.querySelector('#signup-password-error')).toBeNull();
+  });
+  it("prefills password reset from temporary storage without sending a reset email", async () => {
+    saveAuthEmail('existing@example.com');
+    await act(async () => { root.render(createElement(RequestResetPage)); });
+    expect(container.querySelector<HTMLInputElement>('#reset-email')!.value).toBe('existing@example.com');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it("labels account creation as free without adding a banner", async () => {
+    await render(); expect(container.querySelector('button[type="submit"]')?.textContent).toBe('Create free account');
   });
   it("prevents rapid duplicate account creation", async () => {
     await render();

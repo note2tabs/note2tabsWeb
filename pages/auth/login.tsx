@@ -13,6 +13,7 @@ import { startGoogleSignIn } from "../../lib/oauthSignIn";
 import { categorizeAnalyticsDestination } from "../../lib/analyticsPrivacy";
 import { premiumFunnelProperties, readPremiumFunnelContext } from "../../lib/premiumFunnel";
 import AuthModeSwitch from "../../components/AuthModeSwitch";
+import { saveAuthEmail, takeAuthEmail } from "../../lib/authEmailHandoff";
 
 const authErrorMessage = (error?: string | string[]) => {
   const value = Array.isArray(error) ? error[0] : error;
@@ -36,6 +37,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  useEffect(() => { const restored = takeAuthEmail(); if (restored) setEmail(restored); }, []);
   const nextHref = useMemo(() => {
     const raw = Array.isArray(router.query.next) ? router.query.next[0] : router.query.next;
     return localePath(normalizeSafeReturnPath(raw, locale !== "en" ? "/transcribe" : "/home"));
@@ -121,7 +123,7 @@ export default function LoginPage() {
     <main className="page page-tight">
       <div className="container">
         <div className="card auth-card auth-card--expanded stack">
-          <AuthModeSwitch mode="login" alternateHref={signupHref} />
+          <AuthModeSwitch mode="login" alternateHref={signupHref} onSwitch={() => saveAuthEmail(email)} />
           <div className="auth-card-header">
             <h1 className="page-title">{t("Log in")}</h1>
             {router.query.accountCreated === "1" && <p className="page-subtitle" role="status">{t("Account created. Log in to continue.")}</p>}
@@ -163,7 +165,7 @@ export default function LoginPage() {
             </button>
           </form>
           <div className="auth-links-row auth-links-row--between">
-            <Link href="/reset-password" className="button-link">{t(" Forgot password? ")}</Link>
+            <Link href="/reset-password" onClick={() => saveAuthEmail(email)} className="button-link">{t(" Forgot password? ")}</Link>
           </div>
         </div>
       </div>
