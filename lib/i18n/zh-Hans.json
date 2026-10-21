@@ -1867,5 +1867,8 @@
   "Free: 30 seconds. Premium: 10 minutes. Pro: 20 minutes. Your clip can start anywhere in the video.": "免费版：30 秒。Premium：10 分钟。Pro：20 分钟。可从视频的任意位置开始截取。",
   "Choose any section of a public video. Clip length depends on your plan; you do not need to start at the beginning.": "选择公开视频中的任意片段。片段时长取决于你的套餐，无需从视频开头开始。",
   "Selecting a precise segment makes the result faster to review and avoids spending credits on parts you do not need.": "精确选择所需片段，既能更快检查结果，也能避免将点数花在不需要的部分上。",
-  "Bass tab editor": "贝斯指法谱编辑器"
+  "Bass tab editor": "贝斯指法谱编辑器",
+  "Guitar recording": "吉他录音",
+  "Audio → editable tabs": "音频 → 可编辑的指法谱",
+  "Example tab · Edit and play back": "指法谱示例 · 编辑与播放"
 }

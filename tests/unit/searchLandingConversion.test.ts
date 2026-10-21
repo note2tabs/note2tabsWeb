@@ -42,6 +42,13 @@ describe.each(ALL_LOCALES)("%s search intent", locale => {
     expect(document.querySelector(".search-landing-primary")?.getAttribute("href")).toBe(localeHref(destination, locale));
     expect(document.querySelector(".search-landing-note")?.textContent).toBe(catalogs[locale][destination === "/gte/new" ? "Guest mode" : "Free to try"]);
     expect(document.querySelector(".search-landing-score img")?.getAttribute("alt")).toBe(catalogs[locale]["Example tab in the Note2Tabs editor"]);
+    const isTranscription = destination.startsWith("/transcribe");
+    expect(Boolean(document.querySelector(".search-transcription-wave"))).toBe(isTranscription);
+    if (isTranscription) {
+      expect(document.querySelector(".search-transcription-source")?.textContent).toContain(catalogs[locale]["Guitar recording"]);
+      expect(document.querySelector(".search-transcription-direction")?.textContent).toContain(catalogs[locale]["Audio → editable tabs"]);
+      expect(document.querySelector(".search-landing-score img")?.getAttribute("src")).toContain("guitar-transcription-tab.svg");
+    }
     expect(document.querySelectorAll("details").length).toBeGreaterThan(0);
     expect(html).not.toContain("seo-landing-resource-card");
     expect(html).not.toContain("within the first ten minutes");

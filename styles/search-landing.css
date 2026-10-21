@@ -24,7 +24,11 @@
 .search-landing-step-number { font-size: .7rem; line-height: 1.9; color: var(--muted); font-family: ui-monospace, monospace; }
 .search-landing-workflow h3 { margin: 0 0 8px; font-size: 1rem; font-weight: 600; letter-spacing: -.02em; }
 .search-landing-workflow p, .search-landing-detail p, .search-landing-detail li, .search-landing-faq p { color: var(--muted); line-height: 1.8; font-size: .94rem; margin: 0; }
-.search-landing-reference { padding-block: 56px; display: grid; grid-template-columns: 1fr 1fr; gap: 64px; }
+.search-landing-reference { padding-block: 16px 40px; }
+.search-landing-detail { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); column-gap: 64px; padding-block: 36px; border-bottom: 1px solid var(--border); }
+.search-landing-detail h2 { grid-column: 1; grid-row: 1 / span 8; max-width: 24ch; }
+.search-landing-detail > p, .search-landing-detail > ul, .search-landing-section-action { grid-column: 2; max-width: 64ch; }
+.search-landing-section-action { justify-self: start; display: inline-flex; gap: 12px; margin-top: 20px; font-size: .9rem; font-weight: 600; text-underline-offset: 4px; }
 .search-landing-detail h2 { font-size: 1.45rem; line-height: 1.3; letter-spacing: -.025em; font-weight: 550; margin: 0 0 18px; text-wrap: balance; }
 .search-landing-detail p + p { margin-top: 14px; }
 .search-landing-detail ul { padding-inline-start: 20px; margin: 16px 0 0; }
@@ -55,6 +59,44 @@
   .search-landing-preview figcaption { margin-top: 28px; }
   .search-landing-workflow ol { grid-template-columns: 1fr; gap: 24px; }
   .search-landing-reference, .search-landing-faq { grid-template-columns: 1fr; gap: 32px; }
-  .search-landing-reference { padding-block: 36px; }
+  .search-landing-reference { padding-block: 8px 28px; }
+  .search-landing-detail { display: block; padding-block: 28px; }
+  .search-landing-detail h2 { max-width: none; }
   .search-landing-faq { padding-top: 32px; gap: 16px; }
+}
+
+.search-landing-preview-transcription .search-landing-preview-label { margin-bottom: 24px; }
+.search-transcription-input { margin-bottom: 20px; }
+.search-transcription-source { display: flex; justify-content: space-between; align-items: center; font-size: .75rem; color: #374b3e; }
+.search-transcription-source > span:last-child { font-family: ui-monospace, monospace; font-size: .65rem; border: 1px solid #b8c8b7; border-radius: 4px; padding: 3px 6px; }
+.search-transcription-wave { display: block; width: 100%; height: 68px; margin-block: 10px; fill: #52765b; }
+.search-transcription-direction { display: flex; align-items: center; justify-content: center; gap: 12px; color: #374b3e; font-size: .72rem; }
+.search-transcription-direction > span:first-child { font-size: 1.5rem; line-height: 1; }
+.search-landing-preview-transcription figcaption { margin-top: 20px; }
+
+/* A single synchronized cycle: scan the source, move down, reveal the tab. */
+.search-transcription-wave-wrap { position: relative; overflow: hidden; }
+.search-transcription-scan { position: absolute; top: 10px; bottom: 10px; left: 0; width: 2px; background: #1c593a; box-shadow: 0 0 18px 5px #52765b33; animation: bass-scan 6s linear 1 forwards; }
+.search-transcription-direction { min-height: 64px; gap: 14px; }
+.search-transcription-direction svg { width: 28px; height: 44px; fill: none; stroke: #326a46; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; animation: bass-transfer 6s ease-in-out 1 forwards; }
+.search-landing-preview-transcription .search-landing-score img { animation: bass-tab-reveal 6s ease-in-out 1 forwards; }
+@keyframes bass-scan {
+  0% { left: 0; opacity: 0; }
+  5% { opacity: 1; }
+  44% { left: calc(100% - 2px); opacity: 1; }
+  48%, 100% { left: calc(100% - 2px); opacity: 0; }
+}
+@keyframes bass-transfer {
+  0%, 36% { opacity: .25; transform: translateY(-5px); }
+  48%, 60% { opacity: 1; transform: translateY(5px); }
+  72%, 100% { opacity: .5; transform: translateY(0); }
+}
+@keyframes bass-tab-reveal {
+  0%, 44% { clip-path: inset(0 100% 0 0); opacity: .3; }
+  76%, 94% { clip-path: inset(0 0 0 0); opacity: 1; }
+  100% { clip-path: inset(0 0 0 0); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .search-landing-preview-transcription * { animation: none !important; }
+  .search-transcription-scan { display: none; }
 }

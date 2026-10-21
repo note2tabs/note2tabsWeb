@@ -1867,5 +1867,8 @@
   "Free: 30 seconds. Premium: 10 minutes. Pro: 20 minutes. Your clip can start anywhere in the video.": "المجاني: 30 ثانية. Premium: 10 دقائق. Pro: 20 دقيقة. يمكن أن يبدأ المقطع من أي موضع في الفيديو.",
   "Choose any section of a public video. Clip length depends on your plan; you do not need to start at the beginning.": "اختر أي جزء من فيديو عام. تعتمد مدة المقطع على خطتك، ولا يلزم أن يبدأ من بداية الفيديو.",
   "Selecting a precise segment makes the result faster to review and avoids spending credits on parts you do not need.": "يساعد اختيار مقطع محدد على مراجعة النتيجة بسرعة أكبر وتجنب إنفاق الرصيد على أجزاء لا تحتاج إليها.",
-  "Bass tab editor": "محرر تاب الباس"
+  "Bass tab editor": "محرر تاب الباس",
+  "Guitar recording": "تسجيل الغيتار",
+  "Audio → editable tabs": "صوت → تابات قابلة للتعديل",
+  "Example tab · Edit and play back": "مثال على التابات · عدّل واستمع"
 }

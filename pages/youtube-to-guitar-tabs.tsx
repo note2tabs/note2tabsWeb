@@ -9,6 +9,7 @@ export default function YoutubeToGuitarTabsPage() {
       metaTitle="YouTube to Guitar Tabs Converter | Note2Tabs"
       description="Paste a YouTube link, choose a riff or solo, and convert the clip into a structured, editable guitar tab—without downloading the video first."
       canonicalPath="/youtube-to-guitar-tabs"
+      preview={{ src: "/images/editor-previews/guitar-transcription-tab.svg", width: 790, height: 260, label: "Guitar tab editor", alt: "Example tab in the Note2Tabs editor", transcription: true }}
       primaryCta={{ label: "Convert a YouTube link", href: "/transcribe?mode=youtube" }}
       secondaryCta={{ label: "Open editor", href: "/gte/new" }}
       steps={[

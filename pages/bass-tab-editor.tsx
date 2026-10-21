@@ -8,7 +8,7 @@ export default function BassTabEditorPage() {
     canonicalPath="/bass-tab-editor"
     hasTranslation={false}
     primaryCta={{ label: "Open bass editor", href: "/gte/new?track=bass" }}
-    secondaryCta={{ label: "Start from audio", href: "/transcribe" }}
+    secondaryCta={{ label: "Transcribe bass audio", href: "/audio-to-bass-tabs" }}
     preview={{ src: "/images/editor-previews/bass-editor.png", width: 790, height: 170, label: "Bass tab editor", alt: "Four-string bass tablature in the Note2Tabs editor" }}
     steps={[
       { title: "Start a bass track", body: "Open a four-string bass track straight from this page. Start writing in guest mode, with no installation." },
@@ -43,7 +43,7 @@ export default function BassTabEditorPage() {
     relatedLinks={[
       { label: "Guitar tab editor", href: "/editor", description: "Write guitar parts alongside your bassline." },
       { label: "Import and export", href: "/features/guitar-tab-import-export", description: "Move music between your tools." },
-      { label: "Audio-to-tab transcriber", href: "/transcribe", description: "Start with a recording." },
+      { label: "Audio to bass tabs", href: "/audio-to-bass-tabs", description: "Transcribe a bass recording." },
     ]}
   />;
 }

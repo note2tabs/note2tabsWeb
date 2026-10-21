@@ -9,6 +9,7 @@ export default function Mp3ToGuitarTabsPage() {
       metaTitle="MP3 to Guitar Tabs Converter – Online & Editable"
       description="Convert MP3 audio to playable, editable guitar tabs online. Select a song section, generate tablature, then practise, edit, and export it with Note2Tabs."
       canonicalPath="/mp3-to-guitar-tabs"
+      preview={{ src: "/images/editor-previews/guitar-transcription-tab.svg", width: 790, height: 260, label: "Guitar tab editor", alt: "Example tab in the Note2Tabs editor", transcription: true }}
       primaryCta={{ label: "Upload an MP3", href: "/transcribe" }}
       secondaryCta={{ label: "Open editor", href: "/gte/new" }}
       steps={[

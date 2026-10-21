@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="790" height="260" viewBox="0 0 790 260">
+<title>Two-bar guitar tablature</title>
+<rect width="790" height="260" fill="#fffefb"/>
+<g fill="#68736b" font-family="Arial, sans-serif" font-size="13"><text x="76" y="32">1</text><text x="405" y="32">2</text></g>
+<g stroke="#a2a9a2" stroke-width="1">
+<path d="M70 60H750"/>
+<path d="M70 90H750"/>
+<path d="M70 120H750"/>
+<path d="M70 150H750"/>
+<path d="M70 180H750"/>
+<path d="M70 210H750"/>
+<path d="M70 60V210 M395 60V210 M748 60V210 M752 60V210"/></g>
+<g fill="#263d30" font-family="Arial, sans-serif" font-size="17">
+<text x="37" y="66">e</text>
+<text x="37" y="96">B</text>
+<text x="37" y="126">G</text>
+<text x="37" y="156">D</text>
+<text x="37" y="186">A</text>
+<text x="37" y="216">E</text>
+</g><g fill="#fffefb">
+<rect x="100" y="198" width="24" height="24"/>
+<rect x="176" y="198" width="24" height="24"/>
+<rect x="252" y="198" width="24" height="24"/>
+<rect x="328" y="198" width="24" height="24"/>
+<rect x="430" y="168" width="24" height="24"/>
+<rect x="506" y="168" width="24" height="24"/>
+<rect x="582" y="198" width="24" height="24"/>
+<rect x="658" y="198" width="24" height="24"/>
+</g><g fill="#182b20" font-family="Menlo, Consolas, monospace" font-size="24" font-weight="500" text-anchor="middle">
+<text x="112" y="218">0</text>
+<text x="188" y="218">3</text>
+<text x="264" y="218">5</text>
+<text x="340" y="218">3</text>
+<text x="442" y="188">0</text>
+<text x="518" y="188">2</text>
+<text x="594" y="218">5</text>
+<text x="670" y="218">3</text>
+</g></svg>
