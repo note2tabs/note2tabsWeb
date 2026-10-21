@@ -1,3 +1,4 @@
+import { transcriptionCreditPreflight } from "../lib/transcriptionCreditPreflight";
 import dynamic from "next/dynamic";
 const PaywallDesignPreview = process.env.NODE_ENV === "development" ? dynamic(()=>import("../components/PaywallDesignPreview"),{ssr:false}) : ()=>null;
 import { uploadTranscriptionFile, TranscriptionUploadError } from "../lib/transcriptionUpload";
@@ -1002,6 +1003,18 @@ export default function TranscriberPage() {
     }
 
     convertInFlightRef.current = true;
+    const requiredCredits = heavyPreviewAvailable && transcriptionModel === "super_heavy"
+      ? 0 : calculateTranscriptionCredits(mode === "FILE" ? resolvedFileDuration : resolvedYtDuration, transcriptionModel);
+    const creditCheck = await transcriptionCreditPreflight(displayedCredits, requiredCredits);
+    if (creditCheck.credits) setCredits(creditCheck.credits);
+    if (creditCheck.blocked) {
+      convertInFlightRef.current = false;
+      setBlockedRequiredCredits(requiredCredits);
+      reportBlockedSubmission("credits_exhausted", "preflight");
+      setError(null);
+      setStatus(null);
+      return;
+    }
 
     setError(null);
     setImportError(null);

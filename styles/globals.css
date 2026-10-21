@@ -14626,11 +14626,13 @@ html[lang="ar"] [data-editor-locale="ar"] :is(input[type="text"], textarea) {
 .upgrade-preview-nav { padding: 12px 24px; background: #f0f4ee; font-size: 12px; display: flex; gap: 16px; flex-wrap: wrap; }
 .upgrade-preview-nav a { text-decoration: underline; }
 
+.pricing-page--focused .pricing-page__plans--pro-recommended .pricing-plan--premium,
 .pricing-page--focused .pricing-page__plans--credit-upgrade .pricing-plan--premium {
   border-color: #e4e7df;
   background: rgba(255,255,255,.8);
   box-shadow: 0 16px 42px rgba(6,17,13,.06);
 }
+.pricing-page--focused .pricing-page__plans--pro-recommended .pricing-plan--pro,
 .pricing-page--focused .pricing-page__plans--credit-upgrade .pricing-plan--pro {
   border: 1px solid #06110d;
   background: #fff;

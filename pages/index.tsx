@@ -1,3 +1,4 @@
+import { transcriptionCreditPreflight } from "../lib/transcriptionCreditPreflight";
 import PriceTaxNote from "../components/PriceTaxNote";
 import { uploadTranscriptionFile, TranscriptionUploadError } from "../lib/transcriptionUpload";
 import { trackBlockedTranscriptionSubmission, type SubmissionBlockReason, type SubmissionBlockStage, type SubmissionBlockDetails } from "../lib/transcriptionSubmission";
@@ -946,6 +947,18 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     const youtubeTranscribingStatusLabel = t("Downloading YouTube audio and transcribing...");
 
     convertInFlightRef.current = true;
+    const requiredCredits = heavyPreviewAvailable && transcriptionModel === "super_heavy"
+      ? 0 : calculateTranscriptionCredits(mode === "FILE" ? resolvedFileDuration : resolvedYtDuration, transcriptionModel);
+    const creditCheck = await transcriptionCreditPreflight(displayedCredits, requiredCredits);
+    if (creditCheck.credits) setCredits(creditCheck.credits);
+    if (creditCheck.blocked) {
+      convertInFlightRef.current = false;
+      setBlockedRequiredCredits(requiredCredits);
+      reportBlockedSubmission("credits_exhausted", "preflight");
+      setError(null);
+      setStatus(null);
+      return;
+    }
 
     setError(null);
     setImportError(null);
