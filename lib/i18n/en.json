@@ -1823,5 +1823,10 @@
   "Review before payment": "Review before payment",
   "Upgrade to Pro — {price}": "Upgrade to Pro — {price}",
   "{credits} credits exchanged · {amount} off your first month": "{credits} credits exchanged · {amount} off your first month",
-  "{percent}% off": "{percent}% off"
+  "{percent}% off": "{percent}% off",
+  "Account access": "Account access",
+  "Show password": "Show password",
+  "Account created. Log in to continue.": "Account created. Log in to continue.",
+  "Hide password": "Hide password",
+  "Create free account": "Create free account"
 }

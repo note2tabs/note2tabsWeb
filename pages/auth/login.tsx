@@ -12,6 +12,8 @@ import { clearOAuthIntent } from "../../lib/oauthAnalytics";
 import { startGoogleSignIn } from "../../lib/oauthSignIn";
 import { categorizeAnalyticsDestination } from "../../lib/analyticsPrivacy";
 import { premiumFunnelProperties, readPremiumFunnelContext } from "../../lib/premiumFunnel";
+import AuthModeSwitch from "../../components/AuthModeSwitch";
+import { saveAuthEmail, takeAuthEmail } from "../../lib/authEmailHandoff";
 
 const authErrorMessage = (error?: string | string[]) => {
   const value = Array.isArray(error) ? error[0] : error;
@@ -35,6 +37,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  useEffect(() => { const restored = takeAuthEmail(); if (restored) setEmail(restored); }, []);
   const nextHref = useMemo(() => {
     const raw = Array.isArray(router.query.next) ? router.query.next[0] : router.query.next;
     return localePath(normalizeSafeReturnPath(raw, locale !== "en" ? "/transcribe" : "/home"));
@@ -71,8 +74,9 @@ export default function LoginPage() {
         funnelReason: premiumFunnel?.reason,
         callbackUrl: nextHref,
       });
-      if (res?.error) {
-        setError(authErrorMessage(res.error) ?? t("We could not sign you in. Check your details and try again."));
+      if (!res?.ok || res.error) {
+        setError(authErrorMessage(res?.error ?? undefined) ?? t("We could not sign you in. Check your details and try again."));
+        sendEvent(ANALYTICS_EVENTS.loginFailed, { method: "credentials", error_code: "credentials_rejected" });
       } else {
         sendEvent(ANALYTICS_EVENTS.loginSucceeded, {
           method: "credentials",
@@ -90,6 +94,7 @@ export default function LoginPage() {
       }
     } catch {
       setError(t("We could not reach the sign-in service. Check your connection and try again."));
+      sendEvent(ANALYTICS_EVENTS.loginFailed, { method: "credentials", error_code: "login_network_error" });
     } finally {
       setLoading(false);
     }
@@ -118,10 +123,15 @@ export default function LoginPage() {
     <main className="page page-tight">
       <div className="container">
         <div className="card auth-card auth-card--expanded stack">
+          <AuthModeSwitch mode="login" alternateHref={signupHref} onSwitch={() => saveAuthEmail(email)} />
           <div className="auth-card-header">
             <h1 className="page-title">{t("Log in")}</h1>
-            <p className="page-subtitle">{t("Welcome back to Note2Tabs.")}</p>
+            {router.query.accountCreated === "1" && <p className="page-subtitle" role="status">{t("Account created. Log in to continue.")}</p>}
           </div>
+          <button type="button" onClick={() => void handleGoogleSignIn()} disabled={loading} className="button-secondary">
+            <img src="/icons/google.svg" alt="" width={17} height={16} aria-hidden="true" />{t(" Continue with Google ")}
+          </button>
+          <div className="auth-card-divider" aria-hidden="true"><span>{t("or")}</span></div>
           <form className="stack" onSubmit={handleSubmit}>
             <div className="form-group">
               <label className="label" htmlFor="login-email">{t("Email")}</label>
@@ -154,19 +164,8 @@ export default function LoginPage() {
               {loading ? t("Signing in...") : t("Log in")}
             </button>
           </form>
-          <div className="auth-card-divider" aria-hidden="true">
-            <span>{t("or")}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => void handleGoogleSignIn()}
-            disabled={loading}
-            className="button-secondary"
-          >
-            <img src="/icons/google.svg" alt="" width={17} height={16} aria-hidden="true" />{t(" Continue with Google ")}</button>
           <div className="auth-links-row auth-links-row--between">
-            <Link href={signupHref} className="button-link">{t(" Need an account? Sign up ")}</Link>
-            <Link href="/reset-password" className="button-link">{t(" Forgot password? ")}</Link>
+            <Link href="/reset-password" onClick={() => saveAuthEmail(email)} className="button-link">{t(" Forgot password? ")}</Link>
           </div>
         </div>
       </div>

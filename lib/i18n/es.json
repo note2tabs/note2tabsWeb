@@ -1847,5 +1847,10 @@
   "Review before payment": "Revisa antes de pagar",
   "Upgrade to Pro — {price}": "Cambiar a Pro — {price}",
   "{credits} credits exchanged · {amount} off your first month": "{credits} créditos canjeados · {amount} de descuento el primer mes",
-  "{percent}% off": "−{percent}%"
+  "{percent}% off": "−{percent}%",
+  "Account access": "Acceso a la cuenta",
+  "Show password": "Mostrar contraseña",
+  "Account created. Log in to continue.": "Cuenta creada. Inicia sesión para continuar.",
+  "Hide password": "Ocultar contraseña",
+  "Create free account": "Crear cuenta gratis"
 }

@@ -2331,6 +2331,28 @@ input[type="number"] {
   text-align: center;
 }
 
+.auth-mode-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--surface-muted, #f1f5f3);
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.auth-mode-switch > * { padding: 10px 12px; border-radius: 9px; color: var(--muted); }
+.auth-mode-switch > [aria-current="page"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgb(0 0 0 / 8%); }
+.auth-mode-switch a:hover { color: var(--text); }
+.auth-mode-switch a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.auth-field-hint { margin: 4px 0 0; color: var(--muted); font-size: 0.8rem; line-height: 1.5; }
+.auth-password-field { position: relative; }
+.auth-password-field .form-input { display: block; width: 100%; min-width: 0; padding-inline-end: 52px; }
+.auth-password-toggle { position: absolute; inset-inline-end: 2px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 10px; background: transparent; color: var(--muted); cursor: pointer; }
+.auth-password-toggle:hover { color: var(--text); background: rgb(0 0 0 / 4%); }
+.auth-password-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+
 .auth-links-row {
   display: flex;
   flex-wrap: wrap;

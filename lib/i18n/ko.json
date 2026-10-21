@@ -1847,5 +1847,10 @@
   "Review before payment": "결제 전 확인",
   "Upgrade to Pro — {price}": "Pro로 업그레이드 — {price}",
   "{credits} credits exchanged · {amount} off your first month": "{credits}크레딧 전환 · 첫 달 {amount} 할인",
-  "{percent}% off": "{percent}% 할인"
+  "{percent}% off": "{percent}% 할인",
+  "Account access": "계정 접속",
+  "Show password": "비밀번호 표시",
+  "Account created. Log in to continue.": "계정이 생성되었습니다. 로그인하여 계속하세요.",
+  "Hide password": "비밀번호 숨기기",
+  "Create free account": "무료 계정 만들기"
 }
