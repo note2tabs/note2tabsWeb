@@ -18,14 +18,12 @@ it("provides one substantive bass task page with direct bass entry and visible F
   expect(html.match(/<details\b/g)).toHaveLength(6);
   expect(html).toContain(encodeURIComponent("/images/editor-previews/bass-editor.png"));
 });
-it("lists the single English bass page once without invented translated URLs or alternate links", async () => {
+it("lists the English bass pages once", async () => {
   const write = vi.fn();
   await getServerSideProps({ res: { setHeader: vi.fn(), write, end: vi.fn() } } as any);
   const xml = write.mock.calls[0]?.[0] || "";
   expect(xml.match(/<loc>https:\/\/www.note2tabs.com\/bass-tab-editor<\/loc>/g)).toHaveLength(1);
   expect(xml.match(/<loc>https:\/\/www.note2tabs.com\/audio-to-bass-tabs<\/loc>/g)).toHaveLength(1);
-  expect(xml).not.toMatch(/\/(?:es|ja|pt-br|ko|ar|pl|zh-hans|fr|it)\/audio-to-bass-tabs/);
-  expect(xml).not.toMatch(/\/(?:es|ja|pt-br|ko|ar|pl|zh-hans|fr|it)\/bass-tab-editor/);
 });
 
 

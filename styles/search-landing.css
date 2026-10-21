@@ -100,3 +100,5 @@
   .search-landing-preview-transcription * { animation: none !important; }
   .search-transcription-scan { display: none; }
 }
+/* Navigation arrows follow the reading direction; tablature remains left-to-right. */
+[dir="rtl"] .search-landing-primary > span { transform: scaleX(-1); }

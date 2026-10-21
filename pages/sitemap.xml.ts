@@ -24,6 +24,8 @@ const staticPaths = [
   "/affiliate-program",
   "/privacy",
   "/terms",
+  "/bass-tab-editor",
+  "/audio-to-bass-tabs",
   "/audio-to-guitar-tab-converter",
   "/youtube-to-guitar-tabs",
   "/mp3-to-guitar-tabs",
@@ -86,10 +88,12 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   });
 
   const releasedLocales = TRANSLATED_LOCALES.filter(localizedPilotIndexable);
-  const paths = [...staticPaths, "/bass-tab-editor", "/audio-to-bass-tabs", ...releasedLocales.flatMap(locale => staticPaths.map(path => localeHref(path, locale)))];
+  const paths = [...staticPaths, ...releasedLocales.flatMap(locale => staticPaths.map(path => localeHref(path, locale)))];
   const entries: SitemapEntry[] = paths.map((path) => ({
     loc: buildUrl(baseUrl, path),
-    ...(localeFromPath(path) !== "en"
+    ...(["/bass-tab-editor", "/audio-to-bass-tabs"].includes(stripLocale(path))
+      ? { lastmod: "2026-10-22T00:00:00.000Z" }
+      : localeFromPath(path) !== "en"
       ? { lastmod: "2026-10-16T00:00:00.000Z" }
       : recentlyUpdatedSeoPaths.has(path)
       ? {

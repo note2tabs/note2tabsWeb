@@ -6,13 +6,12 @@ export default function AudioToBassTabsPage() {
     metaTitle="Audio to Bass Tabs – Bass Transcription Online | Note2Tabs"
     description="Transcribe a bass recording into editable tablature. Upload your audio, generate tabs, then listen, refine the bassline and export your part."
     canonicalPath="/audio-to-bass-tabs"
-    hasTranslation={false}
     primaryCta={{ label: "Transcribe bass audio", href: "/transcribe" }}
     secondaryCta={{ label: "Write a bass tab instead", href: "/bass-tab-editor" }}
     preview={{ src: "/images/editor-previews/bass-transcription-tab.svg", width: 790, height: 220, label: "Audio to bass tabs", transcription: true, alt: "Two-bar bass tablature with fret numbers on four strings" }}
     steps={[
       { title: "Choose your recording", body: "Upload your bass audio and select the passage you want to transcribe." },
-      { title: "Generate the tab", body: "Run the transcriber to turn the recording’s notes and timing into editable tablature." },
+      { title: "Generate bass tabs", body: "Run the transcriber to turn the recording’s notes and timing into editable tablature." },
       { title: "Make it your own", body: "Listen back, refine the notes and fingering, and export the part for practice or arranging." },
     ]}
     detail={{

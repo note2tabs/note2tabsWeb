@@ -6,7 +6,6 @@ export default function BassTabEditorPage() {
     metaTitle="Bass Tab Maker & Editor Online – Free | Note2Tabs"
     description="Write bass tabs online with four-string tablature, playback and export. Start a bass track in your browser, shape the bassline, and save your arrangement."
     canonicalPath="/bass-tab-editor"
-    hasTranslation={false}
     primaryCta={{ label: "Open bass editor", href: "/gte/new?track=bass" }}
     secondaryCta={{ label: "Transcribe bass audio", href: "/audio-to-bass-tabs" }}
     preview={{ src: "/images/editor-previews/bass-editor.png", width: 790, height: 170, label: "Bass tab editor", alt: "Four-string bass tablature in the Note2Tabs editor" }}
