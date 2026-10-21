@@ -27,7 +27,7 @@ describe.each(ALL_LOCALES)('%s account access', locale => {
     const href = `${localeHref('/auth/login',locale)}?next=${encodeURIComponent(localeHref(m.query.next,locale))}`;
     expect(html).toContain(escaped(href));
     expect(html).not.toContain('signup-name');
-    for (const key of ['Hide password','Creating an account is free.']) {
+    for (const key of ['Hide password']) {
       expect(catalogs[locale][key],key).toBeTruthy();
       if(locale !== 'en') expect(catalogs[locale][key],key).not.toBe(key);
     }

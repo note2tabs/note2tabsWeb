@@ -1839,7 +1839,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                     >
                       {submitLabel}
                     </button>
-                    {!isSignedIn && <p>{canSubmit ? t("A free account is required. Your selection will be saved.") : t("Creating an account is free.")}</p>}
+                    {!isSignedIn && canSubmit && <p>{t("A free account is required. Your selection will be saved.")}</p>}
                   </div>
                 </div>
               </div>

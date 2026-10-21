@@ -32,10 +32,9 @@ Three available auth-related recording metadata results had zero console errors,
 - Move the existing Google option above email credentials. Email remains directly available in every language, including Chinese.
 - Remove the optional name field from signup; the existing API already accepts omitted names. Account settings can still collect a name.
 - Show the existing 10-character password requirement before submission and provide an eye icon inside the password field. Passwords remain masked by default and security policy is unchanged.
-- Show the short “Creating an account is free.” message before an audio selection on homepage and transcriber, replacing it with the existing saved-selection explanation when ready to submit.
 - Handle rejected, missing or thrown automatic login after successful account creation: send the user to login with a translated account-created message and the original return destination, instead of silently returning them signed out to the transcriber. This is a reproduced code defect, not proven to be the historical conversion cause.
 - Guard rapid signup submissions. Record first email-form interaction once per mounted page and browser validation failure once per unchanged form, using categories only. Record previously missing credential-login rejection and network failures. Existing `signup_started` and server-owned `signup_completed` semantics are unchanged. No credentials or input values are added to telemetry.
-- Translate all five new strings across all ten languages.
+- Translate all four new strings across all ten languages.
 
 ## Research and applicability
 
@@ -51,7 +50,7 @@ No claimed conversion lift, copied ecommerce benchmark, new promotional popup, a
 - TypeScript and webpack production build pass.
 - Actual production build served locally: English account-mode switch preserves pending-upload return path. English/French/Arabic mobile signup fits a 390×844 viewport (submit bottom ~733 px), no horizontal overflow; Arabic document direction is RTL. Browser preference restored to English after testing.
 - No production accounts created, emails sent, payments attempted, or production configuration changed.
-- Wider localization suite: two pre-existing failures in `frenchItalianLocales.test.ts`. French and Italian already contain 24 additional public keys relative to English on the branch base (0785bb98), causing exact-key-set assertions to fail. This branch adds the same five keys everywhere and does not introduce or remove that existing difference. Ten-language signup-specific checks pass.
+- Wider localization suite: two pre-existing failures in `frenchItalianLocales.test.ts`. French and Italian already contain 24 additional public keys relative to English on the branch base (0785bb98), causing exact-key-set assertions to fail. This branch adds the same four keys everywhere and does not introduce or remove that existing difference. Ten-language signup-specific checks pass.
 
 ## After release
 
