@@ -29,6 +29,12 @@ export default function Mp3ToGuitarTabsPage() {
         title: "Convert an MP3 into guitar tabs you can edit and play",
         paragraphs: [
           "Upload an MP3 from your computer or phone and choose the part you want to convert. Note2Tabs analyzes its pitch and timing, maps the performance to guitar strings and frets, and opens the result as a native editor project.",
+          "The output is structured tablature rather than an image or plain text. Play the transcription, choose alternate fingerings, organize sections, practise difficult bars, and export the finished tab from the same browser workspace.",
+        ],
+        benefits: [
+          { title: "Fast clip selection", body: "Set a start and end time before transcription instead of trimming the MP3 yourself." },
+          { title: "Two model choices", body: "Choose Light or Heavy for your recording." },
+          { title: "Continue in the editor", body: "Shape the generated notes into the fingering and structure you prefer." },
         ],
       }}
       contentSections={[
@@ -36,6 +42,20 @@ export default function Mp3ToGuitarTabsPage() {
           title: "How to get a clearer MP3-to-tab conversion",
           paragraphs: [
             "Use an MP3 in which the guitar is easy to hear. Isolated guitar, direct recordings, lesson demonstrations, covers, and sections with fewer overlapping instruments give the transcriber more detail to analyze.",
+            "Start with the riff, solo, or section you need most. A focused selection is faster to review and lets you confirm that the source is suitable before processing more of the song.",
+          ],
+          bullets: [
+            "Choose the clearest available version of the recording.",
+            "Remove long silence or unrelated sections from the selected range.",
+            "Choose the Light or Heavy model for your recording.",
+            "Compare playback with the source before choosing final fingerings.",
+          ],
+        },
+        {
+          title: "MP3 transcription and the guitar tab editor work together",
+          paragraphs: [
+            "The transcriber is useful when sound is your starting point. The editor is a complete product of its own for writing tabs from scratch, importing existing files, arranging tracks, choosing fretboard positions, and practising.",
+            "After MP3 conversion, every generated note remains editable. You can keep the transcription as a starting point, rewrite a phrase, add guitar techniques, or combine it with parts you enter manually.",
           ],
         },
       ]}

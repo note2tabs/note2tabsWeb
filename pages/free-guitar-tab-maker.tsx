@@ -29,6 +29,12 @@ export default function FreeGuitarTabMakerPage() {
         title: "Create tabs from a recording or start with a blank editor",
         paragraphs: [
           "Use the free plan to try audio transcription on short clips, or open the browser editor and write tablature yourself. Both routes lead to the same editable workspace, so you can combine generated notes with your own changes.",
+          "The editor is designed around guitar work: multiple tracks, playback, practice loops, fretboard-aware note positions, keyboard shortcuts, and import or export tools are available from the browser.",
+        ],
+        benefits: [
+          { title: "Start without installing software", body: "Create and edit tablature in a modern browser on desktop or mobile." },
+          { title: "Free monthly credits", body: "Free accounts receive 10 monthly transcription credits for testing riffs and short ideas." },
+          { title: "Save your work", body: "Signed-in users can keep transcriptions and editor projects in their Note2Tabs library." },
         ],
       }}
       contentSections={[
@@ -36,6 +42,20 @@ export default function FreeGuitarTabMakerPage() {
           title: "A free online tab maker built for guitar",
           paragraphs: [
             "Start a blank tab without installing software or creating an account. Add notes and chords on a guitar-aware timeline, choose playable strings and frets, organize the song into sections, and listen back while you work.",
+            "Unlike a plain text tab creator, Note2Tabs keeps timing, pitch, fingering, playback, and practice connected. Sign in only when you want to save the project to your library and continue on another device.",
+          ],
+          bullets: [
+            "Write riffs, solos, chord progressions, and complete arrangements.",
+            "Choose alternate string and fret positions for the same pitch.",
+            "Loop sections and slow playback down while practising.",
+            "Import an existing file or continue from an audio transcription.",
+          ],
+        },
+        {
+          title: "Make a tab yourself or generate a starting point",
+          paragraphs: [
+            "Use the editor as a standalone guitar tab maker when you already know the part. If you are starting from a recording, the AI transcriber can generate a structured first version and open it in the same editor for review and arrangement.",
+            "The two products complement each other without depending on each other: manual tab making remains available on its own, and every generated transcription stays editable.",
           ],
         },
       ]}

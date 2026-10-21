@@ -24,6 +24,7 @@ type SeoLandingPageProps = {
   detail?: {
     title: string;
     paragraphs: string[];
+    benefits?: Array<{ title: string; body: string }>;
   };
   contentSections?: Array<{
     title: string;
@@ -168,6 +169,7 @@ export default function SeoLandingPage({
           <div className="search-landing-reference">
             {detail && <section className="search-landing-detail"><h2>{t(detail.title)}</h2>
               {detail.paragraphs.map(paragraph => <p key={paragraph}>{t(paragraph)}</p>)}
+              {detail.benefits?.length ? <ul className="search-landing-benefits">{detail.benefits.map(benefit => <li key={benefit.title}><strong>{t(benefit.title)}</strong> {t(benefit.body)}</li>)}</ul> : null}
             </section>}
             {contentSections.map(section => <section className="search-landing-detail" key={section.title}>
               <h2>{t(section.title)}</h2>

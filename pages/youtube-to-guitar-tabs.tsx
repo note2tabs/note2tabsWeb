@@ -29,6 +29,13 @@ export default function YoutubeToGuitarTabsPage() {
         title: "Focus the transcription on the exact riff you need",
         paragraphs: [
           "Paste a public YouTube URL, set the start and end times, and transcribe a focused clip. The link mode opens automatically, so you can go straight from this page to choosing the section.",
+          "Selecting a precise segment makes the result faster to review and avoids spending credits on parts you do not need.",
+          "Free: 30 seconds. Premium: 10 minutes. Pro: 20 minutes. Your clip can start anywhere in the video.",
+        ],
+        benefits: [
+          { title: "Timestamp controls", body: "Choose a specific solo, riff, or chord passage instead of processing the whole video." },
+          { title: "No download step", body: "Start from the YouTube link without first saving an audio file to your device." },
+          { title: "Complete editor included", body: "Open the tab to write, arrange, play, practise, and choose guitar positions." },
         ],
       }}
       contentSections={[
@@ -36,6 +43,27 @@ export default function YoutubeToGuitarTabsPage() {
           title: "Turn a YouTube riff or solo into an editable tab",
           paragraphs: [
             "The converter reads the selected audio segment and creates timed notes with guitar string and fret positions. The result opens as a real Note2Tabs project—not a screenshot—so you can correct a phrase, choose another fingering, arrange sections, practise loops, and export the tab.",
+            "Use the timestamp controls to target the musical part behind your search. A short, clear section is usually more useful than processing an intro, spoken lesson, silence, and the riff together.",
+          ],
+        },
+        {
+          title: "Choose a YouTube clip that is easier to transcribe",
+          paragraphs: [
+            "Clear covers, lessons, playthroughs, and isolated guitar performances give the model more guitar detail than noisy live recordings or full mixes where several instruments occupy the same range.",
+            "Set timestamps around the exact riff, chord passage, or solo you need. A focused clip is faster to inspect and makes it easier to compare the generated tab with the original performance.",
+          ],
+          bullets: [
+            "Prefer a video where the guitar is clearly audible.",
+            "Free: 30 seconds. Premium: 10 minutes. Pro: 20 minutes. Your clip can start anywhere in the video.",
+            "Avoid intros, talking, or silence outside the section you need.",
+            "Use the same timestamp when you want to play the tab alongside the original performance.",
+          ],
+        },
+        {
+          title: "Why the homepage and this converter serve different jobs",
+          paragraphs: [
+            "The Note2Tabs homepage is the quickest place to start from either audio or YouTube. This page is specifically for people starting with a video link and explains the clip limits, timestamp workflow, source-quality tradeoffs, and editing process in more detail.",
+            "If you already have an MP3 or WAV file, use audio upload instead. If the best version is a public cover, lesson, or performance on YouTube, use this focused converter path.",
           ],
         },
       ]}

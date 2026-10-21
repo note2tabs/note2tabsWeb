@@ -28,7 +28,7 @@ describe("Search Console opportunity pages", () => {
   it("differentiates the audio product workflow from the editorial guide", () => {
     const html = renderToStaticMarkup(createElement(AudioToGuitarTabConverterPage));
 
-    expect(html).not.toContain("Converter or guide: choose the right page");
+    expect(html).toContain("Converter or guide: choose the right page");
     expect(html).toContain("Which recordings convert best?");
     expect(html).toContain("/blog/how-to-convert-audio-to-guitar-tabs");
     expect(html).toContain("Can I convert an MP3 to guitar tabs for free?");
@@ -38,7 +38,7 @@ describe("Search Console opportunity pages", () => {
     const html = renderToStaticMarkup(createElement(YoutubeToGuitarTabsPage));
 
     expect(html).toContain("YouTube to Guitar Tabs Converter");
-    expect(html).not.toContain("Why the homepage and this converter serve different jobs");
+    expect(html).toContain("Why the homepage and this converter serve different jobs");
     expect(html).not.toContain("within the first ten minutes");
     expect(html).toContain("Your clip can start anywhere in the video.");
     expect(html).toContain("Turn a YouTube riff or solo into an editable tab");
