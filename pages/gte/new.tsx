@@ -16,7 +16,7 @@ export default function NewEditorPage() {
   const createdEditorId = useRef<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const start = useCallback(async () => {
-    if (status === "loading" || started.current) return;
+    if (status === "loading" || router.isReady === false || started.current) return;
     started.current = true;
     setError(null);
     try {
@@ -24,7 +24,7 @@ export default function NewEditorPage() {
         ? (createdEditorId.current ?? (createdEditorId.current = (await gteApi.createEditor()).editorId))
         : GTE_GUEST_EDITOR_ID;
       // Replace the entry route so Back cannot create another blank tab.
-      const navigated = await router.replace(`/gte/${editorId}`);
+      const navigated = await router.replace(`/gte/${editorId}${router.query?.track === "bass" ? "?track=bass" : ""}`);
       if (navigated === false) throw new Error("We could not start a new tab. Check your connection and try again.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "We could not start a new tab. Check your connection and try again.");

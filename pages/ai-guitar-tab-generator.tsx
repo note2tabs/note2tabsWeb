@@ -12,6 +12,7 @@ export default function AiGuitarTabGeneratorPage() {
       metaTitle={AI_GENERATOR_META_TITLE}
       description="Try an AI guitar tab generator free with audio or YouTube. Create structured, editable tabs you can play, arrange, practise, and export online."
       canonicalPath="/ai-guitar-tab-generator"
+      preview={{ src: "/images/editor-previews/guitar-transcription-tab.svg", width: 790, height: 260, label: "Guitar tab editor", alt: "Example tab in the Note2Tabs editor", transcription: true }}
       primaryCta={{ label: "Generate tabs", href: "/transcribe" }}
       secondaryCta={{ label: "Open editor", href: "/gte/new" }}
       steps={[

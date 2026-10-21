@@ -9,6 +9,7 @@ export default function AudioToGuitarTabConverterPage() {
       metaTitle="Audio to Guitar Tab Converter – MP3, WAV & More"
       description="Convert audio to playable, editable guitar tabs online. Upload MP3, WAV, M4A, or FLAC, generate tablature, then practise, edit, and export it."
       canonicalPath="/audio-to-guitar-tab-converter"
+      preview={{ src: "/images/editor-previews/guitar-transcription-tab.svg", width: 790, height: 260, label: "Guitar tab editor", alt: "Example tab in the Note2Tabs editor", transcription: true }}
       primaryCta={{ label: "Start transcribing", href: "/transcribe" }}
       secondaryCta={{ label: "Open editor", href: "/gte/new" }}
       steps={[

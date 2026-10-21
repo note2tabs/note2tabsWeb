@@ -1,3 +1,4 @@
+import { ensureBassEditorEntry } from "../../lib/bassEditorEntry";
 import { useEngagementExperiment, announceEngagementPlayback, ENGAGEMENT_PLAYBACK_ACTIVE_EVENT, acknowledgeEngagementContact } from "../../lib/engagement/react";
 import {editorInstrumentName} from "../../lib/i18n/editor/instruments";
 import { editorName } from "../../lib/i18n/editor/names";
@@ -2079,7 +2080,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     setError(null);
     try {
       const data = await gteApi.getEditor(editorId);
-      const normalized = normalizeCanvas(data, editorId);
+      let normalized = normalizeCanvas(data, editorId);
+      if (router.query.track === "bass") normalized = normalizeCanvas(await ensureBassEditorEntry(editorId, normalized), editorId);
       const previous = canvasRef.current;
       if (previous?.id === normalized.id) recordCanvasHistory(previous, normalized);
       else resetCanvasHistory();
@@ -2133,6 +2135,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               await gteApi.applySnapshot(editorId, normalized);
             }
           }
+          if (router.query.track === "bass") normalized = normalizeCanvas(await ensureBassEditorEntry(editorId, normalized), editorId);
           const previous = canvasRef.current;
           if (previous?.id === normalized.id) recordCanvasHistory(previous, normalized);
           else resetCanvasHistory();

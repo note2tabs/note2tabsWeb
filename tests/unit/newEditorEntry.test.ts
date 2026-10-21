@@ -3,12 +3,12 @@ import { StrictMode, act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ status: "loading", create: vi.fn(), replace: vi.fn() }));
+const mocks = vi.hoisted(() => ({ status: "loading", query: {} as Record<string,string>, create: vi.fn(), replace: vi.fn() }));
 vi.mock("next-auth/react", () => ({ useSession: () => ({ status: mocks.status }) }));
 vi.mock("next/head", () => ({ default: () => null }));
 vi.mock("../../lib/i18n/react", () => ({
   useLocale: () => ({ t: (s: string) => s, locale: "en" }),
-  useLocaleRouter: () => ({ replace: mocks.replace }),
+  useLocaleRouter: () => ({ replace: mocks.replace, query: mocks.query }),
 }));
 vi.mock("../../lib/i18n/editor/request", () => ({ withEditorLocale: (fn: unknown) => fn }));
 vi.mock("../../lib/gteApi", () => ({ gteApi: { createEditor: mocks.create } }));
@@ -19,6 +19,7 @@ let element: HTMLDivElement;
 beforeEach(() => {
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
   mocks.status = "loading";
+  mocks.query = {};
   mocks.create.mockReset().mockResolvedValue({ editorId: "created-tab" });
   mocks.replace.mockReset().mockResolvedValue(true);
   element = document.createElement("div");
@@ -26,6 +27,13 @@ beforeEach(() => {
 });
 afterEach(async () => { await act(async () => root.unmount()); });
 const render = () => act(async () => root.render(createElement(StrictMode, null, createElement(NewEditorPage))));
+
+it.each(["authenticated", "unauthenticated"])("keeps bass intent in the %s workspace entry", async status => {
+  mocks.status = status;
+  mocks.query = { track: "bass" };
+  await render();
+  expect(mocks.replace).toHaveBeenCalledExactlyOnceWith(`/gte/${status === "authenticated" ? "created-tab" : "local"}?track=bass`);
+});
 
 it("waits for authentication before creating exactly one tab under StrictMode", async () => {
   await render();
