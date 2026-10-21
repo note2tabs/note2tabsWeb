@@ -2141,7 +2141,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
               </ul>
             </div>
             <div className="editor-showcase-actions" data-reveal>
-              <Link href="/editor" className="button-primary">{t(" Try the guitar tab editor ")}</Link>
+              <Link href="/gte/new" className="button-primary">{t(" Try the guitar tab editor ")}</Link>
             </div>
           </div>
         </section>

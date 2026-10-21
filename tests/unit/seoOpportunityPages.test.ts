@@ -17,7 +17,7 @@ describe("Search Console opportunity pages", () => {
       "Free AI Guitar Tab Generator | Audio & YouTube"
     );
     expect(html).toContain("Try an AI guitar tab generator free");
-    expect(html).toContain("What helps the AI capture the most detail?");
+    expect(html).toContain("From a recording to an editable guitar tab");
     expect(html).toContain("Try the AI guitar tab generator free on a short section");
     expect(html).toContain("Is the AI guitar tab generator free?");
     expect(html).toContain("/features");
@@ -29,6 +29,7 @@ describe("Search Console opportunity pages", () => {
     const html = renderToStaticMarkup(createElement(AudioToGuitarTabConverterPage));
 
     expect(html).toContain("Converter or guide: choose the right page");
+    expect(html).toContain("Which recordings convert best?");
     expect(html).toContain("/blog/how-to-convert-audio-to-guitar-tabs");
     expect(html).toContain("Can I convert an MP3 to guitar tabs for free?");
   });
@@ -38,6 +39,8 @@ describe("Search Console opportunity pages", () => {
 
     expect(html).toContain("YouTube to Guitar Tabs Converter");
     expect(html).toContain("Why the homepage and this converter serve different jobs");
+    expect(html).not.toContain("within the first ten minutes");
+    expect(html).toContain("Your clip can start anywhere in the video.");
     expect(html).toContain("Turn a YouTube riff or solo into an editable tab");
     expect(html).toContain("/blog/youtube-to-guitar-tabs-workflow");
   });
@@ -47,7 +50,7 @@ describe("Search Console opportunity pages", () => {
     const html = renderToStaticMarkup(createElement(FreeGuitarTabMakerPage));
 
     expect(html).toContain("A free online tab maker built for guitar");
-    expect(html).toContain("Make a tab yourself or generate a starting point");
+    expect(html).toContain("Start a blank tab");
     expect(html).toContain('href="/editor"');
     expect(html).toContain('href="/features"');
   });

@@ -14665,3 +14665,51 @@ html[lang="ar"] [data-editor-locale="ar"] :is(input[type="text"], textarea) {
 }
 .pricing-page--focused .pricing-plan__cta--upgrade:hover { background: #262626; }
 
+
+/* Content entry: restrained article typography and a visible, task-specific action. */
+.blog-post .post-header--reader { width: min(100%, 994px); gap: 16px; margin-bottom: 16px; }
+.blog-post .post-title { font-size: clamp(2rem, 4vw, 3.25rem); line-height: 1.12; letter-spacing: -0.035em; }
+.blog-post .post-lead { margin: 0; font-size: 1.05rem; max-width: 68ch; }
+.blog-post .post-entry-action { margin: 4px 0 0; }
+.blog-post .post-entry-action a { gap: 14px; }
+.blog-post .post-end-cta { border-radius: 0; background: transparent; border: 0; border-top: 1px solid var(--border); box-shadow: none; padding: 28px 0; align-items: center; }
+.blog-post .post-end-cta h2 { font-size: 1.35rem; }
+.blog-post .post-end-cta > a { justify-self: end; gap: 14px; }
+.blog-post .post-tool-paths { border-radius: 0; box-shadow: none; background: transparent; }
+.import-export-content { max-width: 980px; padding-block: 48px 64px; }
+.import-export-breadcrumb { display: flex; gap: 12px; font-size: 0.85rem; color: var(--muted); }
+.import-export-header { max-width: 740px; margin-block: 32px 44px; }
+.import-export-header h1 { font-size: clamp(2.1rem, 4.5vw, 3.5rem); line-height: 1.1; letter-spacing: -0.04em; margin: 0 0 18px; }
+.import-export-header p { font-size: 1.1rem; line-height: 1.65; color: var(--muted); margin: 0 0 24px; }
+.import-export-header small { display: block; max-width: 55ch; margin-top: 12px; color: var(--muted); line-height: 1.6; }
+.import-export-header a, .import-export-next .button-primary { gap: 16px; }
+.import-export-formats h2, .import-export-details h2 { font-size: 1.35rem; margin: 0 0 18px; letter-spacing: -0.02em; }
+.import-export-table-scroll { overflow-x: auto; }
+.import-export-formats table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+.import-export-formats th, .import-export-formats td { padding: 16px 12px; text-align: start; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.6; }
+.import-export-formats thead th { color: var(--muted); font-size: 0.8rem; font-weight: 500; }
+.import-export-formats tbody th { width: 24%; font-weight: 600; }
+.import-export-formats td { overflow-wrap: anywhere; }
+.import-export-workflow { list-style: none; counter-reset: workflow; padding: 0; margin: 44px 0; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 32px; }
+.import-export-workflow li { counter-increment: workflow; }
+.import-export-workflow li::before { content: counter(workflow, decimal-leading-zero); font-size: 0.8rem; color: var(--muted); }
+.import-export-workflow h2 { font-size: 1.05rem; margin: 12px 0 8px; }
+.import-export-workflow p, .import-export-details p, .import-export-faq p { color: var(--muted); line-height: 1.75; margin: 0; }
+.import-export-details { display: grid; gap: 32px; max-width: 75ch; }
+.import-export-faq { margin-block: 40px; }
+.import-export-faq details { border-top: 1px solid var(--border); padding-block: 18px; }
+.import-export-faq summary { cursor: pointer; font-weight: 600; }
+.import-export-faq p { margin-top: 14px; max-width: 75ch; }
+.import-export-next { border-top: 1px solid var(--border); padding-top: 28px; display: flex; flex-wrap: wrap; align-items: center; gap: 24px; }
+@media (max-width: 640px) {
+  .blog-post .post-end-cta > a { justify-self: start; }
+  .import-export-content { padding-block: 28px 40px; }
+  .import-export-workflow { grid-template-columns: 1fr; gap: 24px; }
+  .import-export-formats th, .import-export-formats td { padding: 12px 6px; }
+  .import-export-formats table { font-size: 0.8rem; }
+}
+
+.import-export-related { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-bottom: 32px; font-size: 0.9rem; }
+.import-export-related a { text-decoration: underline; text-underline-offset: 4px; }
+.blog-post .post-header--reader { padding-block: 40px 18px; }
+@media (max-width: 640px) { .blog-post .post-header--reader { padding-top: 24px; } }

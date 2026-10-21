@@ -16,12 +16,13 @@ export default function BlogProductLink({
   onClick,
   ...props
 }: BlogProductLinkProps) {
-  const destination = typeof href === "string" ? href : href.pathname || "/";
+  const target = href === "/editor" ? "/gte/new" : href;
+  const destination = typeof target === "string" ? target : target.pathname || "/";
 
   return (
     <Link
       {...props}
-      href={href}
+      href={target}
       onClick={(event) => {
         trackCtaClick(cta, {
           article_slug: articleSlug,

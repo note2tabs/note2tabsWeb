@@ -1852,5 +1852,19 @@
   "Show password": "إظهار كلمة المرور",
   "Account created. Log in to continue.": "تم إنشاء الحساب. سجّل الدخول للمتابعة.",
   "Hide password": "إخفاء كلمة المرور",
-  "Create free account": "إنشاء حساب مجاني"
+  "Create free account": "إنشاء حساب مجاني",
+  "Supported formats": "الصيغ المدعومة",
+  "Format": "الصيغة",
+  "Import": "استيراد",
+  "ASCII tab": "تابلاتشر ASCII",
+  "MusicXML": "MusicXML",
+  "MIDI": "MIDI",
+  "Guitar Pro": "Guitar Pro",
+  "Note2Tabs JSON": "Note2Tabs JSON",
+  "Related features": "ميزات ذات صلة",
+  "Audio": "صوت",
+  "Example tab in the Note2Tabs editor": "مثال على التاب في محرر Note2Tabs",
+  "Free: 30 seconds. Premium: 10 minutes. Pro: 20 minutes. Your clip can start anywhere in the video.": "المجاني: 30 ثانية. Premium: 10 دقائق. Pro: 20 دقيقة. يمكن أن يبدأ المقطع من أي موضع في الفيديو.",
+  "Choose any section of a public video. Clip length depends on your plan; you do not need to start at the beginning.": "اختر أي جزء من فيديو عام. تعتمد مدة المقطع على خطتك، ولا يلزم أن يبدأ من بداية الفيديو.",
+  "Selecting a precise segment makes the result faster to review and avoids spending credits on parts you do not need.": "يساعد اختيار مقطع محدد على مراجعة النتيجة بسرعة أكبر وتجنب إنفاق الرصيد على أجزاء لا تحتاج إليها."
 }

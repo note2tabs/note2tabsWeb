@@ -7,6 +7,7 @@ import {
   type SeoFeaturePage,
 } from "../lib/seoFeaturePages";
 import SeoHead, { EDITOR_APPLICATION_ID, absoluteUrl } from "./SeoHead";
+import ImportExportFeature from "./ImportExportFeature";
 
 type FeatureVisual = {
   image: string;
@@ -115,6 +116,7 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
   return (
     <>
       <SeoHead title={t(page.metaTitle)} description={page.description} canonicalPath={canonicalPath} jsonLd={jsonLd} />
+      {page.slug === "guitar-tab-import-export" ? <ImportExportFeature page={page} /> : (
       <main className={`feature-story feature-story--${visual.tone}`}>
         <section className="feature-story-hero">
           <div className="container feature-story-hero-grid">
@@ -129,7 +131,7 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
               <h1>{t(page.title)}</h1>
               <p>{t(page.description)}</p>
               <div className="feature-story-actions">
-                <Link href="/editor" className="button-primary">{t("Try the editor free")}</Link>
+                <Link href="/gte/new" className="button-primary">{t("Try the editor free")}</Link>
                 <Link href="/transcribe" className="button-secondary">{t("Transcribe audio to tabs")}</Link>
               </div>
               <div className="feature-story-proof" aria-label={t("Product highlights")}>
@@ -251,7 +253,7 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
                   <strong>{t("Explore feature →")}</strong>
                 </Link>
               ))}
-              <Link href="/editor">
+              <Link href="/gte/new">
                 <span>{t("03")}</span>
                 <h3>{t("Online guitar tab editor")}</h3>
                 <p>{t("Write a tab from scratch, import a file, or open a transcription in the same complete browser editor.")}</p>
@@ -265,12 +267,13 @@ export default function FeatureLandingPage({ page }: { page: SeoFeaturePage }) {
           <div className="container feature-story-cta-card">
             <div><span>{t("Ready when you are")}</span><h2>{t("Create your next guitar tab.")}</h2><p>{t("Start blank, import a file, or begin with a transcription. No installation required.")}</p></div>
             <div className="feature-story-actions">
-              <Link href="/editor" className="button-primary">{t("Try the editor free")}</Link>
+              <Link href="/gte/new" className="button-primary">{t("Try the editor free")}</Link>
               <Link href="/transcribe" className="button-secondary">{t("Start with audio")}</Link>
             </div>
           </div>
         </section>
       </main>
+      )}
     </>
   );
 }

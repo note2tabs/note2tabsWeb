@@ -1,11 +1,33 @@
+import { localeHref, type AppLocale } from "./i18n/locale";
+
+/** Correct the known tool-labelled article link without rewriting editorial links. */
+export function directBlogProductLinks(html: string, locale: AppLocale) {
+  return html.replace(/<a\b([^>]*?)href="(?:https:\/\/(?:www\.)?note2tabs\.com)?\/blog\/how-to-convert-audio-to-guitar-tabs"([^>]*)>([\s\S]*?)<\/a>/gi,
+    (anchor, before, after, label) => label.replace(/<[^>]*>/g, "").trim().toLowerCase() === "audio to guitar tab converter"
+      ? `<a${before}href="${localeHref("/transcribe", locale)}"${after}>${label}</a>` : anchor)
+    .replace(/(<a\b[^>]*?href=")(?:https:\/\/(?:www\.)?note2tabs\.com)?\/(?:es\/|pt-br\/|ja\/|ko\/|pl\/|zh-hans\/|ar\/|fr\/|it\/)?editor\/?(")/gi, "$1/gte/new$2");
+}
+
 export type BlogProductPath = {
   href: string;
   label: string;
   description: string;
 };
 
+/** Match the reader's task, rather than incidental words in a long title. */
+export function getBlogPrimaryAction(slug: string, title: string) {
+  const topic = `${slug} ${title}`.toLowerCase();
+  const editorial = /note-to-tab|fingering|practice|how-to-(?:write|edit|read)|import-export|guitar-pro-alternative/.test(slug);
+  const transcribe = !editorial && /youtube|\bmp3\b|\bwav\b|audio|recording|transcri|generator|song-to/.test(topic);
+  return {
+    href: transcribe ? (/youtube/.test(topic) ? "/transcribe?mode=youtube" : "/transcribe") : "/gte/new",
+    label: transcribe ? "Transcribe audio" : "Open the editor",
+    cta: transcribe ? "blog_transcribe" : "blog_editor",
+  };
+}
+
 const editorPath: BlogProductPath = {
-  href: "/editor",
+  href: "/gte/new",
   label: "Online guitar tab editor",
   description: "Write, arrange, play, and practise an editable tab in your browser.",
 };

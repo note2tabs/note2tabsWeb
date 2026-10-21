@@ -13,7 +13,7 @@ import BlogPostCard from "../../components/blog/BlogPostCard";
 import BlogProductLink from "../../components/blog/BlogProductLink";
 import SeoHead, { DEFAULT_OG_IMAGE, ORGANIZATION_ID, WEBSITE_ID, absoluteUrl } from "../../components/SeoHead";
 import { formatBlogDate } from "../../lib/dateFormat";
-import { getBlogProductPaths } from "../../lib/blogProductPaths";
+import { getBlogProductPaths, getBlogPrimaryAction, directBlogProductLinks } from "../../lib/blogProductPaths";
 
 type PostPageProps = {
   post: {
@@ -53,9 +53,7 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
   const displayDate = formatBlogDate(post.publishedAt ?? post.publishAt, locale);
   const hasTaxonomy = post.categories.length > 0 || post.tags.length > 0 || post.clusters.length > 0;
   const pageTitle = /\bNote2Tabs\b/i.test(title) ? title : `${title} | Note2Tabs`;
-  const isTranscriptionGuide = /\b(audio|ai|youtube|mp3|wav|transcri|song-to)\b/i.test(
-    `${post.slug} ${post.title} ${post.tags.map((tag) => tag.name).join(" ")}`
-  );
+  const primaryAction = getBlogPrimaryAction(post.slug, post.title);
   const productPaths = getBlogProductPaths(post.slug, post.title);
 
   const jsonLd = {
@@ -126,7 +124,7 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
       <div className="container stack">
         <header className="post-header post-header--reader">
           <p className="blog-breadcrumb">
-            <Link href="/blog">{t("Blog")}</Link> <span>{t("/")}</span> <span>{post.title}</span>
+            <Link href="/blog">{t("Blog")}</Link>
           </p>
           <span className="blog-kicker">{t(post.categories[0]?.name || "Note2Tabs journal")}</span>
           <h1 className="post-title">{post.title}</h1>
@@ -142,6 +140,10 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
             <span>{readingMinutes} {t(" min read")}</span>
           </p>
           <p className="post-lead">{t(post.excerpt)}</p>
+          <div className="post-entry-action">
+            <BlogProductLink href={primaryAction.href} articleSlug={post.slug} cta={primaryAction.cta}
+              placement="article_intro" className="button-primary">{t(primaryAction.label)} <span aria-hidden="true">→</span></BlogProductLink>
+          </div>
         </header>
 
         {post.coverImageUrl && (
@@ -161,7 +163,7 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
         <div className="post-reader-layout">
           <article className="post-content">
             {locale !== "en" && post.contentLanguage === "en" && <p className="locale-scope-note">{t("This article is currently available in English.")}</p>}
-            <div lang={post.contentLanguage || "en"} dir={post.contentLanguage === "ar" ? "rtl" : "ltr"} className="post-prose" dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
+            <div lang={post.contentLanguage || "en"} dir={post.contentLanguage === "ar" ? "rtl" : "ltr"} className="post-prose" dangerouslySetInnerHTML={{ __html: directBlogProductLinks(post.contentHtml, locale) }} />
             <nav className="post-tool-paths" aria-label={t("Related Note2Tabs tools")}>
               <span className="post-product-eyebrow">{t("Use the right tool")}</span>
               <div>
@@ -181,11 +183,11 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
             </nav>
           </article>
           <aside className="post-reader-rail" aria-label={t("Article navigation and Note2Tabs tools")}>
-            {toc.length > 1 && (
+            {toc.filter(item => item.level === 2).length > 1 && (
               <nav className="toc" aria-label={t("On this page")}>
                 <h2>{t("On this page")}</h2>
                 <ul>
-                  {toc.map((item) => (
+                  {toc.filter(item => item.level === 2).map((item) => (
                     <li key={item.id} className={`toc-level-${item.level}`}>
                       <a href={`#${item.id}`}>{t(item.text)}</a>
                     </li>
@@ -193,46 +195,13 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
                 </ul>
               </nav>
             )}
-            <section className="post-product-card">
-              <span className="post-product-eyebrow">{t("Try Note2Tabs")}</span>
-              <h2>{t(isTranscriptionGuide ? "Turn a recording into playable tabs" : "Put this guide into practice")}</h2>
-              <p>
-                {t(isTranscriptionGuide
-                  ? "Create a structured transcription, then open it in the editor—or use either tool on its own."
-                  : "Write, arrange, play back, and export guitar tabs in the browser. No transcription required.")}
-              </p>
-              <BlogProductLink
-                href={isTranscriptionGuide ? "/transcribe" : "/editor"}
-                articleSlug={post.slug}
-                cta={isTranscriptionGuide ? "blog_transcribe" : "blog_editor"}
-                placement="article_sidebar_primary"
-                className="button-primary"
-              >
-                {t(isTranscriptionGuide ? "Transcribe a song" : "Open the editor")}
-              </BlogProductLink>
-              <BlogProductLink
-                href={isTranscriptionGuide ? "/editor" : "/transcribe"}
-                articleSlug={post.slug}
-                cta={isTranscriptionGuide ? "blog_editor" : "blog_transcribe"}
-                placement="article_sidebar_secondary"
-                className="post-product-link"
-              >
-                {t(isTranscriptionGuide ? "Or create a tab yourself" : "Or transcribe a recording")} {t(" →")}</BlogProductLink>
-            </section>
           </aside>
         </div>
 
         <section className="post-end-cta" aria-labelledby="post-end-cta-title">
-          <div>
-            <span className="post-product-eyebrow">{t("Two complete tools")}</span>
-            <h2 id="post-end-cta-title">{t("Take your next tab from idea to playback")}</h2>
-            <p>
-              {t("Build tabs directly in the editor, transcribe a recording, or move naturally between both.")}</p>
-          </div>
-          <div className="post-end-cta-actions">
-            <BlogProductLink href="/editor" articleSlug={post.slug} cta="blog_editor" placement="article_end" className="button-primary">{t("Try the tab editor")}</BlogProductLink>
-            <BlogProductLink href="/transcribe" articleSlug={post.slug} cta="blog_transcribe" placement="article_end" className="button-secondary">{t("Transcribe audio")}</BlogProductLink>
-          </div>
+          <h2 id="post-end-cta-title">{t(primaryAction.label)}</h2>
+          <BlogProductLink href={primaryAction.href} articleSlug={post.slug} cta={primaryAction.cta}
+            placement="article_end" className="button-primary">{t(primaryAction.label)} <span aria-hidden="true">→</span></BlogProductLink>
         </section>
 
         {hasTaxonomy && (

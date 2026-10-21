@@ -30,6 +30,7 @@ import {
   syncPostHogSessionRecording,
 } from "../lib/posthogClient";
 import "../styles/globals.css";
+import "../styles/search-landing.css";
 
 const AnalyticsIdentityLinker = dynamic(() => import("../components/AnalyticsIdentityLinker"), { ssr: false });
 

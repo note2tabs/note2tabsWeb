@@ -532,7 +532,7 @@ function AccountSettingsPage({ user, stripeReady, credits }: Props) {
           <div className="settingsActions">
             <Link href="/tabs" className="settingsButton settingsButtonSecondary">
               {t("Transcription history")}</Link>
-            <Link href="/gte" className="settingsButton settingsButtonSecondary">
+            <Link href="/gte/new" className="settingsButton settingsButtonSecondary">
               {t("Open editor")}</Link>
           </div>
         </SettingRow>

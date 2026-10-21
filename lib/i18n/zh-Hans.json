@@ -1852,5 +1852,19 @@
   "Show password": "显示密码",
   "Account created. Log in to continue.": "账户已创建，请登录后继续。",
   "Hide password": "隐藏密码",
-  "Create free account": "免费注册账户"
+  "Create free account": "免费注册账户",
+  "Supported formats": "支持的格式",
+  "Format": "格式",
+  "Import": "导入",
+  "ASCII tab": "ASCII 吉他谱",
+  "MusicXML": "MusicXML",
+  "MIDI": "MIDI",
+  "Guitar Pro": "Guitar Pro",
+  "Note2Tabs JSON": "Note2Tabs JSON",
+  "Related features": "相关功能",
+  "Audio": "音频",
+  "Example tab in the Note2Tabs editor": "Note2Tabs 编辑器中的六线谱示例",
+  "Free: 30 seconds. Premium: 10 minutes. Pro: 20 minutes. Your clip can start anywhere in the video.": "免费版：30 秒。Premium：10 分钟。Pro：20 分钟。可从视频的任意位置开始截取。",
+  "Choose any section of a public video. Clip length depends on your plan; you do not need to start at the beginning.": "选择公开视频中的任意片段。片段时长取决于你的套餐，无需从视频开头开始。",
+  "Selecting a precise segment makes the result faster to review and avoids spending credits on parts you do not need.": "精确选择所需片段，既能更快检查结果，也能避免将点数花在不需要的部分上。"
 }

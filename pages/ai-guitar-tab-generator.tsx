@@ -13,7 +13,7 @@ export default function AiGuitarTabGeneratorPage() {
       description="Try an AI guitar tab generator free with audio or YouTube. Create structured, editable tabs you can play, arrange, practise, and export online."
       canonicalPath="/ai-guitar-tab-generator"
       primaryCta={{ label: "Generate tabs", href: "/transcribe" }}
-      secondaryCta={{ label: "Open editor", href: "/editor" }}
+      secondaryCta={{ label: "Open editor", href: "/gte/new" }}
       steps={[
         {
           title: "Add a clear source",
@@ -81,7 +81,7 @@ export default function AiGuitarTabGeneratorPage() {
         { question: "Can I add guitar techniques and choose different fingerings?", answer: "Yes. Generated tabs remain fully editable, with tools for fingerings, chord shapes, bends, slides, hammer-ons, pull-offs, timing, arrangement, playback, and practice." },
         { question: "Is the AI guitar tab generator free?", answer: "Note2Tabs is free to try with monthly transcription credits. The free plan is useful for testing short riffs and song sections, while Premium adds more credits and full-length audio-file transcription." },
         { question: "Can AI generate guitar tabs from an MP3 or WAV file?", answer: "Yes. Upload MP3, WAV, M4A, AAC, FLAC, OGG, or WebM audio, choose the section, and generate an editable guitar tab." },
-        { question: "Can it generate guitar tabs from YouTube?", answer: "Yes. Paste a public YouTube link and choose a clip within the first ten minutes. Free clips can be up to 30 seconds, while Premium supports longer selections." },
+        { question: "Can it generate guitar tabs from YouTube?", answer: "Choose any section of a public video. Clip length depends on your plan; you do not need to start at the beginning." },
         { question: "Does it work for a complete song?", answer: "Premium supports full-length uploaded audio-file transcription. YouTube input is designed for focused clips, and complex songs still benefit from section-by-section review." },
       ]}
       relatedLinks={[
@@ -90,7 +90,7 @@ export default function AiGuitarTabGeneratorPage() {
         { label: "How to use an AI tab generator", href: "/blog/how-to-use-an-ai-guitar-tab-generator-to-transcribe-songs-in-minutes", description: "Follow the full source, generation, review, and editing workflow." },
         { label: "Compare AI guitar-tab tools", href: "/blog/the-best-ai-guitar-tab-generator-online-turn-any-song-into-tabs-instantly", description: "See which transcription, editing, playback, and export features matter." },
         { label: "Explore editor features", href: "/features", description: "See the tools for writing, arranging, fingering, playback, practice, import, and export." },
-        { label: "Open the guitar tab editor", href: "/editor", description: "Write from scratch, import a file, or open a generated transcription." },
+        { label: "Open the guitar tab editor", href: "/gte/new", description: "Write from scratch, import a file, or open a generated transcription." },
       ]}
     />
   );
