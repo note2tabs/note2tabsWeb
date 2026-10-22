@@ -1,6 +1,6 @@
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
-import { CanvasContext, Element } from "vexflow/bravura";
+import { CanvasContext, Element, Stem } from "vexflow/bravura";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { JSDOM } from "jsdom";
 import { buildNotationScore } from "../../lib/gteNotationScore";
@@ -24,6 +24,67 @@ const source = (notes: Note[], extra: Partial<EditorSnapshot> = {}): EditorSnaps
   framesPerMessure: 480, totalFrames: 1920, timeSignature: 4, timeSignatureBottom: 4, fps: 240, notes, chords: [], cutPositionsWithCoords: [], optimalsByTime: {}, ...extra });
 
 describe("real-font notation engraving", () => {
+  it("renders manual voices, explicit ties, cross-bar sustains and phrasing slurs", () => {
+    const snapshot = source([note(1, 0, 120, 76), note(2, 120, 120, 76),
+      { ...note(3, 0, 240, 64), notationVoice: 2 }, note(4, 420, 180, 79)], {
+      notation: { ties: [{ from: "n:1", to: "n:2" }], slurs: [{ from: "n:1", to: "n:4" }],
+        rests: [{ id: 1, start: 240, length: 90, voice: 2, staff: "treble", denominator: 8, dotted: true }] },
+    });
+    const prepared = prepareNotationEngraving(buildNotationScore(snapshot), 900);
+    for (const { token, note: rendered } of prepared.built[0].records.filter(({ token }) => !token.rest && token.staff === "treble")) {
+      expect(rendered.getStemDirection()).toBe(token.voice === 0 ? Stem.UP : Stem.DOWN);
+    }
+    const canvas = createCanvas(prepared.layout.width, prepared.layout.height);
+    const context = canvas.getContext("2d"); context.fillStyle = "white"; context.fillRect(0, 0, canvas.width, canvas.height);
+    prepared.draw(new CanvasContext(context as unknown as CanvasRenderingContext2D));
+    expect(prepared.layout.tieCount).toBeGreaterThanOrEqual(2);
+    if (process.env.GTE_NOTATION_RENDER_DIR) {
+      mkdirSync(process.env.GTE_NOTATION_RENDER_DIR, { recursive: true });
+      writeFileSync(process.env.GTE_NOTATION_RENDER_DIR + "/manual-voices-ties-slurs.png", canvas.toBuffer("image/png"));
+    }
+  });
+  it("automatically wraps and justifies systems according to notation density", () => {
+    const sparse = buildNotationScore(source([], { totalFrames: 480 * 16 }));
+    const wide = prepareNotationEngraving(sparse, 1000).layout;
+    const narrow = prepareNotationEngraving(sparse, 500).layout;
+    const firstSystem = wide.measures.filter((measure) => measure.top === wide.measures[0].top);
+    expect(firstSystem.length).toBeGreaterThan(4);
+    expect(narrow.measures.filter((measure) => measure.top === narrow.measures[0].top).length).toBeLessThan(firstSystem.length);
+    const last = firstSystem[firstSystem.length - 1];
+    expect(last.x + last.width).toBeCloseTo(984);
+    const dense = buildNotationScore(source(Array.from({ length: 64 }, (_, index) => note(index, index * 30, 30, 72 + index % 5))));
+    const denseLayout = prepareNotationEngraving(dense, 1000).layout;
+    expect(denseLayout.measures.filter((measure) => measure.top === denseLayout.measures[0].top).length).toBeLessThan(firstSystem.length);
+  });
+  it("keeps braces inside the canvas and separates rests from other voices' noteheads", () => {
+    const score = buildNotationScore(source([
+      note(1, 0, 240, 76), note(2, 0, 60, 71), note(3, 60, 60, 72),
+      note(4, 120, 60, 74), note(5, 300, 30, 76), note(6, 330, 30, 79),
+    ]));
+    const prepared = prepareNotationEngraving(score, 640, 4);
+    expect(prepared.layout.measures[0].x).toBeGreaterThanOrEqual(40);
+    for (const measure of prepared.built) {
+      for (const { token, note: rest } of measure.records) {
+        if (!token.rest || token.hidden) continue;
+        const box = rest.getBoundingBox();
+        for (const hit of prepared.layout.hits.filter((hit) => hit.token.staff === token.staff)) {
+          for (const head of hit.heads) {
+            const overlaps = box.getX() < head.x + 16 && box.getX() + box.getW() > head.x - 3 &&
+              box.getY() < head.y + 7 && box.getY() + box.getH() > head.y - 7;
+            expect(overlaps).toBe(false);
+          }
+        }
+      }
+    }
+    const canvas = createCanvas(prepared.layout.width, prepared.layout.height);
+    canvas.getContext("2d").fillStyle = "white";
+    canvas.getContext("2d").fillRect(0, 0, canvas.width, canvas.height);
+    prepared.draw(new CanvasContext(canvas.getContext("2d") as unknown as CanvasRenderingContext2D));
+    if (process.env.GTE_NOTATION_RENDER_DIR) {
+      mkdirSync(process.env.GTE_NOTATION_RENDER_DIR, { recursive: true });
+      writeFileSync(process.env.GTE_NOTATION_RENDER_DIR + "/rest-clearance.png", canvas.toBuffer("image/png"));
+    }
+  });
   it.each([[3, 4], [6, 8], [7, 8], [5, 4]])("fills independent voices in %i/%i", (numerator, denominator) => {
     const input = source([note(1, 0, 240, 60), note(2, 0, 60, 76), note(3, 60, 60, 74), note(4, 120, 120, 72)],
       { timeSignature: numerator, timeSignatureBottom: denominator });

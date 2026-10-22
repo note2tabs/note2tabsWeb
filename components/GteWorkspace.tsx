@@ -7822,7 +7822,11 @@ export default function GteWorkspace({
       const beatsPerBar = Math.max(1, Math.round(timeSignature));
       const beatFrames = framesPerMeasure / beatsPerBar;
       const gridFrames = Math.max(1, beatFrames * timeSignatureBottom / subdivisions);
-      const lengthGridFrames = Math.max(1, gridFrames / 2);
+      // Lengths are conventional binary note values, not arbitrary multiples
+      // of the onset grid (which could produce 3/8, 5/16, etc.). Retain the
+      // existing ability to use a note value half as short as the onset grid.
+      const wholeNoteFrames = beatFrames * timeSignatureBottom;
+      const shortestLength = wholeNoteFrames / 2 ** Math.floor(Math.log2(subdivisions * 2));
       const notes: Record<number, QuantizePreviewEntity> = {};
       const chords: Record<number, QuantizePreviewEntity> = {};
       let maxEnd = 0;
@@ -7834,8 +7838,10 @@ export default function GteWorkspace({
       const quantizeLength = (length: number) => {
         if (!applyToLength) return Math.max(1, Math.round(length));
         const scaledLength = Math.max(1, length * preScale);
-        // Prefer the longer duration near the midpoint without extending exact grid lengths.
-        return Math.max(1, Math.round(Math.floor(scaledLength / lengthGridFrames + 0.6) * lengthGridFrames));
+        const lower = shortestLength * 2 ** Math.max(0, Math.floor(Math.log2(scaledLength / shortestLength)));
+        const upper = lower * 2;
+        // Slightly favor lengthening, but leave exact binary values unchanged.
+        return Math.max(1, Math.round(scaledLength < lower + (upper - lower) * 0.4 ? lower : upper));
       };
 
       session.notes.forEach((note) => {

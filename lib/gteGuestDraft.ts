@@ -1,5 +1,6 @@
 import type { CutWithCoord, EditorSnapshot, TabCoord } from "../types/gte";
 import { hydrateChordFingering } from "./gteChordFingerings";
+import { restoreNotationSnapshot } from "./gteNotationPersistence";
 import {
   DEFAULT_TRACK_INSTRUMENT_ID,
   normalizeTrackInstrumentId,
@@ -255,6 +256,8 @@ export const normalizeGuestSnapshot = (
             startTime: scaleFrame(note.startTime, frameRatio, 0),
             length: scaleFrame(note.length, frameRatio, 1),
             midiNum: clampInt(note.midiNum, 0, -2147483648, 2147483647),
+            ...(note.notationStaff === "treble" || note.notationStaff === "bass" ? { notationStaff: note.notationStaff } : {}),
+            ...(note.notationVoice === 1 || note.notationVoice === 2 ? { notationVoice: note.notationVoice } : {}),
             tab,
             optimals: Array.isArray(note.optimals)
               ? note.optimals.map((item) => normalizeTab(item)).filter((item): item is TabCoord => Boolean(item))
@@ -299,6 +302,7 @@ export const normalizeGuestSnapshot = (
             originalMidi,
             currentTabs,
             ogTabs,
+            ...(chord.notationVoice === 1 || chord.notationVoice === 2 ? { notationVoice: chord.notationVoice as 1 | 2 } : {}),
             ...(root ? { root } : {}),
             ...(quality ? { quality } : {}),
             ...(extension ? { extension } : {}),
@@ -343,7 +347,7 @@ export const normalizeGuestSnapshot = (
   const editorType = normalizeEditorType(raw.editorType ?? raw.trackType ?? raw.type);
   const chordEditor = normalizeChordEditor(raw.chordEditor);
 
-  return {
+  return restoreNotationSnapshot({
     ...base,
     ...raw,
     id,
@@ -370,7 +374,7 @@ export const normalizeGuestSnapshot = (
       : buildDefaultCutPositions(totalFrames),
     optimalsByTime: normalizeOptimalsByTime(raw.optimalsByTime, frameRatio),
     tuning,
-  };
+  });
 };
 
 export const readGuestDraft = (): EditorSnapshot | null => {

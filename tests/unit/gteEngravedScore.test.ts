@@ -18,6 +18,8 @@ beforeAll(() => {
   vi.stubGlobal("React", React);
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} });
+  dom.window.requestAnimationFrame = vi.fn(() => 1);
+  dom.window.cancelAnimationFrame = vi.fn();
   Object.defineProperty(dom.window.HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 1000 });
   for (const [file, family] of [["bravura", "Bravura"], ["academico", "Academico"]]) {
     const font = readFileSync(`node_modules/vexflow/build/esm/src/fonts/${file}.js`, "utf8");
@@ -39,7 +41,7 @@ it("renders actual engraved SVG and keeps it stable while playback and selection
   const props = { score, input: true, disabled: false, guides: true, snapEnabled: true, denominator: 8,
     dotted: false, length: 60, cursor: null, selection: { noteIds: [], chordIds: [] }, playbackFrame: 0,
     playing: false, barsPerSystem: 4, showBarNumbers: true, transformPitch: (midi: number) => midi,
-    onPoint, onSelect, onMove: vi.fn() };
+    onPoint, onSelect, onMove: vi.fn(), onAudition: vi.fn() };
   try {
     await act(async () => { root.render(React.createElement(GteEngravedScore, props)); });
     expect(element.querySelector('[role="alert"]')).toBeNull();
@@ -65,5 +67,49 @@ it("renders actual engraved SVG and keeps it stable while playback and selection
     expect(element.querySelector("svg")).toBe(engraving);
     expect(element.querySelector('[aria-pressed="true"]')).not.toBeNull();
     expect(snapshot.notes[0].midiNum).toBe(66);
+    await act(async () => { root.render(React.createElement(GteEngravedScore, { ...props,
+      selection: { noteIds: [1], chordIds: [] } })); });
+    (overlay as SVGSVGElement).setPointerCapture = vi.fn();
+    const x = Number(hit.getAttribute("x")) + 9, y = Number(hit.getAttribute("y")) + 7;
+    const pointer = async (target: EventTarget, type: string, clientX: number, clientY: number) => {
+      await act(async () => { target.dispatchEvent(new dom.window.MouseEvent(type, { clientX, clientY, bubbles: true, button: 0 })); });
+    };
+    await pointer(hit, "pointerdown", x, y);
+    await pointer(overlay, "pointermove", x, y - 5);
+    expect(props.onAudition).toHaveBeenCalledExactlyOnceWith(68);
+    expect(props.onMove).not.toHaveBeenCalled();
+    expect(snapshot.notes[0].midiNum).toBe(66);
+    await pointer(overlay, "pointermove", x + 1, y - 5);
+    expect(props.onAudition).toHaveBeenCalledTimes(1);
+    await pointer(overlay, "pointerup", x + 1, y - 5);
+    expect(props.onAudition.mock.calls.map(([midi]) => midi)).toEqual([68, 68]);
+    expect(props.onMove).toHaveBeenCalledOnce();
+    const onBoxSelect = vi.fn();
+    await act(async () => { root.render(React.createElement(GteEngravedScore, { ...props, input: false, onBoxSelect })); });
+    onPoint.mockClear();
+    await pointer(overlay, "pointerdown", x - 18, y - 12);
+    await pointer(overlay, "pointermove", x + 18, y + 12);
+    expect(element.querySelector('[data-notation-selection-box="true"]')).not.toBeNull();
+    await pointer(overlay, "pointerup", x + 18, y + 12);
+    expect(onBoxSelect).toHaveBeenCalledOnce();
+    expect(onBoxSelect.mock.calls[0][0].map((source: any) => source.noteId)).toEqual([1]);
+    expect(onBoxSelect.mock.calls[0][1]).toBe(false);
+    expect(onPoint).not.toHaveBeenCalled();
+    expect(element.querySelector('[data-notation-selection-box="true"]')).toBeNull();
+    await pointer(overlay, "pointerdown", x + 18, y + 12);
+    await pointer(overlay, "pointermove", x - 18, y - 12);
+    await act(async () => { dom.window.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape" })); });
+    await pointer(overlay, "pointerup", x - 18, y - 12);
+    expect(onBoxSelect).toHaveBeenCalledOnce();
+    expect(element.querySelector('[data-notation-selection-box="true"]')).toBeNull();
+    expect(props.onMove.mock.calls[0][2]).toBe(2);
+    await pointer(hit, "pointerdown", x, y);
+    await pointer(overlay, "pointermove", x, y + 5);
+    expect(props.onAudition).toHaveBeenLastCalledWith(65);
+    const auditions = props.onAudition.mock.calls.length;
+    await pointer(overlay, "pointercancel", x, y + 5);
+    await pointer(overlay, "pointerup", x, y + 5);
+    expect(props.onAudition).toHaveBeenCalledTimes(auditions);
+    expect(props.onMove).toHaveBeenCalledOnce();
   } finally { await act(async () => root.unmount()); element.remove(); }
 });

@@ -76,7 +76,8 @@ import {
 } from "../../lib/gteSamplePlayback";
 import { buildDiscreteSlideSteps } from "../../lib/gteSlidePlayback";
 import { getOpenStringMidiFromSnapshot, getTabMidi as getSnapshotTabMidi } from "../../lib/gteTuning";
-import { isNotationTrack, scoreEvents } from "../../lib/gteNotation";
+import { isNotationTrack, scorePlaybackEvents } from "../../lib/gteNotation";
+import { restoreNotationSnapshot } from "../../lib/gteNotationPersistence";
 import {
   getDrumVoiceForNote,
   isDrumTrackType,
@@ -435,6 +436,7 @@ const normalizeLane = (
   secondsPerBar: number,
   index: number
 ): EditorSnapshot => {
+  if (isNotationTrack(lane)) lane = restoreNotationSnapshot(lane);
   const safeSeconds = Math.max(0.1, toNumber(secondsPerBar, toNumber(lane.secondsPerBar, DEFAULT_SECONDS_PER_BAR)));
   const totalFrames = Math.max(FIXED_FRAMES_PER_BAR, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR)));
   const rawName = typeof lane.name === "string" ? lane.name.trim() : "";
@@ -1529,6 +1531,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const [generatePlayingCoordinatesRequest, setGeneratePlayingCoordinatesRequest] = useState(0);
   const [timelineZoomPercent, setTimelineZoomPercent] = useState(TIMELINE_ZOOM_DEFAULT);
   const desktopBarsPerRow = Math.max(1, Math.min(6, Math.round(400 / timelineZoomPercent)));
+  const notationTrackActive = Boolean(canvas && isNotationTrack(
+    canvas.editors.find((lane, index) => (lane.id || `ed-${index + 1}`) === activeLaneId) ?? canvas.editors[0] ?? {}
+  ));
   const setDesktopBarsPerRow = (value: number) => {
     const nextBarsPerRow = Math.max(1, Math.min(6, Math.round(value)));
     setTimelineZoomPercent(400 / nextBarsPerRow);
@@ -4884,7 +4889,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         });
 
         if (isNotationTrack(lane)) {
-          scoreEvents(lane).forEach((note) => {
+          scorePlaybackEvents(lane).forEach((note) => {
             pushEvent(note.start, note.length, note.midi, 0.55 * Math.max(0, Math.min(1, note.velocity)), instrumentId, lanePan, laneId);
           });
           return;
@@ -7598,7 +7603,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     {!isMobileViewport && !tabViewEnabled && canvas && (
                       <div data-gte-floating-ui="true" data-gte-editor-control="true" role="group" aria-label={t("Snapping")}
                         className="order-6 mx-auto flex items-center gap-4 whitespace-nowrap px-3 text-slate-700 xl:absolute xl:left-1/2 xl:top-1/2 xl:-translate-x-1/2 xl:-translate-y-1/2">
-                    <div className="flex flex-col items-center gap-0.5 text-center text-[10px] font-medium leading-3 text-slate-600">
+                    {!notationTrackActive && <div className="flex flex-col items-center gap-0.5 text-center text-[10px] font-medium leading-3 text-slate-600">
                       <span>{t("Snap to grid")}</span>
                       <button
                         type="button"
@@ -7612,7 +7617,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           <path d="M9 3v18M15 3v18M3 9h18M3 15h18" />
                         </svg>
                       </button>
-                    </div>
+                    </div>}
                     <div className="flex flex-col items-center gap-0.5 text-center text-[10px] font-medium leading-3 text-slate-600">
                       <span>{t("Snap to key")}</span>
                       <button
@@ -7904,7 +7909,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         <span>{t("Readable tab preview")}</span>
                         <span aria-hidden="true">↗</span>
                       </button>
-                      <label className="mt-1 grid gap-1 border-t border-slate-100 px-3 py-2 text-sm text-slate-700">
+                      {!notationTrackActive && <label className="mt-1 grid gap-1 border-t border-slate-100 px-3 py-2 text-sm text-slate-700">
                         <span className="flex items-center justify-between">
                           <span>{t("Bars per row")}</span>
                           <span className="text-xs text-slate-500">{desktopBarsPerRow}</span>
@@ -7919,7 +7924,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           onChange={(event) => setDesktopBarsPerRow(Number(event.target.value))}
                           aria-label={t("Bars per row")}
                         />
-                      </label>
+                      </label>}
                     </div>
                   </details>
 
@@ -10806,7 +10811,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           </div>
         </div>
       )}
-      {canvas && !practiceModeEnabled && !isMobileViewport && (
+      {canvas && !practiceModeEnabled && !isMobileViewport && !notationTrackActive && (
         <label
           data-gte-floating-ui="true"
           className="fixed bottom-5 left-5 z-50 flex items-center gap-2 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-xs font-medium text-slate-600 shadow-sm"

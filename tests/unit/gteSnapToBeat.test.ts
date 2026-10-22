@@ -55,6 +55,22 @@ describe("snap to beat", () => {
       framesPerMeasure: 480, timeSignature: 4, timeSignatureBottom: 4,
     });
     expect(preview.notes[1]).toEqual({ startTime: 60, length: snapLength ? 30 : 32 });
-    expect(preview.chords[2]).toEqual({ startTime: 120, length: snapLength ? 90 : 88 });
+    expect(preview.chords[2]).toEqual({ startTime: 120, length: snapLength ? 120 : 88 });
+  });
+  it("snaps note and chord lengths to binary values rather than dotted or arbitrary grid multiples", () => {
+    const lengths = [30, 60, 90, 120, 180, 240, 300, 360, 480, 720, 960];
+    const preview = vm.runInNewContext(ts.transpileModule(`(${compute})(session, 8, 1, true)`, {}).outputText, {
+      session: { minTime: 0, notes: lengths.map((length, id) => ({ id, startTime: 65, length })),
+        chords: lengths.map((length, id) => ({ id, startTime: 125, length })) },
+      clamp: (n: number, min: number, max: number) => Math.max(min, Math.min(max, n)),
+      QUANTIZE_SUBDIVISION_MIN: 1, QUANTIZE_SUBDIVISION_MAX: 64,
+      SCALE_FACTOR_MIN: 0.01, SCALE_FACTOR_MAX: 100,
+      framesPerMeasure: 480, timeSignature: 4, timeSignatureBottom: 4,
+    });
+    const expected = [30, 60, 120, 120, 240, 240, 240, 480, 480, 960, 960];
+    lengths.forEach((_, id) => {
+      expect(preview.notes[id]).toEqual({ startTime: 60, length: expected[id] });
+      expect(preview.chords[id]).toEqual({ startTime: 120, length: expected[id] });
+    });
   });
 });

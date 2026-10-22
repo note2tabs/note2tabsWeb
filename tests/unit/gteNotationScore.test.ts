@@ -28,16 +28,25 @@ describe("notation rhythmic model", () => {
   it("groups equal-onset equal-duration pitches into one chord, not independent stems", () => {
     const score = buildNotationScore(source([note(1, 0, 120, 60), note(2, 0, 120, 64), note(3, 0, 120, 67)]));
     const voices = score.measures[0].voices.treble;
-    expect(voices).toHaveLength(1);
+    expect(voices).toHaveLength(2);
+    expect(voices[1].every((token) => token.rest)).toBe(true);
     expect(voices[0][0].pitches.map((pitch) => pitch.midi)).toEqual([60, 64, 67]);
   });
-  it("assigns held and moving notes to independent complete voices with separate rests", () => {
-    const score = buildNotationScore(source([note(1, 0, 240, 60), note(2, 0, 120, 76), note(3, 120, 120, 74), note(4, 360, 120, 72)]));
+  it("honors manual voice assignments rather than allocating by pitch or overlap", () => {
+    const score = buildNotationScore(source([{ ...note(1, 0, 240, 60), notationVoice: 2 }, note(2, 0, 120, 76), note(3, 120, 120, 74), note(4, 360, 120, 72)]));
     const voices = score.measures[0].voices.treble;
     expect(voices).toHaveLength(2);
     expect(voices[0].filter((token) => !token.rest).map((token) => token.pitches[0].midi)).toEqual([76, 74, 72]);
     expect(voices[1].filter((token) => !token.rest).map((token) => token.pitches[0].midi)).toEqual([60]);
     expect(voices[0].some((token) => token.rest && token.tick === 192)).toBe(true);
+  });
+  it("keeps legacy overlaps in voice one and preserves all source releases", () => {
+    const input = source([note(1, 0, 240, 60), note(2, 0, 60, 76), note(3, 60, 60, 74)]);
+    const score = buildNotationScore(input);
+    expect(score.measures[0].voices.treble[1].every((token) => token.rest)).toBe(true);
+    const held = score.measures[0].voices.treble[0].filter((token) => token.sources.some((event) => event.noteId === 1));
+    expect(held.reduce((sum, token) => sum + token.ticks, 0)).toBe(192);
+    expect(input.notes[0].length).toBe(240);
   });
   it("groups eighth-note beams by simple and compound meter", () => {
     const score = buildNotationScore(source(Array.from({ length: 4 }, (_, index) => note(index, index * 60, 60))));

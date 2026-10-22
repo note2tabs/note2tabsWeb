@@ -9,11 +9,12 @@ export function isNotationTrack(snapshot: Pick<EditorSnapshot, "editorType" | "t
     /^gm:(piano|strings|synth-lead|synth-pad|instrument)$/.test(snapshot.instrumentId ?? "");
 }
 
-export type ScoreEvent = { key: string; noteId?: number; chordId?: number; member: number; midi: number; start: number; length: number; velocity: number; staff: "treble" | "bass" };
+export type ScoreEvent = { key: string; noteId?: number; chordId?: number; member: number; midi: number; start: number; length: number; velocity: number; staff: "treble" | "bass"; voice?: 1 | 2 };
 export function scoreEvents(snapshot: EditorSnapshot): ScoreEvent[] {
   return [
     ...snapshot.notes.map((note) => ({
       key: "n:" + note.id, noteId: note.id, member: 0,
+      voice: note.notationVoice ?? 1,
       midi: Number.isFinite(note.midiNum) ? note.midiNum : getTabMidi(snapshot, note.tab),
       start: note.startTime, length: note.length, velocity: note.velocity ?? 1, staff: note.notationStaff ?? (note.midiNum < 60 ? "bass" as const : "treble" as const),
     })),
@@ -21,6 +22,7 @@ export function scoreEvents(snapshot: EditorSnapshot): ScoreEvent[] {
       const count = Math.max(chord.originalMidi?.length ?? 0, chord.currentTabs.length);
       return Array.from({ length: count }, (_, member) => ({
         key: "c:" + chord.id + ":" + member, chordId: chord.id, member,
+        voice: chord.notationVoice ?? 1,
         midi: Number.isFinite(chord.originalMidi?.[member]) ? chord.originalMidi[member] : getTabMidi(snapshot, chord.currentTabs[member]),
         start: chord.startTime, length: chord.length, velocity: chord.velocities?.[member] ?? 1,
         staff: (chord.originalMidi[member] ?? getTabMidi(snapshot, chord.currentTabs[member])) < 60 ? "bass" as const : "treble" as const,
@@ -47,7 +49,7 @@ export function wholeNoteFrames(snapshot: EditorSnapshot) {
   return snapshot.framesPerMessure * (snapshot.timeSignatureBottom || 4) / Math.max(1, snapshot.timeSignature || 4);
 }
 export function durationFrames(snapshot: EditorSnapshot, denominator: number) {
-  return Math.max(1, Math.round(wholeNoteFrames(snapshot) / denominator));
+  return Math.max(1, wholeNoteFrames(snapshot) / denominator);
 }
 
 const KEY_INTERVALS = [
@@ -69,6 +71,55 @@ export function nearestScorePitch(pitchClass: number, reference: number) {
 }
 
 type Selection = { noteIds: readonly number[]; chordIds: readonly number[] };
+export function validNotationTie(from: ScoreEvent, to: ScoreEvent) {
+  return from.key !== to.key && from.midi === to.midi && from.staff === to.staff && (from.voice ?? 1) === (to.voice ?? 1) &&
+    Math.abs(from.start + from.length - to.start) < 0.01;
+}
+/** Keep linked notes independently editable; only playback coalesces valid chains. */
+export function scorePlaybackEvents(snapshot: EditorSnapshot) {
+  const events = scoreEvents(snapshot), byKey = new Map(events.map((event) => [event.key, event]));
+  const links = new Map<string, string>(), incoming = new Set<string>();
+  for (const link of snapshot.notation?.ties ?? []) {
+    const from = byKey.get(link.from), to = byKey.get(link.to);
+    if (from && to && validNotationTie(from, to) && !links.has(from.key) && !incoming.has(to.key)) { links.set(from.key, to.key); incoming.add(to.key); }
+  }
+  return events.filter((event) => !incoming.has(event.key)).map((event) => {
+    let tail = event;
+    const visited = new Set([event.key]);
+    while (links.has(tail.key)) {
+      const next = byKey.get(links.get(tail.key)!)!;
+      if (visited.has(next.key)) break;
+      visited.add(next.key); tail = next;
+    }
+    return { ...event, length: tail.start + tail.length - event.start };
+  });
+}
+export function toggleScoreConnection(source: EditorSnapshot, selection: Selection, kind: "ties" | "slurs") {
+  const events = scoreEvents(source).filter((event) => event.noteId !== undefined ? selection.noteIds.includes(event.noteId) : selection.chordIds.includes(event.chordId!))
+    .sort((a, b) => a.start - b.start || a.midi - b.midi);
+  const selected = new Set(events.map((event) => event.key));
+  const existing = source.notation?.[kind] ?? [];
+  if (existing.some((link) => selected.has(link.from) && selected.has(link.to))) {
+    return { ...source, notation: { ...source.notation, [kind]: existing.filter((link) => !selected.has(link.from) || !selected.has(link.to)) } };
+  }
+  const links: Array<{ from: string; to: string }> = [];
+  if (kind === "ties") events.forEach((from) => {
+    const to = events.find((candidate) => validNotationTie(from, candidate));
+    if (to) links.push({ from: from.key, to: to.key });
+  });
+  else if (events.length > 1 && events[0].start < events[events.length - 1].start) links.push({ from: events[0].key, to: events[events.length - 1].key });
+  if (!links.length) return source;
+  return { ...source, notation: { ...source.notation, [kind]: [...existing, ...links] } };
+}
+export function setScoreVoice(source: EditorSnapshot, selection: Selection, voice: 1 | 2) {
+  return { ...source, notes: source.notes.map((note) => selection.noteIds.includes(note.id) ? { ...note, notationVoice: voice } : note),
+    chords: source.chords.map((chord) => selection.chordIds.includes(chord.id) ? { ...chord, notationVoice: voice } : chord) };
+}
+export function addScoreRest(source: EditorSnapshot, rest: NonNullable<NonNullable<EditorSnapshot["notation"]>["rests"]>[number]) {
+  const rests = source.notation?.rests ?? [];
+  return { ...source, totalFrames: Math.max(source.totalFrames, rest.start + rest.length), notation: { ...source.notation,
+    rests: [...rests.filter((item) => item.staff !== rest.staff || item.voice !== rest.voice || item.start + item.length <= rest.start || item.start >= rest.start + rest.length), rest] } };
+}
 export function editScoreSelection(source: EditorSnapshot, selection: Selection, change: { transpose?: number; shift?: number; length?: number; remove?: boolean }) {
   const next = structuredClone(source), notes = new Set(selection.noteIds), chords = new Set(selection.chordIds);
   // Reject the entire move at MIDI/time bounds, preserving intervals and relative timing.
@@ -98,14 +149,24 @@ export function editScoreSelection(source: EditorSnapshot, selection: Selection,
     } });
   }
   next.totalFrames = Math.max(next.totalFrames, ...next.notes.map((note) => note.startTime + note.length), ...next.chords.map((chord) => chord.startTime + chord.length));
+  if (next.notation) {
+    const events = new Map(scoreEvents(next).map((event) => [event.key, event]));
+    next.notation.ties = next.notation.ties?.filter((link) => {
+      const from = events.get(link.from), to = events.get(link.to);
+      return from && to && validNotationTie(from, to);
+    });
+    next.notation.slurs = next.notation.slurs?.filter((link) => events.has(link.from) && events.has(link.to));
+  }
   return next;
 }
-export function addScoreNote(source: EditorSnapshot, midi: number, start: number, length: number, staff?: "treble" | "bass") {
+export function addScoreNote(source: EditorSnapshot, midi: number, start: number, length: number, staff?: "treble" | "bass", voice: 1 | 2 = 1) {
   const next = structuredClone(source);
   const id = Math.max(0, ...source.notes.map((note) => note.id)) + 1;
   // Keep compatibility coordinates for the existing schema; MIDI is authoritative for pitched tracks.
-  const note: Note = { id, midiNum: Math.max(0, Math.min(127, Math.round(midi))), startTime: Math.max(0, Math.round(start)), length: Math.max(1, Math.round(length)), tab: [0, 0], optimals: [] };
+  const note: Note = { id, midiNum: Math.max(0, Math.min(127, Math.round(midi))), startTime: Math.max(0, start), length: Math.max(1, length), tab: [0, 0], optimals: [] };
   if (staff) note.notationStaff = staff;
+  note.notationVoice = voice;
+  if (next.notation?.rests) next.notation.rests = next.notation.rests.filter((rest) => rest.staff !== (staff ?? (midi < 60 ? "bass" : "treble")) || rest.voice !== voice || rest.start + rest.length <= note.startTime || rest.start >= note.startTime + note.length);
   next.notes.push(note);
   next.totalFrames = Math.max(next.totalFrames, note.startTime + note.length);
   return { snapshot: next, note };

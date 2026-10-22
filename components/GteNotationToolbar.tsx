@@ -1,57 +1,45 @@
+import VexFlow from "vexflow/bravura";
 import { useLocale } from "../lib/i18n/react";
 
-const VALUES = [
-  [1, "Whole note", "7"], [2, "Half note", "6"], [4, "Quarter note", "5"],
-  [8, "Eighth note", "4"], [16, "Sixteenth note", "3"], [32, "Thirty-second note", "2"], [64, "Sixty-fourth note", "1"],
-] as const;
-
-function NoteValueIcon({ denominator }: { denominator: number }) {
-  const hollow = denominator <= 2;
-  return <svg viewBox="0 0 24 28" className="h-6 w-5" aria-hidden="true">
-    <ellipse cx={9} cy={21} rx={5} ry={3.3} transform="rotate(-20 9 21)" fill={hollow ? "none" : "currentColor"} stroke="currentColor" strokeWidth={1.4} />
-    {denominator > 1 && <path d="M13.5 21V3" fill="none" stroke="currentColor" strokeWidth={1.4} />}
-    {Array.from({ length: Math.max(0, Math.log2(denominator) - 2) }, (_, index) =>
-      <path key={index} d={`M13.5 ${3 + index * 4}q9 4 4 12q1-6-4-8`} fill="currentColor" />)}
-  </svg>;
+const { Glyphs } = VexFlow;
+const VALUES = [1, 2, 4, 8, 16, 32, 64];
+const NAMES = ["Whole", "Half", "Quarter", "Eighth", "Sixteenth", "Thirty-second", "Sixty-fourth"];
+const NOTES = [Glyphs.noteWhole, Glyphs.noteHalfUp, Glyphs.noteQuarterUp, Glyphs.note8thUp, Glyphs.note16thUp, Glyphs.note32ndUp, Glyphs.note64thUp];
+const RESTS = [Glyphs.restWhole, Glyphs.restHalf, Glyphs.restQuarter, Glyphs.rest8th, Glyphs.rest16th, Glyphs.rest32nd, Glyphs.rest64th];
+export function NotationValueSymbol({ index, rest = false }: { index: number; rest?: boolean }) {
+  return <svg viewBox="0 0 40 64" className="h-6 w-5 shrink-0 [@media(max-height:700px)]:h-5" aria-hidden="true"><text x={9} y={rest ? 32 : index === 0 ? 33 : 54} fontFamily="Bravura" fontSize={40} fill="currentColor">{(rest ? RESTS : NOTES)[index]}</text></svg>;
 }
-
-export default function GteNotationToolbar({ input, denominator, dotted, accidental, disabled, guides = false, onGuides, onInput, onDuration, onDot, onRest, onAccidental }: {
-  input: boolean; denominator: number; dotted: boolean; accidental: -1 | 0 | 1 | null; disabled: boolean;
-  onInput: (input: boolean) => void; onDuration: (denominator: number) => void; onDot: () => void;
-  onRest: () => void; onAccidental: (accidental: -1 | 0 | 1) => void;
-  guides?: boolean; onGuides?: () => void;
-}) {
+type Props = {
+  mode: "select" | "note" | "rest"; denominator: number; dotted: boolean; accidental: -1 | 0 | 1 | null; disabled: boolean;
+  voice: 1 | 2; tieActive: boolean; slurActive: boolean; canTie: boolean; canSlur: boolean;
+  onDuration: (value: number, rest: boolean) => void; onDot: () => void; onAccidental: (value: -1 | 0 | 1) => void;
+  onVoice: (voice: 1 | 2) => void; onTie: () => void; onSlur: () => void; onDelete: () => void;
+};
+export default function GteNotationToolbar(p: Props) {
   const { t } = useLocale();
-  const style = (active = false) => `flex h-11 min-w-8 flex-col items-center justify-center gap-0.5 rounded-md px-1.5 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:opacity-35 ${active ? "bg-emerald-100 text-emerald-900" : "text-slate-600 hover:bg-black/5"}`;
-  const divider = <span className="mx-1 h-7 w-px bg-slate-300/60" aria-hidden="true" />;
-  return <div role="toolbar" aria-label={t("Note input")} className="flex flex-wrap items-center gap-0.5" data-gte-floating-ui="true">
-    <button type="button" aria-label={t("Select")} title={t("Select · Esc")} aria-pressed={!input} disabled={disabled} className={style(!input)} onClick={() => onInput(false)}>
-      <svg viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" aria-hidden="true"><path d="m5 3 14 10-7 1-3 7z" strokeWidth={1.5} strokeLinejoin="round" /></svg>
-      <span className="text-[9px] leading-none">Esc</span>
-    </button>
-    <button type="button" aria-label={t("Note input")} title={t("Add notes · N")} aria-pressed={input} disabled={disabled} className={style(input) + " !flex-row !gap-2 !px-3"} onClick={() => onInput(!input)}>
-      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current" aria-hidden="true"><path d="m4 16 11-11 4 4L8 20l-5 1zM13 7l4 4" strokeWidth={1.5} strokeLinejoin="round" /></svg>
-      <span className="text-xs font-medium">{t("Add notes")}</span><span className="text-[9px] text-slate-400">N</span>
-    </button>
-    {divider}
-    {VALUES.map(([value, name, shortcut]) => <button key={value} type="button" aria-label={t(name)} title={t(name) + " · " + shortcut}
-      aria-pressed={denominator === value} disabled={disabled} className={style() + (denominator === value ? " !bg-white !text-slate-950 ring-1 ring-slate-300" : "")} onClick={() => onDuration(value)}>
-      <NoteValueIcon denominator={value} /><span className="text-[9px] leading-none">{shortcut}</span>
-    </button>)}
-    {divider}
-    <button type="button" aria-label={t("Dotted note")} title={t("Dotted note · .")} aria-pressed={dotted} disabled={disabled} className={style(dotted)} onClick={onDot}>
-      <span className="flex h-6 items-center text-2xl leading-none">·</span><span className="text-[9px] leading-none">.</span>
-    </button>
-    <button type="button" aria-label={t("Rest")} title={t("Rest · 0")} disabled={disabled} className={style()} onClick={onRest}>
-      <svg viewBox="0 0 20 28" className="h-6 w-5 fill-current" aria-hidden="true"><path d="m9 2 6 8-7 6 7 5q-9-4-6 5q-9-8 2-10l-7-6 7-5z" /></svg>
-      <span className="text-[9px] leading-none">0</span>
-    </button>
-    {divider}
-    {([[-1, "♭", "Flat"], [0, "♮", "Natural"], [1, "♯", "Sharp"]] as const).map(([value, glyph, label]) =>
-      <button key={value} type="button" aria-label={t(label)} title={t(label)} aria-pressed={accidental === value} disabled={disabled}
-        className={style(accidental === value)} onClick={() => onAccidental(value)}><span className="text-2xl leading-none">{glyph}</span></button>)}
-    {onGuides && <>{divider}<button type="button" aria-label={t("Beat guides")} title={t("Beat guides")} aria-pressed={guides} disabled={disabled} className={style(guides)} onClick={onGuides}>
-      <svg viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" aria-hidden="true"><path d="M4 5v14M12 5v14M20 5v14" strokeDasharray="2 3" strokeWidth={1.5} /><path d="M3 19h18" strokeWidth={1.3} /></svg>
-    </button></>}
+  const style = (active = false) => `flex min-h-7 min-w-0 flex-col items-center justify-center rounded-md px-1 py-0.5 text-slate-700 transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:opacity-35 ${active ? "bg-emerald-100 text-emerald-900 ring-1 ring-inset ring-emerald-600/30" : ""}`;
+  const group = "grid grid-cols-2 gap-0.5 border-t border-slate-200/70 pt-1";
+  return <div role="toolbar" aria-label={t("Notation tools")} aria-orientation="vertical" className="grid w-[100px] gap-1 [@media(max-height:700px)]:w-[124px]" data-gte-floating-ui="true">
+    {([false, true] as const).map((rest) => <div key={String(rest)} role="group" aria-label={t(rest ? "Rest durations" : "Note durations")} className={group + " [@media(max-height:700px)]:grid-cols-3"}>
+      {VALUES.map((value, index) => <button key={value} type="button" className={style(p.mode === (rest ? "rest" : "note") && p.denominator === value)}
+        aria-label={t(NAMES[index] + (rest ? " rest" : " note"))} title={t(NAMES[index] + (rest ? " rest" : " note"))}
+        aria-pressed={p.mode === (rest ? "rest" : "note") && p.denominator === value} disabled={p.disabled} onClick={() => p.onDuration(value, rest)}>
+        <NotationValueSymbol index={index} rest={rest} /><span className="text-[9px] leading-none">{value === 1 ? "1" : `1/${value}`}</span>
+      </button>)}
+    </div>)}
+    <div role="group" aria-label={t("Dots and accidentals")} className={group}>
+      <button type="button" className={style(p.dotted)} aria-label={t("Dotted note")} title={t("Dotted duration")} aria-pressed={p.dotted} onClick={p.onDot} disabled={p.disabled}><span className="text-xl leading-none">·</span></button>
+      {([[-1, "♭", "Flat"], [0, "♮", "Natural"], [1, "♯", "Sharp"]] as const).map(([value, symbol, name]) => <button key={value} type="button" className={style(p.accidental === value)} aria-label={t(name)} title={t(name + " · chromatic override")} aria-pressed={p.accidental === value} disabled={p.disabled} onClick={() => p.onAccidental(value)}><span className="text-2xl leading-none">{symbol}</span></button>)}
+    </div>
+    <div role="group" aria-label={t("Voice")} className={group}>
+      {([1, 2] as const).map((value) => <button key={value} type="button" className={style(p.voice === value)} aria-label={t("Voice") + " " + value} title={t("Voice") + " " + value} aria-pressed={p.voice === value} disabled={p.disabled} onClick={() => p.onVoice(value)}><span className="text-[10px]">{t("Voice")} {value}</span></button>)}
+    </div>
+    <div role="group" aria-label={t("Ties and slurs")} className={group}>
+      {([false, true] as const).map((slur) => <button key={String(slur)} type="button" className={style(slur ? p.slurActive : p.tieActive)} aria-label={t(slur ? "Slur" : "Tie")} title={t(slur ? "Slur · select phrase endpoints" : "Tie · select consecutive notes of the same pitch")} aria-pressed={slur ? p.slurActive : p.tieActive} disabled={p.disabled || !(slur ? p.canSlur : p.canTie)} onClick={slur ? p.onSlur : p.onTie}>
+        <svg viewBox="0 0 36 24" className="h-5 w-8 fill-none stroke-current" aria-hidden="true"><ellipse cx="7" cy={slur ? 15 : 11} rx="3" ry="2" fill="currentColor" /><ellipse cx="29" cy={slur ? 6 : 11} rx="3" ry="2" fill="currentColor" /><path d={slur ? "M6 10Q13 -2 29 1" : "M8 16Q18 24 28 16"} strokeWidth="1.4" /></svg>
+        <span className="text-[9px]">{t(slur ? "Slur" : "Tie")}</span>
+      </button>)}
+    </div>
+    <button type="button" className={style()} aria-label={t("Delete")} title={t("Delete · Delete / Backspace")} disabled={p.disabled} onClick={p.onDelete}><span className="text-[10px]">{t("Delete")}</span></button>
   </div>;
 }

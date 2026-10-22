@@ -1,3 +1,4 @@
+import { serializeNotationPayload } from "./gteNotationPersistence";
 import type {
   CanvasShare,
   CanvasSnapshot,
@@ -754,7 +755,7 @@ export const gteApi = {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ snapshot, ...concurrency }),
+        body: JSON.stringify({ snapshot: serializeNotationPayload(snapshot), ...concurrency }),
       }
     ),
   setTrackInstrument: (editorId: string, laneId: string, instrumentId: string) =>
