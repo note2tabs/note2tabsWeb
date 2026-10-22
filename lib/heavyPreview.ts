@@ -28,6 +28,9 @@ export function getRequestCountry(req: Pick<NextApiRequest, "headers">) {
 }
 
 export function isHeavyPreviewCountry(req: Pick<NextApiRequest, "headers">) {
+  // Opt in explicitly when restarting previews; country configuration alone must
+  // never enable free GPU work. Shared by the offer endpoint and submission API.
+  if (process.env.HEAVY_PREVIEW_ENABLED !== "true") return false;
   const country = getRequestCountry(req);
   return Boolean(country && getHeavyPreviewCountries().has(country));
 }
