@@ -144,6 +144,7 @@ describe("transcribe credits", () => {
     expect((res.body as Record<string, unknown>).workerPool).toBeUndefined();
   });
   beforeEach(() => {
+    vi.stubEnv("HEAVY_PREVIEW_ENABLED", "true");
     vi.resetModules();
     mocks.session.mockReset();
     mocks.fetch.mockReset();
@@ -255,6 +256,23 @@ describe("transcribe credits", () => {
     const [, requestInit] = mocks.fetch.mock.calls[0] as [string, RequestInit];
     const body = requestInit.body as FormData;
     expect(body.get("transcription_method")).toBe("msmodel_small");
+  });
+
+  it("rejects disabled previews before reserving credits or starting backend work", async () => {
+    vi.stubEnv("HEAVY_PREVIEW_ENABLED", "false");
+    const res = await callTranscribe("FREE", false, "super_heavy");
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toMatchObject({ premiumRequired: true });
+    expect(mocks.prisma.user.updateMany).not.toHaveBeenCalled();
+    expect(mocks.fetch).not.toHaveBeenCalled();
+  });
+
+  it("preserves paid Heavy access while previews are disabled", async () => {
+    vi.stubEnv("HEAVY_PREVIEW_ENABLED", "false");
+    const res = await callTranscribe("PREMIUM", false, "super_heavy");
+    expect(res.statusCode).toBe(202);
+    const [, requestInit] = mocks.fetch.mock.calls[0] as [string, RequestInit];
+    expect((requestInit.body as FormData).get("heavy_preview")).not.toBe("true");
   });
 
   it("allows one credit-free Heavy preview for a verified free user", async () => {
