@@ -95,7 +95,9 @@ export const normalizeTrackInstrumentId = (value: unknown) => {
     : DEFAULT_TRACK_INSTRUMENT_ID;
 };
 
-export const getTrackInstrumentOptions = () => TRACK_INSTRUMENT_OPTIONS.slice();
+// Only offer sounds backed by dedicated samples. Keep legacy synthesized IDs
+// resolvable for existing tracks without advertising them as sound choices.
+export const getTrackInstrumentOptions = () => TRACK_INSTRUMENT_OPTIONS.filter((option) => option.kind === "opus" && option.samples.length > 0);
 
 export const getTrackInstrumentOption = (value?: string | null) => {
   const id = normalizeTrackInstrumentId(value);

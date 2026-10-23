@@ -12,7 +12,7 @@ describe("Opus guitar sample playback", () => {
     expect(DEFAULT_TRACK_INSTRUMENT_ID).toBe(rawManifest[0].id);
   });
 
-  it("exposes playable sampled guitars and synthesized imported instruments", () => {
+  it("only offers sounds with dedicated samples", () => {
     const options = getTrackInstrumentOptions();
     expect(options.map((option) => option.id)).toEqual([
       "acoustic",
@@ -22,12 +22,7 @@ describe("Opus guitar sample playback", () => {
       "electric_distortion",
       "bass_overdrive",
       "upright_piano",
-      "gm:piano",
-      "gm:bass",
-      "gm:strings",
-      "gm:synth-lead",
-      "gm:synth-pad",
-      "gm:instrument",
+      "grand_piano",
     ]);
     expect(
       options
@@ -35,7 +30,8 @@ describe("Opus guitar sample playback", () => {
         .flatMap((option) => option.samples)
         .every((sample) => !sample.url.includes("/mute_"))
     ).toBe(true);
-    expect(options.filter((option) => option.kind === "synth")).toHaveLength(6);
+    expect(options.every((option) => option.kind === "opus" && option.samples.length > 0)).toBe(true);
+    expect(normalizeTrackInstrumentId("gm:instrument")).toBe("gm:instrument");
   });
 
   it("maps old sound choices to the closest Opus instrument", () => {

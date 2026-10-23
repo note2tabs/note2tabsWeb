@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { EditorSnapshot } from "../../types/gte";
 import { addScoreNote, durationFrames, editScoreSelection, isNotationTrack, midiAtStep, scoreEvents, spellPitch } from "../../lib/gteNotation";
+import { restoreNotationSnapshot, serializeNotationSnapshot } from "../../lib/gteNotationPersistence";
 
 const base = (): EditorSnapshot => ({
   id: "score", instrumentId: "gm:piano", trackType: "tab", framesPerMessure: 480, totalFrames: 480, fps: 240,
@@ -37,10 +38,14 @@ describe("pitched notation editor", () => {
     const source = base();
     source.notes = [{ id: 4, startTime: 0, length: 480, midiNum: 21, tab: [0, 0], optimals: [], velocity: 0.4 }];
     const result = addScoreNote(source, 108, 450, 120);
-    expect(result.note).toMatchObject({ id: 5, midiNum: 108, startTime: 450, length: 120 });
+    expect(result.note).toMatchObject({ id: 5, midiNum: 108, startTime: 450, length: 120, velocity: 100 / 127 });
     expect(result.snapshot.totalFrames).toBe(570);
     expect(result.snapshot.notes[0]).toEqual(source.notes[0]);
     expect(source.notes).toHaveLength(1);
+    const wire = serializeNotationSnapshot(result.snapshot);
+    delete wire.notation;
+    wire.notes = wire.notes.map(({ velocity: _velocity, ...note }) => note);
+    expect(restoreNotationSnapshot(wire).notes.find(note => note.id === 5)?.velocity).toBe(100 / 127);
   });
   it("reads original chord MIDI, including notes outside guitar range, and does not mutate it", () => {
     const source = base();

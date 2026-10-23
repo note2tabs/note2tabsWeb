@@ -2470,7 +2470,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     }
     pendingDrumSavesRef.current.set(laneId, laneSnapshot);
     if (drumSaveInFlightRef.current) return;
-    if (drumSaveTimerRef.current !== null) window.clearTimeout(drumSaveTimerRef.current);
+    // Save the latest queued edits on a bounded cadence, even while the user
+    // keeps entering notes. Restarting this timer starves autosave during input.
+    if (drumSaveTimerRef.current !== null) return;
     drumSaveTimerRef.current = window.setTimeout(() => {
       drumSaveTimerRef.current = null;
       void flushDrumSaves();

@@ -163,7 +163,7 @@ export function addScoreNote(source: EditorSnapshot, midi: number, start: number
   const next = structuredClone(source);
   const id = Math.max(0, ...source.notes.map((note) => note.id)) + 1;
   // Keep compatibility coordinates for the existing schema; MIDI is authoritative for pitched tracks.
-  const note: Note = { id, midiNum: Math.max(0, Math.min(127, Math.round(midi))), startTime: Math.max(0, start), length: Math.max(1, length), tab: [0, 0], optimals: [] };
+  const note: Note = { id, midiNum: Math.max(0, Math.min(127, Math.round(midi))), startTime: Math.max(0, start), length: Math.max(1, length), velocity: 100 / 127, tab: [0, 0], optimals: [] };
   if (staff) note.notationStaff = staff;
   note.notationVoice = voice;
   if (next.notation?.rests) next.notation.rests = next.notation.rests.filter((rest) => rest.staff !== (staff ?? (midi < 60 ? "bass" : "treble")) || rest.voice !== voice || rest.start + rest.length <= note.startTime || rest.start >= note.startTime + note.length);

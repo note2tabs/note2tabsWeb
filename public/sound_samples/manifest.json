@@ -190,5 +190,43 @@
       "107": "b7_vl3_rr1_2.opus",
       "108": "c8_vl3_rr1_2.opus"
     }
+  },
+  {
+    "id": "grand_piano",
+    "label": "Grand Piano",
+    "folder": "grand_piano",
+    "gain": 0.8,
+    "samples": {
+      "21": "a0_vl3_rr1_2.opus",
+      "24": "c1_vl3_rr1_2.opus",
+      "27": "eb1_vl3_rr1_2.opus",
+      "30": "gb1_vl3_rr1_2.opus",
+      "33": "a1_vl3_rr1_2.opus",
+      "36": "c2_vl3_rr1_2.opus",
+      "39": "eb2_vl3_rr1_2.opus",
+      "42": "gb2_vl3_rr1_2.opus",
+      "45": "a2_vl3_rr1_2.opus",
+      "48": "c3_vl3_rr1_2.opus",
+      "51": "eb3_vl3_rr1_2.opus",
+      "54": "gb3_vl3_rr1_2.opus",
+      "57": "a3_vl3_rr1_2.opus",
+      "60": "c4_vl3_rr1_2.opus",
+      "63": "eb4_vl3_rr1_2.opus",
+      "66": "gb4_vl3_rr1_2.opus",
+      "69": "a4_vl3_rr1_2.opus",
+      "72": "c5_vl3_rr1_2.opus",
+      "75": "eb5_vl3_rr1_2.opus",
+      "78": "gb5_vl3_rr1_2.opus",
+      "81": "a5_vl3_rr1_2.opus",
+      "84": "c6_vl3_rr1_2.opus",
+      "87": "eb6_vl3_rr1_2.opus",
+      "90": "gb6_vl3_rr1_2.opus",
+      "93": "a6_vl3_rr1_2.opus",
+      "96": "c7_vl3_rr1_2.opus",
+      "99": "eb7_vl3_rr1_2.opus",
+      "102": "gb7_vl3_rr1_2.opus",
+      "105": "a7_vl3_rr1_2.opus",
+      "108": "c8_vl3_rr1_2.opus"
+    }
   }
 ]
