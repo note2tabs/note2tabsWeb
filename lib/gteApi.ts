@@ -24,6 +24,7 @@ import { isNotationTrack } from "./gteNotation";
 import { importedInstrument } from "./gteImportedInstrument";
 import type { InstrumentType } from "./gteInstrumentType";
 import { restorePitchedImport, pitchedImportTransport } from "./gteNotationImport";
+import { estimateImportRhythmScale, scaleImportTimingMap, scaleImportedLane } from "./gteImportRhythm";
 
 const AUTH_BASE = "/api/gte";
 const GUEST_BASE = "/api/gte-guest";
@@ -513,10 +514,16 @@ async function importTranscriberToSaved(
   const finalImportedEditorIds =
     importedEditorIds.length > 0 ? importedEditorIds : lastResponse.importedEditorIds || [];
   const importTimingMap = lastResponse.canvas?.timingMap;
+  let rhythmScale = 1, preferredTimingMap: TimingMapV2 | undefined;
   if (lastResponse.canvas) {
-    const timingMap = existingCanvas
+    let timingMap = existingCanvas
       ? preserveExistingTimingForOffsetImport(lastResponse.canvas, existingCanvas)
       : stabilizeNewTranscriberTimingMap(lastResponse.canvas);
+    if (!existingCanvas) {
+      const scale = estimateImportRhythmScale(lastResponse.canvas, finalImportedEditorIds);
+      const preferred = scaleImportTimingMap(timingMap, scale);
+      if (preferred !== timingMap) { rhythmScale = scale; timingMap = preferred; preferredTimingMap = preferred; }
+    }
     const patched = await requestForEditor<{ ok: true; canvas: CanvasSnapshot; timingMap: TimingMapV2 }>(
       currentEditorId,
       `/editors/${encodeURIComponent(currentEditorId)}/timing`,
@@ -545,7 +552,7 @@ async function importTranscriberToSaved(
         TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES,
         finalImportedEditorIds,
         payload.tracks,
-        { timingMap: importTimingMap, quantization }
+        { timingMap: importTimingMap, quantization, rhythmScale, preferredTimingMap }
       )
     : undefined;
   return {
@@ -608,9 +615,15 @@ async function importTranscriberToGuest(
   );
   if (!response.canvas) return response;
   const importTimingMap = response.canvas.timingMap;
-  const timingMap = existingCanvas
+  let timingMap = existingCanvas
     ? preserveExistingTimingForOffsetImport(response.canvas, existingCanvas)
     : stabilizeNewTranscriberTimingMap(response.canvas);
+  let rhythmScale = 1, preferredTimingMap: TimingMapV2 | undefined;
+  if (!existingCanvas) {
+    const scale = estimateImportRhythmScale(response.canvas, response.importedEditorIds);
+    const preferred = scaleImportTimingMap(timingMap, scale);
+    if (preferred !== timingMap) { rhythmScale = scale; timingMap = preferred; preferredTimingMap = preferred; }
+  }
   const patched = await requestForEditor<{ ok: true; canvas: CanvasSnapshot; timingMap: TimingMapV2 }>(
     response.editorId,
     `/editors/${encodeURIComponent(response.editorId)}/timing`,
@@ -638,7 +651,7 @@ async function importTranscriberToGuest(
       TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES,
       importedEditorIds,
       payload.tracks,
-      { timingMap: importTimingMap, quantization: payload.quantization ?? { enabled: Boolean(payload.quantize) } }
+      { timingMap: importTimingMap, quantization: payload.quantization ?? { enabled: Boolean(payload.quantize) }, rhythmScale, preferredTimingMap }
     ),
   };
   return response;
@@ -658,7 +671,7 @@ export async function optimizeImportedTrackFingerings(
   passes: number = 1,
   importedEditorIds?: readonly string[],
   importedTracks?: readonly TranscriberTrack[],
-  importContext?: { timingMap?: TimingMapV2; quantization?: TranscriberQuantization }
+  importContext?: { timingMap?: TimingMapV2; quantization?: TranscriberQuantization; rhythmScale?: number; preferredTimingMap?: TimingMapV2 }
 ): Promise<CanvasSnapshot> {
   const canvasId = editorId.includes(LANE_DELIMITER)
     ? editorId.slice(0, editorId.indexOf(LANE_DELIMITER))
@@ -686,6 +699,12 @@ export async function optimizeImportedTrackFingerings(
     const instrument = importedInstrument(source);
     Object.assign(lane, instrument, { name: source.name, chordEditor: { ...lane.chordEditor, instrumentType: instrument.instrumentType, instrumentSound: instrument.instrumentId } });
     if (instrument.instrumentType === "notation") Object.assign(lane, restorePitchedImport(lane, source.segments, importContext?.timingMap ?? optimized.timingMap, importContext?.quantization));
+  }
+
+  if (importContext?.preferredTimingMap && importContext.rhythmScale && importContext.rhythmScale !== 1) {
+    const map = importContext.preferredTimingMap, secondsPerBar = map.bars[0].endSeconds - map.bars[0].startSeconds;
+    optimized.timingMap = map; optimized.secondsPerBar = secondsPerBar;
+    optimized.editors = optimized.editors.map(lane => !importedLaneIds?.size || importedLaneIds.has(lane.id) ? scaleImportedLane(lane, importContext.rhythmScale!, secondsPerBar) : lane);
   }
 
   optimized.editors.forEach((lane) => {

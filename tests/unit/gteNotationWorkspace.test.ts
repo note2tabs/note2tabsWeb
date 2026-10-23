@@ -11,6 +11,7 @@ import type { EditorSnapshot } from "../../types/gte";
 
 function harness(notes = false, readOnly = false) {
   const states: any[] = []; let cursor = 0;
+  const effects: Array<() => void> = [], listeners = new Map<string, (event: any) => void>();
   const hooks = {
     useState: (initial: any) => {
       const index = cursor++;
@@ -18,7 +19,7 @@ function harness(notes = false, readOnly = false) {
       return [states[index], (next: any) => { states[index] = typeof next === "function" ? next(states[index]) : next; }];
     },
     useRef: (value: any) => { const index = cursor++; if (!(index in states)) states[index] = { current: value }; return states[index]; },
-    useMemo: (fn: () => unknown) => fn(), useEffect: () => {},
+    useMemo: (fn: () => unknown) => fn(), useEffect: (effect: () => void) => { effects.push(effect); },
   };
   const snapshot: EditorSnapshot = { id: "piano", instrumentId: "gm:piano", framesPerMessure: 480, totalFrames: 480, fps: 240, timeSignature: 4, timeSignatureBottom: 4, notes: [], chords: [], cutPositionsWithCoords: [], optimalsByTime: {} };
   if (notes) snapshot.notes = [{ id: 1, midiNum: 60, startTime: 0, length: 60, tab: [0, 0], optimals: [] }];
@@ -41,8 +42,8 @@ function harness(notes = false, readOnly = false) {
   const toolbarModule = { exports: {} as any };
   vm.runInNewContext(ts.transpileModule(readFileSync("components/GteNotationToolbar.tsx", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX } }).outputText,
     { module: toolbarModule, exports: toolbarModule.exports, require: dependencies });
-  vm.runInNewContext(compiled, { module, exports: module.exports, structuredClone, window: { innerWidth: 1200, innerHeight: 800 }, require: (name: string) => name.includes("GteNotationToolbar") ? toolbarModule.exports : dependencies(name) });
-  const render = () => { cursor = 0; return module.exports.default(props); };
+  vm.runInNewContext(compiled, { module, exports: module.exports, structuredClone, document: { addEventListener: (name: string, callback: (event: any) => void) => listeners.set(name, callback), removeEventListener: () => {} }, window: { innerWidth: 1200, innerHeight: 800 }, require: (name: string) => name.includes("GteNotationToolbar") ? toolbarModule.exports : dependencies(name) });
+  const render = () => { cursor = 0; effects.length = 0; return module.exports.default(props); };
   const walk = (node: any): any[] => Array.isArray(node) ? node.flatMap(walk) : node?.props ? [node, ...(typeof node.type === "function" ? walk(node.type(node.props)) : walk(node.props.children))] : [];
   const nodes = () => walk(render());
   const text = (node: any): string => Array.isArray(node) ? node.map(text).join("") : node?.props ? text(node.props.children) : typeof node === "string" || typeof node === "number" ? String(node) : "";
@@ -51,10 +52,25 @@ function harness(notes = false, readOnly = false) {
   const engraving = () => nodes().find((node) => node.props.onPoint && node.props.onSelect);
   const place = (frame: number, midi = 64, staff: "treble" | "bass" = "treble") => engraving().props.onPoint({ frame, midi, staff });
   const selectFirst = () => engraving().props.onSelect(notation.scoreEvents(props.snapshot)[0], false);
-  return { props, render, nodes, button, key, engraving, place, selectFirst };
+  const outsidePointer = (inside = false, protectedTarget = false) => {
+    const element = render(); element.ref.current = { contains: () => inside, focus: () => {} };
+    effects.find(effect => effect.toString().includes("const outside ="))!();
+    listeners.get("pointerdown")!({ target: { closest: () => protectedTarget ? {} : null } });
+  };
+  return { props, render, nodes, button, key, engraving, place, selectFirst, outsidePointer };
 }
 
 describe("notation input workflow", () => {
+  it("clears selection outside the sheet but preserves it for sheet and toolbar interactions", () => {
+    const h = harness(true); h.selectFirst();
+    h.outsidePointer(true, true);
+    expect(h.engraving().props.selection.noteIds).toEqual([1]);
+    h.outsidePointer();
+    expect(h.engraving().props.selection).toEqual({ noteIds: [], chordIds: [] });
+    h.selectFirst(); h.outsidePointer(true, false);
+    expect(h.engraving().props.selection.noteIds).toEqual([]);
+    expect(h.props.onSnapshotChange).not.toHaveBeenCalled();
+  });
   it("selects bars like tabs with range/additive selection and delegates copy, paste and delete", () => {
     const h = harness(true), copy = vi.fn(), paste = vi.fn(), remove = vi.fn();
     h.props.snapshot.totalFrames = 1920;
@@ -280,6 +296,20 @@ describe("notation input workflow", () => {
     expect(h.engraving().props.selection.noteIds).toEqual([]);
     expect(h.props.onSnapshotChange).not.toHaveBeenCalled();
   });
+  it("selects and shift-toggles individual simultaneous chord tones without changing music", () => {
+    const h = harness();
+    h.props.snapshot.chords = [{ id: 8, startTime: 0, length: 120, originalMidi: [60,64,67], currentTabs: [[0,0],[0,0],[0,0]], ogTabs: [] }];
+    const events = notation.scoreEvents(h.props.snapshot);
+    h.engraving().props.onSelect(events[1], false);
+    expect(h.engraving().props.selection).toMatchObject({ noteIds: [], chordIds: [], eventKeys: ["c:8:1"] });
+    h.engraving().props.onSelect(events[2], true);
+    expect(h.engraving().props.selection.eventKeys).toEqual(["c:8:1","c:8:2"]);
+    h.engraving().props.onSelect(events[1], true);
+    expect(h.engraving().props.selection.eventKeys).toEqual(["c:8:2"]);
+    expect(h.props.onSnapshotChange).not.toHaveBeenCalled();
+    h.key("Delete");
+    expect(notation.scoreEvents(h.props.snapshot).map(note => note.midi)).toEqual([60,64]);
+  });
   it("shows musical values without note-tool shortcuts, keeping only the Escape key", () => {
     const h = harness();
     const expand = (node: any): any[] => Array.isArray(node) ? node.flatMap(expand) : node?.props
@@ -301,7 +331,7 @@ describe("notation input workflow", () => {
     expect(h.engraving().props.input).toBe(false);
     expect(h.button("Eighth note").props["aria-pressed"]).toBe(false);
     expect(h.button("Select")).toBeUndefined();
-    expect(h.button("Snap to key")).toBeUndefined();
+    expect(h.button("Snap selection to key")).toBeDefined();
     expect(h.button("Note input")).toBeUndefined();
     expect(h.button("Beat guides")).toBeUndefined();
   });

@@ -1,12 +1,12 @@
 import {
-  Accidental, Beam, Curve, Dot, Formatter, Fraction, GhostNote, Stave, StaveConnector, StaveNote, StaveTie, Stem, Tuplet, Voice,
+  Accidental, Beam, CanvasContext, Curve, Dot, Formatter, Fraction, GhostNote, Stave, StaveConnector, StaveNote, StaveTie, Stem, SVGContext, Tuplet, Voice,
   type RenderContext, type StemmableNote,
 } from "vexflow/bravura";
 import { notationKeyAlteration, SCORE_WHOLE, type NotationScore, type ScoreMeasure, type ScoreStaff, type ScoreToken } from "./gteNotationScore";
 import { validNotationTie, type ScoreEvent } from "./gteNotation";
 
 export type ScoreBox = { x: number; y: number; width: number; height: number };
-export type EngravedHit = { token: ScoreToken; box: ScoreBox; heads: Array<{ x: number; y: number; midi: number }>; x: number };
+export type EngravedHit = { token: ScoreToken; box: ScoreBox; heads: Array<{ x: number; y: number; midi: number }>; x: number; scaleX?: number };
 export type EngravedMeasure = {
   index: number; x: number; width: number; top: number; bottom: number;
   staffBottom: Record<ScoreStaff, number>; startX: number; endX: number; columns: Array<{ tick: number; x: number }>;
@@ -88,9 +88,12 @@ export function prepareNotationEngraving(score: NotationScore, viewportWidth: nu
   const automatic = maxBars === Infinity;
   // Minimum engraving widths avoid collisions, but are too tight for comfortable
   // reading. Leave rhythmic breathing room before choosing the system breaks.
-  const systems = distributeNotationMeasures(models.map((measure) => automatic ? Math.max(112, measure.minWidth * 1.35) : Math.max(72, measure.minWidth)), Math.max(1, viewportWidth - leftInset - 16), Math.max(1, maxBars));
+  const available = Math.max(1, viewportWidth - leftInset - 16);
+  const systems = distributeNotationMeasures(models.map((measure) => automatic ? Math.max(104, measure.minWidth * 1.08) : Math.max(72, measure.minWidth)), available, Math.max(1, maxBars));
   const layout: EngravedLayout = { width: viewportWidth, height: 0, hits: [], measures: [], beamCount: 0, tupletCount: 0, tieCount: 0 };
   const built: Built[] = [];
+  const scales = new Map<Built, number>();
+  const firstMeasures = new Set<Built>();
   let systemY = 12;
   systems.forEach((system) => {
     const pitches = system.flatMap((item) => score.measures[item.index].voices.treble.flatMap((voice) => voice.flatMap((token) => token.pitches)));
@@ -98,13 +101,16 @@ export function prepareNotationEngraving(score: NotationScore, viewportWidth: nu
     const topStep = Math.max(45, ...pitches.map((pitch) => pitch.step)), lowStep = Math.min(35, ...pitches.map((pitch) => pitch.step));
     const bassHigh = Math.max(33, ...bassPitches.map((pitch) => pitch.step));
     const trebleY = systemY + Math.max(24, (topStep - 45) * 5 + 24);
-    const bassY = trebleY + Math.max(110, (37 - lowStep) * 5 + (bassHigh - 25) * 5 + 65);
-    let x = leftInset, bottom = bassY + 100;
+    const bassY = trebleY + Math.max(92, (37 - lowStep) * 5 + (bassHigh - 25) * 5 + 57);
+    let x = leftInset, bottom = bassY + 88;
     system.forEach((item, position) => {
       const measure = position === 0 ? buildMeasure(score.measures[item.index], score, true) : models[item.index];
       // The actual prefix width is known from the clef, key and time signature metrics.
       const width = Math.max(item.width, measure.minWidth);
-      for (const staff of ["treble", "bass"] as const) measure.staves[staff].setX(x).setY(staff === "treble" ? trebleY : bassY).setWidth(width);
+      const scaleX = Math.min(1, available / width);
+      const mapX = (value: number) => value * scaleX;
+      scales.set(measure, scaleX); if (position === 0) firstMeasures.add(measure);
+      for (const staff of ["treble", "bass"] as const) measure.staves[staff].setX(x / scaleX).setY(staff === "treble" ? trebleY : bassY).setWidth(width);
       const startX = Math.max(measure.staves.treble.getNoteStartX(), measure.staves.bass.getNoteStartX());
       const endX = Math.min(measure.staves.treble.getNoteEndX(), measure.staves.bass.getNoteEndX());
       for (const staff of ["treble", "bass"] as const) measure.staves[staff].setNoteStartX(startX);
@@ -148,47 +154,92 @@ export function prepareNotationEngraving(score: NotationScore, viewportWidth: nu
           note.noteHeads.forEach((head) => head.setX(note.getNoteHeadBeginX()));
           const box = note.getBoundingBox();
           bottom = Math.max(bottom, box.getY() + box.getH() + 24);
-          if (!token.rest) layout.hits.push({ token, x: nx, box: { x: box.getX(), y: box.getY(), width: box.getW(), height: box.getH() },
-            heads: note.noteHeads.map((head, index) => ({ x: head.getAbsoluteX(), y: note.getYs()[index], midi: token.pitches[index].midi })) });
+          if (!token.rest) {
+            const heads = note.noteHeads.map((head, index) => {
+              // Expand about the stem attachment, not the glyph's centre, so
+              // the normal-size head still joins its compressed stem exactly.
+              const anchorOffset = note.getStemDirection() === Stem.UP ? head.getWidth() : 0;
+              const x = mapX(head.getAbsoluteX() + anchorOffset) - anchorOffset;
+              if (scaleX < 1) {
+                const drawHead = head.draw.bind(head);
+                head.draw = () => {
+                  const context = head.checkContext();
+                  const anchor = head.getAbsoluteX() + anchorOffset;
+                  if (context instanceof SVGContext) {
+                    const group = context.openGroup("notation-notehead-size");
+                    group.setAttribute("transform", `translate(${anchor} 0) scale(${1 / scaleX} 1) translate(${-anchor} 0)`);
+                    try { drawHead(); } finally { context.closeGroup(); }
+                  } else if (context instanceof CanvasContext) {
+                    const canvas = context.context2D;
+                    canvas.save(); canvas.translate(anchor, 0); canvas.scale(1 / scaleX, 1); canvas.translate(-anchor, 0);
+                    try { drawHead(); } finally { canvas.restore(); }
+                  } else {
+                    drawHead();
+                  }
+                };
+              }
+              return { x, y: note.getYs()[index], midi: token.pitches[index].midi };
+            });
+            const left = Math.min(mapX(box.getX()), ...heads.map(head => head.x));
+            const right = Math.max(mapX(box.getX() + box.getW()), ...heads.map((head, index) => head.x + note.noteHeads[index].getWidth()));
+            layout.hits.push({ token, scaleX: 1, x: mapX(nx), box: { x: left, y: box.getY(), width: right - left, height: box.getH() }, heads });
+          }
         }
       });
       if (!columns.has(item.index * score.barTicks)) columns.set(item.index * score.barTicks, startX + 10);
       columns.set((item.index + 1) * score.barTicks, endX - 8);
-      layout.measures.push({ index: item.index, x, width, top: trebleY + 22, bottom: bassY + 90, startX, endX,
+      layout.measures.push({ index: item.index, x, width: mapX(width), top: trebleY + 22, bottom: bassY + 90, startX: mapX(startX), endX: mapX(endX),
         staffBottom: { treble: measure.staves.treble.getYForLine(4), bass: measure.staves.bass.getYForLine(4) },
-        columns: [...columns].map(([tick, x]) => ({ tick, x })).sort((a, b) => a.tick - b.tick) });
+        columns: [...columns].map(([tick, x]) => ({ tick, x: mapX(x) })).sort((a, b) => a.tick - b.tick) });
       built.push(measure);
       layout.beamCount += measure.beams.length; layout.tupletCount += measure.tuplets.length;
-      x += width;
+      x += mapX(width);
     });
     layout.width = Math.max(layout.width, x + 16);
-    systemY = bottom + 34;
+    systemY = bottom + 18;
   });
   layout.height = systemY;
   const draw = (context: RenderContext) => {
     context.setFillStyle("#263c32").setStrokeStyle("#263c32");
-    type Endpoint = { note: StaveNote; index: number; end: number; source: ScoreEvent; systemY: number };
+    const scaled = (scale: number, render: () => void) => {
+      if (scale === 1) { render(); return; }
+      if (context instanceof SVGContext) {
+        // SVGContext.scale changes the root viewBox, not a local transform.
+        // Scope compression to these glyphs so following bars stay normal size.
+        const group = context.openGroup("notation-density");
+        group.setAttribute("transform", `scale(${scale} 1)`);
+        group.setAttribute("data-notation-density", String(scale));
+        try { render(); } finally { context.closeGroup(); }
+      } else {
+        context.save(); context.scale(scale, 1);
+        try { render(); } finally { context.restore(); }
+      }
+    };
+    type Endpoint = { note: StaveNote; index: number; end: number; source: ScoreEvent; systemY: number; scale: number };
     const lastBySource = new Map<string, Endpoint>(), firstBySource = new Map<string, Endpoint>();
     built.forEach((measure) => {
+      const scale = scales.get(measure) ?? 1;
+      scaled(scale, () => {
       measure.staves.treble.setContext(context).draw(); measure.staves.bass.setContext(context).draw();
       new StaveConnector(measure.staves.treble, measure.staves.bass).setType(StaveConnector.type.SINGLE_LEFT).setContext(context).draw();
-      if (measure.staves.treble.getX() === leftInset) new StaveConnector(measure.staves.treble, measure.staves.bass).setType(StaveConnector.type.BRACE).setContext(context).draw();
+      if (firstMeasures.has(measure)) new StaveConnector(measure.staves.treble, measure.staves.bass).setType(StaveConnector.type.BRACE).setContext(context).draw();
       measure.voices.forEach((voice) => voice.draw(context));
       measure.beams.forEach((beam) => beam.setContext(context).draw());
       measure.tuplets.forEach((tuplet) => tuplet.setContext(context).draw());
+      });
       measure.records.forEach(({ token, note }) => {
         if (!(note instanceof StaveNote) || token.rest) return;
         token.pitches.forEach((pitch, index) => pitch.sources.forEach((source) => {
           const previous = lastBySource.get(source.key);
           if (previous && previous.end === token.tick) {
-            if (previous.note.getStave()?.getY() === note.getStave()?.getY()) new StaveTie({ firstNote: previous.note, lastNote: note, firstIndexes: [previous.index], lastIndexes: [index] }).setContext(context).draw();
+            if (previous.note.getStave()?.getY() === note.getStave()?.getY()) scaled(scale, () => new StaveTie({ firstNote: previous.note, lastNote: note, firstIndexes: [previous.index], lastIndexes: [index] }).setContext(context).draw());
             else {
-              new StaveTie({ firstNote: previous.note, firstIndexes: [previous.index], lastIndexes: [index] }).setContext(context).draw();
-              new StaveTie({ lastNote: note, firstIndexes: [previous.index], lastIndexes: [index] }).setContext(context).draw();
+              scaled(previous.scale, () => new StaveTie({ firstNote: previous.note, firstIndexes: [previous.index], lastIndexes: [index] }).setContext(context).draw());
+              scaled(scale, () => new StaveTie({ lastNote: note, firstIndexes: [previous.index], lastIndexes: [index] }).setContext(context).draw());
             }
             layout.tieCount++;
           }
-          const endpoint = { note, index, end: token.tick + token.ticks, source, systemY: measure.staves.treble.getY() };
+          const endpoint = { note, index, end: token.tick + token.ticks, source, systemY: measure.staves.treble.getY(), scale };
           lastBySource.set(source.key, endpoint);
           if (!firstBySource.has(source.key)) firstBySource.set(source.key, endpoint);
         }));
@@ -200,16 +251,16 @@ export function prepareNotationEngraving(score: NotationScore, viewportWidth: nu
       const sameSystem = from.systemY === to.systemY;
       if (kind === "ties") {
         const indexes = { firstIndexes: [from.index], lastIndexes: [to.index] };
-        if (sameSystem) new StaveTie({ firstNote: from.note, lastNote: to.note, ...indexes }).setContext(context).draw();
+        if (sameSystem) scaled(from.scale, () => new StaveTie({ firstNote: from.note, lastNote: to.note, ...indexes }).setContext(context).draw());
         else {
-          new StaveTie({ firstNote: from.note, ...indexes }).setContext(context).draw();
-          new StaveTie({ lastNote: to.note, ...indexes }).setContext(context).draw();
+          scaled(from.scale, () => new StaveTie({ firstNote: from.note, ...indexes }).setContext(context).draw());
+          scaled(to.scale, () => new StaveTie({ lastNote: to.note, ...indexes }).setContext(context).draw());
         }
         layout.tieCount++;
-      } else if (sameSystem) new Curve(from.note, to.note, { openingDirection: "down", position: Curve.Position.NEAR_TOP, positionEnd: Curve.Position.NEAR_TOP, cps: [{ x: 0, y: 14 }, { x: 0, y: 14 }] }).setContext(context).draw();
+      } else if (sameSystem) scaled(from.scale, () => new Curve(from.note, to.note, { openingDirection: "down", position: Curve.Position.NEAR_TOP, positionEnd: Curve.Position.NEAR_TOP, cps: [{ x: 0, y: 14 }, { x: 0, y: 14 }] }).setContext(context).draw());
       else {
-        new Curve(from.note, undefined, {}).setContext(context).draw();
-        new Curve(undefined, to.note, {}).setContext(context).draw();
+        scaled(from.scale, () => new Curve(from.note, undefined, {}).setContext(context).draw());
+        scaled(to.scale, () => new Curve(undefined, to.note, {}).setContext(context).draw());
       }
     }
   };

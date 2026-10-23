@@ -11,6 +11,17 @@ const pair = () => addScoreNote(addScoreNote(empty(), 64, 0, 120, "treble").snap
 const both = { noteIds: [1, 2], chordIds: [] };
 
 describe("notation tools and persistence", () => {
+  it("edits one stored chord tone without editing its simultaneous neighbors", () => {
+    const source = empty();
+    source.chords = [{ id: 8, startTime: 60, length: 120, originalMidi: [60,64,67], currentTabs: [[0,0],[0,0],[0,0]], ogTabs: [], velocities: [.4,.5,.6] }];
+    const before = structuredClone(source), selection = { noteIds: [], chordIds: [], eventKeys: ["c:8:1"] };
+    const moved = editScoreSelection(source, selection, { transpose: 1, shift: 30, length: 60 });
+    expect(scoreEvents(moved).map(note => [note.midi, note.start, note.length, note.velocity])).toEqual([[60,60,120,.4],[65,90,60,.5],[67,60,120,.6]]);
+    expect(scoreEvents(editScoreSelection(source, selection, { remove: true })).map(note => note.midi)).toEqual([60,67]);
+    expect(scoreEvents(setScoreVoice(source, selection, 2)).map(note => note.voice)).toEqual([1,2,1]);
+    expect(editScoreSelection(source, selection, { shift: -61 })).toBe(source);
+    expect(source).toEqual(before);
+  });
   it("changes voice without moving, retuning, or shortening notes", () => {
     const source = pair(), next = setScoreVoice(source, both, 2);
     expect(next.notes.map(({ notationVoice, ...note }) => note)).toEqual(source.notes.map(({ notationVoice, ...note }) => note));

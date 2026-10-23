@@ -72,7 +72,25 @@ export function nearestScorePitch(pitchClass: number, reference: number) {
   return candidates.sort((a, b) => Math.abs(a - reference) - Math.abs(b - reference) || b - a)[0];
 }
 
-type Selection = { noteIds: readonly number[]; chordIds: readonly number[] };
+export type ScoreSelection = { noteIds: number[]; chordIds: number[]; eventKeys?: string[] };
+type Selection = { noteIds: readonly number[]; chordIds: readonly number[]; eventKeys?: readonly string[] };
+export const scoreEventSelected = (event: ScoreEvent, selection: Selection) => Boolean(selection.eventKeys?.includes(event.key)) || (event.noteId !== undefined ? selection.noteIds.includes(event.noteId) : selection.chordIds.includes(event.chordId!));
+
+/** Keep selection read-only; materialize individual chord tones only when edited. */
+export function resolveScoreSelection(source: EditorSnapshot, selection: Selection): { snapshot: EditorSnapshot; selection: ScoreSelection } {
+  const events = scoreEvents(source), partial = new Set(events.filter(event => event.chordId !== undefined && selection.eventKeys?.includes(event.key) && !selection.chordIds.includes(event.chordId)).map(event => event.chordId!));
+  if (!partial.size) return { snapshot: source, selection: { noteIds: [...selection.noteIds], chordIds: [...selection.chordIds], eventKeys: [...(selection.eventKeys ?? [])] } };
+  const next = structuredClone(source), remap = new Map<string, string>(), noteIds = [...selection.noteIds];
+  let id = Math.max(0, ...source.notes.map(note => note.id));
+  for (const event of events.filter(event => event.chordId !== undefined && partial.has(event.chordId))) {
+    const note: Note = { id: ++id, midiNum: event.midi, startTime: event.start, length: event.length, velocity: event.velocity, pitchBend: event.pitchBend?.slice(), notationVoice: event.voice ?? 1, notationStaff: event.staff, tab: [0, 0], optimals: [] };
+    next.notes.push(note); remap.set(event.key, "n:" + id);
+    if (scoreEventSelected(event, selection)) noteIds.push(id);
+  }
+  next.chords = next.chords.filter(chord => !partial.has(chord.id));
+  if (next.notation) for (const kind of ["ties", "slurs"] as const) next.notation[kind] = next.notation[kind]?.map(link => ({ from: remap.get(link.from) ?? link.from, to: remap.get(link.to) ?? link.to }));
+  return { snapshot: next, selection: { noteIds, chordIds: [...selection.chordIds], eventKeys: selection.eventKeys?.filter(key => !remap.has(key)) } };
+}
 export function validNotationTie(from: ScoreEvent, to: ScoreEvent) {
   return from.key !== to.key && from.midi === to.midi && from.staff === to.staff && (from.voice ?? 1) === (to.voice ?? 1) &&
     Math.abs(from.start + from.length - to.start) < 0.01;
@@ -97,7 +115,7 @@ export function scorePlaybackEvents(snapshot: EditorSnapshot) {
   });
 }
 export function toggleScoreConnection(source: EditorSnapshot, selection: Selection, kind: "ties" | "slurs") {
-  const events = scoreEvents(source).filter((event) => event.noteId !== undefined ? selection.noteIds.includes(event.noteId) : selection.chordIds.includes(event.chordId!))
+  const events = scoreEvents(source).filter((event) => scoreEventSelected(event, selection))
     .sort((a, b) => a.start - b.start || a.midi - b.midi);
   const selected = new Set(events.map((event) => event.key));
   const existing = source.notation?.[kind] ?? [];
@@ -114,6 +132,7 @@ export function toggleScoreConnection(source: EditorSnapshot, selection: Selecti
   return { ...source, notation: { ...source.notation, [kind]: [...existing, ...links] } };
 }
 export function setScoreVoice(source: EditorSnapshot, selection: Selection, voice: 1 | 2) {
+  ({ snapshot: source, selection } = resolveScoreSelection(source, selection));
   return { ...source, notes: source.notes.map((note) => selection.noteIds.includes(note.id) ? { ...note, notationVoice: voice } : note),
     chords: source.chords.map((chord) => selection.chordIds.includes(chord.id) ? { ...chord, notationVoice: voice } : chord) };
 }
@@ -123,10 +142,12 @@ export function addScoreRest(source: EditorSnapshot, rest: NonNullable<NonNullab
     rests: [...rests.filter((item) => item.staff !== rest.staff || item.voice !== rest.voice || item.start + item.length <= rest.start || item.start >= rest.start + rest.length), rest] } };
 }
 export function editScoreSelection(source: EditorSnapshot, selection: Selection, change: { transpose?: number; shift?: number; length?: number; remove?: boolean; snapKey?: { root: number; type: number } }) {
+  const original = source;
+  ({ snapshot: source, selection } = resolveScoreSelection(source, selection));
   const next = structuredClone(source), notes = new Set(selection.noteIds), chords = new Set(selection.chordIds);
   // Reject the entire move at MIDI/time bounds, preserving intervals and relative timing.
   const targets = scoreEvents(source).filter((event) => event.noteId !== undefined ? notes.has(event.noteId) : chords.has(event.chordId!));
-  if (targets.some((event) => event.midi + (change.transpose ?? 0) < 0 || event.midi + (change.transpose ?? 0) > 127 || event.start + (change.shift ?? 0) < 0)) return source;
+  if (targets.some((event) => event.midi + (change.transpose ?? 0) < 0 || event.midi + (change.transpose ?? 0) > 127 || event.start + (change.shift ?? 0) < 0)) return original;
   if (change.remove) {
     next.notes = next.notes.filter((note) => !notes.has(note.id));
     next.chords = next.chords.filter((chord) => !chords.has(chord.id));

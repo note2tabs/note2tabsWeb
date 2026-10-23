@@ -125,6 +125,22 @@
 .note2tabs-select--compact { width: auto; min-width: 145px; font-size: .82rem; font-weight: 650; }
 .note2tabs-select--compact > summary { min-height: 36px; padding: 0 10px; border-radius: 9px; }
 .note2tabs-select--disabled { opacity: .55; pointer-events: none; }
+
+.gte-track-select { margin-top: .375rem; min-width: 0; font-family: var(--font-sans); font-size: .75rem; font-weight: 400; text-transform: none; letter-spacing: normal; }
+.gte-track-select > summary { min-height: 32px; height: 32px; padding: 0 9px; gap: 6px; border-radius: 7px; grid-template-columns: minmax(0, 1fr) 16px; }
+.gte-track-select > summary > svg { position: static; margin: 0; align-self: center; justify-self: center; }
+.gte-track-select-menu { padding: 4px; border-radius: 8px; font-family: var(--font-sans); font-size: 12px; font-weight: 400; line-height: 1.35; letter-spacing: normal; text-transform: none; color: #334155; }
+.gte-track-select-menu button { min-height: 28px; padding: 4px 7px; gap: 6px; border-radius: 5px; font: inherit; }
+.gte-track-select-menu button[aria-selected="true"] { font-weight: 500; }
+.gte-track-select-menu [role="presentation"] { padding: 7px 8px 3px; font-family: inherit; font-size: 10px; font-weight: 500; letter-spacing: normal; text-transform: none; }
+[data-gte-track-picker-row] { min-height: 56px; gap: 8px; padding: 6px 8px; }
+[data-gte-track-picker-row] > [role="option"],
+[data-gte-track-picker-row] > input:not([type="range"]) { min-height: 40px; padding: 6px; font-size: 14px; }
+[data-gte-track-picker-row] > button:not([role="option"]) { width: 36px; height: 36px; border-radius: 8px; }
+[data-gte-track-picker-row] svg { width: 20px; height: 20px; flex-shrink: 0; }
+[data-gte-track-picker-row] [role="option"] > span:last-child { font-size: 11px; }
+[data-gte-track-picker-row] > input[type="range"] { width: 64px; height: 32px; }
+.note2tabs-select__menu button:disabled { opacity: .4; cursor: not-allowed; }
 .share-dialog__role-select { flex: 0 0 108px; min-width: 108px; }
 
 @media (max-width: 540px) {
@@ -13936,6 +13952,12 @@ input[type="number"] {
     left: auto !important;
     right: 1.25rem;
     bottom: 1.15rem !important;
+  }
+
+  [data-midi-key][data-playing="true"] {
+    background: #64cba0 !important;
+    color: #123e2d !important;
+    box-shadow: inset 0 0 0 2px #267451 !important;
   }
 
   [data-desktop-track-selector="true"] > div {

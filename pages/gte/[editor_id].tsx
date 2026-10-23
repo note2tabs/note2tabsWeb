@@ -31,6 +31,7 @@ import { createPortal } from "react-dom";
 import { ANALYTICS_EVENTS, sendEvent } from "../../lib/analytics";
 import { buildLaneEditorRef, gteApi, normalizeEditorName } from "../../lib/gteApi";
 import { buildTrackMergePlan } from "../../lib/gteTrackMerge";
+import { scaleImportedLane, scaleImportTimingMap } from "../../lib/gteImportRhythm";
 import {
   PLAYBACK_SPEED_OPTIONS,
   SPEED_TRAINER_START_OPTIONS,
@@ -81,6 +82,8 @@ import { selectNotationBars, insertNotationBars, deleteNotationBars } from "../.
 import { getTrackInstrumentType, type InstrumentType } from "../../lib/gteInstrumentType";
 import { convertTrackInstrument } from "../../lib/gteInstrumentConversion";
 import GteTrackTypeSetting from "../../components/GteTrackTypeSetting";
+import GteTrackSoundSelect from "../../components/GteTrackSoundSelect";
+import Note2TabsSelect from "../../components/Note2TabsSelect";
 import { restoreNotationSnapshot } from "../../lib/gteNotationPersistence";
 import {
   getDrumVoiceForNote,
@@ -449,7 +452,7 @@ const normalizeLane = (
   const instrumentType = getTrackInstrumentType(lane);
   const editorKind = instrumentType === "bass-tab" ? "bass" : instrumentType === "notation" ? "tab" : normalizeEditorKind(lane.editorType ?? lane.trackType ?? lane.type) === "chords" ? "chords" : instrumentType === "drums" ? "drums" : "tab";
   const laneTypeLabel =
-    editorKind === "chords" ? "Chords" : editorKind === "drums" ? "Drums" : editorKind === "bass" ? "Bass" : "Tab";
+    instrumentType === "notation" ? "Sheets" : editorKind === "chords" ? "Chords" : editorKind === "drums" ? "Drums" : editorKind === "bass" ? "Bass" : "Tab";
   const laneName =
     !rawName || defaultNamePattern.test(rawName)
       ? `${laneTypeLabel} ${index + 1}`
@@ -2388,6 +2391,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     if (desktopTrackSettingsCollapsed) return;
     const closeTrackSettingsOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      if (event.target instanceof Element && event.target.closest('[role="listbox"]')) return;
       event.preventDefault();
       event.stopPropagation();
       setDesktopTrackSettingsCollapsed(true);
@@ -2713,6 +2717,45 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       setNameError(err?.message || "We could not rename this tab. Its previous name is unchanged; please try again.");
     } finally {
       setNameSaving(false);
+    }
+  };
+
+  const reframeTempo = async (factor: 2 | 0.5) => {
+    if (bpmSaving || !canvasRef.current) return;
+    const previous = canvasRef.current;
+    const map = timingMapForCanvas(previous);
+    const timingMap = scaleImportTimingMap(map, factor, true);
+    if (timingMap === map) {
+      setBpmError("Tempo scaling is not available across different time signatures.");
+      return;
+    }
+    queuedBpmValueRef.current = null;
+    if (bpmCommitTimerRef.current !== null) window.clearTimeout(bpmCommitTimerRef.current);
+    bpmCommitTimerRef.current = null;
+    setBpmSaving(true);
+    setBpmError(null);
+    stopGlobalPlayback();
+    const secondsPerBar = (previous.secondsPerBar || DEFAULT_SECONDS_PER_BAR) / factor;
+    const next = normalizeCanvas({ ...previous, secondsPerBar, timingMap,
+      editors: previous.editors.map(lane => scaleImportedLane(lane, factor, secondsPerBar)),
+    }, editorId);
+    // One history entry for the complete musical reframe, including drum loops.
+    recordCanvasHistory(previous, next);
+    canvasRef.current = next;
+    canvasRevisionRef.current += 1;
+    setCanvas(next);
+    const frame = globalPlaybackFrameRef.current * factor;
+    globalPlaybackFrameRef.current = frame;
+    startFrameAnchorRef.current *= factor;
+    setGlobalPlaybackFrame(frame);
+    setBpmDraft(formatBpm(secondsPerBarToBpm(secondsPerBar, normalizeTimeSignature(next.editors[0]?.timeSignature) ?? 8)));
+    setHasPendingCommit(true);
+    try {
+      await gteApi.applySnapshot(editorId, cloneCanvas(next));
+    } catch (err: any) {
+      setSaveError(err?.message || "Tempo scaling is kept locally. Saving will retry automatically.");
+    } finally {
+      setBpmSaving(false);
     }
   };
 
@@ -6694,21 +6737,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 </span>
               </summary>
               <div className="absolute right-0 top-11 z-50 w-64 space-y-3 rounded-xl border border-slate-200 bg-white p-3 shadow-xl lg:static lg:mt-2 lg:w-full lg:shadow-sm">
-                <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Instrument sound")}<select
-                    value={practiceInstrumentValue}
-                    name="practice-instrument"
-                    onChange={(event) =>
-                      handleLaneInstrumentChange(practiceSoundLaneId, event.target.value)
-                    }
-                    className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
-                    aria-label={t("Practice instrument")}
-                  >
-                    {trackInstrumentOptions.map((option) => (
-                      <option key={`practice-instrument-${option.id}`} value={option.id}>
-                        {editorInstrumentName(option.label,t)}
-                      </option>
-                    ))}
-                  </select>
+                <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Instrument sound")}<GteTrackSoundSelect value={practiceInstrumentValue} options={trackInstrumentOptions} onChange={value => handleLaneInstrumentChange(practiceSoundLaneId, value)} />
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -8262,13 +8291,24 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               event.currentTarget.blur();
                             }
                           }}
-                          className="h-9 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm"
+                          className="h-12 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm"
                         />
+                        <span className="grid h-12 shrink-0 grid-rows-2 gap-1">
+                        {([2, 0.5] as const).map(factor => (
+                          <button key={factor} type="button" disabled={bpmSaving}
+                            onPointerDown={event => event.preventDefault()}
+                            onClick={() => void reframeTempo(factor)}
+                            title={factor === 2 ? "Double BPM, preserve playback timing" : "Halve BPM, preserve playback timing"}
+                            className="min-h-0 rounded-md border border-slate-200 bg-white px-1.5 text-xs font-medium hover:bg-slate-50 disabled:opacity-40">
+                            {factor === 2 ? "×2" : "×0.5"}
+                          </button>
+                        ))}
+                        </span>
                       </span>
                     </label>
-                    <label className="order-4 min-w-0 text-xs font-medium text-slate-600">
+                    <label className="order-4 w-full max-w-[7rem] min-w-0 justify-self-end text-xs font-medium text-slate-600">
                       <span className="mb-1 block">{t("Time signature")}</span>
-                      <span className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                      <span className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1">
                         <select
                           value={normalizeTimeSignature(timeSignatureDraft) ?? 8}
                           name="time-signature-top"
@@ -8277,7 +8317,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             scheduleTimeSignatureCommit(Number(event.target.value));
                             event.currentTarget.blur();
                           }}
-                          className="h-9 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm"
+                          className="h-12 min-w-0 w-full rounded-md border border-slate-200 bg-white px-1.5 py-0 text-sm"
                           aria-label={t("Time signature top number")}
                         >
                           {TIME_SIGNATURE_TOP_OPTIONS.map((value) => (
@@ -8292,7 +8332,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             void commitTimeSignatureBottom(Number(event.target.value));
                             event.currentTarget.blur();
                           }}
-                          className="h-9 min-w-0 w-full rounded-md border border-slate-200 bg-white px-2 py-0 text-sm"
+                          className="h-12 min-w-0 w-full rounded-md border border-slate-200 bg-white px-1.5 py-0 text-sm"
                           aria-label={t("Time signature bottom number")}
                         >
                           {TIME_SIGNATURE_BOTTOM_OPTIONS.map((value) => (
@@ -8881,7 +8921,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               const trackPan = normalizeTrackPan(trackPanById[laneId] ?? 0);
               const laneBarCount = getLaneBarCount(lane);
               const drumLane = isDrumLane(lane);
-              const laneTypeLabel = isChordLane(lane)
+              const laneTypeLabel = isNotationTrack(lane) ? "Sheets" : isChordLane(lane)
                 ? "Chords"
                 : drumLane
                   ? "Drums"
@@ -9172,20 +9212,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               {openTrackMenuId === laneId && (
                                 <div className="absolute right-0 top-11 z-30 w-60 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
                                   {!drumLane && (
-                                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t("Sound")}<select
-                                        value={instrumentValue}
-                                        onChange={(event) => {
-                                          handleLaneInstrumentChange(laneId, event.target.value);
-                                          event.currentTarget.blur();
-                                        }}
-                                        className="mt-2 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700"
-                                      >
-                                        {trackInstrumentOptions.map((option) => (
-                                          <option key={`${laneId}-mobile-instrument-${option.id}`} value={option.id}>
-                                            {editorInstrumentName(option.label,t)}
-                                          </option>
-                                        ))}
-                                      </select>
+                                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t("Sound")}<GteTrackSoundSelect value={instrumentValue} options={trackInstrumentOptions} onChange={value => handleLaneInstrumentChange(laneId, value)} />
                                     </label>
                                   )}
                                   <div className="mt-3 flex gap-2">
@@ -9434,44 +9461,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             {t(laneTypeLabel)} · {laneBarCount}{t(" bars")}</span>
                         </div>
                         {!drumLane && <div className="mt-2 min-w-0">
-                          <select
-                            name={`track-${index + 1}-sound`}
-                            value={instrumentValue}
-                            onChange={(event) => {
-                              handleLaneInstrumentChange(laneId, event.target.value);
-                              event.currentTarget.blur();
-                            }}
-                            onClick={(event) => event.stopPropagation()}
-                            className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 shadow-sm"
-                            title={t("Track sound")}
-                            aria-label={t("Track sound")}
-                          >
-                            {trackInstrumentOptions.map((option) => (
-                              <option key={`${laneId}-instrument-${option.id}`} value={option.id}>
-                                {editorInstrumentName(option.label,t)}
-                              </option>
-                            ))}
-                          </select>
+                          <GteTrackSoundSelect value={instrumentValue} options={trackInstrumentOptions} onChange={value => handleLaneInstrumentChange(laneId, value)} />
                         </div>}
                         {!isChordLane(lane) && !drumLane && (
                           <div className="mt-2 min-w-0 space-y-1.5">
-                            <select
-                              name={`track-${index + 1}-tuning`}
-                              value={tuning.presetId}
-                              onChange={(event) =>
-                                handleLaneTuningChange(laneId, event.target.value, tuning.capo)
-                              }
-                              onClick={(event) => event.stopPropagation()}
-                              className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 shadow-sm"
-                              title={t("Track tuning")}
-                              aria-label={t("Track tuning")}
-                            >
-                              {(isBassLane(lane) ? BASS_TUNING_PRESETS : TUNING_PRESETS).map((preset) => (
-                                <option key={`${laneId}-tuning-${preset.id}`} value={preset.id}>
-                                  {t(preset.label)}
-                                </option>
-                              ))}
-                            </select>
+                            <Note2TabsSelect value={tuning.presetId} options={(isBassLane(lane) ? BASS_TUNING_PRESETS : TUNING_PRESETS).map(preset => ({ value: preset.id, label: preset.label }))} onChange={value => handleLaneTuningChange(laneId, value, tuning.capo)} label="Tuning" portal className="gte-track-select" />
                             {!isBassLane(lane) && <label className="flex items-center gap-1 text-[10px] font-medium text-slate-500">{t("Capo")}<input
                                 type="number"
                                 name={`track-${index + 1}-capo`}
@@ -10047,12 +10041,12 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         <GteTrackInstrumentIcon lane={selectedLane} className="h-5 w-5 text-slate-500" />
                         <span className="min-w-0">
                         <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{t("Track")}</span>
-                        <span className="mt-1 block truncate text-sm font-semibold text-slate-800">
+                        <span className="mt-1 block truncate text-base font-semibold text-slate-800">
                           {editorName(selectedLane.name, t) || t("Track {value1}", {value1: selectedIndex + 1})}
                         </span>
                         </span>
                       </span>
-                      <svg viewBox="0 0 20 20" className={`h-4 w-4 shrink-0 fill-current text-slate-500 transition ${desktopTrackMenuOpen ? "rotate-180" : ""}`} aria-hidden="true">
+                      <svg viewBox="0 0 20 20" className={`h-6 w-6 shrink-0 fill-current text-slate-500 transition ${desktopTrackMenuOpen ? "rotate-180" : ""}`} aria-hidden="true">
                         <path d="M5.5 7.5 10 12l4.5-4.5 1.1 1.1L10 14.2 4.4 8.6z" />
                       </svg>
                     </button>
@@ -10111,22 +10105,17 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     {!desktopTrackSettingsCollapsed && <div className="m-4 mt-3 grid grid-cols-2 gap-3">
                       <GteTrackTypeSetting track={selectedLane} onChange={type => handleLaneTypeChange(selectedLaneId, type)} t={t} issue={trackTypeIssue?.laneId === selectedLaneId ? trackTypeIssue.message : undefined} />
                       {!selectedDrumLane && (
-                        <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Instrument sound")}<select value={selectedInstrumentValue} onChange={(event) => handleLaneInstrumentChange(selectedLaneId, event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700">
-                            {trackInstrumentOptions.map((option) => <option key={`${selectedLaneId}-screen-instrument-${option.id}`} value={option.id}>{editorInstrumentName(option.label,t)}</option>)}
-                          </select>
+                        <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Instrument sound")}<GteTrackSoundSelect value={selectedInstrumentValue} options={trackInstrumentOptions} onChange={value => handleLaneInstrumentChange(selectedLaneId, value)} />
                         </label>
                       )}
                       {!selectedChordLane && !selectedDrumLane && (
                         <div className="contents">
-                          {!isNotationTrack(selectedLane) && <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Tuning")}<select value={selectedTuning.presetId} onChange={(event) => handleLaneTuningChange(selectedLaneId, event.target.value, selectedTuning.capo)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700">
-                              {(selectedBassLane ? BASS_TUNING_PRESETS : TUNING_PRESETS).map((preset) => <option key={`${selectedLaneId}-screen-tuning-${preset.id}`} value={preset.id}>{t(preset.label)}</option>)}
-                            </select>
+                          {!isNotationTrack(selectedLane) && <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Tuning")}<Note2TabsSelect value={selectedTuning.presetId} options={(selectedBassLane ? BASS_TUNING_PRESETS : TUNING_PRESETS).map(preset => ({ value: preset.id, label: preset.label }))} onChange={value => handleLaneTuningChange(selectedLaneId, value, selectedTuning.capo)} label="Tuning" portal className="gte-track-select" />
                           </label>}
-                          {!selectedBassLane && !isNotationTrack(selectedLane) && <details className="rounded-lg border border-slate-200 px-3 py-2">
-                            <summary className="cursor-pointer text-xs font-medium text-slate-600">{t("More settings")}</summary>
-                            <label className="mt-3 flex items-center justify-between gap-3 text-xs font-medium text-slate-600">{t("Capo")}<input type="number" min={0} max={12} value={trackCapoDraftById[selectedLaneId] ?? String(selectedTuning.capo)} onChange={(event) => handleLaneCapoDraftChange(selectedLaneId, event.target.value)} onBlur={() => commitLaneCapoDraft(selectedLaneId, selectedTuning.presetId, selectedTuning.capo)} className="h-8 w-16 rounded-md border border-slate-200 px-2 text-xs text-slate-700" aria-label={t("Track capo")} />
+                          {!selectedBassLane && !isNotationTrack(selectedLane) && <div className="min-w-0">
+                            <label className="flex h-full min-h-9 items-center justify-between gap-3 text-xs font-medium text-slate-600">{t("Capo")}<input type="number" min={0} max={12} value={trackCapoDraftById[selectedLaneId] ?? String(selectedTuning.capo)} onChange={(event) => handleLaneCapoDraftChange(selectedLaneId, event.target.value)} onBlur={() => commitLaneCapoDraft(selectedLaneId, selectedTuning.presetId, selectedTuning.capo)} className="h-8 w-16 rounded-md border border-slate-200 px-2 text-xs text-slate-700" aria-label={t("Track capo")} />
                             </label>
-                          </details>}
+                          </div>}
                           <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2">
                             <button
                               type="button"
@@ -10187,7 +10176,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   )}
                   </div>
                   {desktopTrackSettingsCollapsed && desktopTrackMenuOpen && (
-                    <div className="absolute bottom-20 right-[calc(100%+0.75rem)] w-[28rem] overflow-visible rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.18)]">
+                    <div data-gte-track-picker="true" className="absolute bottom-20 right-[calc(100%+0.75rem)] w-[32rem] max-w-[calc(100vw-12rem)] overflow-visible rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.18)]">
                       <div className="hidden border-b border-slate-100 px-4 py-3">
                         <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{t("Edit track")}</div>
                         <input
@@ -10208,16 +10197,16 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         />
                       </div>
 
-                      <div className="border-b border-slate-100 p-1.5" role="listbox" aria-label={t("Choose a track to edit")}>
+                      <div className="max-h-[min(32rem,calc(100dvh-15rem))] overflow-y-auto border-b border-slate-100 p-2" role="listbox" aria-label={t("Choose a track to edit")}>
                         {canvas.editors.map((candidate, candidateIndex) => {
                           const candidateId = candidate.id || `ed-${candidateIndex + 1}`;
                           const active = candidateId === selectedLaneId;
-                          const type = isDrumLane(candidate) ? "Drums" : isChordLane(candidate) ? "Chords" : "Tab";
+                          const type = isNotationTrack(candidate) ? "Sheets" : isDrumLane(candidate) ? "Drums" : isChordLane(candidate) ? "Chords" : "Tab";
                           const candidateMuted = Boolean(trackMuteById[candidateId]);
                           const candidateIsolated = isolatedTrackIds.has(candidateId);
                           const candidateVolume = normalizeTrackVolume(trackVolumeById[candidateId] ?? 1);
                           return (
-                            <div key={candidateId}
+                            <div key={candidateId} data-gte-track-picker-row="true"
                               onContextMenu={(event) => {
                                 event.preventDefault();
                                 event.stopPropagation();
@@ -10307,32 +10296,15 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       <div className="hidden space-y-3 p-4">
                         <GteTrackTypeSetting track={selectedLane} onChange={type => handleLaneTypeChange(selectedLaneId, type)} t={t} issue={trackTypeIssue?.laneId === selectedLaneId ? trackTypeIssue.message : undefined} />
                         {!selectedDrumLane && (
-                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Instrument sound")}<select
-                              value={selectedInstrumentValue}
-                              onChange={(event) => handleLaneInstrumentChange(selectedLaneId, event.target.value)}
-                              className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700"
-                            >
-                              {trackInstrumentOptions.map((option) => (
-                                <option key={`${selectedLaneId}-desktop-instrument-${option.id}`} value={option.id}>{editorInstrumentName(option.label,t)}</option>
-                              ))}
-                            </select>
+                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Instrument sound")}<GteTrackSoundSelect value={selectedInstrumentValue} options={trackInstrumentOptions} onChange={value => handleLaneInstrumentChange(selectedLaneId, value)} />
                           </label>
                         )}
                         {!selectedChordLane && !selectedDrumLane && !isNotationTrack(selectedLane) && (
                           <>
-                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Tuning")}<select
-                                value={selectedTuning.presetId}
-                                onChange={(event) => handleLaneTuningChange(selectedLaneId, event.target.value, selectedTuning.capo)}
-                                className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700"
-                              >
-                                {(selectedBassLane ? BASS_TUNING_PRESETS : TUNING_PRESETS).map((preset) => (
-                                  <option key={`${selectedLaneId}-desktop-tuning-${preset.id}`} value={preset.id}>{t(preset.label)}</option>
-                                ))}
-                              </select>
+                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Tuning")}<Note2TabsSelect value={selectedTuning.presetId} options={(selectedBassLane ? BASS_TUNING_PRESETS : TUNING_PRESETS).map(preset => ({ value: preset.id, label: preset.label }))} onChange={value => handleLaneTuningChange(selectedLaneId, value, selectedTuning.capo)} label="Tuning" portal className="gte-track-select" />
                             </label>
-                            {!selectedBassLane && <details className="rounded-lg border border-slate-200 px-3 py-2">
-                              <summary className="cursor-pointer text-xs font-medium text-slate-600">{t("More settings")}</summary>
-                              <label className="mt-3 flex items-center justify-between gap-3 text-xs font-medium text-slate-600">{t("Capo")}<input
+                            {!selectedBassLane && <div className="min-w-0">
+                              <label className="flex h-full min-h-9 items-center justify-between gap-3 text-xs font-medium text-slate-600">{t("Capo")}<input
                                   type="number"
                                   min={0}
                                   max={12}
@@ -10343,7 +10315,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                   aria-label={t("Track capo")}
                                 />
                               </label>
-                            </details>}
+                            </div>}
                           </>
                         )}
                         <div className="flex gap-2">
@@ -10448,7 +10420,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         >
                           <span className="min-w-0 truncate">{editorName(lane.name, t) || t("Track {value1}", {value1: index + 1})}</span>
                           <span className="ml-3 shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400">
-                            {isDrumLane(lane) ? t("Drums") : isChordLane(lane) ? t("Chords") : t("Tab")}
+                            {isNotationTrack(lane) ? t("Sheets") : isDrumLane(lane) ? t("Drums") : isChordLane(lane) ? t("Chords") : t("Tab")}
                           </span>
                         </button>
                       );
@@ -10492,7 +10464,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         {editorName(mobileActiveLane?.name, t) || t("Track {value1}", {value1: mobileActiveLaneIndex + 1})}
                       </span>
                     </span>
-                    <span className={`ml-3 text-slate-500 transition ${mobileTrackMenuOpen ? "rotate-180" : ""}`} aria-hidden="true">⌃</span>
+                    <span className={`ml-3 text-2xl text-slate-500 transition ${mobileTrackMenuOpen ? "rotate-180" : ""}`} aria-hidden="true">⌃</span>
                   </button>
                   <button
                     type="button"

@@ -1,6 +1,6 @@
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
-import { CanvasContext, Element, Stem } from "vexflow/bravura";
+import { CanvasContext, Element, Renderer, Stem } from "vexflow/bravura";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { JSDOM } from "jsdom";
 import { buildNotationScore } from "../../lib/gteNotationScore";
@@ -55,6 +55,52 @@ describe("real-font notation engraving", () => {
     const dense = buildNotationScore(source(Array.from({ length: 64 }, (_, index) => note(index, index * 30, 30, 72 + index % 5))));
     const denseLayout = prepareNotationEngraving(dense, 1000).layout;
     expect(denseLayout.measures.filter((measure) => measure.top === denseLayout.measures[0].top).length).toBeLessThan(firstSystem.length);
+  });
+  it("compresses an oversized bar to its row without dropping notes or changing musical timing", () => {
+    const snapshot = source(Array.from({ length: 64 }, (_, index) => note(index + 1, index * 7.5, 7.5, 60 + index % 12)), { totalFrames: 960 });
+    const before = structuredClone(snapshot), score = buildNotationScore(snapshot);
+    const prepared = prepareNotationEngraving(score, 600);
+    expect(prepared.layout.width).toBeLessThanOrEqual(600);
+    expect(prepared.layout.measures[0].x + prepared.layout.measures[0].width).toBeLessThanOrEqual(584.001);
+    expect(new Set(prepared.layout.hits.flatMap(hit => hit.token.sources.map(event => event.key))).size).toBe(64);
+    for (const hit of prepared.layout.hits) for (const head of hit.heads) expect(head.x).toBeLessThanOrEqual(600);
+    const frame = 240, position = engravingXAt(prepared.layout, score, frame)!;
+    expect(engravingPoint(prepared.layout, score, position.x, position.measure.staffBottom.treble, 7.5)?.frame).toBe(frame);
+    const canvas = createCanvas(prepared.layout.width, prepared.layout.height);
+    prepared.draw(new CanvasContext(canvas.getContext("2d") as unknown as CanvasRenderingContext2D));
+    expect(snapshot).toEqual(before);
+    if (process.env.GTE_NOTATION_RENDER_DIR) { mkdirSync(process.env.GTE_NOTATION_RENDER_DIR, { recursive: true }); writeFileSync(process.env.GTE_NOTATION_RENDER_DIR + "/compressed-dense-bar.png", canvas.toBuffer("image/png")); }
+  });
+  it("compresses actual SVG glyph groups, not the root viewBox, for oversized bars", () => {
+    const score = buildNotationScore(source(Array.from({ length: 64 }, (_, index) => note(index + 1, index * 7.5, 7.5, 60 + index % 12)), { totalFrames: 960 }));
+    const prepared = prepareNotationEngraving(score, 600), host = document.createElement("div");
+    document.body.append(host);
+    try {
+      const renderer = new Renderer(host, Renderer.Backends.SVG);
+      renderer.resize(prepared.layout.width, prepared.layout.height);
+      const svg = host.querySelector("svg")!, before = svg.getAttribute("viewBox");
+      prepared.draw(renderer.getContext());
+      expect(svg.getAttribute("viewBox")).toBe(before);
+      const groups = [...svg.querySelectorAll('[data-notation-density]')];
+      expect(groups.length).toBeGreaterThan(0);
+      for (const group of groups) {
+        const scale = Number(group.getAttribute("data-notation-density"));
+        expect(scale).toBeGreaterThan(0); expect(scale).toBeLessThan(1);
+        expect(group.getAttribute("transform")).toBe(`scale(${scale} 1)`);
+        expect(group.children.length).toBeGreaterThan(0);
+      }
+      expect(svg.querySelectorAll('.vf-stavenote').length).toBeGreaterThan(0);
+      const normalHeads = [...svg.querySelectorAll('.vf-notation-notehead-size')];
+      expect(normalHeads.length).toBeGreaterThan(0);
+      for (const head of normalHeads) {
+        const parent = head.closest('[data-notation-density]')!;
+        const compression = Number(parent.getAttribute('data-notation-density'));
+        const expansion = Number(head.getAttribute('transform')!.match(/scale\(([^ ]+) 1\)/)![1]);
+        expect(compression * expansion).toBeCloseTo(1, 10);
+        expect(head.querySelector('.vf-notehead')).not.toBeNull();
+      }
+      expect(prepared.layout.hits.every(hit => hit.scaleX === 1)).toBe(true);
+    } finally { host.remove(); }
   });
   it("keeps braces inside the canvas and separates rests from other voices' noteheads", () => {
     const score = buildNotationScore(source([

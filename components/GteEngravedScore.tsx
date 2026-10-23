@@ -2,13 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import VexFlow, { Renderer } from "vexflow/bravura";
 import { engravingPoint, engravingXAt, prepareNotationEngraving, type EngravedHit, type EngravedLayout } from "../lib/gteNotationEngraving";
 import { notationPitch, type NotationScore, type ScoreStaff } from "../lib/gteNotationScore";
-import { midiAtStep, type ScoreEvent } from "../lib/gteNotation";
+import { midiAtStep, scoreEventSelected, type ScoreEvent, type ScoreSelection } from "../lib/gteNotation";
 import { useLocale } from "../lib/i18n/react";
 import GteNotationPlayback from "./GteNotationPlayback";
 
 export type NotationPoint = { frame: number; midi: number; staff: ScoreStaff };
-export type NotationSelection = { noteIds: number[]; chordIds: number[] };
-const selectedSource = (source: ScoreEvent, selection: NotationSelection) => source.noteId !== undefined ? selection.noteIds.includes(source.noteId) : selection.chordIds.includes(source.chordId!);
+export type NotationSelection = ScoreSelection;
+const selectedSource = scoreEventSelected;
 
 export default function GteEngravedScore({ score, input, restInput = false, disabled, snapEnabled, denominator, dotted, length, cursor, selection, playbackFrame, getPlaybackFrame, playing, barsPerSystem, showBarNumbers, transformPitch, onPoint, onSelect, onMove, onAudition, onBoxSelect, onAddBar, editorId, selectedBars = [], onBarSelect, onBarContextMenu, barDragging = false, onBarDragStart, onBarDragEnd, onBarDrop }: {
   score: NotationScore; input: boolean; restInput?: boolean; disabled: boolean; guides?: boolean; snapEnabled: boolean; denominator: number; dotted: boolean; length: number;
@@ -143,21 +143,35 @@ export default function GteEngravedScore({ score, input, restInput = false, disa
   };
   const interaction = useRef({ startDrag, onSelect });
   interaction.current = { startDrag, onSelect };
+  const headsAtTime = useMemo(() => {
+    const groups = new Map<string, EngravedHit["heads"]>();
+    for (const hit of layout?.hits ?? []) { const key = hit.token.staff + ":" + hit.token.tick; groups.set(key, [...(groups.get(key) ?? []), ...hit.heads]); }
+    return groups;
+  }, [layout]);
   // Playback/counter updates must not rebuild thousands of static note targets.
   const noteTargets = useMemo(() => layout ? (layout.hits.flatMap((hit) => hit.heads.map((head, index) => {
           const pitch = hit.token.pitches[index], source = pitch.sources[0];
+          const scaleX = hit.scaleX ?? 1;
           if (!source) return null;
           const selected = pitch.sources.some((item) => selectedSource(item, selection));
           const moving = preview && pitch.sources.some((item) => preview.sources.some((value) => value.key === item.key));
+          // Split overlapping hit areas at the midpoint between adjacent heads.
+          // A note one staff-step above another must still have its own target.
+          let top = head.y - 7, bottom = head.y + 7;
+          for (const other of headsAtTime.get(hit.token.staff + ":" + hit.token.tick) ?? []) {
+            if (Math.abs(other.x - head.x) >= 20) continue;
+            if (other.y < head.y) top = Math.max(top, (other.y + head.y) / 2);
+            if (other.y > head.y) bottom = Math.min(bottom, (other.y + head.y) / 2);
+          }
           return <g key={hit.token.id + ":" + index}>
-            {selected && <ellipse cx={head.x + 5} cy={head.y} rx={10} ry={8} fill="#38bdf8" fillOpacity={0.18} stroke="#0284c7" strokeWidth={0.8} pointerEvents="none" />}
-            {moving && <ellipse cx={head.x + 5 + preview!.dx} cy={head.y + preview!.dy} rx={6} ry={4} fill="#0284c7" fillOpacity={0.5} pointerEvents="none" />}
+            {selected && <ellipse cx={head.x + 5 * scaleX} cy={head.y} rx={10 * scaleX} ry={8} fill="#38bdf8" fillOpacity={0.18} stroke="#0284c7" strokeWidth={0.8} pointerEvents="none" />}
+            {moving && <ellipse cx={head.x + 5 * scaleX + preview!.dx} cy={head.y + preview!.dy} rx={6 * scaleX} ry={4} fill="#0284c7" fillOpacity={0.5} pointerEvents="none" />}
             <rect role="button" tabIndex={0} aria-label={pitch.key + " · " + t("Select note")} aria-pressed={selected}
-              x={head.x - 4} y={head.y - 7} width={20} height={14} fill="transparent" className="cursor-grab focus:stroke-sky-500 focus:outline-none"
+              x={head.x - 4 * scaleX} y={top} width={20 * scaleX} height={Math.max(1, bottom - top)} fill="transparent" className="cursor-grab focus:stroke-sky-500 focus:outline-none"
               onPointerDown={(event) => interaction.current.startDrag(event, hit, source)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); interaction.current.onSelect(source, event.shiftKey); } }} />
           </g>;
-        }))) : null, [layout, selection, preview, t]);
-  return <div ref={container} className="min-w-0 w-full max-w-full overflow-x-auto">
+        }))) : null, [layout, headsAtTime, selection, preview, t]);
+  return <div ref={container} data-gte-sheet="true" className="min-w-0 w-full max-w-full overflow-x-auto">
     {error && <div role="alert" className="mx-5 my-4 rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700">{t("The score could not be rendered. Your notes are unchanged.")}<details className="mt-2 text-xs"><summary>{t("Details")}</summary>{error}</details></div>}
     <div className="relative bg-white" style={{ width: layout?.width ?? "100%", height: layout?.height ?? 260 }}>
       <div ref={host} />

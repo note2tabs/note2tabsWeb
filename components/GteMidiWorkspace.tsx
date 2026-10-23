@@ -20,13 +20,22 @@ export const MidiPlayhead = memo(function MidiPlayhead({ scale, height, row, fra
   const ref = useRef<SVGLineElement>(null), highlights = useRef<SVGGElement>(null);
   useEffect(() => {
     let raf = 0, last: string | null = null;
-    const update = () => {
+    const keyboard = scroll.current?.querySelectorAll<HTMLButtonElement>("[data-midi-key]");
+    const clearKeys = () => keyboard?.forEach(key => key.removeAttribute("data-playing"));
+    let previousTime: number | undefined, verticalTarget: number | undefined;
+    const update = (timestamp = performance.now()) => {
+      const elapsed = previousTime === undefined ? 16 : Math.max(8, Math.min(50, timestamp - previousTime));
+      previousTime = timestamp;
+      const ease = 1 - Math.exp(-elapsed / 100);
+      const approach = (current: number, target: number) => Math.abs(target - current) < 0.5 ? target : current + (target - current) * ease;
       const current = Math.max(0, getFrame?.() ?? frame), x = current * scale;
       ref.current?.setAttribute("x1", String(x)); ref.current?.setAttribute("x2", String(x));
       const active = playing ? notes.filter((note) => note.start <= current && note.start + note.length > current) : [];
       const signature = active.map((note) => note.key).join("|");
       if (last !== signature) {
         last = signature;
+        const pitches = new Set(active.map(note => note.midi));
+        keyboard?.forEach(key => { if (pitches.has(Number(key.dataset.midiKey))) key.setAttribute("data-playing", "true"); else key.removeAttribute("data-playing"); });
         highlights.current?.replaceChildren(...active.map((note) => {
           const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
           for (const [key, value] of Object.entries({ x: note.start * scale, y: (127 - note.midi) * row + 1, width: Math.max(3, note.length * scale), height: row - 2, rx: 2, fill: "#fffbd9", "fill-opacity": 0.4, stroke: "#9b8945", "stroke-width": 1.5 })) rect.setAttribute(key, String(value));
@@ -34,10 +43,21 @@ export const MidiPlayhead = memo(function MidiPlayhead({ scale, height, row, fra
         }));
       }
       const view = scroll.current;
-      if (playing && follow && view && (x < view.scrollLeft || x > view.scrollLeft + view.clientWidth - KEY_WIDTH - 32)) view.scrollLeft = Math.max(0, x - 48);
+      if (playing && follow && view) {
+        // Keep the playhead in the right-hand reading area and follow
+        // continuously, rather than paging when it reaches the edge.
+        const target = Math.max(0, x - Math.max(1, view.clientWidth - KEY_WIDTH) * 0.65);
+        view.scrollLeft = approach(view.scrollLeft, target);
+      }
+      if (playing && follow && view && active.length) {
+        const top = Math.min(...active.map(note => (127 - note.midi) * row));
+        const bottom = Math.max(...active.map(note => (128 - note.midi) * row));
+        if (bottom - top < view.clientHeight - 60 && (top < view.scrollTop + 32 || bottom > view.scrollTop + view.clientHeight - 24)) verticalTarget = Math.max(0, top - 64);
+      }
+      if (playing && follow && view && verticalTarget !== undefined) view.scrollTop = approach(view.scrollTop, verticalTarget);
       if (playing) raf = requestAnimationFrame(update);
     };
-    update(); return () => cancelAnimationFrame(raf);
+    update(); return () => { cancelAnimationFrame(raf); clearKeys(); };
   }, [scale, height, row, frame, playing, getFrame, notes, scroll, follow]);
   return <g pointerEvents="none"><g ref={highlights} data-midi-playing="true" /><line ref={ref} y1={0} y2={height} stroke="#d6556b" strokeWidth={1.5} data-midi-playhead="true" /></g>;
 });
@@ -51,10 +71,10 @@ export default function GteMidiWorkspace(props: Props) {
   const snap = true, strength = 1;
   const [zoom, setZoom] = useState(saved.zoom ?? 240), [voice, setVoice] = useState<1 | 2>(1), [row, setRow] = useState(saved.row ?? 18);
   const [triplet, setTriplet] = useState(saved.triplet ?? false);
-  const [velocityHeight, setVelocityHeight] = useState(saved.velocityHeight ?? 100), [follow, setFollow] = useState(saved.follow ?? false);
+  const [velocityHeight, setVelocityHeight] = useState(0), [follow, setFollow] = useState(saved.follow ?? true);
   const [showNoteLabels, setShowNoteLabels] = useState(saved.showNoteLabels ?? true);
   const [workspaceHeight, setWorkspaceHeight] = useState(480);
-  const lastVelocityHeight = useRef(velocityHeight || 100);
+  const lastVelocityHeight = useRef(saved.velocityHeight || 100);
   const [auditionDrag, setAuditionDrag] = useState(true), [hoverPitch, setHoverPitch] = useState<number | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; frame: number; midi: number } | null>(null), [velocityScale, setVelocityScale] = useState(100);
   const [loopPreview, setLoopPreview] = useState<{ startFrame: number; endFrame: number } | null>(null);
@@ -389,12 +409,12 @@ export default function GteMidiWorkspace(props: Props) {
               })}
               {drawing && <rect x={drawing.frame * scale} y={(127 - drawing.midi) * ROW + 2} width={drawing.length * scale} height={ROW - 4} rx={2} fill="#86dec0" stroke="#175a43" pointerEvents="none" />}
               {marquee && <rect {...marquee} fill="#059669" fillOpacity={0.1} stroke="#059669" pointerEvents="none" />}
-              <MidiPlayhead scale={scale} row={ROW} height={PITCH_HEIGHT} frame={props.globalPlaybackFrame ?? 0} playing={Boolean(props.globalPlaybackIsPlaying)} getFrame={props.getGlobalPlaybackFrame} notes={visible} scroll={scroller} follow={follow && !gesture.current} />
+              <MidiPlayhead scale={scale} row={ROW} height={PITCH_HEIGHT} frame={props.globalPlaybackFrame ?? 0} playing={Boolean(props.globalPlaybackIsPlaying)} getFrame={props.getGlobalPlaybackFrame} notes={events} scroll={scroller} follow={follow && !gesture.current} />
             </svg>
             <div className="sticky left-0 z-20 border-r border-[#a5afa5] bg-[#fffdf5] shadow-[2px_0_5px_#263c3212]" style={{ width: KEY_WIDTH, height: PITCH_HEIGHT }}>
               {[false, true].flatMap((isBlack) => Array.from({ length: 128 }, (_, index) => 127 - index).filter((midi) => black(midi) === isBlack).map((midi) => {
                 const extraTop = !isBlack && midi < 127 && black(midi + 1) ? ROW / 2 : 0, extraBottom = !isBlack && midi > 0 && black(midi - 1) ? ROW / 2 : 0;
-                return <button key={midi} type="button" aria-label={t("Audition") + " " + midiPitchName(midi)} title={midiPitchName(midi)} className={`absolute left-0 flex items-center justify-end rounded-r-sm border-b pr-2 text-[10px] ${isBlack ? "z-10 border-[#20362a] bg-[#33483b] text-white shadow-[inset_0_-2px_0_#172b20]" : "border-[#b9c2b7] bg-[#fffdf5] text-[#5e7264]"} ${selected.some((note) => note.midi === midi) ? "!bg-[#b9e5cf] !text-[#174b37]" : "hover:brightness-95"}`} style={{ top: (127 - midi) * ROW - extraTop + (isBlack ? ROW * 0.05 : 0), width: isBlack ? "65%" : "100%", height: isBlack ? ROW * 0.9 : ROW + extraTop + extraBottom }} onClick={() => { void audition(midi); setHoverPitch(midi); focus(); }}>{!isBlack && midi % 12 === 0 ? midiPitchName(midi) : ""}</button>;
+                return <button key={midi} data-midi-key={midi} type="button" aria-label={t("Audition") + " " + midiPitchName(midi)} title={midiPitchName(midi)} className={`absolute left-0 flex items-center justify-end rounded-r-sm border-b pr-2 text-[10px] ${isBlack ? "z-10 border-[#20362a] bg-[#33483b] text-white shadow-[inset_0_-2px_0_#172b20]" : "border-[#b9c2b7] bg-[#fffdf5] text-[#5e7264]"} ${selected.some((note) => note.midi === midi) ? "!bg-[#b9e5cf] !text-[#174b37]" : "hover:brightness-95"}`} style={{ top: (127 - midi) * ROW - extraTop + (isBlack ? ROW * 0.05 : 0), width: isBlack ? "65%" : "100%", height: isBlack ? ROW * 0.9 : ROW + extraTop + extraBottom }} onClick={() => { void audition(midi); setHoverPitch(midi); focus(); }}>{!isBlack && midi % 12 === 0 ? midiPitchName(midi) : ""}</button>;
               }))}
             </div>
           </div>
@@ -402,6 +422,7 @@ export default function GteMidiWorkspace(props: Props) {
       </div>
       <div data-midi-velocity-header="true" className="relative flex h-8 shrink-0 items-center gap-2 border-t border-slate-300 bg-[#eeede7] px-2 text-[10px] text-slate-600">
         <button type="button" title={t("Show or hide velocity lane")} aria-label={t("Show or hide velocity lane")} className="flex h-7 shrink-0 items-center gap-1 rounded px-1 hover:bg-black/5" aria-expanded={velocityHeight > 0} onClick={() => { if (velocityHeight) { lastVelocityHeight.current = velocityHeight; setVelocityHeight(0); } else setVelocityHeight(lastVelocityHeight.current); }}><span aria-hidden="true">{velocityHeight ? "▾" : "▸"}</span><span className="hidden sm:inline">{t("Velocity")}</span></button>
+        {velocityHeight > 0 && <>
         <span className="shrink-0 tabular-nums text-slate-500">0–127</span>
         <span data-midi-edit-info="true" aria-live="off" className="min-w-0 flex-1 truncate text-slate-500" title={info ? `${midiPitchName(editPitch ?? info.midi)} · ${t("Start")} ${midiPosition(info.start + (preview?.shift ?? 0), snapshot)}` : undefined}>{info ? `${midiPitchName(editPitch ?? info.midi)} · ${midiPosition(info.start + (preview?.shift ?? 0), snapshot)}` : ""}</span>
         {selected.length > 0 && <input key={selection.join(",") + ":" + selected[0].velocity} type="number" aria-label={t("Selected velocity")} title={t("Selected velocity · 0–127")} min={0} max={127} className="h-6 w-12 rounded border border-slate-200 bg-white px-1 text-xs tabular-nums" defaultValue={Math.round(selected[0].velocity * 127)} disabled={disabled}
@@ -413,6 +434,7 @@ export default function GteMidiWorkspace(props: Props) {
           onKeyDown={(event) => { if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); event.stopPropagation(); setVelocityHeight(Math.max(40, Math.min(240, workspaceHeight - 220, VELOCITY_HEIGHT + (event.key === "ArrowUp" ? 10 : -10)))); } }}><svg viewBox="0 0 16 16" className="h-4 w-4 fill-current" aria-hidden="true">{[4,8,12].flatMap(y => [5,11].map(x => <circle key={`${x}:${y}`} cx={x} cy={y} r={1} />))}</svg></div>
         {selected.length > 0 && <details className="relative ml-auto"><summary className="cursor-pointer list-none" title={t("Scale selected velocities")}>{t("Scale")} ▾</summary><div className="absolute bottom-7 right-0 z-40 flex items-center gap-2 rounded-lg border border-slate-200 bg-[#faf9f5] p-2 shadow-lg"><input type="number" aria-label={t("Velocity scale percent")} min={1} max={400} value={velocityScale} onChange={(event) => setVelocityScale(Number(event.target.value))} className="w-14 rounded border border-slate-200 px-1 py-1" />%<button type="button" disabled={disabled || velocityScale <= 0 || velocityScale > 400} onClick={() => applyEdit(selection, { velocityScale: velocityScale / 100 })}>{t("Apply")}</button></div></details>}
         {preview?.velocity !== undefined && <span>{Math.round(preview.velocity * 127)}</span>}
+        </>}
       </div>
       <div className="relative shrink-0 overflow-hidden bg-[#f1f2ec]" style={{ height: VELOCITY_HEIGHT }}>
         <div className="absolute inset-y-0 left-0 z-10 border-r border-slate-300 bg-[#eeede7] px-2 text-right text-[9px] tabular-nums text-slate-500" style={{ width: KEY_WIDTH }}>{[127,96,64,32,0].map(value => <span key={value} className="absolute right-2" style={{ top: 6 + (1 - value / 127) * (VELOCITY_HEIGHT - 12), transform: "translateY(-50%)" }}>{value}</span>)}</div>
@@ -421,7 +443,7 @@ export default function GteMidiWorkspace(props: Props) {
           onPointerMove={(event) => { const active = gesture.current, start = active?.velocityStart; if (active?.kind !== "velocity" || !start || Math.abs(event.clientY - start.y) < 3) return; setPreview({ velocity: Math.max(0, Math.min(1, start.value + (start.y - event.clientY) / Math.max(1, VELOCITY_HEIGHT - 12))) }); }}
           onPointerUp={(event) => { const active = gesture.current; if (active?.kind === "velocity" && active.base === snapshotRef.current && preview) applyEdit(active.keys, preview); clearGesture(); event.currentTarget.releasePointerCapture?.(event.pointerId); }} onPointerCancel={clearGesture} onLostPointerCapture={clearGesture}>
           {velocityPaths.map((path, index) => <path key={index} d={path} stroke={["#34b58b", "#669a91", "#175a43"][index]} strokeWidth={2} fill="none" data-midi-velocity-density="true" />)}
-          {(velocityPaths.length ? velocityEvents.filter((note) => chosen.has(note.key)).slice(0, 100) : velocityEvents).map((note) => {
+          {(VELOCITY_HEIGHT === 0 ? [] : velocityPaths.length ? velocityEvents.filter((note) => chosen.has(note.key)).slice(0, 100) : velocityEvents).map((note) => {
             const velocity = chosen.has(note.key) ? preview?.velocity ?? note.velocity : note.velocity, x = note.start * scale + 3, y = 6 + (1 - velocity) * (VELOCITY_HEIGHT - 12);
             return <g key={note.key} aria-label={`${midiPitchName(note.midi)} ${t("Velocity")} ${Math.round(velocity * 127)}`} onPointerDown={(event) => beginVelocity(note, event)} className="cursor-ns-resize">
               <rect x={x - 5} y={Math.max(0, y - 5)} width={10} height={Math.max(10, VELOCITY_HEIGHT - y + 5)} fill="transparent" />

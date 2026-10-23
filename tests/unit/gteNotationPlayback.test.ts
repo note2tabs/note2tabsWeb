@@ -60,6 +60,29 @@ it("moves smoothly from the live clock and updates sounding notes without React 
       React.createElement(GteNotationPlayback, { layout: dense, score, frame: 0, playing: true, getFrame }))));
     for (clock = 0; clock < 60; clock++) await tick();
     expect(offscreenReads).not.toHaveBeenCalled();
+    // Follow an off-screen system once, not once per animation frame.
+    const followLine = host.querySelector("line")!;
+    const scrollIntoView = vi.fn();
+    Object.assign(followLine, { scrollIntoView, getBoundingClientRect: () => ({ top: 1200, bottom: 1280, height: 80 }) });
+    const nextSystem = { ...dense, measures: dense.measures.map(measure => ({ ...measure, top: 300, bottom: 380 })) };
+    await act(async () => root.render(React.createElement("svg", null,
+      React.createElement(GteNotationPlayback, { layout: nextSystem, score, frame: 0, playing: true, getFrame }))));
+    expect(scrollIntoView).toHaveBeenCalledOnce();
+    await tick(); await tick();
+    expect(scrollIntoView).toHaveBeenCalledOnce();
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "start", inline: "nearest", behavior: "smooth" });
+    // Advance before the next system is hidden, even while this one fits.
+    scrollIntoView.mockClear();
+    Object.assign(followLine, { getBoundingClientRect: () => ({ top: 100, bottom: 180, height: 80 }) });
+    const previewLayout = { ...dense, measures: dense.measures.map((measure,index) => ({ ...measure, top: index ? 900 : 0, bottom: index ? 980 : 80 })) };
+    await act(async () => root.render(React.createElement("svg", null,
+      React.createElement(GteNotationPlayback, { layout: previewLayout, score, frame: 0, playing: true, getFrame }))));
+    expect(scrollIntoView).toHaveBeenCalledOnce();
+    clock = 61;
+    await act(async () => root.render(React.createElement("svg", null,
+      React.createElement(GteNotationPlayback, { layout: previewLayout, score, frame: 61, playing: true, getFrame }))));
+    await tick();
+    expect(scrollIntoView).toHaveBeenCalledOnce();
   } finally { await act(async () => root.unmount()); host.remove(); }
   expect(callbacks.size).toBe(0);
 });

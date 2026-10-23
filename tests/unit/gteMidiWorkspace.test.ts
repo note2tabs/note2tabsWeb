@@ -59,7 +59,7 @@ it("loads delayed music, guards tiny drags, supports navigation, loop selection 
     expect(loop).toHaveBeenCalledOnce();
     expect(loop.mock.calls[0][0].endFrame).toBeGreaterThan(loop.mock.calls[0][0].startFrame);
     const collapse = [...host.querySelectorAll("button")].find((button) => button.title === "Show or hide velocity lane")!;
-    await act(async () => collapse.click()); expect(collapse.getAttribute("aria-expanded")).toBe("false");
+    expect(collapse.getAttribute("aria-expanded")).toBe("false");
     scroll.scrollLeft = 420; scroll.scrollTop = 800;
     await act(async () => scroll.dispatchEvent(new dom.window.Event("scroll", { bubbles: true })));
     await act(async () => root.render(React.createElement("div", null, "Sheets")));
@@ -79,13 +79,25 @@ it("updates playback highlights and follow position from the audio clock without
   const commits = vi.fn(), scroll = React.createRef<HTMLDivElement>();
   const notes = [{ key: "n:1", noteId: 1, member: 0, midi: 60, start: 0, length: 120, velocity: 0.5, staff: "treble" as const }];
   try {
-    await act(async () => root.render(React.createElement(React.Profiler, { id: "midi-playback", onRender: commits }, React.createElement("svg", null,
-      React.createElement(MidiPlayhead, { scale: 1, height: 300, row: 18, frame: 0, playing: true, getFrame: () => frame, notes, scroll, follow: false })))));
+    await act(async () => root.render(React.createElement(React.Profiler, { id: "midi-playback", onRender: commits }, React.createElement("div", { ref: scroll },
+      React.createElement("button", { "data-midi-key": 60 }), React.createElement("svg", null,
+      React.createElement(MidiPlayhead, { scale: 1, height: 300, row: 18, frame: 0, playing: true, getFrame: () => frame, notes, scroll, follow: true }))))));
     const count = commits.mock.calls.length;
     expect(host.querySelector('[data-midi-playing] rect')).toBeTruthy();
+    expect(host.querySelector('[data-midi-key="60"]')?.getAttribute("data-playing")).toBe("true");
     for (let index = 0; index < 60; index++) { frame += 3; const pending = [...callbacks.values()]; callbacks.clear(); await act(async () => pending.forEach((callback) => callback(0))); }
     expect(host.querySelector('[data-midi-playhead]')!.getAttribute("x1")).toBe("180");
     expect(host.querySelector('[data-midi-playing] rect')).toBeNull();
+    expect(host.querySelector('[data-midi-key="60"]')?.hasAttribute("data-playing")).toBe(false);
+    frame = 2000;
+    const pending = [...callbacks.values()]; callbacks.clear(); await act(async () => pending.forEach(callback => callback(0)));
+    expect(scroll.current!.scrollLeft).toBeGreaterThan(0);
+    const target = 2000 - (900 - 76) * 0.65;
+    expect(scroll.current!.scrollLeft).toBeLessThan(target);
+    const first = scroll.current!.scrollLeft;
+    for (let index = 0; index < 100; index++) { const pending = [...callbacks.values()]; callbacks.clear(); await act(async () => pending.forEach(callback => callback(index * 16))); }
+    expect(scroll.current!.scrollLeft).toBeGreaterThan(first);
+    expect(scroll.current!.scrollLeft).toBeCloseTo(target, 0);
     expect(commits).toHaveBeenCalledTimes(count);
   } finally { await act(async () => root.unmount()); host.remove(); globalThis.requestAnimationFrame = originalRaf; globalThis.cancelAnimationFrame = originalCancel; }
 });
@@ -146,6 +158,9 @@ it("ignores saved snap-off settings, keeps Alt timing snapped and resizes/collap
   try {
     await render();
     const roll = host.querySelector('[aria-label="MIDI piano roll"]')!, velocity = () => host.querySelector('[aria-label="MIDI velocity lane"]')!;
+    expect(velocity().getAttribute("height")).toBe("0");
+    expect(host.querySelector('[aria-label="Selected velocity"]')).toBeNull();
+    await act(async () => (host.querySelector('[aria-label="Show or hide velocity lane"]') as HTMLButtonElement).click());
     expect(velocity().getAttribute("height")).toBe("100");
     expect(host.querySelector('[data-midi-velocity-header]')?.textContent).toContain("0–127");
     expect(host.querySelector('[aria-label="Snap"]')).toBeNull();
@@ -164,7 +179,7 @@ it("ignores saved snap-off settings, keeps Alt timing snapped and resizes/collap
     const collapse = host.querySelector('[aria-label="Show or hide velocity lane"]') as HTMLButtonElement;
     await act(async () => collapse.click()); expect(velocity().getAttribute("height")).toBe("0");
     await act(async () => collapse.click()); expect(velocity().getAttribute("height")).toBe("110");
-    await pointer(handle, "pointerdown", 0, 100); await pointer(dom.window, "pointermove", 0, 80); await pointer(dom.window, "pointerup", 0, 80);
+    await pointer(host.querySelector('[aria-label="Resize velocity lane"]')!, "pointerdown", 0, 100); await pointer(dom.window, "pointermove", 0, 80); await pointer(dom.window, "pointerup", 0, 80);
     expect(velocity().getAttribute("height")).toBe("130");
     expect((host.querySelector('[data-midi-scroll]') as HTMLElement).className).toContain("flex-1");
     expect(host.querySelector('[aria-label="MIDI playhead"]')?.parentElement?.className).toContain("sticky top-0");
@@ -206,6 +221,7 @@ it("edits the real shared snapshot through draw, move, resize, selection, veloci
     await pointer(note().querySelectorAll("rect")[2], "pointerdown", 105, y - 18); await pointer(grid(), "pointermove", 135, y - 18); await pointer(grid(), "pointerup", 135, y - 18);
     expect(snapshot.notes[0].length).toBe(150);
     await render();
+    await act(async () => (host.querySelector('[aria-label="Show or hide velocity lane"]') as HTMLButtonElement).click());
     const velocity = host.querySelector('[aria-label="Selected velocity"]') as HTMLInputElement;
     expect(velocity.value).toBe("100");
     // Replacing a value must not persist the intermediate empty input as zero.

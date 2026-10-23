@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ComponentProps, type MouseEvent } from "react";
 import type GteWorkspace from "./GteWorkspace";
-import { addScoreNote, addScoreRest, durationFrames, editScoreSelection, midiAtStep, nearestScorePitch, scoreEvents, snapScorePitch, setScoreVoice, toggleScoreConnection, validNotationTie } from "../lib/gteNotation";
+import { addScoreNote, addScoreRest, durationFrames, editScoreSelection, midiAtStep, nearestScorePitch, scoreEvents, scoreEventSelected, resolveScoreSelection, snapScorePitch, setScoreVoice, toggleScoreConnection, validNotationTie, type ScoreSelection } from "../lib/gteNotation";
 import { useLocale } from "../lib/i18n/react";
 import { prepareTrackInstrument, schedulePreparedTrackNote } from "../lib/gteSamplePlayback";
 import GteNotationToolbar from "./GteNotationToolbar";
@@ -14,10 +14,10 @@ const NOTE_LETTERS: Record<string, number> = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 
 export default function GteNotationWorkspace(props: Props) {
   const { snapshot, onSnapshotChange, isActive = false, editMenuDisabled = false, practiceMode = false } = props;
   const { t } = useLocale();
-  const [selection, setSelection] = useState<{ noteIds: number[]; chordIds: number[] }>(() => {
+  const [selection, setSelection] = useState<ScoreSelection>(() => {
     const keys = readPitchedViewState(props.editorId).selection ?? [];
     return { noteIds: keys.filter((key) => key.startsWith("n:")).map((key) => Number(key.split(":")[1])),
-      chordIds: [...new Set(keys.filter((key) => key.startsWith("c:")).map((key) => Number(key.split(":")[1])))] };
+      chordIds: [], eventKeys: keys.filter(key => key.startsWith("c:")) };
   });
   const clearEpoch = useRef(props.selectionClearEpoch);
   const [selectedBars, setSelectedBars] = useState<number[]>([]);
@@ -63,7 +63,11 @@ export default function GteNotationWorkspace(props: Props) {
   }, [reading]);
   useEffect(() => {
     const outside = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) { setWrite(false); setCursor(null); }
+      const target = event.target as Element;
+      const inside = root.current?.contains(target);
+      if (inside && target.closest?.('[data-gte-sheet="true"], [data-gte-notation-toolbar="true"], [data-notation-bar-menu="true"]')) return;
+      setWrite(false); setCursor(null);
+      setSelection({ noteIds: [], chordIds: [] }); clearBars();
     };
     document.addEventListener("pointerdown", outside, true);
     return () => document.removeEventListener("pointerdown", outside, true);
@@ -71,9 +75,9 @@ export default function GteNotationWorkspace(props: Props) {
   const framesPerBar = snapshot.framesPerMessure || 480;
   const score = useMemo(() => buildNotationScore(snapshot, { keyBase: props.canvasKeyBase, keyType: props.canvasKeyType, timelineEnd: props.globalPlaybackTimelineEnd }), [snapshot, props.canvasKeyBase, props.canvasKeyType, props.globalPlaybackTimelineEnd]);
   const segments = useMemo(() => scoreEvents(snapshot), [snapshot]);
-  const selectedRhythm = useMemo(() => !write && (selection.noteIds.length || selection.chordIds.length)
+  const selectedRhythm = useMemo(() => !write && (selection.noteIds.length || selection.chordIds.length || selection.eventKeys?.length)
     ? score.measures.flatMap((measure) => [...measure.voices.treble, ...measure.voices.bass].flat()).find((token) =>
-      token.sources.some((source) => source.noteId !== undefined ? selection.noteIds.includes(source.noteId) : selection.chordIds.includes(source.chordId!)))
+      token.sources.some((source) => scoreEventSelected(source, selection)))
     : undefined, [write, score, selection]);
   const barCount = score.measures.length;
   useEffect(() => { props.onBarSelectionStateChange?.(selectedBars); }, [selectedBars, props.onBarSelectionStateChange]);
@@ -111,8 +115,11 @@ export default function GteNotationWorkspace(props: Props) {
   };
   useEffect(() => () => { auditionId.current++; void audioRef.current?.close().catch(() => undefined); audioRef.current = null; }, []);
   const apply = (change: Parameters<typeof editScoreSelection>[2]) => {
-    if (!selection.noteIds.length && !selection.chordIds.length) return;
-    commit(editScoreSelection(snapshotRef.current, selection, change));
+    if (!selection.noteIds.length && !selection.chordIds.length && !selection.eventKeys?.length) return;
+    const before = snapshotRef.current, next = editScoreSelection(before, selection, change);
+    if (next === before) return;
+    if (selection.eventKeys?.length) setSelection(resolveScoreSelection(before, selection).selection);
+    commit(next);
   };
   const add = (midi: number, frame: number, staff = cursor?.staff) => {
     if (readOnly) return;
@@ -132,8 +139,8 @@ export default function GteNotationWorkspace(props: Props) {
     root.current?.focus({ preventScroll: true });
   };
   useEffect(() => {
-    props.onSelectionStateChange?.({ ...selection, noteCount: selection.noteIds.length, chordCount: selection.chordIds.length });
-    savePitchedViewState(props.editorId, { selection: segments.filter((event) => event.noteId !== undefined ? selection.noteIds.includes(event.noteId) : selection.chordIds.includes(event.chordId!)).map((event) => event.key) });
+    props.onSelectionStateChange?.({ ...selection, noteCount: selection.noteIds.length + (selection.eventKeys?.length ?? 0), chordCount: selection.chordIds.length });
+    savePitchedViewState(props.editorId, { selection: segments.filter((event) => scoreEventSelected(event, selection)).map((event) => event.key) });
   }, [selection, props.onSelectionStateChange]);
   useEffect(() => {
     if (clearEpoch.current === props.selectionClearEpoch) return;
@@ -144,7 +151,7 @@ export default function GteNotationWorkspace(props: Props) {
   useEffect(() => {
     if (!isActive) { setWrite(false); setSelection({ noteIds: [], chordIds: [] }); setCursor(null); clearBars(); }
   }, [isActive]);
-  const count = selection.noteIds.length + selection.chordIds.length;
+  const count = selection.noteIds.length + selection.chordIds.length + (selection.eventKeys?.length ?? 0);
   const focus = () => { props.onFocusWorkspace?.(); root.current?.focus({ preventScroll: true }); };
   const selectBar = (index: number, event: MouseEvent<HTMLButtonElement>, context = false) => {
     if (readOnly) return;
@@ -190,13 +197,13 @@ export default function GteNotationWorkspace(props: Props) {
   const chooseAccidental = (value: -1 | 0 | 1) => {
     if (write) setAccidental(accidental === value ? null : value);
     else {
-      const selectedEvents = segments.filter((event) => event.noteId !== undefined ? selection.noteIds.includes(event.noteId) : selection.chordIds.includes(event.chordId!));
+      const selectedEvents = segments.filter((event) => scoreEventSelected(event, selection));
       const first = selectedEvents[0];
       if (first) apply({ transpose: midiAtStep(notationPitch(first.midi, score.key).step) + value - first.midi });
     }
     focus();
   };
-  const selectedEvents = segments.filter((event) => event.noteId !== undefined ? selection.noteIds.includes(event.noteId) : selection.chordIds.includes(event.chordId!));
+  const selectedEvents = segments.filter((event) => scoreEventSelected(event, selection));
   const selectedKeys = new Set(selectedEvents.map((event) => event.key));
   const connected = (kind: "ties" | "slurs") => (snapshot.notation?.[kind] ?? []).some((link) => selectedKeys.has(link.from) && selectedKeys.has(link.to));
   const tools = <GteNotationToolbar mode={write ? restMode ? "rest" : "note" : "select"} voice={voice}
@@ -206,7 +213,7 @@ export default function GteNotationWorkspace(props: Props) {
     canTie={connected("ties") || selectedEvents.some((from) => selectedEvents.some((to) => validNotationTie(from, to)))}
     canSlur={connected("slurs") || selectedEvents.some((from) => selectedEvents.some((to) => from.start < to.start))}
     onDuration={chooseDuration} onDot={toggleDot} onAccidental={chooseAccidental}
-    onVoice={(value) => { setVoice(value); if (count) commit(setScoreVoice(snapshotRef.current, selection, value)); focus(); }}
+    onVoice={(value) => { setVoice(value); if (count) { const resolved = resolveScoreSelection(snapshotRef.current, selection); commit(setScoreVoice(resolved.snapshot, resolved.selection, value)); setSelection(resolved.selection); } focus(); }}
     onTie={() => { commit(toggleScoreConnection(snapshotRef.current, selection, "ties")); focus(); }}
     onSlur={() => { commit(toggleScoreConnection(snapshotRef.current, selection, "slurs")); focus(); }}
     canSnapToKey={count > 0} onSnapSelectionToKey={() => { apply({ snapKey: { root: props.canvasKeyBase ?? 0, type: props.canvasKeyType ?? 0 } }); focus(); }}
@@ -236,15 +243,15 @@ export default function GteNotationWorkspace(props: Props) {
         if (write) setCursor({ midi: cursor?.midi ?? 60, frame: Math.max(0, (cursor?.frame ?? 0) + (key === "arrowleft" ? -1 : 1) * entryLength), staff: cursor?.staff });
         else {
           const ordered = [...new Map(segments.map((segment) => [segment.key, segment])).values()].sort((a, b) => a.start - b.start || a.midi - b.midi);
-          const current = ordered.findIndex((segment) => segment.noteId !== undefined ? selection.noteIds.includes(segment.noteId) : selection.chordIds.includes(segment.chordId!));
+          const current = ordered.findIndex((segment) => scoreEventSelected(segment, selection));
           const next = ordered[Math.max(0, Math.min(ordered.length - 1, current + (key === "arrowleft" ? -1 : 1)))];
-          if (next) { clearBars(); setSelection({ noteIds: next.noteId !== undefined ? [next.noteId] : [], chordIds: next.chordId !== undefined ? [next.chordId] : [] }); setCursor({ frame: next.start, midi: next.midi, staff: next.staff }); props.onGlobalPlaybackFrameChange?.(next.start); }
+          if (next) { clearBars(); setSelection({ noteIds: next.noteId !== undefined ? [next.noteId] : [], chordIds: [], eventKeys: next.chordId !== undefined ? [next.key] : [] }); setCursor({ frame: next.start, midi: next.midi, staff: next.staff }); props.onGlobalPlaybackFrameChange?.(next.start); }
         }
       }
       else if (!modifier && NOTE_LETTERS[key] !== undefined && write) {
         event.preventDefault(); event.stopPropagation();
         if (restMode) { rest(); return; }
-        const selectedEvent = segments.find((segment) => segment.noteId !== undefined ? selection.noteIds.includes(segment.noteId) : selection.chordIds.includes(segment.chordId!));
+        const selectedEvent = segments.find((segment) => scoreEventSelected(segment, selection));
         const frame = event.shiftKey && selectedEvent ? selectedEvent.start : cursor?.frame ?? 0;
         const midi = Math.max(0, Math.min(127, nearestScorePitch(NOTE_LETTERS[key], cursor?.midi ?? selectedEvent?.midi ?? 60) + (accidental ?? notationKeyAlteration(key, score.key))));
         const staff = event.shiftKey ? selectedEvent?.staff : cursor?.staff;
@@ -293,10 +300,9 @@ export default function GteNotationWorkspace(props: Props) {
         setCursor({ frame: source.start + source.length, midi: source.midi, staff: source.staff });
         void audition(source.midi);
         setSelection((current) => {
-          const selected = source.noteId !== undefined ? current.noteIds.includes(source.noteId) : current.chordIds.includes(source.chordId!);
-          return source.noteId !== undefined
-            ? { noteIds: shift ? selected ? current.noteIds.filter((id) => id !== source.noteId) : [...current.noteIds, source.noteId!] : [source.noteId], chordIds: shift ? current.chordIds : [] }
-            : { noteIds: shift ? current.noteIds : [], chordIds: shift ? selected ? current.chordIds.filter((id) => id !== source.chordId) : [...current.chordIds, source.chordId!] : [source.chordId!] };
+          const keys = shift ? segments.filter(event => scoreEventSelected(event, current)).map(event => event.key) : [];
+          const next = shift && keys.includes(source.key) ? keys.filter(key => key !== source.key) : [...keys, source.key];
+          return { noteIds: next.filter(key => key.startsWith("n:")).map(key => Number(key.slice(2))), chordIds: [], eventKeys: next.filter(key => key.startsWith("c:")) };
         });
       }}
       onAudition={(midi) => { void audition(midi); }}
@@ -304,15 +310,16 @@ export default function GteNotationWorkspace(props: Props) {
         if (readOnly) return;
         focus(); clearBars(); setWrite(false); setCursor(null);
         const noteIds = sources.flatMap((source) => source.noteId !== undefined ? [source.noteId] : []);
-        const chordIds = sources.flatMap((source) => source.chordId !== undefined ? [source.chordId] : []);
+        const eventKeys = sources.flatMap((source) => source.chordId !== undefined ? [source.key] : []);
         setSelection((current) => ({ noteIds: [...new Set([...(additive ? current.noteIds : []), ...noteIds])],
-          chordIds: [...new Set([...(additive ? current.chordIds : []), ...chordIds])] }));
+          chordIds: additive ? current.chordIds : [], eventKeys: [...new Set([...(additive ? current.eventKeys ?? [] : []), ...eventKeys])] }));
       }}
       onAddBar={readOnly ? undefined : () => commit({ ...snapshotRef.current, totalFrames: barCount * framesPerBar + framesPerBar })}
       onMove={(sources, shift, transpose) => {
         const chosen = { noteIds: [...new Set(sources.flatMap((source) => source.noteId !== undefined ? [source.noteId] : []))],
-          chordIds: [...new Set(sources.flatMap((source) => source.chordId !== undefined ? [source.chordId] : []))] };
-        commit(editScoreSelection(snapshotRef.current, chosen, { shift, transpose }));
+          chordIds: [], eventKeys: sources.flatMap(source => source.chordId !== undefined ? [source.key] : []) };
+        const resolved = resolveScoreSelection(snapshotRef.current, chosen);
+        commit(editScoreSelection(resolved.snapshot, resolved.selection, { shift, transpose })); setSelection(resolved.selection);
       }} />
     </div>
     {barMenu && !readOnly && <div ref={barMenuRef} role="menu" aria-label={t("Bar actions")} data-notation-bar-menu="true" data-gte-editor-control="true" data-gte-floating-ui="true"
