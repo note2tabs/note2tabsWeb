@@ -65,7 +65,7 @@ describe("shared MIDI and sheet music model", () => {
     const source = score(); source.notes[0].velocity = 0.4;
     const result = pasteMidiEvents(source, scoreEvents(source), 300);
     expect(result.keys).toEqual(["n:3", "n:4"]);
-    expect(result.snapshot.notes.slice(2).map((note) => [note.startTime, note.length, note.velocity, note.notationVoice])).toEqual([[300, 60, 0.4, 2], [360, 120, 1, 1]]);
+    expect(result.snapshot.notes.slice(2).map((note) => [note.startTime, note.length, note.velocity, note.notationVoice])).toEqual([[300, 60, 0.4, 2], [360, 120, 100 / 127, 1]]);
   });
   it("uses meter-aware fractional grids and retains off-grid timing until explicitly snapped", () => {
     expect(midiGridFrames(empty(), 64)).toBe(7.5);

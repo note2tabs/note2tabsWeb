@@ -19,6 +19,8 @@ beforeAll(() => {
   Object.defineProperty(dom.window.HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 900 });
   Object.defineProperty(dom.window.HTMLElement.prototype, "clientHeight", { configurable: true, get: () => 480 });
   dom.window.SVGElement.prototype.setPointerCapture = vi.fn(); dom.window.SVGElement.prototype.releasePointerCapture = vi.fn();
+  // React is imported before JSDOM and selects its legacy input-event shim.
+  Object.assign(dom.window.HTMLElement.prototype, { attachEvent() {}, detachEvent() {} });
 });
 
 it("loads delayed music, guards tiny drags, supports navigation, loop selection and restores editing context", async () => {
@@ -206,7 +208,18 @@ it("edits the real shared snapshot through draw, move, resize, selection, veloci
     await render();
     const velocity = host.querySelector('[aria-label="Selected velocity"]') as HTMLInputElement;
     expect(velocity.value).toBe("100");
+    // Replacing a value must not persist the intermediate empty input as zero.
+    await act(async () => { velocity.dispatchEvent(new dom.window.FocusEvent("focusin", { bubbles: true })); });
+    await act(async () => { velocity.value = ""; velocity.dispatchEvent(new dom.window.Event("input", { bubbles: true })); });
+    expect(snapshot.notes[0].velocity).toBe(100 / 127);
+    await act(async () => { velocity.dispatchEvent(new dom.window.FocusEvent("focusout", { bubbles: true })); });
+    expect(snapshot.notes[0].velocity).toBe(100 / 127);
+    expect(velocity.value).toBe("100");
     const lane = host.querySelector('[aria-label="MIDI velocity lane"]')!;
+    // Clicking near the foot of a stem selects it without silencing the notes.
+    await pointer(lane.querySelector("circle")!, "pointerdown", 60, 95);
+    await pointer(lane, "pointermove", 60, 96); await pointer(lane, "pointerup", 60, 96);
+    expect(snapshot.notes[0].velocity).toBe(100 / 127);
     const velocityMiddle = Number(lane.getAttribute("height")) / 2;
     await pointer(lane.querySelector("circle")!, "pointerdown", 60, 25); await pointer(lane, "pointermove", 60, velocityMiddle); await pointer(lane, "pointerup", 60, velocityMiddle);
     expect(snapshot.notes[0].velocity).toBeCloseTo(0.5);

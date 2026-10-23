@@ -49,7 +49,7 @@ const parseManifest = (value: unknown): TrackInstrumentOption[] => {
         const midi = Number(midiValue);
         const file = typeof fileValue === "string" ? fileValue.trim() : "";
         if (!Number.isFinite(midi) || !file || file.toLowerCase().startsWith("mute_")) return [];
-        return [{ midi, url: `/sound_samples/${folder}/${file}` }];
+        return [{ midi, url: `/sound_samples/${folder.split("/").map(encodeURIComponent).join("/")}/${encodeURIComponent(file)}` }];
       })
       .sort((left, right) => left.midi - right.midi);
     if (!samples.length) return [];

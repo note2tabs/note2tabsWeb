@@ -297,5 +297,31 @@
       "80": "G#5.opus",
       "84": "C6.opus"
     }
+  },
+  {
+    "id": "synth_lead",
+    "label": "Synth Lead",
+    "folder": "synth_lead",
+    "gain": 0.55,
+    "samples": {
+      "29": "f1_vl1_rr1_2.opus",
+      "36": "c2_vl1_rr1_2.opus",
+      "40": "e2_vl1_rr1_2.opus",
+      "44": "ab2_vl1_rr1_2.opus",
+      "48": "c3_vl1_rr1_2.opus",
+      "52": "e3_vl1_rr1_2.opus",
+      "56": "ab3_vl1_rr1_2.opus",
+      "60": "c4_vl1_rr1_2.opus",
+      "64": "e4_vl1_rr1_2.opus",
+      "68": "ab4_vl1_rr1_2.opus",
+      "72": "c5_vl1_rr1_2.opus",
+      "76": "e5_vl1_rr1_2.opus",
+      "80": "ab5_vl1_rr1_2.opus",
+      "84": "c6_vl1_rr1_2.opus",
+      "88": "e6_vl1_rr1_2.opus",
+      "92": "ab6_vl1_rr1_2.opus",
+      "96": "c7_vl1_rr1_2.opus",
+      "104": "ab7_vl1_rr1_2.opus"
+    }
   }
 ]
