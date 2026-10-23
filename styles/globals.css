@@ -13878,7 +13878,8 @@ input[type="number"] {
 
   .gte-editor-sticky-banner {
     margin: 0;
-    padding: .55rem 1.25rem .6rem;
+    /* Keep editing controls below the navigation's top-20px hover trigger. */
+    padding: 1.75rem 1.25rem .6rem;
     border-width: 0 0 1px;
     border-color: #d9ddd8;
     border-radius: 0;
