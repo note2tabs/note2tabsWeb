@@ -17,7 +17,7 @@ beforeAll(() => {
 afterAll(() => { dom.window.close(); vi.unstubAllGlobals(); });
 const props = () => ({ mode: "select" as const, disabled: false, onMode: vi.fn(), onUndo: vi.fn(), onRedo: vi.fn(), undoCount: 1, redoCount: 1,
   grid: 16, triplet: false, onGrid: vi.fn(), keyBase: 4, keyType: 1, onKeyChange: vi.fn(), snapToKey: true, onSnapToKey: vi.fn(), voice: 1 as const, onVoice: vi.fn(),
-  hasSelection: true, onFitAll: vi.fn(), onFitSelection: vi.fn(), zoom: 240, row: 18, onZoom: vi.fn(), onRow: vi.fn(), follow: false, onFollow: vi.fn(),
+  hasSelection: true, onFitAll: vi.fn(), onFitSelection: vi.fn(), zoom: 240, row: 18, onZoom: vi.fn(), onRow: vi.fn(), onResetScale: vi.fn(), follow: false, onFollow: vi.fn(),
   audition: true, onAudition: vi.fn(), labels: true, onLabels: vi.fn(), onCenter: vi.fn() });
 
 it("uses the requested control order, active modes, shared undo/redo and real grid/key/voice callbacks", async () => {
@@ -29,7 +29,7 @@ it("uses the requested control order, active modes, shared undo/redo and real gr
     await act(async () => root.render(React.createElement(GteMidiToolbar, p)));
     const toolbar = host.querySelector('[role="toolbar"]')!;
     expect(toolbar.className).toContain("flex-nowrap"); expect(toolbar.className).not.toContain("flex-wrap");
-    expect([...toolbar.querySelectorAll("button")].map(button => button.getAttribute("aria-label") ?? button.textContent)).toEqual(["Select", "Draw", "Undo", "Redo", "Snap to key", "Fit all", "Fit selection", "View⌄"]);
+    expect([...toolbar.querySelectorAll("button")].map(button => button.getAttribute("aria-label") ?? button.textContent)).toEqual(["Select", "Draw", "Undo", "Redo", "Snap to key", "Fit all", "Focus view", "View⌄"]);
     expect(button("Select").getAttribute("aria-pressed")).toBe("true"); expect(button("Snap to key").getAttribute("aria-pressed")).toBe("true");
     for (const label of ["Select", "Draw", "Undo", "Redo", "Snap to key"]) expect(button(label).title).not.toBe("");
     await act(async () => { button("Draw").click(); button("Undo").click(); button("Redo").click(); button("Snap to key").click(); });
@@ -70,8 +70,8 @@ it("provides percentage zoom, both fit actions, follow playback and display opti
     await act(async () => { horizontal.value = "200"; Simulate.change(horizontal); vertical.value = "24"; Simulate.change(vertical); });
     expect(p.onZoom).toHaveBeenCalledWith(480); expect(p.onRow).toHaveBeenCalledWith(24);
     const view = horizontal.closest("div")!;
-    await act(async () => { [...view.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Fit all")!.click(); [...view.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Fit selection")!.click(); });
-    expect(p.onFitAll).toHaveBeenCalledOnce(); expect(p.onFitSelection).toHaveBeenCalledOnce();
+    await act(async () => [...view.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Reset scale")!.click());
+    expect(p.onResetScale).toHaveBeenCalledOnce();
     const follow = [...view.querySelectorAll<HTMLLabelElement>("label")].find(label => label.textContent === "Follow playback")!.querySelector("input")!;
     await act(async () => { follow.checked = true; Simulate.change(follow); }); expect(p.onFollow).toHaveBeenCalledWith(true);
     expect(view.textContent).toContain("Note labels"); expect(view.textContent).toContain("Audition while dragging");

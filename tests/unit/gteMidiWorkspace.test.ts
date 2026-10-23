@@ -70,6 +70,33 @@ it("loads delayed music, guards tiny drags, supports navigation, loop selection 
   } finally { await act(async () => root.unmount()); host.remove(); }
 });
 
+it("focuses a dragged rectangle without selecting or editing the notes underneath", async () => {
+  const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+  const snapshot: EditorSnapshot = { id: "focus-test", fps: 240, framesPerMessure: 480, totalFrames: 1920, notes: [{ id: 1, startTime: 0, length: 120, midiNum: 60, tab: [0,0], optimals: [] }], chords: [], cutPositionsWithCoords: [], optimalsByTime: {} };
+  const changes = vi.fn();
+  const pointer = async (target: Element, type: string, x: number, y: number) => { await act(async () => target.dispatchEvent(new dom.window.MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 }))); };
+  try {
+    await act(async () => root.render(React.createElement(GteMidiWorkspace, { editorId: "focus-box-test", snapshot, isActive: true, onSnapshotChange: changes })));
+    await act(async () => (host.querySelector('[data-midi-menu="view"]') as HTMLButtonElement).click());
+    const button = [...host.querySelectorAll("button")].find(button => button.textContent === "Focus view")!;
+    expect(button.disabled).toBe(false);
+    await act(async () => button.click());
+    expect(host.querySelector('[role="status"]')!.textContent).toContain("Drag a box");
+    const grid = host.querySelector('[aria-label="MIDI piano roll"]')!;
+    const height = Number(grid.getAttribute("height"));
+    await pointer(host.querySelector('[data-midi-note] rect')!, "pointerdown", 100, 600);
+    await pointer(grid, "pointermove", 400, 900);
+    await pointer(grid, "pointerup", 400, 900);
+    expect(host.querySelector('[role="status"]')).toBeNull();
+    expect(Number(grid.getAttribute("height"))).toBeGreaterThan(height);
+    expect(host.querySelectorAll('[data-midi-note][aria-pressed="true"]')).toHaveLength(0);
+    expect(changes).not.toHaveBeenCalled();
+    await act(async () => grid.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "F", shiftKey: true, bubbles: true })));
+    await act(async () => grid.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(host.querySelector('[role="status"]')).toBeNull();
+  } finally { await act(async () => root.unmount()); host.remove(); }
+});
+
 it("updates playback highlights and follow position from the audio clock without React commits", async () => {
   const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
   const originalRaf = globalThis.requestAnimationFrame, originalCancel = globalThis.cancelAnimationFrame;

@@ -86,6 +86,7 @@ export default function GteMidiWorkspace(props: Props) {
     return () => document.removeEventListener("pointerdown", outside);
   }, [menu]);
   const [preview, setPreview] = useState<MidiEdit | null>(null), [marquee, setMarquee] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [focusBox, setFocusBox] = useState(false);
   const [drawing, setDrawing] = useState<{ frame: number; midi: number; length: number } | null>(null);
   const [viewport, setViewport] = useState({ left: 0, top: 0, width: 1000, height: 480 });
   const root = useRef<HTMLDivElement>(null), scroller = useRef<HTMLDivElement>(null), surface = useRef<SVGSVGElement>(null);
@@ -154,6 +155,10 @@ export default function GteMidiWorkspace(props: Props) {
     requestAnimationFrame(() => { if (scroller.current) { scroller.current.scrollLeft = plan.left; scroller.current.scrollTop = plan.top; } });
   };
   const centerPlayback = () => { if (scroller.current) scroller.current.scrollLeft = Math.max(0, (props.getGlobalPlaybackFrame?.() ?? props.globalPlaybackFrame ?? 0) * scale - scroller.current.clientWidth / 2); };
+  const focusView = () => {
+    if (selected.length) { fit(selected); setFocusBox(false); }
+    else { clearGesture(); setFocusBox(true); focus(); }
+  };
   const commit = (next: typeof snapshot) => { if (!disabled && next !== snapshotRef.current) { snapshotRef.current = next; props.onSnapshotChange(next); } };
   const audition = async (midi: number) => {
     if (snapshot.playbackMuted || props.globalPlaybackIsPlaying) return;
@@ -287,6 +292,19 @@ export default function GteMidiWorkspace(props: Props) {
   moveAt.current = move;
   const end = (event: ReactPointerEvent) => {
     const active = gesture.current; if (!active) return;
+    if (focusBox && active.kind === "box") {
+      const p = point(event), element = scroller.current;
+      const left = Math.min(active.start.x, p.x), top = Math.min(active.start.y, p.y);
+      const boxWidth = Math.abs(p.x - active.start.x), boxHeight = Math.abs(p.y - active.start.y);
+      if (element && boxWidth >= 4 && boxHeight >= 4) {
+        const nextZoom = Math.max(.05, Math.min(1920, zoom * (element.clientWidth - KEY_WIDTH) / boxWidth));
+        const nextRow = Math.max(6, Math.min(36, row * (element.clientHeight - 28) / boxHeight));
+        restoreScroll.current = { left: left * nextZoom / zoom, top: top * nextRow / row };
+        element.scrollLeft = restoreScroll.current.left; element.scrollTop = restoreScroll.current.top;
+        setZoom(nextZoom); setRow(nextRow); setFocusBox(false);
+      }
+      clearGesture(); return;
+    }
     if (!disabled && active.base === snapshotRef.current) {
       if (active.kind === "draw") insert(drawing?.frame ?? quantize(active.start.frame, event.altKey), drawing?.midi ?? active.start.midi, drawing?.length ?? step, event.altKey);
       else if (active.kind === "box") {
@@ -336,25 +354,32 @@ export default function GteMidiWorkspace(props: Props) {
       else if (mod && (key === "c" || key === "x")) { event.preventDefault(); event.stopPropagation(); clipboardAction(key === "x"); }
       else if (mod && key === "v") { event.preventDefault(); event.stopPropagation(); paste(cursor.current); }
       else if (mod && key === "d") { event.preventDefault(); event.stopPropagation(); clipboardAction(); paste(Math.max(...selected.map((note) => note.start + note.length), 0)); }
-      else if (key === "escape") { event.stopPropagation(); clearGesture(); setSelection([]); setMode("select"); setMenu(null); }
+      else if (key === "escape") { event.stopPropagation(); clearGesture(); setFocusBox(false); setSelection([]); setMode("select"); setMenu(null); }
       else if (key === "delete" || key === "backspace") { event.preventDefault(); event.stopPropagation(); applyEdit(selection, { remove: true }); }
       else if (key.startsWith("arrow") && selection.length) { event.preventDefault(); event.stopPropagation(); applyEdit(selection,
         key === "arrowup" || key === "arrowdown" ? { transpose: (key === "arrowup" ? 1 : -1) * (event.shiftKey ? 12 : 1), key: event.altKey ? undefined : keyConstraint() } : { shift: quantize(Math.min(...selected.map(note => note.start)) + (key === "arrowright" ? 1 : -1) * step) - Math.min(...selected.map(note => note.start)) }); }
       else if (key === "b" && !mod) { event.preventDefault(); setMode((value) => value === "draw" ? "select" : "draw"); }
-      else if (key === "f" && !mod) { event.preventDefault(); event.stopPropagation(); if (event.shiftKey && selected.length) fit(selected); else fit(); }
+      else if (key === "f" && !mod) { event.preventDefault(); event.stopPropagation(); if (event.shiftKey) focusView(); else { setFocusBox(false); fit(); } }
       else if (key === "home") { event.preventDefault(); event.stopPropagation(); centerPlayback(); }
       else if (key === " " && !(event.target as HTMLElement).closest("button")) { event.preventDefault(); event.stopPropagation(); props.onGlobalPlaybackToggle?.(); }
     }}>
-    <GteMidiToolbar mode={mode} disabled={disabled} onMode={value => { setMode(value); focus(); }}
+    <GteMidiToolbar mode={mode} disabled={disabled} onMode={value => { setFocusBox(false); clearGesture(); setMode(value); focus(); }}
       onUndo={props.onRequestUndo} onRedo={props.onRequestRedo} undoCount={props.historyUndoCount} redoCount={props.historyRedoCount}
       grid={grid} triplet={triplet} onGrid={(value, isTriplet) => { setGrid(value); setTriplet(isTriplet); }}
       keyBase={props.canvasKeyBase ?? 0} keyType={props.canvasKeyType ?? 0} onKeyChange={props.onCanvasKeyChange}
       snapToKey={Boolean(props.globalSnapToKeyEnabled)} onSnapToKey={props.onGlobalSnapToKeyEnabledChange}
       voice={selected[0]?.voice ?? voice} onVoice={value => { setVoice(value); if (selection.length) applyEdit(selection, { voice: value }); }}
-      hasSelection={selected.length > 0} onFitAll={() => fit()} onFitSelection={() => fit(selected)}
+      hasSelection={selected.length > 0} onFitAll={() => { setFocusBox(false); fit(); }} onFitSelection={focusView}
       zoom={zoom} row={row} onZoom={value => zoomAt(value)} onRow={next => { if (scroller.current) restoreScroll.current = { left: scroller.current.scrollLeft, top: scroller.current.scrollTop * next / row }; setRow(next); }}
+      onResetScale={() => {
+        clearGesture(); setFocusBox(false);
+        const element = scroller.current;
+        if (element) restoreScroll.current = { left: element.scrollLeft * 240 / zoom, top: element.scrollTop * 18 / row };
+        setZoom(240); setRow(18);
+      }}
       follow={follow} onFollow={setFollow} audition={auditionDrag} onAudition={setAuditionDrag}
       labels={showNoteLabels} onLabels={setShowNoteLabels} onCenter={centerPlayback} />
+    {focusBox && <div role="status" className="text-center text-xs text-slate-600">{t("Drag a box to focus the view · Esc to cancel")}</div>}
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-300 bg-[#faf9f5]">
       <div ref={scroller} data-midi-scroll="true" className="relative min-h-32 flex-1 overflow-auto overscroll-contain" onScroll={(event) => { const e = event.currentTarget; setViewport({ left: e.scrollLeft, top: e.scrollTop, width: e.clientWidth, height: e.clientHeight }); }}>
         <div style={{ width: width + KEY_WIDTH }}>
@@ -372,7 +397,8 @@ export default function GteMidiWorkspace(props: Props) {
             </svg>
           </div>
           <div className="relative" style={{ height: PITCH_HEIGHT }}>
-            <svg ref={surface} width={width} height={PITCH_HEIGHT} className="absolute select-none" style={{ left: KEY_WIDTH, touchAction: "none", cursor: mode === "draw" ? "crosshair" : "default" }} role="group" aria-label={t("MIDI piano roll")}
+            <svg ref={surface} width={width} height={PITCH_HEIGHT} className="absolute select-none" style={{ left: KEY_WIDTH, touchAction: "none", cursor: focusBox || mode === "draw" ? "crosshair" : "default" }} role="group" aria-label={t("MIDI piano roll")}
+              onPointerDownCapture={event => { if (focusBox && event.button === 0) { event.stopPropagation(); event.preventDefault(); capture(event, "box", []); } }}
               onPointerDown={(event) => { if (event.button !== 0 || disabled) return;
                 const p = point(event);
                 const hit = dense ? [...visible].reverse().find((note) => note.midi === p.midi && note.start <= p.frame && note.start + note.length >= p.frame) : undefined;
@@ -381,7 +407,7 @@ export default function GteMidiWorkspace(props: Props) {
               onPointerMove={move} onPointerUp={end} onPointerCancel={clearGesture} onLostPointerCapture={clearGesture}
               onPointerLeave={() => { setHoverPitch(null); if (!gesture.current) setDrawing(null); }}
               onContextMenu={(event) => { event.preventDefault(); const p = point(event); setMenu({ x: event.clientX, y: event.clientY, frame: quantize(p.frame), midi: p.midi }); }}
-              onDoubleClick={(event) => { if (mode === "select") { const p = point(event); insert(quantize(p.frame, event.altKey), p.midi, step, event.altKey); } }}>
+              onDoubleClick={(event) => { if (!focusBox && mode === "select") { const p = point(event); insert(quantize(p.frame, event.altKey), p.midi, step, event.altKey); } }}>
               <defs><pattern id={"midi-grid-" + snapshot.id} width={patternWidth} height={ROW} patternUnits="userSpaceOnUse"><path d={`M0 0H${patternWidth}M0 0V${ROW}`} fill="none" stroke="#cdd5ce" strokeWidth={0.6} /></pattern></defs>
               {Array.from({ length: 128 }, (_, index) => <g key={index}><rect x={0} y={index * ROW} width={width} height={ROW} fill={black(127 - index) ? "#e9ece7" : "#fafbf8"} />{(127 - index) % 12 === 0 && <line x1={0} x2={width} y1={(index + 1) * ROW} y2={(index + 1) * ROW} stroke="#aebdb2" strokeWidth={1.1} />}</g>)}
               {[...new Set(selected.map((note) => note.midi))].map((pitch) => <rect key={pitch} x={0} y={(127 - pitch) * ROW} width={width} height={ROW} fill="#059669" fillOpacity={0.09} pointerEvents="none" />)}
@@ -409,7 +435,7 @@ export default function GteMidiWorkspace(props: Props) {
               })}
               {drawing && <rect x={drawing.frame * scale} y={(127 - drawing.midi) * ROW + 2} width={drawing.length * scale} height={ROW - 4} rx={2} fill="#86dec0" stroke="#175a43" pointerEvents="none" />}
               {marquee && <rect {...marquee} fill="#059669" fillOpacity={0.1} stroke="#059669" pointerEvents="none" />}
-              <MidiPlayhead scale={scale} row={ROW} height={PITCH_HEIGHT} frame={props.globalPlaybackFrame ?? 0} playing={Boolean(props.globalPlaybackIsPlaying)} getFrame={props.getGlobalPlaybackFrame} notes={events} scroll={scroller} follow={follow && !gesture.current} />
+              <MidiPlayhead scale={scale} row={ROW} height={PITCH_HEIGHT} frame={props.globalPlaybackFrame ?? 0} playing={Boolean(props.globalPlaybackIsPlaying)} getFrame={props.getGlobalPlaybackFrame} notes={events} scroll={scroller} follow={follow && !focusBox && !gesture.current} />
             </svg>
             <div className="sticky left-0 z-20 border-r border-[#a5afa5] bg-[#fffdf5] shadow-[2px_0_5px_#263c3212]" style={{ width: KEY_WIDTH, height: PITCH_HEIGHT }}>
               {[false, true].flatMap((isBlack) => Array.from({ length: 128 }, (_, index) => 127 - index).filter((midi) => black(midi) === isBlack).map((midi) => {
@@ -463,7 +489,7 @@ export default function GteMidiWorkspace(props: Props) {
         ["Paste", "Ctrl+V", () => paste(menu.frame), disabled || !clipboard.current.length],
         ["Duplicate", "Ctrl+D", () => { clipboardAction(); paste(Math.max(...selected.map((note) => note.start + note.length))); }, disabled || !selected.length],
         ["Delete", "Delete", () => applyEdit(selection, { remove: true }), disabled || !selected.length],
-        ["Fit selection", "Shift+F", () => fit(selected), !selected.length],
+        ["Focus view", "Shift+F", focusView, false],
         ["Fit all", "F", () => fit(), false],
       ].map(([label, shortcut, action, inactive]) => <button key={String(label)} type="button" role="menuitem" disabled={Boolean(inactive)} className="flex items-center justify-between gap-6 rounded px-3 py-1.5 text-left text-xs text-slate-700 hover:bg-black/5 disabled:opacity-35" onClick={() => { (action as () => void)(); setMenu(null); focus(); }}><span>{t(String(label))}</span><span className="text-[10px] text-slate-400">{String(shortcut)}</span></button>)}
     </div>}
