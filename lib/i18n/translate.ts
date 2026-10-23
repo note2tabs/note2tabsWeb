@@ -21,7 +21,9 @@ export function registerEditorCatalog(locale:AppLocale, messages:Record<string,s
 export function translate(source: string, locale: AppLocale, values: Record<string, string | number> = {}) {
   const key = source.trim();
   const catalog: Record<string, string> = catalogs[locale];
-  const dynamic = !Object.prototype.hasOwnProperty.call(catalog, key) ? editorTemplate(key) : null;
+  // Explicit templates must retain their named parameters even before a catalog
+  // loads. Matching them as rendered editor text renames their placeholders.
+  const dynamic = !Object.prototype.hasOwnProperty.call(catalog, key) && !/\{[a-zA-Z][a-zA-Z0-9_]*\}/.test(key) ? editorTemplate(key) : null;
   const messageKey = dynamic?.source || key;
   const message = Object.prototype.hasOwnProperty.call(catalog, messageKey) ? catalog[messageKey] : messageKey;
   values = {...dynamic?.values, ...values};
