@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentProps, type MouseEvent } from "react";
 import type GteWorkspace from "./GteWorkspace";
 import { addScoreNote, addScoreRest, durationFrames, editScoreSelection, midiAtStep, nearestScorePitch, scoreEvents, snapScorePitch, setScoreVoice, toggleScoreConnection, validNotationTie } from "../lib/gteNotation";
 import { useLocale } from "../lib/i18n/react";
@@ -20,6 +20,13 @@ export default function GteNotationWorkspace(props: Props) {
       chordIds: [...new Set(keys.filter((key) => key.startsWith("c:")).map((key) => Number(key.split(":")[1])))] };
   });
   const clearEpoch = useRef(props.selectionClearEpoch);
+  const [selectedBars, setSelectedBars] = useState<number[]>([]);
+  const [barAnchor, setBarAnchor] = useState<number | null>(null);
+  const [barInsertIndex, setBarInsertIndex] = useState<number | null>(null);
+  const [barMenu, setBarMenu] = useState<{ x: number; y: number; insertIndex: number } | null>(null);
+  const barMenuRef = useRef<HTMLDivElement>(null);
+  const barClearEpoch = useRef(props.barSelectionClearEpoch);
+  const clearBars = () => { setSelectedBars([]); setBarAnchor(null); setBarMenu(null); setBarInsertIndex(null); };
   const [write, setWrite] = useState(() => snapshot.notes.length + snapshot.chords.length === 0);
   const [restMode, setRestMode] = useState(false);
   const [voice, setVoice] = useState<1 | 2>(1);
@@ -69,6 +76,22 @@ export default function GteNotationWorkspace(props: Props) {
       token.sources.some((source) => source.noteId !== undefined ? selection.noteIds.includes(source.noteId) : selection.chordIds.includes(source.chordId!)))
     : undefined, [write, score, selection]);
   const barCount = score.measures.length;
+  useEffect(() => { props.onBarSelectionStateChange?.(selectedBars); }, [selectedBars, props.onBarSelectionStateChange]);
+  useEffect(() => {
+    setSelectedBars(current => current.some(index => index >= barCount) ? current.filter(index => index < barCount) : current);
+  }, [barCount]);
+  useEffect(() => {
+    if (barClearEpoch.current === props.barSelectionClearEpoch) return;
+    barClearEpoch.current = props.barSelectionClearEpoch;
+    if (props.barSelectionClearExemptEditorId !== props.editorId) clearBars();
+  }, [props.barSelectionClearEpoch, props.barSelectionClearExemptEditorId, props.editorId]);
+  useEffect(() => {
+    if (!barMenu) return;
+    barMenuRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus({ preventScroll: true });
+    const close = (event: PointerEvent) => { if (!barMenuRef.current?.contains(event.target as Node)) setBarMenu(null); };
+    document.addEventListener("pointerdown", close, true);
+    return () => document.removeEventListener("pointerdown", close, true);
+  }, [barMenu]);
   const commit = (next: typeof snapshot) => {
     if (readOnly || next === snapshotRef.current) return;
     snapshotRef.current = next;
@@ -103,6 +126,7 @@ export default function GteNotationWorkspace(props: Props) {
     void audition(midi);
   };
   const chooseDuration = (value: number, rest = false) => {
+    clearBars();
     setLocalDenominator(value); props.onDefaultNoteLengthDenominatorChange?.(value);
     setWrite(true); setRestMode(rest); setSelection({ noteIds: [], chordIds: [] });
     root.current?.focus({ preventScroll: true });
@@ -118,10 +142,38 @@ export default function GteNotationWorkspace(props: Props) {
     setSelection({ noteIds: [], chordIds: [] }); setCursor(null);   
   }, [props.editorId, props.selectionClearEpoch]);
   useEffect(() => {
-    if (!isActive) { setWrite(false); setSelection({ noteIds: [], chordIds: [] }); setCursor(null); }
+    if (!isActive) { setWrite(false); setSelection({ noteIds: [], chordIds: [] }); setCursor(null); clearBars(); }
   }, [isActive]);
   const count = selection.noteIds.length + selection.chordIds.length;
   const focus = () => { props.onFocusWorkspace?.(); root.current?.focus({ preventScroll: true }); };
+  const selectBar = (index: number, event: MouseEvent<HTMLButtonElement>, context = false) => {
+    if (readOnly) return;
+    event.preventDefault(); event.stopPropagation(); focus();
+    setWrite(false); setCursor(null); setSelection({ noteIds: [], chordIds: [] });
+    const rect = event.currentTarget.getBoundingClientRect();
+    const insertIndex = event.clientX - rect.left < rect.width / 2 ? index : index + 1;
+    setBarInsertIndex(insertIndex);
+    if (context) {
+      if (!selectedBars.includes(index)) { setSelectedBars([index]); setBarAnchor(index); }
+      setBarMenu({ x: event.clientX, y: event.clientY, insertIndex });
+      return;
+    }
+    setBarMenu(null);
+    if (event.shiftKey && barAnchor !== null) {
+      const start = Math.min(barAnchor, index), end = Math.max(barAnchor, index);
+      setSelectedBars(Array.from({ length: end - start + 1 }, (_, offset) => start + offset));
+    } else if (props.mobileViewport) {
+      const next = selectedBars.includes(index) ? selectedBars.filter(value => value !== index) : [...selectedBars, index].sort((a,b) => a-b);
+      setSelectedBars(next); setBarAnchor(next.length ? index : null);
+    } else if ((event.ctrlKey || event.metaKey) && isActive) {
+      setSelectedBars(current => current.includes(index) ? current : [...current, index].sort((a,b) => a-b)); setBarAnchor(index);
+    } else if (selectedBars.length === 1 && selectedBars[0] === index) {
+      setSelectedBars([]); setBarAnchor(null);
+    } else { setSelectedBars([index]); setBarAnchor(index); }
+  };
+  const copyBars = () => { if (selectedBars.length) void props.onRequestSelectedBarsCopy?.([...selectedBars]); setBarMenu(null); focus(); };
+  const pasteBars = (at = barInsertIndex ?? selectedBars[0] ?? 0) => { if (props.barClipboardAvailable) void props.onRequestSelectedBarsPaste?.(at); setBarMenu(null); focus(); };
+  const deleteBars = () => { if (selectedBars.length) void props.onRequestSelectedBarsDelete?.([...selectedBars]); setBarMenu(null); focus(); };
   const rest = (frame = cursor?.frame ?? 0, staff = cursor?.staff ?? "treble") => {
     if (readOnly) return;
     commit(addScoreRest(snapshotRef.current, { id: Math.max(0, ...(snapshotRef.current.notation?.rests ?? []).map((item) => item.id)) + 1, start: frame, length: entryLength, staff, voice, denominator, dotted }));
@@ -156,7 +208,7 @@ export default function GteNotationWorkspace(props: Props) {
     onVoice={(value) => { setVoice(value); if (count) commit(setScoreVoice(snapshotRef.current, selection, value)); focus(); }}
     onTie={() => { commit(toggleScoreConnection(snapshotRef.current, selection, "ties")); focus(); }}
     onSlur={() => { commit(toggleScoreConnection(snapshotRef.current, selection, "slurs")); focus(); }}
-    onDelete={() => { apply({ remove: true }); setSelection({ noteIds: [], chordIds: [] }); focus(); }} />;
+    onDelete={() => { if (selectedBars.length) deleteBars(); else apply({ remove: true }); setSelection({ noteIds: [], chordIds: [] }); focus(); }} />;
 
   return <div ref={root} tabIndex={0} data-gte-notation-editor="true" className="relative grid min-w-0 w-full max-w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-2 pb-36 outline-none"
     onFocus={() => props.onFocusWorkspace?.()}
@@ -164,11 +216,13 @@ export default function GteNotationWorkspace(props: Props) {
       if ((event.target as HTMLElement).closest("input,select,textarea") || readOnly || !isActive) return;
       if ((event.target as HTMLElement).closest("button") && (event.key === " " || event.key === "Enter")) return;
       const key = event.key.toLowerCase(), modifier = event.ctrlKey || event.metaKey;
-      if (modifier && key === "a") { event.preventDefault(); event.stopPropagation(); setSelection({ noteIds: snapshot.notes.map((note) => note.id), chordIds: snapshot.chords.map((chord) => chord.id) }); }
+      if (modifier && key === "c" && selectedBars.length && props.onRequestSelectedBarsCopy) { event.preventDefault(); event.stopPropagation(); copyBars(); }
+      else if (modifier && key === "v" && props.barClipboardAvailable && barInsertIndex !== null && props.onRequestSelectedBarsPaste) { event.preventDefault(); event.stopPropagation(); pasteBars(); }
+      else if (modifier && key === "a") { event.preventDefault(); event.stopPropagation(); clearBars(); setSelection({ noteIds: snapshot.notes.map((note) => note.id), chordIds: snapshot.chords.map((chord) => chord.id) }); }
       else if (modifier && key === "z") { event.preventDefault(); event.stopPropagation(); if (event.shiftKey) props.onRequestRedo?.(); else props.onRequestUndo?.(); }
       else if (modifier && key === "y") { event.preventDefault(); event.stopPropagation(); props.onRequestRedo?.(); }
-      else if (key === "escape") { event.stopPropagation();   setWrite(false); setSelection({ noteIds: [], chordIds: [] }); setCursor(null);  }
-      else if (key === "delete" || key === "backspace") { event.preventDefault(); event.stopPropagation(); apply({ remove: true }); setSelection({ noteIds: [], chordIds: [] }); }
+      else if (key === "escape") { event.stopPropagation(); clearBars(); setWrite(false); setSelection({ noteIds: [], chordIds: [] }); setCursor(null); focus(); }
+      else if (key === "delete" || key === "backspace") { event.preventDefault(); event.stopPropagation(); if (selectedBars.length) deleteBars(); else apply({ remove: true }); setSelection({ noteIds: [], chordIds: [] }); }
       else if (key === "arrowup" || key === "arrowdown") {
         event.preventDefault(); event.stopPropagation();
         const delta = (key === "arrowup" ? 1 : -1) * (modifier || event.shiftKey ? 12 : 1);
@@ -182,7 +236,7 @@ export default function GteNotationWorkspace(props: Props) {
           const ordered = [...new Map(segments.map((segment) => [segment.key, segment])).values()].sort((a, b) => a.start - b.start || a.midi - b.midi);
           const current = ordered.findIndex((segment) => segment.noteId !== undefined ? selection.noteIds.includes(segment.noteId) : selection.chordIds.includes(segment.chordId!));
           const next = ordered[Math.max(0, Math.min(ordered.length - 1, current + (key === "arrowleft" ? -1 : 1)))];
-          if (next) { setSelection({ noteIds: next.noteId !== undefined ? [next.noteId] : [], chordIds: next.chordId !== undefined ? [next.chordId] : [] }); setCursor({ frame: next.start, midi: next.midi, staff: next.staff }); props.onGlobalPlaybackFrameChange?.(next.start); }
+          if (next) { clearBars(); setSelection({ noteIds: next.noteId !== undefined ? [next.noteId] : [], chordIds: next.chordId !== undefined ? [next.chordId] : [] }); setCursor({ frame: next.start, midi: next.midi, staff: next.staff }); props.onGlobalPlaybackFrameChange?.(next.start); }
         }
       }
       else if (!modifier && NOTE_LETTERS[key] !== undefined && write) {
@@ -204,6 +258,18 @@ export default function GteNotationWorkspace(props: Props) {
     </div>}
     <div className={reading ? "col-span-2 min-w-0" : "col-start-1 row-start-1 min-w-0"}>
     <GteEngravedScore score={score} input={write} restInput={restMode} disabled={readOnly} snapEnabled={true} denominator={denominator} dotted={dotted} length={entryLength}
+      editorId={props.editorId} selectedBars={selectedBars}
+      onBarSelect={readOnly ? undefined : selectBar}
+      onBarContextMenu={readOnly ? undefined : (index, event) => selectBar(index, event, true)}
+      barDragging={!readOnly && Boolean(props.activeBarDrag)}
+      onBarDragStart={readOnly ? undefined : (index, event) => {
+        if (!selectedBars.includes(index)) { event.preventDefault(); return; }
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("application/x-gte-bars", JSON.stringify({ editorId: props.editorId, barIndices: selectedBars }));
+        setBarMenu(null); props.onBarDragStart?.([...selectedBars]);
+      }}
+      onBarDragEnd={props.onBarDragEnd}
+      onBarDrop={readOnly ? undefined : (index) => { void props.onRequestBarDrop?.(index); }}
       cursor={cursor ? { ...cursor, staff: cursor.staff ?? (cursor.midi < 60 ? "bass" : "treble") } : null} selection={selection}
       playbackFrame={props.globalPlaybackFrame ?? 0} getPlaybackFrame={props.getGlobalPlaybackFrame} playing={Boolean(props.globalPlaybackIsPlaying)}
       showBarNumbers={props.showBarNumbers !== false}
@@ -212,6 +278,7 @@ export default function GteNotationWorkspace(props: Props) {
         focus(); props.onGlobalPlaybackFrameChange?.(point.frame);
         if (practiceMode) { props.onPracticeNotePlay?.(point.frame); return; }
         if (readOnly) return;
+        clearBars();
         setCursor(point);
         if (write) { if (restMode) rest(point.frame, point.staff); else add(point.midi, point.frame, point.staff); setCursor({ ...point, frame: point.frame + entryLength }); }
         else setSelection({ noteIds: [], chordIds: [] });
@@ -219,6 +286,7 @@ export default function GteNotationWorkspace(props: Props) {
       onSelect={(source, shift) => {
         focus(); props.onGlobalPlaybackFrameChange?.(source.start);
         if (practiceMode) { props.onPracticeNotePlay?.(source.start); return; }
+        clearBars();
         setWrite(false); setVoice(source.voice ?? 1);
         setCursor({ frame: source.start + source.length, midi: source.midi, staff: source.staff });
         void audition(source.midi);
@@ -232,7 +300,7 @@ export default function GteNotationWorkspace(props: Props) {
       onAudition={(midi) => { void audition(midi); }}
       onBoxSelect={(sources, additive) => {
         if (readOnly) return;
-        focus(); setWrite(false); setCursor(null);
+        focus(); clearBars(); setWrite(false); setCursor(null);
         const noteIds = sources.flatMap((source) => source.noteId !== undefined ? [source.noteId] : []);
         const chordIds = sources.flatMap((source) => source.chordId !== undefined ? [source.chordId] : []);
         setSelection((current) => ({ noteIds: [...new Set([...(additive ? current.noteIds : []), ...noteIds])],
@@ -245,5 +313,19 @@ export default function GteNotationWorkspace(props: Props) {
         commit(editScoreSelection(snapshotRef.current, chosen, { shift, transpose }));
       }} />
     </div>
+    {barMenu && !readOnly && <div ref={barMenuRef} role="menu" aria-label={t("Bar actions")} data-notation-bar-menu="true" data-gte-editor-control="true" data-gte-floating-ui="true"
+      className="fixed z-[180] w-40 rounded-xl border border-slate-200 bg-white py-1 text-sm shadow-lg"
+      onKeyDown={event => {
+        if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+        event.preventDefault(); event.stopPropagation();
+        const buttons = Array.from(barMenuRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? []);
+        const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+        buttons[(index + (event.key === "ArrowDown" ? 1 : buttons.length - 1)) % buttons.length]?.focus();
+      }}
+      style={{ left: Math.max(8, Math.min(barMenu.x, window.innerWidth - 168)), top: Math.max(8, Math.min(barMenu.y, window.innerHeight - 132)) }}>
+      <button type="button" role="menuitem" className="block w-full px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400" disabled={!selectedBars.length || !props.onRequestSelectedBarsCopy} onClick={copyBars}>{t("Copy bars")}</button>
+      <button type="button" role="menuitem" className="block w-full px-3 py-2 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400" disabled={!props.barClipboardAvailable || !props.onRequestSelectedBarsPaste} onClick={() => pasteBars(barMenu.insertIndex)}>{t("Paste bars")}</button>
+      <button type="button" role="menuitem" className="block w-full px-3 py-2 text-left text-rose-600 hover:bg-rose-50 disabled:text-slate-400" disabled={!selectedBars.length || !props.onRequestSelectedBarsDelete} onClick={deleteBars}>{t("Delete bars")}</button>
+    </div>}
   </div>;
 }

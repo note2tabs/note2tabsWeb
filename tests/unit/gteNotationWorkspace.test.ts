@@ -41,7 +41,7 @@ function harness(notes = false, readOnly = false) {
   const toolbarModule = { exports: {} as any };
   vm.runInNewContext(ts.transpileModule(readFileSync("components/GteNotationToolbar.tsx", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX } }).outputText,
     { module: toolbarModule, exports: toolbarModule.exports, require: dependencies });
-  vm.runInNewContext(compiled, { module, exports: module.exports, structuredClone, require: (name: string) => name.includes("GteNotationToolbar") ? toolbarModule.exports : dependencies(name) });
+  vm.runInNewContext(compiled, { module, exports: module.exports, structuredClone, window: { innerWidth: 1200, innerHeight: 800 }, require: (name: string) => name.includes("GteNotationToolbar") ? toolbarModule.exports : dependencies(name) });
   const render = () => { cursor = 0; return module.exports.default(props); };
   const walk = (node: any): any[] => Array.isArray(node) ? node.flatMap(walk) : node?.props ? [node, ...(typeof node.type === "function" ? walk(node.type(node.props)) : walk(node.props.children))] : [];
   const nodes = () => walk(render());
@@ -55,6 +55,66 @@ function harness(notes = false, readOnly = false) {
 }
 
 describe("notation input workflow", () => {
+  it("selects bars like tabs with range/additive selection and delegates copy, paste and delete", () => {
+    const h = harness(true), copy = vi.fn(), paste = vi.fn(), remove = vi.fn();
+    h.props.snapshot.totalFrames = 1920;
+    Object.assign(h.props, { onRequestSelectedBarsCopy: copy, onRequestSelectedBarsPaste: paste, onRequestSelectedBarsDelete: remove, barClipboardAvailable: true });
+    const event = (extra = {}) => ({ preventDefault: vi.fn(), stopPropagation: vi.fn(), clientX: 75, currentTarget: { getBoundingClientRect: () => ({ left: 0, width: 100 }) }, ...extra });
+    h.engraving().props.onBarSelect(1, event());
+    expect(h.engraving().props.selectedBars).toEqual([1]);
+    expect(h.engraving().props.selection).toEqual({ noteIds: [], chordIds: [] });
+    expect(h.engraving().props.input).toBe(false);
+    h.engraving().props.onBarSelect(3, event({ shiftKey: true }));
+    expect(h.engraving().props.selectedBars).toEqual([1,2,3]);
+    h.key("c", { ctrlKey: true }); expect(copy).toHaveBeenCalledWith([1,2,3]);
+    h.key("v", { metaKey: true }); expect(paste).toHaveBeenCalledWith(4);
+    h.key("Delete"); expect(remove).toHaveBeenCalledWith([1,2,3]);
+    expect(h.props.onSnapshotChange).not.toHaveBeenCalled();
+    h.key("Escape"); expect(h.engraving().props.selectedBars).toEqual([]);
+    h.engraving().props.onBarSelect(0, event());
+    h.engraving().props.onBarSelect(2, event({ ctrlKey: true }));
+    expect(h.engraving().props.selectedBars).toEqual([0,2]);
+    h.engraving().props.onBarSelect(2, event());
+    expect(h.engraving().props.selectedBars).toEqual([2]);
+    h.engraving().props.onBarSelect(2, event());
+    expect(h.engraving().props.selectedBars).toEqual([]);
+  });
+  it("offers bar actions on right-click without losing an existing multi-bar selection", () => {
+    const h = harness(true), copy = vi.fn(), paste = vi.fn();
+    h.props.snapshot.totalFrames = 1440;
+    Object.assign(h.props, { onRequestSelectedBarsCopy: copy, onRequestSelectedBarsPaste: paste, barClipboardAvailable: true });
+    const event = { preventDefault: vi.fn(), stopPropagation: vi.fn(), clientX: 20, clientY: 100, currentTarget: { getBoundingClientRect: () => ({ left: 0, width: 100 }) } };
+    h.engraving().props.onBarSelect(0, event);
+    h.engraving().props.onBarSelect(1, { ...event, shiftKey: true });
+    h.engraving().props.onBarContextMenu(1, event);
+    expect(h.engraving().props.selectedBars).toEqual([0,1]);
+    h.button("Copy bars").props.onClick();
+    expect(copy).toHaveBeenCalledWith([0,1]);
+    h.engraving().props.onBarContextMenu(2, event);
+    expect(h.engraving().props.selectedBars).toEqual([2]);
+    h.button("Paste bars").props.onClick(); expect(paste).toHaveBeenCalledWith(2);
+  });
+  it("drags only selected bars and routes drop targets through the shared bar move action", () => {
+    const h = harness(true), start = vi.fn(), end = vi.fn(), drop = vi.fn();
+    Object.assign(h.props, { onBarDragStart: start, onBarDragEnd: end, onRequestBarDrop: drop });
+    const preventDefault = vi.fn(), dataTransfer = { effectAllowed: "", setData: vi.fn() };
+    h.engraving().props.onBarDragStart(0, { preventDefault, dataTransfer });
+    expect(preventDefault).toHaveBeenCalledOnce(); expect(start).not.toHaveBeenCalled();
+    h.engraving().props.onBarSelect(0, { preventDefault: vi.fn(), stopPropagation: vi.fn(), clientX: 0, currentTarget: { getBoundingClientRect: () => ({ left: 0, width: 100 }) } });
+    h.engraving().props.onBarDragStart(0, { preventDefault, dataTransfer });
+    expect(start).toHaveBeenCalledWith([0]); expect(dataTransfer.effectAllowed).toBe("move");
+    expect(dataTransfer.setData).toHaveBeenCalledWith("application/x-gte-bars", expect.stringContaining('"barIndices":[0]'));
+    h.engraving().props.onBarDrop(1); expect(drop).toHaveBeenCalledWith(1);
+    h.engraving().props.onBarDragEnd(); expect(end).toHaveBeenCalledOnce();
+    h.selectFirst(); expect(h.engraving().props.selectedBars).toEqual([]);
+  });
+  it("does not expose bar-editing gestures in read-only or practice scores", () => {
+    const h = harness(true, true);
+    expect(h.engraving().props.onBarSelect).toBeUndefined();
+    expect(h.engraving().props.onBarContextMenu).toBeUndefined();
+    expect(h.engraving().props.onBarDragStart).toBeUndefined();
+    expect(h.engraving().props.onBarDrop).toBeUndefined();
+  });
   it("uses a right-side vertical toolbar with distinct note and rest modes", () => {
     const h = harness();
     const toolbar = h.nodes().find((node) => node.props["data-gte-notation-toolbar"]);

@@ -10,7 +10,7 @@ export type NotationPoint = { frame: number; midi: number; staff: ScoreStaff };
 export type NotationSelection = { noteIds: number[]; chordIds: number[] };
 const selectedSource = (source: ScoreEvent, selection: NotationSelection) => source.noteId !== undefined ? selection.noteIds.includes(source.noteId) : selection.chordIds.includes(source.chordId!);
 
-export default function GteEngravedScore({ score, input, restInput = false, disabled, snapEnabled, denominator, dotted, length, cursor, selection, playbackFrame, getPlaybackFrame, playing, barsPerSystem, showBarNumbers, transformPitch, onPoint, onSelect, onMove, onAudition, onBoxSelect, onAddBar }: {
+export default function GteEngravedScore({ score, input, restInput = false, disabled, snapEnabled, denominator, dotted, length, cursor, selection, playbackFrame, getPlaybackFrame, playing, barsPerSystem, showBarNumbers, transformPitch, onPoint, onSelect, onMove, onAudition, onBoxSelect, onAddBar, editorId, selectedBars = [], onBarSelect, onBarContextMenu, barDragging = false, onBarDragStart, onBarDragEnd, onBarDrop }: {
   score: NotationScore; input: boolean; restInput?: boolean; disabled: boolean; guides?: boolean; snapEnabled: boolean; denominator: number; dotted: boolean; length: number;
   cursor: NotationPoint | null; selection: NotationSelection; playbackFrame: number; playing: boolean; barsPerSystem?: number; showBarNumbers: boolean;
   onPoint: (point: NotationPoint) => void;
@@ -21,6 +21,14 @@ export default function GteEngravedScore({ score, input, restInput = false, disa
   onAddBar?: () => void;
   getPlaybackFrame?: () => number;
   transformPitch: (midi: number) => number;
+  editorId?: string;
+  selectedBars?: number[];
+  onBarSelect?: (index: number, event: React.MouseEvent<HTMLButtonElement>) => void;
+  onBarContextMenu?: (index: number, event: React.MouseEvent<HTMLButtonElement>) => void;
+  barDragging?: boolean;
+  onBarDragStart?: (index: number, event: React.DragEvent<HTMLButtonElement>) => void;
+  onBarDragEnd?: () => void;
+  onBarDrop?: (index: number) => void;
 }) {
   const { t } = useLocale();
   const hasAddBar = Boolean(onAddBar);
@@ -31,6 +39,8 @@ export default function GteEngravedScore({ score, input, restInput = false, disa
   const overlay = useRef<SVGSVGElement>(null);
   const marquee = useRef<{ x: number; y: number; additive: boolean; moved: boolean } | null>(null);
   const [selectionBox, setSelectionBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [barDropIndex, setBarDropIndex] = useState<number | null>(null);
+  useEffect(() => { if (!barDragging) setBarDropIndex(null); }, [barDragging]);
   const clearMarquee = () => { marquee.current = null; setSelectionBox(null); };
   useEffect(() => { clearMarquee(); }, [score, input, disabled]);
   useEffect(() => {
@@ -222,7 +232,9 @@ export default function GteEngravedScore({ score, input, restInput = false, disa
         onLostPointerCapture={() => { clearMarquee(); gesture.current = null; setPreview(null); }}
         onKeyDown={(event) => { if (event.key === "Escape") { clearMarquee(); gesture.current = null; setPreview(null); } }}>
         {selectionBox && <rect {...selectionBox} data-notation-selection-box="true" fill="#38bdf8" fillOpacity={0.12} stroke="#0284c7" strokeWidth={1} pointerEvents="none" />}
-        {showBarNumbers && layout.measures.map((measure) => <text key={measure.index} x={measure.x + 4} y={measure.top - 8} fontSize={10} fill="#687a70" pointerEvents="none">{measure.index + 1}</text>)}
+        {layout.measures.filter(measure => selectedBars.includes(measure.index)).map(measure => <rect key={measure.index} data-notation-selected-bar={measure.index}
+          x={measure.x} y={measure.top - 2} width={measure.width} height={measure.bottom - measure.top + 4} fill="#10b981" fillOpacity={0.08} stroke="#059669" strokeOpacity={0.45} pointerEvents="none" />)}
+        {showBarNumbers && !onBarSelect && layout.measures.map((measure) => <text key={measure.index} x={measure.x + 4} y={measure.top - 8} fontSize={10} fill="#687a70" pointerEvents="none">{measure.index + 1}</text>)}
         {noteTargets}
         {caret && <line x1={caret.x} x2={caret.x} y1={caret.measure.staffBottom[cursor!.staff] - 48} y2={caret.measure.staffBottom[cursor!.staff] + 12} stroke="#059669" strokeWidth={1.4} strokeDasharray="3 3" pointerEvents="none" />}
         {hover && hoverPosition && input && !disabled && <g pointerEvents="none" data-notation-preview="true" opacity={0.65}>
@@ -236,6 +248,37 @@ export default function GteEngravedScore({ score, input, restInput = false, disa
         </g>}
         <GteNotationPlayback layout={layout} score={score} frame={playbackFrame} playing={playing} getFrame={getPlaybackFrame} />
       </svg>}
+      {layout && !disabled && onBarSelect && layout.measures.map(measure => {
+        const selected = selectedBars.includes(measure.index);
+        const insertion = (event: React.DragEvent<HTMLButtonElement>) => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          return event.clientX - rect.left < rect.width / 2 ? measure.index : measure.index + 1;
+        };
+        return <button key={measure.index} type="button" aria-label={t("Select bar") + " " + (measure.index + 1)} aria-pressed={selected}
+          data-bar-select="true" data-bar-select-editor={editorId} data-bar-index={measure.index} data-gte-editor-control="true"
+          title={t("Select bar") + " " + (measure.index + 1)} draggable={selected && Boolean(onBarDragStart)}
+          className={`absolute rounded-sm px-1 text-left text-[10px] transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-600 ${selected ? "cursor-grab bg-emerald-100/80 text-emerald-800" : "text-[#687a70] hover:bg-emerald-50"}`}
+          style={{ left: measure.x, top: measure.top - 24, width: measure.width, height: 22 }}
+          onPointerDown={event => event.stopPropagation()} onClick={event => onBarSelect(measure.index, event)}
+          onContextMenu={event => onBarContextMenu?.(measure.index, event)}
+          onDragStart={event => onBarDragStart?.(measure.index, event)} onDragEnd={() => { setBarDropIndex(null); onBarDragEnd?.(); }}
+          onDragOver={event => { if (barDragging && onBarDrop) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setBarDropIndex(insertion(event)); } }}
+          onDrop={event => { if (barDragging && onBarDrop) { event.preventDefault(); event.stopPropagation(); onBarDrop(insertion(event)); setBarDropIndex(null); } }}>
+          {showBarNumbers ? measure.index + 1 : <span className="sr-only">{measure.index + 1}</span>}
+        </button>;
+      })}
+      {layout && !disabled && barDragging && onBarDrop && layout.measures.flatMap((measure, index) => {
+        const next = layout.measures[index + 1];
+        const boundaries = [{ index: measure.index, x: measure.x }];
+        if (!next || next.top !== measure.top) boundaries.push({ index: measure.index + 1, x: measure.x + measure.width });
+        return boundaries.map(boundary => <div key={`${measure.index}:${boundary.index}`} data-notation-bar-drop={boundary.index}
+          className="absolute z-40" style={{ left: boundary.x - 8, top: measure.top - 24, width: 16, height: measure.bottom - measure.top + 28 }}
+          onDragOver={event => { event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = "move"; setBarDropIndex(boundary.index); }}
+          onDragLeave={() => setBarDropIndex(current => current === boundary.index ? null : current)}
+          onDrop={event => { event.preventDefault(); event.stopPropagation(); setBarDropIndex(null); onBarDrop(boundary.index); }}>
+          <div className={`pointer-events-none mx-auto h-full w-0.5 rounded ${barDropIndex === boundary.index ? "bg-emerald-600" : "bg-emerald-400/25"}`} />
+        </div>);
+      })}
       {layout && onAddBar && !disabled && layout.measures.length > 0 && (() => {
         const last = layout.measures[layout.measures.length - 1];
         return <button type="button" data-gte-editor-control="true" data-gte-floating-ui="true"

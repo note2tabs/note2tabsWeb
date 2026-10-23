@@ -77,6 +77,7 @@ import {
 import { buildDiscreteSlideSteps } from "../../lib/gteSlidePlayback";
 import { getOpenStringMidiFromSnapshot, getTabMidi as getSnapshotTabMidi } from "../../lib/gteTuning";
 import { isNotationTrack, scorePlaybackEvents } from "../../lib/gteNotation";
+import { selectNotationBars, insertNotationBars, deleteNotationBars } from "../../lib/gteNotationBars";
 import { getTrackInstrumentType, type InstrumentType } from "../../lib/gteInstrumentType";
 import { convertTrackInstrument } from "../../lib/gteInstrumentConversion";
 import GteTrackTypeSetting from "../../components/GteTrackTypeSetting";
@@ -859,6 +860,7 @@ const ensureCanvasBarsContainEvents = (
 };
 
 const selectBarsFromLane = (lane: EditorSnapshot, barIndices: number[]): EditorSnapshot | null => {
+  if (isNotationTrack(lane)) return selectNotationBars(lane, barIndices);
   const normalized = normalizeBarIndices(lane, barIndices);
   if (!normalized.length) return null;
 
@@ -965,6 +967,8 @@ const insertBarsIntoLane = (
   insertIndex: number,
   clipboard: EditorSnapshot
 ): EditorSnapshot | null => {
+  if (isNotationTrack(lane) !== isNotationTrack(clipboard)) return null;
+  if (isNotationTrack(lane)) return insertNotationBars(lane, insertIndex, clipboard);
   const totalBars = getLaneBarCount(lane);
   const safeInsertIndex = Math.max(0, Math.min(totalBars, Math.round(toNumber(insertIndex, 0))));
   const clipLength = Math.max(
@@ -1176,6 +1180,7 @@ const removeSingleBarFromLane = (
 };
 
 const deleteBarsFromLane = (lane: EditorSnapshot, barIndices: number[]): EditorSnapshot | null => {
+  if (isNotationTrack(lane)) return deleteNotationBars(lane, barIndices);
   const normalized = normalizeBarIndices(lane, barIndices).sort((left, right) => right - left);
   if (!normalized.length || normalized.length >= getLaneBarCount(lane)) return null;
   let nextLane: EditorSnapshot = lane;
@@ -1281,6 +1286,7 @@ const moveBarsInCanvas = (
   if (!clipboard) return null;
 
   const sourceBarCount = getLaneBarCount(sourceLane);
+  if (sourceIndex === targetIndex && normalized.every((index, offset) => index === normalized[0] + offset) && insertIndex >= normalized[0] && insertIndex <= normalized[normalized.length - 1] + 1) return canvas;
   const nextEditors = [...canvas.editors];
   if (sourceIndex === targetIndex) {
     if (normalized.length >= sourceBarCount) return null;
@@ -3621,7 +3627,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       if (!canvas || !barIndices.length) return;
       setError(null);
       try {
-        if (isGuestMode) {
+        if (isGuestMode || isNotationTrack(canvas.editors.find(item => item.id === laneId) ?? {})) {
           const lane = canvas.editors.find((item) => item.id === laneId);
           if (!lane) {
             throw new Error("Track not found.");
@@ -3654,7 +3660,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       if (!canvas || !barClipboard) return;
       setError(null);
       try {
-        if (isGuestMode) {
+        if (isGuestMode || isNotationTrack(barClipboard) || isNotationTrack(canvas.editors.find(item => item.id === laneId) ?? {})) {
           const nextCanvas = insertBarsIntoCanvas(canvas, laneId, insertIndex, barClipboard);
           if (!nextCanvas) {
             throw new Error("Unable to insert bars.");
@@ -3689,7 +3695,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       applyCanvasBarUpdate(nextCanvas);
       clearBarSelectionState();
 
-      if (isGuestMode) return;
+      if (isGuestMode || isNotationTrack(canvas.editors.find(item => item.id === laneId) ?? {})) return;
       void gteApi.deleteCanvasBars(editorId, laneId, barIndices).catch((err: any) => {
         setError(
           err?.message ||
@@ -3720,8 +3726,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         if (!movedCanvas) {
           throw new Error("Unable to move bars.");
         }
+        if (movedCanvas === canvas) { setBarDragState(null); return; }
         const expandedCanvas = ensureCanvasBarsContainEvents(movedCanvas).canvas;
-        if (isGuestMode) {
+        if (isGuestMode || isNotationTrack(canvas.editors.find(item => item.id === targetLaneId) ?? {})) {
           applyCanvasBarUpdate(expandedCanvas);
         } else {
           const res = await gteApi.applySnapshot(editorId, expandedCanvas);

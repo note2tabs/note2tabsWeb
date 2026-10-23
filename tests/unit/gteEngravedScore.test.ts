@@ -29,6 +29,48 @@ beforeAll(() => {
 });
 afterAll(() => { dom.window.close(); vi.unstubAllGlobals(); });
 
+it("renders selectable bar headers and drag boundaries without intercepting note input or rebuilding engraving", async () => {
+  const snapshot: EditorSnapshot = { id: "piano", instrumentId: "gm:piano", framesPerMessure: 480, totalFrames: 960, fps: 240,
+    notes: [], chords: [], cutPositionsWithCoords: [], optimalsByTime: {} };
+  const element = document.createElement("div"); document.body.append(element);
+  const root = createRoot(element), onBarSelect = vi.fn(), onPoint = vi.fn(), onBarContextMenu = vi.fn(), onBarDrop = vi.fn(), onBarDragStart = vi.fn();
+  const props = { score: buildNotationScore(snapshot), input: true, disabled: false, snapEnabled: true, denominator: 8, dotted: false, length: 60,
+    cursor: null, selection: { noteIds: [], chordIds: [] }, playbackFrame: 0, playing: false, barsPerSystem: 4, showBarNumbers: true,
+    transformPitch: (midi: number) => midi, onPoint, onSelect: vi.fn(), onMove: vi.fn(), editorId: "score__ed__piano",
+    selectedBars: [0], onBarSelect, onBarContextMenu, onBarDragStart, onBarDrop, barDragging: true };
+  try {
+    await act(async () => { root.render(React.createElement(GteEngravedScore, props)); });
+    const engraving = element.querySelector("svg"), headers = element.querySelectorAll<HTMLButtonElement>("[data-bar-select]");
+    expect(headers.length).toBe(2);
+    expect(headers[0].draggable).toBe(true); expect(headers[1].draggable).toBe(false);
+    expect(headers[0].getAttribute("aria-pressed")).toBe("true");
+    expect(headers[0].dataset.barSelectEditor).toBe("score__ed__piano");
+    await act(async () => { headers[1].dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true, shiftKey: true })); });
+    expect(onBarSelect).toHaveBeenCalledWith(1, expect.objectContaining({ shiftKey: true }));
+    expect(onPoint).not.toHaveBeenCalled();
+    await act(async () => { headers[0].dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true })); });
+    expect(onBarContextMenu).toHaveBeenCalledWith(0, expect.anything());
+    const transfer = { effectAllowed: "", dropEffect: "", setData: vi.fn() };
+    const drag = async (target: EventTarget, type: string) => {
+      const event = new dom.window.Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "dataTransfer", { value: transfer });
+      await act(async () => { target.dispatchEvent(event); });
+    };
+    await drag(headers[0], "dragstart"); expect(onBarDragStart).toHaveBeenCalledWith(0, expect.anything());
+    const target = element.querySelector('[data-notation-bar-drop="2"]')!;
+    expect(target).not.toBeNull();
+    await drag(target, "dragover"); expect(transfer.dropEffect).toBe("move");
+    await drag(target, "drop"); expect(onBarDrop).toHaveBeenCalledExactlyOnceWith(2);
+    await act(async () => { root.render(React.createElement(GteEngravedScore, { ...props, selectedBars: [1], barDragging: false })); });
+    expect(element.querySelector("svg")).toBe(engraving);
+    expect(element.querySelector('[data-notation-selected-bar="1"]')).not.toBeNull();
+    expect(element.querySelector('[data-notation-bar-drop]')).toBeNull();
+    await act(async () => { root.render(React.createElement(GteEngravedScore, { ...props, disabled: true })); });
+    expect(element.querySelector('[data-bar-select]')).toBeNull();
+    expect(element.querySelector('[data-notation-bar-drop]')).toBeNull();
+  } finally { await act(async () => root.unmount()); element.remove(); }
+});
+
 it("renders actual engraved SVG and keeps it stable while playback and selection change", async () => {
   const snapshot: EditorSnapshot = { id: "score", instrumentId: "gm:piano", framesPerMessure: 480,
     totalFrames: 480, timeSignature: 4, timeSignatureBottom: 4, fps: 240,
