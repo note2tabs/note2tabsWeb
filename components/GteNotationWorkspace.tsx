@@ -209,6 +209,7 @@ export default function GteNotationWorkspace(props: Props) {
     onVoice={(value) => { setVoice(value); if (count) commit(setScoreVoice(snapshotRef.current, selection, value)); focus(); }}
     onTie={() => { commit(toggleScoreConnection(snapshotRef.current, selection, "ties")); focus(); }}
     onSlur={() => { commit(toggleScoreConnection(snapshotRef.current, selection, "slurs")); focus(); }}
+    canSnapToKey={count > 0} onSnapSelectionToKey={() => { apply({ snapKey: { root: props.canvasKeyBase ?? 0, type: props.canvasKeyType ?? 0 } }); focus(); }}
     onDelete={() => { if (selectedBars.length) deleteBars(); else apply({ remove: true }); setSelection({ noteIds: [], chordIds: [] }); focus(); }} />;
 
   return <div ref={root} tabIndex={0} data-gte-notation-editor="true" className="relative grid min-w-0 w-full max-w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-2 pb-36 outline-none"

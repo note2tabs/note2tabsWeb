@@ -90,3 +90,10 @@ describe("shared MIDI and sheet music model", () => {
     expect(normalizeGuestSnapshot(edited).notes[0]).toMatchObject({ startTime: 30.75, length: 60.5, velocity: 0.4 });
   });
 });
+
+import { editScoreSelection as snapEditSelection } from "../../lib/gteNotation";
+it("snaps selected notation notes to the nearest in-key pitch", () => {
+  const source = { notes: [{ id: 1, midiNum: 61, startTime: 0, length: 60, tab: [0, 0], optimals: [] }, { id: 2, midiNum: 63, startTime: 60, length: 60, tab: [0, 0], optimals: [] }], chords: [], totalFrames: 480 } as any;
+  const next = snapEditSelection(source, { noteIds: [1], chordIds: [] }, { snapKey: { root: 0, type: 0 } });
+  expect(next.notes.map((note: any) => note.midiNum)).toEqual([60, 63]);
+});

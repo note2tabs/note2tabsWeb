@@ -74,7 +74,7 @@ describe("independent track type and sound", () => {
     delete wire.instrumentType; wire.instrumentId = "bass_overdrive";
     expect(restoreNotationSnapshot(wire)).toMatchObject({ instrumentType: "bass-tab", instrumentId: "upright_piano" });
   });
-  it.each([[0,"notation","upright_piano"], [24,"guitar-tab","acoustic"], [33,"bass-tab","bass_overdrive"], [42,"notation","gm:strings"], [81,"notation","gm:synth-lead"], [90,"notation","gm:synth-pad"], [73,"notation","gm:instrument"]])("maps GM program %s to an appropriate representation and sound", (program, instrumentType, instrumentId) => {
+  it.each([[0,"notation","upright_piano"], [24,"guitar-tab","acoustic"], [33,"bass-tab","bass_overdrive"], [42,"notation","gm:strings"], [81,"notation","gm:synth-lead"], [90,"notation","gm:synth-pad"], [73,"notation","gm:instrument"], [4,"notation","gm:instrument"], [3,"notation","upright_piano"]])("maps GM program %s to an appropriate representation and sound", (program, instrumentType, instrumentId) => {
     expect(importedInstrument({ program })).toEqual({ instrumentType, instrumentId });
   });
   it("does not let an old default guitar sound misclassify imported piano", () => {
@@ -90,6 +90,13 @@ describe("independent track type and sound", () => {
     expect(source.notes).toHaveLength(0);
     const offset = restorePitchedImport({ ...source, timelineOffsetFrames: 480 }, [{ start_time_s: .125, end_time_s: .375, pitch_midi: 108 }], map);
     expect(offset.notes[0]).toMatchObject({ startTime: 510, length: 60, midiNum: 108 });
+  });
+  it("quantizes notation imports to the chosen subdivision, strength and optional durations", () => {
+    const source = track([]), map = synthesizeTimingMap(2, 960, 4, 4), seg = [{ start_time_s: .2, end_time_s: .375, pitch_midi: 60 }];
+    expect(restorePitchedImport(source, seg, map).notes[0]).toMatchObject({ startTime: 48, length: 42 });
+    expect(restorePitchedImport(source, seg, map, { enabled: true, subdivision: "1/16", strength: 1 }).notes[0]).toMatchObject({ startTime: 60, length: 30 });
+    expect(restorePitchedImport(source, seg, map, { enabled: true, subdivision: "1/16", strength: .5 }).notes[0].startTime).toBe(54);
+    expect(restorePitchedImport(source, seg, map, { enabled: true, subdivision: "1/16", strength: 1, quantizeDurations: true }).notes[0]).toMatchObject({ startTime: 60, length: 30 });
   });
   it("keeps original import events immutable while passing legacy-server-compatible pitched transport", () => {
     const segments = [{ start_time_s: 0, end_time_s: .5, pitch_midi: 21 }, { start_time_s: .5, end_time_s: 1, pitch_midi: 108 }];

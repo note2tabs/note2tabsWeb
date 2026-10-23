@@ -122,7 +122,7 @@ export function addScoreRest(source: EditorSnapshot, rest: NonNullable<NonNullab
   return { ...source, totalFrames: Math.max(source.totalFrames, rest.start + rest.length), notation: { ...source.notation,
     rests: [...rests.filter((item) => item.staff !== rest.staff || item.voice !== rest.voice || item.start + item.length <= rest.start || item.start >= rest.start + rest.length), rest] } };
 }
-export function editScoreSelection(source: EditorSnapshot, selection: Selection, change: { transpose?: number; shift?: number; length?: number; remove?: boolean }) {
+export function editScoreSelection(source: EditorSnapshot, selection: Selection, change: { transpose?: number; shift?: number; length?: number; remove?: boolean; snapKey?: { root: number; type: number } }) {
   const next = structuredClone(source), notes = new Set(selection.noteIds), chords = new Set(selection.chordIds);
   // Reject the entire move at MIDI/time bounds, preserving intervals and relative timing.
   const targets = scoreEvents(source).filter((event) => event.noteId !== undefined ? notes.has(event.noteId) : chords.has(event.chordId!));
@@ -138,12 +138,18 @@ export function editScoreSelection(source: EditorSnapshot, selection: Selection,
     };
     next.notes.forEach((note) => { if (notes.has(note.id)) {
       timing(note);
+      if (change.snapKey) { const midi = Number.isFinite(note.midiNum) ? note.midiNum : getTabMidi(source, note.tab), snapped = snapScorePitch(midi, change.snapKey.root, change.snapKey.type); if (snapped !== midi) { note.midiNum = snapped; note.optimals = []; } }
       if (change.transpose) { note.midiNum = (Number.isFinite(note.midiNum) ? note.midiNum : getTabMidi(source, note.tab)) + change.transpose; note.optimals = []; }
     } });
     next.chords.forEach((chord) => { if (chords.has(chord.id)) {
       const previousStart = chord.startTime;
       timing(chord);
       chord.strums = chord.strums?.map((strum) => ({ ...strum, time: strum.time + chord.startTime - previousStart })).filter((strum) => strum.time < chord.startTime + chord.length);
+      if (change.snapKey) {
+        const key = change.snapKey, before = chord.originalMidi.join(), count = Math.max(chord.originalMidi.length, chord.currentTabs.length);
+        chord.originalMidi = Array.from({ length: count }, (_, index) => snapScorePitch(chord.originalMidi[index] ?? getTabMidi(source, chord.currentTabs[index]), key.root, key.type));
+        if (chord.originalMidi.join() !== before) delete chord.fingering;
+      }
       if (change.transpose) {
         chord.originalMidi = Array.from({ length: Math.max(chord.originalMidi.length, chord.currentTabs.length) }, (_, index) => (chord.originalMidi[index] ?? getTabMidi(source, chord.currentTabs[index])) + change.transpose!);
         delete chord.fingering;

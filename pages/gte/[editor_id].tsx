@@ -10073,6 +10073,25 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         </svg>
                       </button>
                     </div>
+                    {!desktopTrackSettingsCollapsed && <div className="mx-4 mt-3">
+                      <input
+                        key={`${selectedLaneId}:${selectedLane.name || ""}`}
+                        name="selected-track-name"
+                        defaultValue={selectedLane.name || `Track ${selectedIndex + 1}`}
+                        maxLength={80}
+                        aria-label={t("Track name")}
+                        title={t("Click to rename track")}
+                        onBlur={(event) => void handleLaneNameCommit(selectedLaneId, event.currentTarget.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") event.currentTarget.blur();
+                          if (event.key === "Escape") {
+                            event.currentTarget.value = selectedLane.name || `Track ${selectedIndex + 1}`;
+                            event.currentTarget.blur();
+                          }
+                        }}
+                        className="w-full rounded-md border border-transparent bg-transparent px-1 py-0.5 text-base font-semibold text-slate-800 outline-none hover:border-slate-200 focus:border-slate-300 focus:bg-white focus:ring-0"
+                      />
+                    </div>}
                     {!desktopTrackSettingsCollapsed && <div className="m-4 mt-3 grid grid-cols-2 gap-3">
                       <GteTrackTypeSetting track={selectedLane} onChange={type => handleLaneTypeChange(selectedLaneId, type)} t={t} issue={trackTypeIssue?.laneId === selectedLaneId ? trackTypeIssue.message : undefined} />
                       {!selectedDrumLane && (

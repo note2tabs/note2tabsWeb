@@ -13,11 +13,14 @@ export function importedInstrument(record: { trackType?: unknown; type?: unknown
   const pitched = validProgram && !bass && !guitar || /piano|strings|synth|notation|instrument|violin|viola|cello|contrabass|flute|brass|organ|clarinet|sax|trumpet|trombone|horn|oboe|bassoon|harp/i.test(sound + " " + kind + " " + name);
   const explicit = record.instrumentType;
   const instrumentType: InstrumentType = explicit === "notation" || explicit === "guitar-tab" || explicit === "bass-tab" ? explicit : bass ? "bass-tab" : guitar ? "guitar-tab" : pitched || kind !== "tab" ? "notation" : "guitar-tab";
+  // The model's GM program is authoritative; names and legacy sound ids only decide when it is missing.
+  const hint = sound + " " + name, named = (pattern: RegExp) => !validProgram && pattern.test(hint);
   const fallback = instrumentType === "notation"
-    ? validProgram && program >= 40 && program <= 51 || /strings|violin|viola|cello|contrabass/i.test(sound + " " + name) ? "gm:strings"
-      : validProgram && program >= 80 && program <= 87 || /synth.?lead/i.test(sound + " " + name) ? "gm:synth-lead"
-      : validProgram && program >= 88 && program <= 95 || /synth.?pad/i.test(sound + " " + name) ? "gm:synth-pad"
-      : /piano/i.test(sound + name) || validProgram && program <= 7 ? "upright_piano" : "gm:instrument"
+    ? validProgram && program >= 40 && program <= 51 || named(/strings|violin|viola|cello|contrabass/i) ? "gm:strings"
+      : validProgram && program >= 80 && program <= 87 || named(/synth.?lead/i) ? "gm:synth-lead"
+      : validProgram && program >= 88 && program <= 95 || named(/synth.?pad/i) ? "gm:synth-pad"
+      // GM 0–3 are acoustic/electric grand and honky-tonk; electric piano, harpsichord and clavinet are not piano.
+      : validProgram && program <= 3 || named(/piano/i) ? "upright_piano" : "gm:instrument"
     : defaultInstrumentSound(instrumentType);
   const legacyGuitarDefault = instrumentType !== "guitar-tab" && /^(acoustic|jazz|electric.*)$/.test(sound);
   const normalized = normalizeTrackInstrumentId(sound);

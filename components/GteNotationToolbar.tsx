@@ -13,7 +13,7 @@ type Props = {
   mode: "select" | "note" | "rest"; denominator: number; dotted: boolean; accidental: -1 | 0 | 1 | null; disabled: boolean;
   voice: 1 | 2; tieActive: boolean; slurActive: boolean; canTie: boolean; canSlur: boolean;
   onDuration: (value: number, rest: boolean) => void; onDot: () => void; onAccidental: (value: -1 | 0 | 1) => void;
-  onVoice: (voice: 1 | 2) => void; onTie: () => void; onSlur: () => void; onDelete: () => void;
+  onVoice: (voice: 1 | 2) => void; onTie: () => void; onSlur: () => void; onDelete: () => void; onSnapSelectionToKey?: () => void; canSnapToKey?: boolean;
   onUndo?: () => void; onRedo?: () => void; undoCount?: number; redoCount?: number;
 };
 export default function GteNotationToolbar(p: Props) {
@@ -46,6 +46,7 @@ export default function GteNotationToolbar(p: Props) {
         <span className="text-[9px]">{t(slur ? "Slur" : "Tie")}</span>
       </button>)}
     </div>
+    <button type="button" className={style()} aria-label={t("Snap selection to key")} title={t("Snap selected notes to the nearest note in the key")} disabled={p.disabled || !p.canSnapToKey} onClick={p.onSnapSelectionToKey}><span className="text-[10px]">{t("Snap to key")}</span></button>
     <button type="button" className={style()} aria-label={t("Delete")} title={t("Delete · Delete / Backspace")} disabled={p.disabled} onClick={p.onDelete}><span className="text-[10px]">{t("Delete")}</span></button>
   </div>;
 }
