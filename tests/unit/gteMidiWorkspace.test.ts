@@ -36,6 +36,14 @@ it("loads delayed music, guards tiny drags, supports navigation, loop selection 
     const scroll = host.querySelector('[data-midi-scroll]') as HTMLDivElement;
     expect(scroll.scrollLeft).toBeGreaterThan(0);
     expect(host.querySelectorAll('[data-midi-note]')).toHaveLength(3);
+    const rollBefore = host.querySelector('[aria-label="MIDI piano roll"]')!;
+    const initialHeight = Number(rollBefore.getAttribute("height"));
+    const initialWidth = Number(rollBefore.getAttribute("width"));
+    await act(async () => (host.querySelector('[aria-label="Vertical zoom in"]') as HTMLButtonElement).click());
+    expect(Number(rollBefore.getAttribute("height"))).toBeGreaterThan(initialHeight);
+    expect(Number(rollBefore.getAttribute("width"))).toBe(initialWidth);
+    await act(async () => (host.querySelector('[aria-label="Vertical zoom out"]') as HTMLButtonElement).click());
+    expect(Number(rollBefore.getAttribute("height"))).toBeCloseTo(initialHeight);
     const pianoWhite = host.querySelector('[aria-label="Audition C4"]') as HTMLButtonElement;
     const pianoBlack = host.querySelector('[aria-label="Audition C♯4"]') as HTMLButtonElement;
     expect(pianoWhite.style.width).toBe("100%"); expect(pianoBlack.style.width).toBe("65%");
@@ -48,6 +56,15 @@ it("loads delayed music, guards tiny drags, supports navigation, loop selection 
     await pointer(host.querySelector('[data-midi-note="n:1"]')!, "contextmenu", x, y);
     expect(host.querySelector('[role="menu"]')).toBeTruthy();
     expect(host.querySelector('[role="menu"]')!.textContent).toContain("DuplicateCtrl+D");
+    await pointer(host.querySelector('[data-midi-note="n:1"]')!, "contextmenu", 400, 300);
+    const widthBeforeZoom = Number(host.querySelector('[data-midi-note="n:1"] rect')!.getAttribute("width"));
+    const zoomIn = [...host.querySelectorAll('[role="menuitem"]')].find(item => item.textContent === "Zoom in") as HTMLButtonElement;
+    await act(async () => zoomIn.click());
+    expect(Number(host.querySelector('[data-midi-note="n:1"] rect')!.getAttribute("width"))).toBeGreaterThan(widthBeforeZoom);
+    await pointer(host.querySelector('[data-midi-note="n:1"]')!, "contextmenu", 400, 300);
+    const zoomOut = [...host.querySelectorAll('[role="menuitem"]')].find(item => item.textContent === "Zoom out") as HTMLButtonElement;
+    await act(async () => zoomOut.click());
+    expect(Number(host.querySelector('[data-midi-note="n:1"] rect')!.getAttribute("width"))).toBeCloseTo(widthBeforeZoom);
     const beforeWidth = Number(host.querySelector('[data-midi-note="n:1"] rect')!.getAttribute("width"));
     await act(async () => scroll.dispatchEvent(new dom.window.WheelEvent("wheel", { bubbles: true, cancelable: true, ctrlKey: true, deltaY: -150, clientX: 400 })));
     expect(Number(host.querySelector('[data-midi-note="n:1"] rect')!.getAttribute("width"))).toBeGreaterThan(beforeWidth);
@@ -78,7 +95,7 @@ it("focuses a dragged rectangle without selecting or editing the notes underneat
   try {
     await act(async () => root.render(React.createElement(GteMidiWorkspace, { editorId: "focus-box-test", snapshot, isActive: true, onSnapshotChange: changes })));
     await act(async () => (host.querySelector('[data-midi-menu="view"]') as HTMLButtonElement).click());
-    const button = [...host.querySelectorAll("button")].find(button => button.textContent === "Focus view")!;
+    const button = [...host.querySelectorAll("button")].find(button => button.textContent === "Focus selection")!;
     expect(button.disabled).toBe(false);
     await act(async () => button.click());
     expect(host.querySelector('[role="status"]')!.textContent).toContain("Drag a box");
@@ -208,7 +225,7 @@ it("ignores saved snap-off settings, keeps Alt timing snapped and resizes/collap
     await act(async () => collapse.click()); expect(velocity().getAttribute("height")).toBe("110");
     await pointer(host.querySelector('[aria-label="Resize velocity lane"]')!, "pointerdown", 0, 100); await pointer(dom.window, "pointermove", 0, 80); await pointer(dom.window, "pointerup", 0, 80);
     expect(velocity().getAttribute("height")).toBe("130");
-    expect((host.querySelector('[data-midi-scroll]') as HTMLElement).className).toContain("flex-1");
+    expect((host.querySelector('[data-midi-scroll]') as HTMLElement).parentElement!.className).toContain("flex-1");
     expect(host.querySelector('[aria-label="MIDI playhead"]')?.parentElement?.className).toContain("sticky top-0");
   } finally { await act(async () => root.unmount()); host.remove(); }
   expect(readPitchedViewState(editorId)).toMatchObject({ snap: true, strength: 1 });

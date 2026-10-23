@@ -12765,6 +12765,30 @@ input[type="number"] {
   }
 }
 
+/* Match the MIDI pitch-zoom controls to the vertical scrollbar rail. */
+[data-midi-scroll="true"]::-webkit-scrollbar {
+  width: 20px;
+  height: 16px;
+}
+
+[data-midi-scroll="true"]::-webkit-scrollbar-track {
+  background: #eeede7;
+}
+
+[data-midi-scroll="true"]::-webkit-scrollbar-thumb {
+  background: #87978b;
+  border: 4px solid #eeede7;
+  border-radius: 10px;
+}
+
+[data-midi-scroll="true"]::-webkit-scrollbar-thumb:hover {
+  background: #526b5b;
+}
+
+[data-midi-scroll="true"]::-webkit-scrollbar-corner {
+  background: #eeede7;
+}
+
 .hide-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;

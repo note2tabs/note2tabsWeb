@@ -155,6 +155,15 @@ export default function GteMidiWorkspace(props: Props) {
     requestAnimationFrame(() => { if (scroller.current) { scroller.current.scrollLeft = plan.left; scroller.current.scrollTop = plan.top; } });
   };
   const centerPlayback = () => { if (scroller.current) scroller.current.scrollLeft = Math.max(0, (props.getGlobalPlaybackFrame?.() ?? props.globalPlaybackFrame ?? 0) * scale - scroller.current.clientWidth / 2); };
+  const zoomPitchRows = (factor: number) => {
+    const next = Math.max(6, Math.min(36, row * factor));
+    const element = scroller.current;
+    if (element) {
+      const midpoint = Math.max(0, element.clientHeight - 28) / 2;
+      restoreScroll.current = { left: element.scrollLeft, top: Math.max(0, (element.scrollTop + midpoint) * next / row - midpoint) };
+    }
+    setRow(next);
+  };
   const focusView = () => {
     if (selected.length) { fit(selected); setFocusBox(false); }
     else { clearGesture(); setFocusBox(true); focus(); }
@@ -381,7 +390,8 @@ export default function GteMidiWorkspace(props: Props) {
       labels={showNoteLabels} onLabels={setShowNoteLabels} onCenter={centerPlayback} />
     {focusBox && <div role="status" className="text-center text-xs text-slate-600">{t("Drag a box to focus the view · Esc to cancel")}</div>}
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-300 bg-[#faf9f5]">
-      <div ref={scroller} data-midi-scroll="true" className="relative min-h-32 flex-1 overflow-auto overscroll-contain" onScroll={(event) => { const e = event.currentTarget; setViewport({ left: e.scrollLeft, top: e.scrollTop, width: e.clientWidth, height: e.clientHeight }); }}>
+      <div className="relative min-h-32 flex-1">
+      <div ref={scroller} data-midi-scroll="true" className="relative h-full overflow-auto overscroll-contain" onScroll={(event) => { const e = event.currentTarget; setViewport({ left: e.scrollLeft, top: e.scrollTop, width: e.clientWidth, height: e.clientHeight }); }}>
         <div style={{ width: width + KEY_WIDTH }}>
           <div className="sticky top-0 z-30 flex h-7 bg-[#eeede7]" style={{ width: width + KEY_WIDTH }}>
             <div className="sticky left-0 z-10 flex shrink-0 items-center justify-center border-r border-slate-300 bg-[#eeede7] text-[10px] text-slate-500" style={{ width: KEY_WIDTH }}>{t("Pitch")}</div>
@@ -446,6 +456,13 @@ export default function GteMidiWorkspace(props: Props) {
           </div>
         </div>
       </div>
+      {([true, false] as const).map(increase => <button key={String(increase)} type="button"
+        aria-label={t(increase ? "Vertical zoom in" : "Vertical zoom out")} title={t(increase ? "Vertical zoom in" : "Vertical zoom out")}
+        disabled={increase ? row >= 36 : row <= 6} onClick={() => zoomPitchRows(increase ? 1.25 : 0.8)}
+        className={"absolute right-0 z-40 flex h-6 w-5 items-center justify-center rounded-sm border border-emerald-950 bg-emerald-700 text-xl font-bold leading-none text-white shadow-sm hover:bg-emerald-600 active:bg-emerald-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-40 " + (increase ? "top-0" : "bottom-4")}>
+        {increase ? "+" : "−"}
+      </button>)}
+      </div>
       <div data-midi-velocity-header="true" className="relative flex h-8 shrink-0 items-center gap-2 border-t border-slate-300 bg-[#eeede7] px-2 text-[10px] text-slate-600">
         <button type="button" title={t("Show or hide velocity lane")} aria-label={t("Show or hide velocity lane")} className="flex h-7 shrink-0 items-center gap-1 rounded px-1 hover:bg-black/5" aria-expanded={velocityHeight > 0} onClick={() => { if (velocityHeight) { lastVelocityHeight.current = velocityHeight; setVelocityHeight(0); } else setVelocityHeight(lastVelocityHeight.current); }}><span aria-hidden="true">{velocityHeight ? "▾" : "▸"}</span><span className="hidden sm:inline">{t("Velocity")}</span></button>
         {velocityHeight > 0 && <>
@@ -480,7 +497,7 @@ export default function GteMidiWorkspace(props: Props) {
         </svg>
       </div>
     </div>
-    {menu && <div role="menu" data-gte-floating-ui="true" className="fixed z-[10045] grid min-w-48 gap-0.5 rounded-lg border border-slate-200 bg-[#faf9f5] p-1 shadow-xl" style={{ left: Math.min(menu.x, window.innerWidth - 210), top: Math.max(8, Math.min(menu.y, window.innerHeight - 290)) }}
+    {menu && <div role="menu" data-gte-floating-ui="true" className="fixed z-[10045] grid max-h-[calc(100vh-16px)] min-w-48 gap-0.5 overflow-y-auto rounded-lg border border-slate-200 bg-[#faf9f5] p-1 shadow-xl" style={{ left: Math.max(8, Math.min(menu.x, window.innerWidth - 210)), top: Math.max(8, Math.min(menu.y, window.innerHeight - 360)) }}
       onKeyDown={(event) => { if (event.key === "Escape") setMenu(null); }}>
       {[
         ["Add note", "Double-click", () => insert(menu.frame, menu.midi), disabled],
@@ -489,9 +506,11 @@ export default function GteMidiWorkspace(props: Props) {
         ["Paste", "Ctrl+V", () => paste(menu.frame), disabled || !clipboard.current.length],
         ["Duplicate", "Ctrl+D", () => { clipboardAction(); paste(Math.max(...selected.map((note) => note.start + note.length))); }, disabled || !selected.length],
         ["Delete", "Delete", () => applyEdit(selection, { remove: true }), disabled || !selected.length],
-        ["Focus view", "Shift+F", focusView, false],
+        ["Focus selection", "Shift+F", focusView, false],
         ["Fit all", "F", () => fit(), false],
-      ].map(([label, shortcut, action, inactive]) => <button key={String(label)} type="button" role="menuitem" disabled={Boolean(inactive)} className="flex items-center justify-between gap-6 rounded px-3 py-1.5 text-left text-xs text-slate-700 hover:bg-black/5 disabled:opacity-35" onClick={() => { (action as () => void)(); setMenu(null); focus(); }}><span>{t(String(label))}</span><span className="text-[10px] text-slate-400">{String(shortcut)}</span></button>)}
+        ["Zoom in", "", () => zoomAt(zoom * 1.25, menu.x), zoom >= 1920],
+        ["Zoom out", "", () => zoomAt(zoom / 1.25, menu.x), zoom <= 0.05],
+      ].filter(([label]) => selected.length || !["Copy", "Cut", "Duplicate", "Delete"].includes(String(label))).map(([label, shortcut, action, inactive]) => <button key={String(label)} type="button" role="menuitem" disabled={Boolean(inactive)} className={"flex items-center justify-between gap-6 rounded px-3 py-1.5 text-left text-xs text-slate-700 hover:bg-black/5 disabled:opacity-35" + (label === "Focus selection" ? " mt-1 border-t border-slate-200 pt-2" : "")} onClick={() => { (action as () => void)(); setMenu(null); focus(); }}><span>{t(String(label))}</span><span className="ml-auto text-right text-[10px] text-slate-400">{String(shortcut)}</span></button>)}
     </div>}
   </div>;
 }

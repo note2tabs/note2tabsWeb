@@ -42,7 +42,7 @@ export default function GteMidiToolbar(props: Props) {
     document.addEventListener("pointerdown", outside, true);
     return () => document.removeEventListener("pointerdown", outside, true);
   }, [open]);
-  const showHistory = width >= 420, showKey = width >= 650, showVoice = width >= 850, showFits = width >= 1050;
+  const showHistory = width >= 550, showKey = width >= 850, showVoice = width >= 1050, showFits = width >= 650;
   const iconButton = (label: string, icon: Parameters<typeof MidiToolIcon>[0]["kind"], action: () => void, disabled = false, pressed?: boolean) =>
     <button type="button" aria-label={t(label.split(" · ")[0])} title={t(label)} disabled={disabled} aria-pressed={pressed} className={control + " w-8 !px-0" + (pressed ? active : "")} onClick={action}><MidiToolIcon kind={icon} /></button>;
   const history = <div role="group" aria-label={t("History")} className="flex gap-1">{iconButton("Undo · Ctrl+Z", "undo", () => props.onUndo?.(), props.disabled || !props.onUndo || props.undoCount === 0)}{iconButton("Redo · Ctrl+Shift+Z", "redo", () => props.onRedo?.(), props.disabled || !props.onRedo || props.redoCount === 0)}</div>;
@@ -54,10 +54,14 @@ export default function GteMidiToolbar(props: Props) {
     {iconButton("Snap to key · Alt for chromatic notes", "key", () => props.onSnapToKey?.(!props.snapToKey), props.disabled || !props.onSnapToKey, props.snapToKey)}
   </div>;
   const voiceControl = <select aria-label={t("MIDI voice")} title={t("Voice")} className={control} value={props.voice} disabled={props.disabled} onChange={event => props.onVoice(Number(event.target.value) as 1 | 2)}><option value={1}>{t("Voice")} 1</option><option value={2}>{t("Voice")} 2</option></select>;
-  const fits = <><button type="button" className={control} onClick={props.onResetScale}>{t("Reset scale")}</button>{[false, true].map(selection => <button key={String(selection)} type="button" className={control} title={t(selection ? "Focus view · Shift+F" : "Fit all notes · F")} onClick={() => { setOpen(null); if (selection) props.onFitSelection(); else props.onFitAll(); }}><MidiToolIcon kind={selection ? "selection" : "fit"} />{t(selection ? "Focus view" : "Fit all")}</button>)}</>;
+  const fitButton = (selection: boolean) => <button type="button" className={control} title={t(selection ? "Focus selection · Shift+F" : "Fit all notes · F")} onClick={() => { setOpen(null); if (selection) props.onFitSelection(); else props.onFitAll(); }}><MidiToolIcon kind={selection ? "selection" : "fit"} />{t(selection ? "Focus selection" : "Fit all")}</button>;
   const percentage = (value: number) => `${value < 1 ? value.toFixed(2) : Math.round(value)}%`;
-  const panel = (children: ReactNode) => <div className="absolute right-0 top-full z-50 mt-1 grid w-64 max-w-[calc(100vw-2rem)] gap-3 overflow-y-auto rounded-xl border border-slate-200 bg-[#faf9f5] p-3 text-xs text-slate-600 shadow-lg" style={{ maxHeight: Math.max(120, window.innerHeight - (root.current?.getBoundingClientRect().bottom ?? 0) - 104) }}>{children}</div>;
-  return <div ref={root} role="toolbar" aria-label={t("MIDI tools")} data-gte-floating-ui="true" data-gte-editor-control="true" className="relative z-40 flex min-w-0 shrink-0 flex-nowrap items-center gap-1 rounded-lg border border-slate-200 bg-[#faf9f5] p-1.5 text-xs"
+  const panel = (children: ReactNode) => {
+    const anchor = root.current?.querySelector(`[data-midi-menu="${open}"]`)?.getBoundingClientRect();
+    const top = Math.min(window.innerHeight - 16, (anchor?.bottom ?? 0) + 4);
+    return <div className="fixed z-50 grid w-64 max-w-[calc(100vw-1rem)] gap-3 overflow-y-auto rounded-xl border border-slate-200 bg-[#faf9f5] p-3 text-xs text-slate-600 shadow-lg" style={{ left: Math.max(8, Math.min((anchor?.right ?? 264) - 256, window.innerWidth - 264)), top, maxHeight: Math.max(0, window.innerHeight - top - 8) }}>{children}</div>;
+  };
+  return <div ref={root} role="toolbar" aria-label={t("MIDI tools")} data-gte-floating-ui="true" data-gte-editor-control="true" className="relative z-40 mx-3 flex min-w-0 shrink-0 flex-nowrap items-center gap-1 rounded-lg border border-slate-200 bg-[#faf9f5] p-1.5 text-xs"
     onKeyDown={event => { if (event.key === "Escape" && open) { event.preventDefault(); event.stopPropagation(); setOpen(null); root.current?.querySelector<HTMLButtonElement>(`[data-midi-menu="${open}"]`)?.focus(); } }}>
     <div role="group" aria-label={t("Editing mode")} className={group}>{iconButton("Select · Esc", "select", () => props.onMode("select"), false, props.mode === "select")}{iconButton("Draw · B", "draw", () => props.onMode("draw"), props.disabled, props.mode === "draw")}</div>
     {showHistory && <div className={group}>{history}</div>}
@@ -69,22 +73,31 @@ export default function GteMidiToolbar(props: Props) {
     </label>
     {showKey && <div className={group}>{keyControl}</div>}
     {showVoice && voiceControl}
-    <div className="min-w-0 flex-1" />
-    {showFits && <div role="group" aria-label={t("Fit actions")} className="flex shrink-0 gap-1">{fits}</div>}
     {(!showHistory || !showKey || !showVoice) && <div className="relative shrink-0">
       <button type="button" data-midi-menu="more" aria-label={t("More MIDI controls")} title={t("More MIDI controls")} aria-expanded={open === "more"} className={control + " w-8 !px-0"} onClick={() => setOpen(open === "more" ? null : "more")}><MidiToolIcon kind="more" /></button>
       {open === "more" && panel(<>{!showHistory && history}{!showKey && keyControl}{!showVoice && voiceControl}</>)}
     </div>}
+    <div className="min-w-0 flex-1" />
+    {showFits && fitButton(true)}
+    {width >= 420 && <div role="group" aria-label={t("Horizontal zoom")} className="flex shrink-0 items-center gap-0.5">
+      <button type="button" className={control + " w-7 !px-0"} aria-label={t("Zoom out")} title={t("Zoom out")} disabled={props.zoom <= .05} onClick={() => props.onZoom(Math.max(.05, props.zoom / 1.25))}>−</button>
+      <output className="min-w-12 text-center text-xs tabular-nums text-slate-600">{percentage(props.zoom / 240 * 100)}</output>
+      <button type="button" className={control + " w-7 !px-0"} aria-label={t("Zoom in")} title={t("Zoom in")} disabled={props.zoom >= 1920} onClick={() => props.onZoom(Math.min(1920, props.zoom * 1.25))}>+</button>
+    </div>}
+    {showFits && fitButton(false)}
     <div className="relative shrink-0">
       <button type="button" data-midi-menu="view" aria-expanded={open === "view"} className={control} onClick={() => setOpen(open === "view" ? null : "view")}><MidiToolIcon kind="view" />{t("View")}<span aria-hidden="true">⌄</span></button>
       {open === "view" && panel(<>
         <label className="grid gap-1"><span className="flex justify-between">{t("Horizontal zoom")}<output>{percentage(props.zoom / 240 * 100)}</output></span><input type="range" aria-label={t("MIDI zoom")} aria-valuetext={percentage(props.zoom / 240 * 100)} min={0.02} max={800} step={0.02} value={props.zoom / 240 * 100} onChange={event => props.onZoom(Number(event.target.value) * 240 / 100)} /></label>
         <label className="grid gap-1"><span className="flex justify-between">{t("Vertical zoom")}<output>{percentage(props.row / 18 * 100)}</output></span><input type="range" aria-label={t("Pitch row height")} aria-valuetext={percentage(props.row / 18 * 100)} min={6} max={36} step={1} value={props.row} onChange={event => props.onRow(Number(event.target.value))} /></label>
-        <div className="flex flex-wrap gap-1">{fits}</div>
+        <div className="grid grid-cols-2 gap-1 border-t border-slate-200 pt-2">{fitButton(false)}{fitButton(true)}</div>
+        <button type="button" className={control} onClick={props.onResetScale}>{t("Reset zoom")}</button>
+        <div className="grid gap-2 border-t border-slate-200 pt-2"><span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{t("Display")}</span>
         <label className="flex items-center gap-2"><input type="checkbox" checked={props.follow} onChange={event => props.onFollow(event.target.checked)} />{t("Follow playback")}</label>
-        <label className="flex items-center gap-2"><input type="checkbox" checked={props.labels} onChange={event => props.onLabels(event.target.checked)} />{t("Note labels")}</label>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={props.labels} onChange={event => props.onLabels(event.target.checked)} />{t("Show note labels")}</label>
         <label className="flex items-center gap-2"><input type="checkbox" checked={props.audition} onChange={event => props.onAudition(event.target.checked)} />{t("Audition while dragging")}</label>
-        <button type="button" className={control} onClick={props.onCenter}>{t("Center playhead · Home")}</button>
+        </div>
+        <div className="border-t border-slate-200 pt-2"><button type="button" className={control + " w-full !justify-between"} onClick={props.onCenter}><span>{t("Center playhead")}</span><span className="text-[10px] text-slate-400">Home</span></button></div>
       </>)}
     </div>
   </div>;
