@@ -23,6 +23,9 @@ describe("Opus guitar sample playback", () => {
       "bass_overdrive",
       "upright_piano",
       "grand_piano",
+      "synth_lead_bowed",
+      "synth_lead_new_age",
+      "synth_lead_sweepPad",
     ]);
     expect(
       options

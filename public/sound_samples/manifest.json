@@ -228,5 +228,74 @@
       "105": "a7_vl3_rr1_2.opus",
       "108": "c8_vl3_rr1_2.opus"
     }
+  },
+  {
+    "id": "synth_lead_bowed",
+    "label": "Synth Bowed",
+    "folder": "synth_lead_bowed",
+    "gain": 0.55,
+    "samples": {
+      "36": "C2_stereo.opus",
+      "40": "E2_stereo.opus",
+      "44": "Ab2_stereo.opus",
+      "48": "C3_stereo.opus",
+      "52": "E3_stereo.opus",
+      "56": "Ab3_stereo.opus",
+      "60": "C4_stereo.opus",
+      "64": "E4_stereo.opus",
+      "68": "Ab4_stereo.opus",
+      "72": "C5_stereo.opus",
+      "76": "E5_stereo.opus",
+      "80": "Ab5_stereo.opus",
+      "84": "C6_stereo.opus",
+      "88": "E6_stereo.opus",
+      "92": "Ab6_stereo.opus",
+      "96": "C7_stereo.opus"
+    }
+  },
+  {
+    "id": "synth_lead_new_age",
+    "label": "Synth New Age",
+    "folder": "synth_lead_new_age",
+    "gain": 0.55,
+    "samples": {
+      "36": "C2.opus",
+      "40": "E2.opus",
+      "44": "G#2.opus",
+      "48": "C3.opus",
+      "52": "E3.opus",
+      "56": "G#3.opus",
+      "60": "C4.opus",
+      "64": "E4.opus",
+      "68": "G#4.opus",
+      "72": "C5.opus",
+      "76": "E5.opus",
+      "80": "G#5.opus",
+      "84": "C6.opus",
+      "88": "E6.opus",
+      "92": "G#6.opus",
+      "96": "C7.opus"
+    }
+  },
+  {
+    "id": "synth_lead_sweepPad",
+    "label": "Synth Sweep Pad",
+    "folder": "synth_lead_sweepPad",
+    "gain": 0.55,
+    "samples": {
+      "36": "C2.opus",
+      "40": "E2.opus",
+      "44": "G#2.opus",
+      "48": "C3.opus",
+      "52": "E3.opus",
+      "56": "G#3.opus",
+      "60": "C4.opus",
+      "64": "E4.opus",
+      "68": "G#4.opus",
+      "72": "C5.opus",
+      "76": "E5.opus",
+      "80": "G#5.opus",
+      "84": "C6.opus"
+    }
   }
 ]
