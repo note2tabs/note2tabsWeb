@@ -66,7 +66,7 @@ describe("notation tools and persistence", () => {
     const canvas = { editors: [piano, tab] };
     const encoded = serializeNotationPayload(canvas);
     expect(encoded.editors[0].chordEditor?.notation).toBeDefined();
-    expect(encoded.editors[1]).toBe(tab);
+    expect(encoded.editors[1]).toMatchObject({ ...tab, instrumentId: "acoustic", chordEditor: { instrumentType: "guitar-tab", instrumentSound: "guitar" } });
     expect(piano.chordEditor).toBeUndefined();
   });
   it("constrains insertion pitches to the chosen scale without mutating existing music", () => {

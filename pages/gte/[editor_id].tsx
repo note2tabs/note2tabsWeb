@@ -77,6 +77,9 @@ import {
 import { buildDiscreteSlideSteps } from "../../lib/gteSlidePlayback";
 import { getOpenStringMidiFromSnapshot, getTabMidi as getSnapshotTabMidi } from "../../lib/gteTuning";
 import { isNotationTrack, scorePlaybackEvents } from "../../lib/gteNotation";
+import { getTrackInstrumentType, type InstrumentType } from "../../lib/gteInstrumentType";
+import { convertTrackInstrument } from "../../lib/gteInstrumentConversion";
+import GteTrackTypeSetting from "../../components/GteTrackTypeSetting";
 import { restoreNotationSnapshot } from "../../lib/gteNotationPersistence";
 import {
   getDrumVoiceForNote,
@@ -436,12 +439,14 @@ const normalizeLane = (
   secondsPerBar: number,
   index: number
 ): EditorSnapshot => {
+  if (!lane.instrumentType && lane.chordEditor?.instrumentType) lane = restoreNotationSnapshot(lane);
   if (isNotationTrack(lane)) lane = restoreNotationSnapshot(lane);
   const safeSeconds = Math.max(0.1, toNumber(secondsPerBar, toNumber(lane.secondsPerBar, DEFAULT_SECONDS_PER_BAR)));
   const totalFrames = Math.max(FIXED_FRAMES_PER_BAR, Math.round(toNumber(lane.totalFrames, FIXED_FRAMES_PER_BAR)));
   const rawName = typeof lane.name === "string" ? lane.name.trim() : "";
   const defaultNamePattern = /^(editor|transcription|tab|bass|chords?|drums?)\s+\d+$/i;
-  const editorKind = normalizeEditorKind(lane.editorType ?? lane.trackType ?? lane.type);
+  const instrumentType = getTrackInstrumentType(lane);
+  const editorKind = instrumentType === "bass-tab" ? "bass" : instrumentType === "notation" ? "tab" : normalizeEditorKind(lane.editorType ?? lane.trackType ?? lane.type) === "chords" ? "chords" : instrumentType === "drums" ? "drums" : "tab";
   const laneTypeLabel =
     editorKind === "chords" ? "Chords" : editorKind === "drums" ? "Drums" : editorKind === "bass" ? "Bass" : "Tab";
   const laneName =
@@ -455,7 +460,8 @@ const normalizeLane = (
     editorType: editorKind,
     type: editorKind,
     trackType: editorKind,
-    instrumentId: editorKind === "bass" ? "bass_overdrive" : normalizeTrackInstrumentId(lane.instrumentId),
+    instrumentType: getTrackInstrumentType(lane),
+    instrumentId: normalizeTrackInstrumentId(lane.instrumentId),
     playbackVolume: normalizeTrackVolume(lane.playbackVolume ?? 1),
     playbackMuted: lane.playbackMuted === true,
     playbackIsolated: lane.playbackIsolated === true,
@@ -1545,6 +1551,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const [globalPlaybackIsPreparing, setGlobalPlaybackIsPreparing] = useState(false);
   const [globalPlaybackVolume, setGlobalPlaybackVolume] = useState(0.6);
   const [practiceLoopEnabled, setPracticeLoopEnabled] = useState(false);
+  const [midiLoopRange, setMidiLoopRange] = useState<{ startFrame: number; endFrame: number } | null>(null);
+  useEffect(() => { setMidiLoopRange(null); }, [editorId]);
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
   const [metronomeVolume, setMetronomeVolume] = useState(0.7);
   const [countInEnabled, setCountInEnabled] = useState(false);
@@ -1594,6 +1602,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const [barSelection, setBarSelection] = useState<BarSelectionState | null>(null);
   const [barClipboard, setBarClipboard] = useState<EditorSnapshot | null>(null);
   const [barDragState, setBarDragState] = useState<BarDragState | null>(null);
+  const [trackTypeIssue, setTrackTypeIssue] = useState<{ laneId: string; message: string } | null>(null);
   const [trackInstrumentOptions, setTrackInstrumentOptions] = useState<TrackInstrumentOption[]>(
     getTrackInstrumentOptions()
   );
@@ -2885,7 +2894,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   }, [applyCanvasUpdate, barSelection?.barIndices, canvas, editorId, isGuestMode, pendingMeterChange, timeSignatureSaving]);
 
   const handleAddLane = async (requestedKind: "tab" | "bass" | "chords" | "drums" | "piano" | "strings" | "instrument" = "tab") => {
-    const notationInstrument = requestedKind === "piano" || requestedKind === "strings" || requestedKind === "instrument" ? "gm:" + requestedKind : null;
+    const notationInstrument = requestedKind === "piano" ? "upright_piano" : requestedKind === "strings" || requestedKind === "instrument" ? "gm:" + requestedKind : null;
     const kind = notationInstrument ? "tab" : requestedKind as "tab" | "bass" | "chords" | "drums";
     if (!canvasRef.current || addingLane) return;
     setAddingLane(true);
@@ -2923,7 +2932,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             timeSignature: currentTimeSignature,
             timeSignatureBottom: currentTimeSignatureBottom,
             ...(lane.id === createdLaneId
-              ? { editorType: kind, type: kind, trackType: kind, ...(notationInstrument ? { instrumentId: notationInstrument, name: requestedKind === "piano" ? "Piano" : requestedKind === "strings" ? "Strings" : "Instrument" } : {}) }
+              ? { editorType: kind, type: kind, trackType: kind, ...(notationInstrument ? { instrumentType: "notation" as const, instrumentId: notationInstrument, name: requestedKind === "piano" ? "Piano" : requestedKind === "strings" ? "Strings" : "Instrument" } : {}) }
               : {}),
           })),
         },
@@ -2941,49 +2950,19 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     }
   };
 
-  const handleConvertLaneToBass = useCallback(async (laneId: string) => {
+  const handleLaneTypeChange = useCallback((laneId: string, target: InstrumentType) => {
     const current = canvasRef.current;
-    const lane = current?.editors.find((item) => item.id === laneId);
-    if (!current || !lane || isBassLane(lane) || isDrumLane(lane)) return;
-    const bassBase: EditorSnapshot = {
-      ...lane,
-      editorType: "bass",
-      type: "bass",
-      trackType: "bass",
-      instrumentId: "bass_overdrive",
-      maxFret: 22,
-      tuning: { presetId: "bass-standard", label: "Standard", openStringMidi: [43, 38, 33, 28], capo: 0 },
-      notes: [],
-      chords: [],
-    };
-    const candidates = [
-      ...lane.notes.map((note) => ({ ...note, midiNum: note.midiNum || getTabMidi(lane, note.tab) })),
-      ...lane.chords.flatMap((chord) => chord.currentTabs.map((tab, index) => ({
-        id: -1,
-        startTime: chord.startTime,
-        length: chord.length,
-        midiNum: chord.originalMidi[index] || getTabMidi(lane, tab),
-        tab,
-        optimals: [] as [number, number][],
-        velocity: chord.velocities?.[index],
-        pitchBend: chord.pitchBends?.[index],
-      }))),
-    ].sort((left, right) => left.startTime - right.startTime || left.midiNum - right.midiNum);
-    const playable = candidates.filter((note) => getAllTabsForMidi(bassBase, note.midiNum).length > 0);
-    const dropped = candidates.length - playable.length;
-    if (!window.confirm(t("Convert this track to four-string bass? {value1} notes will be kept and {value2} out-of-range notes will be removed. Chords will become independent notes.", {value1: playable.length, value2: dropped}))) return;
-    let nextId = Math.max(0, ...lane.notes.map((note) => note.id), ...lane.chords.map((chord) => chord.id)) + 1;
-    bassBase.notes = playable.map((note) => {
-      const tabs = getAllTabsForMidi(bassBase, note.midiNum);
-      const tab = tabs.sort((a, b) => a[1] - b[1] || a[0] - b[0])[0];
-      return { ...note, id: note.id >= 0 ? note.id : nextId++, tab, optimals: tabs };
-    });
-    const keptIds = new Set(bassBase.notes.map((note) => note.id));
-    bassBase.noteEffects = (lane.noteEffects || []).filter((effect) => keptIds.has(effect.startNoteId) && keptIds.has(effect.endNoteId));
-    const nextCanvas = normalizeCanvas({ ...current, editors: current.editors.map((item) => item.id === laneId ? bassBase : item) }, editorId);
-    await gteApi.applySnapshot(editorId, nextCanvas);
+    const lane = current?.editors.find(item => item.id === laneId);
+    if (!current || !lane) return;
+    const result = convertTrackInstrument(lane, target);
+    if (!result.snapshot) { setTrackTypeIssue({ laneId, message: result.issue || "This track cannot be converted." }); return; }
+    setTrackTypeIssue(null);
+    const nextCanvas = normalizeCanvas({ ...current, editors: current.editors.map(item => item.id === laneId ? result.snapshot! : item) }, editorId);
     applyCanvasUpdate(nextCanvas, { markDirty: true });
-  }, [applyCanvasUpdate, editorId, t]);
+    void warmTrackInstrument(result.snapshot.instrumentId);
+    if (!isGuestMode) void gteApi.applySnapshot(editorId, cloneCanvas(nextCanvas)).catch((err: any) => setSaveError(err?.message || "Could not save track format."));
+  }, [applyCanvasUpdate, editorId, isGuestMode, cloneCanvas, t]);
+
 
   const handleLaneNameCommit = useCallback(
     async (laneId: string, rawName: string) => {
@@ -3454,7 +3433,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           editors: canvas.editors.map((lane, index) =>
             lane.id === laneId
               ? normalizeLane(
-                  { ...lane, instrumentId: normalizedInstrumentId },
+                  { ...lane, instrumentType: getTrackInstrumentType(lane), instrumentId: normalizedInstrumentId, chordEditor: { ...lane.chordEditor, instrumentType: getTrackInstrumentType(lane), instrumentSound: normalizedInstrumentId } },
                   laneId,
                   secondsPerBar,
                   index
@@ -4172,11 +4151,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       practiceModeEnabled,
     ]
   );
+  const midiLoopActive = notationTrackActive && editorMode === "tab" && midiLoopRange !== null;
+  const playbackLoopEnabled = practiceLoopEnabled || midiLoopActive;
   const globalPracticeLoopRange = useMemo(
     () =>
-      selectedPracticePlaybackRange ||
+      (midiLoopActive ? midiLoopRange : null) || selectedPracticePlaybackRange ||
       (canvasTimelineEnd > 0 ? { startFrame: 0, endFrame: canvasTimelineEnd } : null),
-    [canvasTimelineEnd, selectedPracticePlaybackRange]
+    [canvasTimelineEnd, selectedPracticePlaybackRange, midiLoopActive, midiLoopRange]
   );
   const normalizedPlaybackSpeed = normalizePlaybackSpeed(playbackSpeed);
   const practiceSettingsStorageKey = `note2tabs:practice:${editorId}:v1`;
@@ -4322,8 +4303,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     if (practiceLoopEnabled) setPracticeLoopEnabled(false);
   }, [globalPracticeLoopRange, practiceLoopEnabled]);
   useEffect(() => {
-    practiceLoopEnabledRef.current = practiceLoopEnabled;
-  }, [practiceLoopEnabled]);
+    practiceLoopEnabledRef.current = playbackLoopEnabled;
+  }, [playbackLoopEnabled]);
 
   useEffect(() => {
     setGlobalPlaybackFrame((prev) => Math.max(0, Math.min(canvasTimelineEnd, Math.round(prev))));
@@ -4717,13 +4698,13 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         resolvePracticePlaybackStart(
           startFrame,
           selectedPracticePlaybackRange ??
-            (practiceLoopEnabled ? globalPracticeLoopRange : null),
-          practiceLoopEnabled && !forceRequestedStart
+            (playbackLoopEnabled ? globalPracticeLoopRange : null),
+          playbackLoopEnabled && !forceRequestedStart
         );
       const playbackEndFrame =
         oneShotRange?.endFrame ??
         (selectedPracticePlaybackRange?.endFrame ??
-          (practiceLoopEnabled && globalPracticeLoopRange
+          (playbackLoopEnabled && globalPracticeLoopRange
             ? globalPracticeLoopRange.endFrame
             : canvasTimelineEnd));
       const playbackSecondsBetween = (fromFrame: number, toFrame: number) =>
@@ -5230,7 +5211,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       local_isolate_bool,
       metronomeEnabled,
       normalizedPlaybackSpeed,
-      practiceLoopEnabled,
+      playbackLoopEnabled,
       scheduleMetronomeClick,
       selectedPracticePlaybackRange,
       trackMuteById,
@@ -5269,8 +5250,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       resolvePracticePlaybackStart(
         requestedStartFrame,
         selectedPracticePlaybackRange ??
-          (practiceLoopEnabled ? globalPracticeLoopRange : null),
-        practiceLoopEnabled && !options?.forceRequestedStart
+          (playbackLoopEnabled ? globalPracticeLoopRange : null),
+        playbackLoopEnabled && !options?.forceRequestedStart
       );
     stopGlobalPlaybackAudio();
     const runPlaybackSpeed = normalizePlaybackSpeed(speedOverride ?? normalizedPlaybackSpeed);
@@ -5854,7 +5835,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     return [
       `iso:${Array.from(isolatedTrackIds).sort().join(",")}`,
       `localIso:${local_isolate_bool ? activeLaneId ?? "" : ""}`,
-      `loop:${practiceLoopEnabled ? globalPracticeLoopRange?.startFrame ?? "-" : "-"}:${practiceLoopEnabled ? globalPracticeLoopRange?.endFrame ?? "-" : "-"}`,
+      `loop:${playbackLoopEnabled ? globalPracticeLoopRange?.startFrame ?? "-" : "-"}:${playbackLoopEnabled ? globalPracticeLoopRange?.endFrame ?? "-" : "-"}`,
       `selection:${selectedPracticePlaybackRange?.startFrame ?? "-"}:${selectedPracticePlaybackRange?.endFrame ?? "-"}`,
       `met:${metronomeEnabled ? 1 : 0}`,
       `count:${countInEnabled ? 1 : 0}`,
@@ -5876,7 +5857,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     local_isolate_bool,
     metronomeEnabled,
     normalizedPlaybackSpeed,
-    practiceLoopEnabled,
+    playbackLoopEnabled,
     selectedPracticePlaybackRange,
     speedTrainerEnabled,
     trackMuteById,
@@ -6688,7 +6669,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 </span>
               </summary>
               <div className="absolute right-0 top-11 z-50 w-64 space-y-3 rounded-xl border border-slate-200 bg-white p-3 shadow-xl lg:static lg:mt-2 lg:w-full lg:shadow-sm">
-                <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Instrument")}<select
+                <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Instrument sound")}<select
                     value={practiceInstrumentValue}
                     name="practice-instrument"
                     onChange={(event) =>
@@ -6697,7 +6678,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
                     aria-label={t("Practice instrument")}
                   >
-                    {(practiceSoundLane && isBassLane(practiceSoundLane) ? trackInstrumentOptions.filter((option) => option.id === "bass_overdrive") : trackInstrumentOptions).map((option) => (
+                    {trackInstrumentOptions.map((option) => (
                       <option key={`practice-instrument-${option.id}`} value={option.id}>
                         {editorInstrumentName(option.label,t)}
                       </option>
@@ -7600,7 +7581,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     practiceModeEnabled ? "[&>details]:hidden" : ""
                   }`}
                 >
-                    {!isMobileViewport && !practiceModeEnabled && (!tabViewEnabled || notationTrackActive) && canvas && (
+                    {!isMobileViewport && !practiceModeEnabled && !tabViewEnabled && canvas && (
                       <div data-gte-floating-ui="true" data-gte-editor-control="true" role="group" aria-label={t("Snapping")}
                         className="order-6 mx-auto flex items-center gap-4 whitespace-nowrap px-3 text-slate-700 xl:absolute xl:left-1/2 xl:top-1/2 xl:-translate-x-1/2 xl:-translate-y-1/2">
                     {!notationTrackActive && <div className="flex flex-col items-center gap-0.5 text-center text-[10px] font-medium leading-3 text-slate-600">
@@ -9173,7 +9154,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                         }}
                                         className="mt-2 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700"
                                       >
-                                        {(isBassLane(lane) ? trackInstrumentOptions.filter((option) => option.id === "bass_overdrive") : trackInstrumentOptions).map((option) => (
+                                        {trackInstrumentOptions.map((option) => (
                                           <option key={`${laneId}-mobile-instrument-${option.id}`} value={option.id}>
                                             {editorInstrumentName(option.label,t)}
                                           </option>
@@ -9438,7 +9419,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                             title={t("Track sound")}
                             aria-label={t("Track sound")}
                           >
-                            {(isBassLane(lane) ? trackInstrumentOptions.filter((option) => option.id === "bass_overdrive") : trackInstrumentOptions).map((option) => (
+                            {trackInstrumentOptions.map((option) => (
                               <option key={`${laneId}-instrument-${option.id}`} value={option.id}>
                                 {editorInstrumentName(option.label,t)}
                               </option>
@@ -9886,6 +9867,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           onGlobalPlaybackSkipForwardBar={skipGlobalPlaybackForwardBar}
                           practiceLoopEnabled={practiceLoopEnabled}
                           practiceLoopRange={globalPracticeLoopRange}
+                          midiLoopRange={midiLoopRange}
+                          onMidiLoopRangeChange={setMidiLoopRange}
                           onPracticeLoopEnabledChange={setPracticeLoopEnabled}
                           metronomeEnabled={metronomeEnabled}
                           onMetronomeEnabledChange={setMetronomeEnabled}
@@ -10079,9 +10062,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       </button>
                     </div>
                     {!desktopTrackSettingsCollapsed && <div className="m-4 mt-3 grid grid-cols-2 gap-3">
+                      <GteTrackTypeSetting track={selectedLane} onChange={type => handleLaneTypeChange(selectedLaneId, type)} t={t} issue={trackTypeIssue?.laneId === selectedLaneId ? trackTypeIssue.message : undefined} />
                       {!selectedDrumLane && (
-                        <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Instrument")}<select value={selectedInstrumentValue} onChange={(event) => handleLaneInstrumentChange(selectedLaneId, event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700">
-                            {(selectedBassLane ? trackInstrumentOptions.filter((option) => option.id === "bass_overdrive") : trackInstrumentOptions).map((option) => <option key={`${selectedLaneId}-screen-instrument-${option.id}`} value={option.id}>{editorInstrumentName(option.label,t)}</option>)}
+                        <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Instrument sound")}<select value={selectedInstrumentValue} onChange={(event) => handleLaneInstrumentChange(selectedLaneId, event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700">
+                            {trackInstrumentOptions.map((option) => <option key={`${selectedLaneId}-screen-instrument-${option.id}`} value={option.id}>{editorInstrumentName(option.label,t)}</option>)}
                           </select>
                         </label>
                       )}
@@ -10274,13 +10258,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       </div>
 
                       <div className="hidden space-y-3 p-4">
+                        <GteTrackTypeSetting track={selectedLane} onChange={type => handleLaneTypeChange(selectedLaneId, type)} t={t} issue={trackTypeIssue?.laneId === selectedLaneId ? trackTypeIssue.message : undefined} />
                         {!selectedDrumLane && (
-                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Instrument")}<select
+                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Instrument sound")}<select
                               value={selectedInstrumentValue}
                               onChange={(event) => handleLaneInstrumentChange(selectedLaneId, event.target.value)}
                               className="mt-1.5 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700"
                             >
-                              {(selectedBassLane ? trackInstrumentOptions.filter((option) => option.id === "bass_overdrive") : trackInstrumentOptions).map((option) => (
+                              {trackInstrumentOptions.map((option) => (
                                 <option key={`${selectedLaneId}-desktop-instrument-${option.id}`} value={option.id}>{editorInstrumentName(option.label,t)}</option>
                               ))}
                             </select>
@@ -10324,7 +10309,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                         <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
                           <button type="button" onClick={() => beginTrackOffset(selectedLaneId)} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">{t("Offset track")}</button>
                           <button type="button" onClick={() => requestDeleteTrack(selectedLaneId)} disabled={deletingLaneId === selectedLaneId} className="rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50">{deletingLaneId === selectedLaneId ? t("Removing...") : t("Remove")}</button>
-                          {!selectedBassLane && !selectedChordLane && !selectedDrumLane && !isNotationTrack(selectedLane) && <button type="button" onClick={() => void handleConvertLaneToBass(selectedLaneId)} className="col-span-2 rounded-lg border border-slate-200 px-2 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">{t("Convert to bass")}</button>}
+
                         </div>
                       </div>
 

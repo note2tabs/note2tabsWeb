@@ -1,12 +1,27 @@
 import type { EditorSnapshot, Note } from "../types/gte";
-import { addScoreNote, scoreEvents, validNotationTie, type ScoreEvent } from "./gteNotation";
+import { addScoreNote, scoreEvents, snapScorePitch, validNotationTie, type ScoreEvent } from "./gteNotation";
 
-export type MidiEdit = { shift?: number; transpose?: number; lengthDelta?: number; velocity?: number; voice?: 1 | 2; remove?: boolean };
+export type MidiEdit = { shift?: number; transpose?: number; lengthDelta?: number; velocity?: number; velocityScale?: number; voice?: 1 | 2; remove?: boolean; key?: { root: number; type: number } };
 export const midiPitchName = (midi: number) => ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"][midi % 12] + (Math.floor(midi / 12) - 1);
-export function midiGridFrames(snapshot: EditorSnapshot, denominator: number) {
-  return snapshot.framesPerMessure * (snapshot.timeSignatureBottom || 4) / (snapshot.timeSignature || 4) / denominator;
+export function midiGridFrames(snapshot: EditorSnapshot, denominator: number, triplet = false) {
+  return snapshot.framesPerMessure * (snapshot.timeSignatureBottom || 4) / (snapshot.timeSignature || 4) / denominator * (triplet ? 2 / 3 : 1);
 }
 export function snapMidiFrame(frame: number, grid: number) { return Math.max(0, Math.round(frame / grid) * grid); }
+export function snapMidiStrength(frame: number, grid: number, strength = 1) { return frame + (Math.round(frame / grid) * grid - frame) * Math.max(0, Math.min(1, strength)); }
+export function midiPosition(frame: number, snapshot: EditorSnapshot) {
+  const bar = Math.floor(frame / snapshot.framesPerMessure), beatFrames = snapshot.framesPerMessure / (snapshot.timeSignature || 4);
+  const within = frame - bar * snapshot.framesPerMessure, beat = Math.floor(within / beatFrames);
+  return `${bar + 1}.${beat + 1}.${Math.round((within - beat * beatFrames) / beatFrames * 960).toString().padStart(3, "0")}`;
+}
+export function midiFitPlan(events: readonly ScoreEvent[], framesPerBar: number, width: number, height: number) {
+  const start = events.length ? Math.min(...events.map((note) => note.start)) : 0;
+  const end = events.length ? Math.max(...events.map((note) => note.start + note.length)) : framesPerBar * 4;
+  const low = events.length ? Math.min(...events.map((note) => note.midi)) : 48;
+  const high = events.length ? Math.max(...events.map((note) => note.midi)) : 72;
+  const row = Math.max(6, Math.min(28, Math.floor(height / Math.max(24, high - low + 9))));
+  const zoom = Math.max(0.05, Math.min(1920, (width - 64) * framesPerBar / Math.max(framesPerBar, end - start + framesPerBar / 4)));
+  return { zoom, row, left: Math.max(0, start * zoom / framesPerBar - 24), top: Math.max(0, (127 - high - 4) * row) };
+}
 
 /** MIDI edits address individual pitches, including members of imported chords.
  * Only affected chords are expanded; their other members and phrasing survive. */
@@ -29,9 +44,9 @@ export function editMidiEvents(source: EditorSnapshot, keys: readonly string[], 
     if (!chosen.has("n:" + note.id)) return [note];
     if (change.remove) return [];
     return [{ ...note, startTime: note.startTime + (change.shift ?? 0), length: note.length + (change.lengthDelta ?? 0),
-      midiNum: note.midiNum + (change.transpose ?? 0), optimals: change.transpose ? [] : note.optimals,
+      midiNum: change.key ? snapScorePitch(note.midiNum + (change.transpose ?? 0), change.key.root, change.key.type) : note.midiNum + (change.transpose ?? 0), optimals: change.transpose ? [] : note.optimals,
       notationVoice: change.voice ?? note.notationVoice,
-      velocity: change.velocity === undefined ? note.velocity : Math.max(1 / 127, Math.min(1, change.velocity)) }];
+      velocity: change.velocity === undefined && change.velocityScale === undefined ? note.velocity : Math.max(1 / 127, Math.min(1, change.velocity ?? (note.velocity ?? 1) * change.velocityScale!)) }];
   });
   const current = scoreEvents(next), byKey = new Map(current.map((event) => [event.key, event]));
   if (next.notation) {

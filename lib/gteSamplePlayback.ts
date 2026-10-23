@@ -60,7 +60,7 @@ const fetchSampleData = (url: string) => {
   if (cached) return cached;
   const pending = fetch(url).then(async (response) => {
     if (!response.ok) {
-      throw new Error(`Could not load guitar sample ${url}: ${response.status}`);
+      throw new Error(`Could not load instrument sample ${url}: ${response.status}`);
     }
     return response.arrayBuffer();
   });

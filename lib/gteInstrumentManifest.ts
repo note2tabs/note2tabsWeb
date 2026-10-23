@@ -74,7 +74,7 @@ if (!TRACK_INSTRUMENT_OPTIONS.length) {
   throw new Error("public/sound_samples/manifest.json must contain at least one Opus instrument.");
 }
 
-export const DEFAULT_TRACK_INSTRUMENT_ID = TRACK_INSTRUMENT_OPTIONS[0].id;
+export const DEFAULT_TRACK_INSTRUMENT_ID = "acoustic";
 
 const LEGACY_INSTRUMENT_IDS: Record<string, string> = {
   "builtin:sine": "acoustic",

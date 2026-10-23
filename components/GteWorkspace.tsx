@@ -254,6 +254,8 @@ type Props = {
   onGlobalPlaybackSkipForwardBar?: () => void;
   practiceLoopEnabled?: boolean;
   practiceLoopRange?: PracticeLoopRange | null;
+  midiLoopRange?: PracticeLoopRange | null;
+  onMidiLoopRangeChange?: (range: PracticeLoopRange | null) => void;
   onPracticeLoopEnabledChange?: (enabled: boolean) => void;
   metronomeEnabled?: boolean;
   onMetronomeEnabledChange?: (enabled: boolean) => void;

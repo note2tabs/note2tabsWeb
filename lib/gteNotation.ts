@@ -1,12 +1,10 @@
 import type { Chord, EditorSnapshot, Note } from "../types/gte";
 import { getTabMidi } from "./gteTuning";
+import { getTrackInstrumentType } from "./gteInstrumentType";
 
 /** Sound determines the pitched editor without introducing a new persisted track schema. */
-export function isNotationTrack(snapshot: Pick<EditorSnapshot, "editorType" | "trackType" | "type" | "instrumentId">) {
-  const kind = String(snapshot.editorType ?? snapshot.trackType ?? snapshot.type ?? "tab").toLowerCase();
-  if (["bass", "drum", "drums", "chords"].includes(kind)) return false;
-  return ["piano", "strings", "notation", "instrument"].includes(kind) ||
-    /^gm:(piano|strings|synth-lead|synth-pad|instrument)$/.test(snapshot.instrumentId ?? "");
+export function isNotationTrack(snapshot: Parameters<typeof getTrackInstrumentType>[0]) {
+  return getTrackInstrumentType(snapshot) === "notation";
 }
 
 export type ScoreEvent = { key: string; noteId?: number; chordId?: number; member: number; midi: number; start: number; length: number; velocity: number; pitchBend?: number[]; staff: "treble" | "bass"; voice?: 1 | 2 };

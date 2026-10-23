@@ -21,6 +21,9 @@ import {
 import { generatePlayingCoordinatesInSnapshot } from "./gtePlayingCoordinates";
 import { cleanTinyOverlapsInSnapshot } from "./gteOverlapCleanup";
 import { isNotationTrack } from "./gteNotation";
+import { importedInstrument } from "./gteImportedInstrument";
+import type { InstrumentType } from "./gteInstrumentType";
+import { restorePitchedImport, pitchedImportTransport } from "./gteNotationImport";
 
 const AUTH_BASE = "/api/gte";
 const GUEST_BASE = "/api/gte-guest";
@@ -77,6 +80,7 @@ export type TranscriberSegment = {
 };
 export type TranscriberSegmentGroup = TranscriberSegment[];
 export type TranscriberTrack = {
+  instrumentType?: InstrumentType;
   name: string;
   trackType: "tab" | "bass" | "drums";
   instrumentId: string;
@@ -298,7 +302,7 @@ const postTranscriberImportSaved = (
   request<TranscriberImportResponse>("/transcriber/import", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...payload, name: normalizeEditorName(payload.name) }),
+    body: JSON.stringify({ ...pitchedImportTransport(payload), name: normalizeEditorName(payload.name) }),
   });
 
 type TranscriberChunkImportResult = {
@@ -508,6 +512,7 @@ async function importTranscriberToSaved(
 
   const finalImportedEditorIds =
     importedEditorIds.length > 0 ? importedEditorIds : lastResponse.importedEditorIds || [];
+  const importTimingMap = lastResponse.canvas?.timingMap;
   if (lastResponse.canvas) {
     const timingMap = existingCanvas
       ? preserveExistingTimingForOffsetImport(lastResponse.canvas, existingCanvas)
@@ -538,7 +543,9 @@ async function importTranscriberToSaved(
         currentEditorId,
         lastResponse.canvas,
         TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES,
-        finalImportedEditorIds
+        finalImportedEditorIds,
+        payload.tracks,
+        { timingMap: importTimingMap, quantization }
       )
     : undefined;
   return {
@@ -582,7 +589,7 @@ async function importTranscriberToGuest(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...payload,
+        ...pitchedImportTransport(payload),
         target: "guest",
         alignmentMode: "auto",
         appendMode: "after_content",
@@ -600,6 +607,7 @@ async function importTranscriberToGuest(
     GUEST_BASE
   );
   if (!response.canvas) return response;
+  const importTimingMap = response.canvas.timingMap;
   const timingMap = existingCanvas
     ? preserveExistingTimingForOffsetImport(response.canvas, existingCanvas)
     : stabilizeNewTranscriberTimingMap(response.canvas);
@@ -628,7 +636,9 @@ async function importTranscriberToGuest(
       response.editorId,
       response.canvas,
       TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES,
-      importedEditorIds
+      importedEditorIds,
+      payload.tracks,
+      { timingMap: importTimingMap, quantization: payload.quantization ?? { enabled: Boolean(payload.quantize) } }
     ),
   };
   return response;
@@ -646,7 +656,9 @@ export async function optimizeImportedTrackFingerings(
   editorId: string,
   sourceCanvas?: CanvasSnapshot,
   passes: number = 1,
-  importedEditorIds?: readonly string[]
+  importedEditorIds?: readonly string[],
+  importedTracks?: readonly TranscriberTrack[],
+  importContext?: { timingMap?: TimingMapV2; quantization?: TranscriberQuantization }
 ): Promise<CanvasSnapshot> {
   const canvasId = editorId.includes(LANE_DELIMITER)
     ? editorId.slice(0, editorId.indexOf(LANE_DELIMITER))
@@ -666,6 +678,15 @@ export async function optimizeImportedTrackFingerings(
     optimizeTrackFingeringInSnapshot,
   } = await import("./gteFingeringOptimization");
   const importedLaneIds = importedEditorIds ? new Set(importedEditorIds) : null;
+
+  for (const [index, laneId] of (importedEditorIds ?? []).entries()) {
+    const source = importedTracks?.[index];
+    const lane = optimized.editors.find(item => item.id === laneId);
+    if (!source || !lane) continue;
+    const instrument = importedInstrument(source);
+    Object.assign(lane, instrument, { name: source.name, chordEditor: { ...lane.chordEditor, instrumentType: instrument.instrumentType, instrumentSound: instrument.instrumentId } });
+    if (instrument.instrumentType === "notation") Object.assign(lane, restorePitchedImport(lane, source.segments, importContext?.timingMap ?? optimized.timingMap, importContext?.quantization));
+  }
 
   optimized.editors.forEach((lane) => {
     if (importedLaneIds && !importedLaneIds.has(lane.id)) return;
@@ -694,7 +715,7 @@ export async function optimizeImportedTrackFingerings(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ snapshot: optimized }),
+      body: JSON.stringify({ snapshot: serializeNotationPayload(optimized) }),
     }
   );
   editorPrefetches.delete(canvasId);

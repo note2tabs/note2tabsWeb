@@ -6,6 +6,7 @@ import { prepareTrackInstrument, schedulePreparedTrackNote } from "../lib/gteSam
 import GteNotationToolbar from "./GteNotationToolbar";
 import GteEngravedScore from "./GteEngravedScore";
 import { buildNotationScore, notationKeyAlteration, notationPitch } from "../lib/gteNotationScore";
+import { readPitchedViewState, savePitchedViewState } from "../lib/gtePitchedViewState";
 
 type Props = ComponentProps<typeof GteWorkspace>;
 const NOTE_LETTERS: Record<string, number> = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
@@ -13,7 +14,12 @@ const NOTE_LETTERS: Record<string, number> = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 
 export default function GteNotationWorkspace(props: Props) {
   const { snapshot, onSnapshotChange, isActive = false, editMenuDisabled = false, practiceMode = false } = props;
   const { t } = useLocale();
-  const [selection, setSelection] = useState<{ noteIds: number[]; chordIds: number[] }>({ noteIds: [], chordIds: [] });
+  const [selection, setSelection] = useState<{ noteIds: number[]; chordIds: number[] }>(() => {
+    const keys = readPitchedViewState(props.editorId).selection ?? [];
+    return { noteIds: keys.filter((key) => key.startsWith("n:")).map((key) => Number(key.split(":")[1])),
+      chordIds: [...new Set(keys.filter((key) => key.startsWith("c:")).map((key) => Number(key.split(":")[1])))] };
+  });
+  const clearEpoch = useRef(props.selectionClearEpoch);
   const [write, setWrite] = useState(() => snapshot.notes.length + snapshot.chords.length === 0);
   const [restMode, setRestMode] = useState(false);
   const [voice, setVoice] = useState<1 | 2>(1);
@@ -103,8 +109,11 @@ export default function GteNotationWorkspace(props: Props) {
   };
   useEffect(() => {
     props.onSelectionStateChange?.({ ...selection, noteCount: selection.noteIds.length, chordCount: selection.chordIds.length });
+    savePitchedViewState(props.editorId, { selection: segments.filter((event) => event.noteId !== undefined ? selection.noteIds.includes(event.noteId) : selection.chordIds.includes(event.chordId!)).map((event) => event.key) });
   }, [selection, props.onSelectionStateChange]);
   useEffect(() => {
+    if (clearEpoch.current === props.selectionClearEpoch) return;
+    clearEpoch.current = props.selectionClearEpoch;
     if (props.selectionClearExemptEditorId === props.editorId && props.selectionClearEpoch !== undefined) return;
     setSelection({ noteIds: [], chordIds: [] }); setCursor(null);   
   }, [props.editorId, props.selectionClearEpoch]);
@@ -157,6 +166,7 @@ export default function GteNotationWorkspace(props: Props) {
       const key = event.key.toLowerCase(), modifier = event.ctrlKey || event.metaKey;
       if (modifier && key === "a") { event.preventDefault(); event.stopPropagation(); setSelection({ noteIds: snapshot.notes.map((note) => note.id), chordIds: snapshot.chords.map((chord) => chord.id) }); }
       else if (modifier && key === "z") { event.preventDefault(); event.stopPropagation(); if (event.shiftKey) props.onRequestRedo?.(); else props.onRequestUndo?.(); }
+      else if (modifier && key === "y") { event.preventDefault(); event.stopPropagation(); props.onRequestRedo?.(); }
       else if (key === "escape") { event.stopPropagation();   setWrite(false); setSelection({ noteIds: [], chordIds: [] }); setCursor(null);  }
       else if (key === "delete" || key === "backspace") { event.preventDefault(); event.stopPropagation(); apply({ remove: true }); setSelection({ noteIds: [], chordIds: [] }); }
       else if (key === "arrowup" || key === "arrowdown") {

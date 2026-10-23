@@ -2,9 +2,10 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { JSDOM } from "jsdom";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
-import GteMidiWorkspace from "../../components/GteMidiWorkspace";
+import GteMidiWorkspace, { MidiPlayhead } from "../../components/GteMidiWorkspace";
 import { buildNotationScore } from "../../lib/gteNotationScore";
 import type { EditorSnapshot } from "../../types/gte";
+import { readPitchedViewState, savePitchedViewState } from "../../lib/gtePitchedViewState";
 
 vi.mock("../../lib/i18n/react", () => ({ useLocale: () => ({ t: (key: string) => key }) }));
 vi.mock("../../lib/gteSamplePlayback", () => ({ prepareTrackInstrument: vi.fn(), schedulePreparedTrackNote: vi.fn() }));
@@ -18,6 +19,116 @@ beforeAll(() => {
   Object.defineProperty(dom.window.HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 900 });
   Object.defineProperty(dom.window.HTMLElement.prototype, "clientHeight", { configurable: true, get: () => 480 });
   dom.window.SVGElement.prototype.setPointerCapture = vi.fn(); dom.window.SVGElement.prototype.releasePointerCapture = vi.fn();
+});
+
+it("loads delayed music, guards tiny drags, supports navigation, loop selection and restores editing context", async () => {
+  const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+  let snapshot: EditorSnapshot = { id: "delayed", instrumentId: "gm:piano", framesPerMessure: 480, fps: 240, totalFrames: 9600, timeSignature: 4, timeSignatureBottom: 4,
+    notes: [60, 64, 72].map((midiNum, index) => ({ id: index + 1, startTime: 4800 + index * 120, length: 240, midiNum, tab: [0, 0], optimals: [], velocity: 0.6 })), chords: [], optimalsByTime: {}, cutPositionsWithCoords: [] };
+  const changes = vi.fn(), loop = vi.fn();
+  const render = async () => { await act(async () => root.render(React.createElement(GteMidiWorkspace, { editorId: "delayed-test", snapshot, isActive: true,
+    onSnapshotChange: (next: EditorSnapshot) => { snapshot = next; changes(next); }, onMidiLoopRangeChange: loop }))); };
+  const pointer = async (target: Element, type: string, x: number, y: number, extra = {}) => { await act(async () => target.dispatchEvent(new dom.window.MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0, ...extra }))); };
+  try {
+    await render();
+    const scroll = host.querySelector('[data-midi-scroll]') as HTMLDivElement;
+    expect(scroll.scrollLeft).toBeGreaterThan(0);
+    expect(host.querySelectorAll('[data-midi-note]')).toHaveLength(3);
+    const pianoWhite = host.querySelector('[aria-label="Audition C4"]') as HTMLButtonElement;
+    const pianoBlack = host.querySelector('[aria-label="Audition C♯4"]') as HTMLButtonElement;
+    expect(pianoWhite.style.width).toBe("100%"); expect(pianoBlack.style.width).toBe("65%");
+    const note = host.querySelector('[data-midi-note="n:1"] rect')!;
+    const x = Number(note.getAttribute("x")), y = Number(note.getAttribute("y"));
+    const grid = host.querySelector('[aria-label="MIDI piano roll"]')!;
+    await pointer(note, "pointerdown", x + 8, y + 4); await pointer(grid, "pointermove", x + 9, y + 5); await pointer(grid, "pointerup", x + 9, y + 5);
+    expect(changes).not.toHaveBeenCalled();
+    expect(host.querySelector('[data-midi-note="n:1"]')?.getAttribute("aria-pressed")).toBe("true");
+    await pointer(host.querySelector('[data-midi-note="n:1"]')!, "contextmenu", x, y);
+    expect(host.querySelector('[role="menu"]')).toBeTruthy();
+    expect(host.querySelector('[role="menu"]')!.textContent).toContain("DuplicateCtrl+D");
+    const beforeWidth = Number(host.querySelector('[data-midi-note="n:1"] rect')!.getAttribute("width"));
+    await act(async () => scroll.dispatchEvent(new dom.window.WheelEvent("wheel", { bubbles: true, cancelable: true, ctrlKey: true, deltaY: -150, clientX: 400 })));
+    expect(Number(host.querySelector('[data-midi-note="n:1"] rect')!.getAttribute("width"))).toBeGreaterThan(beforeWidth);
+    const left = scroll.scrollLeft;
+    await act(async () => scroll.dispatchEvent(new dom.window.WheelEvent("wheel", { bubbles: true, cancelable: true, shiftKey: true, deltaY: 90 })));
+    expect(scroll.scrollLeft).toBe(left + 90);
+    const ruler = host.querySelector('[aria-label="MIDI playhead"]')!;
+    await pointer(ruler, "pointerdown", 100, 10); await pointer(ruler, "pointermove", 300, 10); await pointer(ruler, "pointerup", 300, 10);
+    expect(loop).toHaveBeenCalledOnce();
+    expect(loop.mock.calls[0][0].endFrame).toBeGreaterThan(loop.mock.calls[0][0].startFrame);
+    const collapse = [...host.querySelectorAll("button")].find((button) => button.title === "Show or hide velocity lane")!;
+    await act(async () => collapse.click()); expect(collapse.getAttribute("aria-expanded")).toBe("false");
+    scroll.scrollLeft = 420; scroll.scrollTop = 800;
+    await act(async () => scroll.dispatchEvent(new dom.window.Event("scroll", { bubbles: true })));
+    await act(async () => root.render(React.createElement("div", null, "Sheets")));
+    expect(readPitchedViewState("delayed-test")).toMatchObject({ left: 420, top: 800, selection: ["n:1"], velocityHeight: 0 });
+    await render();
+    expect((host.querySelector('[data-midi-scroll]') as HTMLDivElement).scrollLeft).toBe(420);
+    expect((host.querySelector('[data-midi-scroll]') as HTMLDivElement).scrollTop).toBe(800);
+  } finally { await act(async () => root.unmount()); host.remove(); }
+});
+
+it("updates playback highlights and follow position from the audio clock without React commits", async () => {
+  const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+  const originalRaf = globalThis.requestAnimationFrame, originalCancel = globalThis.cancelAnimationFrame;
+  const callbacks = new Map<number, FrameRequestCallback>(); let id = 0, frame = 0;
+  globalThis.requestAnimationFrame = (callback) => { callbacks.set(++id, callback); return id; };
+  globalThis.cancelAnimationFrame = (key) => { callbacks.delete(key); };
+  const commits = vi.fn(), scroll = React.createRef<HTMLDivElement>();
+  const notes = [{ key: "n:1", noteId: 1, member: 0, midi: 60, start: 0, length: 120, velocity: 0.5, staff: "treble" as const }];
+  try {
+    await act(async () => root.render(React.createElement(React.Profiler, { id: "midi-playback", onRender: commits }, React.createElement("svg", null,
+      React.createElement(MidiPlayhead, { scale: 1, height: 300, row: 18, frame: 0, playing: true, getFrame: () => frame, notes, scroll, follow: false })))));
+    const count = commits.mock.calls.length;
+    expect(host.querySelector('[data-midi-playing] rect')).toBeTruthy();
+    for (let index = 0; index < 60; index++) { frame += 3; const pending = [...callbacks.values()]; callbacks.clear(); await act(async () => pending.forEach((callback) => callback(0))); }
+    expect(host.querySelector('[data-midi-playhead]')!.getAttribute("x1")).toBe("180");
+    expect(host.querySelector('[data-midi-playing] rect')).toBeNull();
+    expect(commits).toHaveBeenCalledTimes(count);
+  } finally { await act(async () => root.unmount()); host.remove(); globalThis.requestAnimationFrame = originalRaf; globalThis.cancelAnimationFrame = originalCancel; }
+});
+
+it("renders thousands of overlapping notes as bounded overview paths without changing the arrangement", async () => {
+  const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+  const snapshot: EditorSnapshot = { id: "dense-midi", instrumentId: "gm:piano", framesPerMessure: 480, fps: 240, totalFrames: 120000, timeSignature: 4, timeSignatureBottom: 4,
+    notes: Array.from({ length: 5000 }, (_, id) => ({ id: id + 1, startTime: id * 24, length: 48, midiNum: 60 + id % 12, tab: [0, 0], optimals: [], velocity: 0.5 })), chords: [], optimalsByTime: {}, cutPositionsWithCoords: [] };
+  const changes = vi.fn();
+  try {
+    await act(async () => root.render(React.createElement(GteMidiWorkspace, { editorId: "dense-midi-test", snapshot, isActive: true, onSnapshotChange: changes })));
+    expect(host.querySelector('[data-midi-density]')).toBeTruthy();
+    expect(host.querySelectorAll('[data-midi-density] path').length).toBe(3);
+    expect(host.querySelector('[data-midi-density] path')!.getAttribute("d")!.split("M").length).toBeGreaterThan(4000);
+    expect(host.querySelectorAll("line").length).toBeLessThan(200);
+    expect(host.querySelectorAll('[data-midi-note]').length).toBeLessThan(200);
+    expect(snapshot.notes).toHaveLength(5000); expect(changes).not.toHaveBeenCalled();
+  } finally { await act(async () => root.unmount()); host.remove(); }
+});
+
+it.each([120, 480])("keeps group movement, key snapping and subgrid resizing correct at %i px/bar", async (zoom) => {
+  const host = document.createElement("div"); document.body.append(host); const root = createRoot(host), editorId = "zoom-edit-" + zoom;
+  savePitchedViewState(editorId, { zoom, row: 18, left: 0, top: 1100, snap: true, grid: 16 });
+  let snapshot: EditorSnapshot = { id: editorId, instrumentId: "gm:piano", framesPerMessure: 480, fps: 240, totalFrames: 480, timeSignature: 4, timeSignatureBottom: 4,
+    notes: [60, 64].map((midiNum, index) => ({ id: index + 1, midiNum, startTime: 0, length: 120, velocity: 0.5, tab: [0, 0], optimals: [] })), chords: [], optimalsByTime: {}, cutPositionsWithCoords: [] };
+  const render = async () => { await act(async () => root.render(React.createElement(GteMidiWorkspace, { editorId, snapshot, isActive: true, globalSnapToKeyEnabled: true, canvasKeyBase: 0, canvasKeyType: 0, onSnapshotChange: (next) => { snapshot = next; } }))); };
+  const pointer = async (element: Element, kind: string, x: number, y: number, extra = {}) => { await act(async () => element.dispatchEvent(new dom.window.MouseEvent(kind, { bubbles: true, button: 0, clientX: x, clientY: y, ...extra }))); };
+  const key = async (key: string, options = {}) => { await act(async () => host.querySelector('[data-gte-midi-editor]')!.dispatchEvent(new dom.window.KeyboardEvent("keydown", { bubbles: true, key, ...options }))); };
+  try {
+    await render(); await key("a", { ctrlKey: true });
+    const scale = zoom / 480, surface = () => host.querySelector('[aria-label="MIDI piano roll"]')!;
+    const y = (127 - 60) * 18 + 6;
+    await pointer(host.querySelector('[data-midi-note="n:1"] rect')!, "pointerdown", 8, y);
+    await pointer(surface(), "pointermove", 8 + 30 * scale, y - 36); await pointer(surface(), "pointerup", 8 + 30 * scale, y - 36);
+    expect(snapshot.notes.map((note) => [note.startTime, note.midiNum])).toEqual([[30, 62], [30, 65]]);
+    await render();
+    const edge = host.querySelector('[data-midi-note="n:1"]')!.querySelectorAll("rect")[2];
+    const edgeX = 150 * scale - 1;
+    await pointer(edge, "pointerdown", edgeX, y - 36); await pointer(surface(), "pointermove", edgeX + 6.25, y - 36, { altKey: true }); await pointer(surface(), "pointerup", edgeX + 6.25, y - 36, { altKey: true });
+    expect(snapshot.notes.map((note) => note.length)).toEqual([120 + 6.25 / scale, 120 + 6.25 / scale]);
+    await render();
+    await pointer(host.querySelector('[data-midi-note="n:1"] rect')!, "pointerdown", 30 * scale + 8, y - 36);
+    await pointer(surface(), "pointermove", 30 * scale + 8, y - 54, { altKey: true }); await pointer(surface(), "pointerup", 30 * scale + 8, y - 54, { altKey: true });
+    expect(snapshot.notes[0].midiNum).toBe(63);
+  } finally { await act(async () => root.unmount()); host.remove(); }
 });
 afterAll(() => { dom.window.close(); vi.unstubAllGlobals(); });
 
@@ -57,7 +168,8 @@ it("edits the real shared snapshot through draw, move, resize, selection, veloci
     const velocity = host.querySelector('[aria-label="Selected velocity"]') as HTMLInputElement;
     expect(velocity.value).toBe("100");
     const lane = host.querySelector('[aria-label="MIDI velocity lane"]')!;
-    await pointer(lane.querySelector("circle")!, "pointerdown", 60, 25); await pointer(lane, "pointermove", 60, 36); await pointer(lane, "pointerup", 60, 36);
+    const velocityMiddle = Number(lane.getAttribute("height")) / 2;
+    await pointer(lane.querySelector("circle")!, "pointerdown", 60, 25); await pointer(lane, "pointermove", 60, velocityMiddle); await pointer(lane, "pointerup", 60, velocityMiddle);
     expect(snapshot.notes[0].velocity).toBeCloseTo(0.5);
     await render();
     await key("c", { ctrlKey: true }); await key("v", { ctrlKey: true });

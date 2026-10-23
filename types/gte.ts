@@ -99,6 +99,7 @@ export type CutRegion = [number, number];
 export type CutWithCoord = [CutRegion, TabCoord];
 
 export type EditorSnapshot = {
+  instrumentType?: "notation" | "guitar-tab" | "bass-tab" | "drums";
   notation?: {
     rests?: Array<{ id: number; start: number; length: number; staff: "treble" | "bass"; voice: 1 | 2; denominator: number; dotted: boolean }>;
     ties?: Array<{ from: string; to: string }>;

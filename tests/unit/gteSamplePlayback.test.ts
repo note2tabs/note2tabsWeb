@@ -21,6 +21,7 @@ describe("Opus guitar sample playback", () => {
       "electric_overdrive",
       "electric_distortion",
       "bass_overdrive",
+      "upright_piano",
       "gm:piano",
       "gm:bass",
       "gm:strings",

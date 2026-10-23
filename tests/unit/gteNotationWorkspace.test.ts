@@ -32,6 +32,7 @@ function harness(notes = false, readOnly = false) {
     if (name === "react/jsx-runtime") return jsx;
     if (name.includes("GteEngravedScore")) return { __esModule: true, default: function TestEngraving() { return jsx.jsx("div", { "data-test-score": true }); } };
     if (name.includes("gteNotationScore")) return score;
+    if (name.includes("gtePitchedViewState")) return { readPitchedViewState: () => ({}), savePitchedViewState: () => {} };
     if (name.includes("gteNotation")) return notation;
     if (name.includes("i18n/react")) return { useLocale: () => ({ t: (key: string) => key }) };
     if (name.includes("gteSamplePlayback")) return { prepareTrackInstrument: vi.fn(), schedulePreparedTrackNote: vi.fn() };
@@ -163,6 +164,7 @@ describe("notation input workflow", () => {
     h.key("Delete");
     expect(h.props.snapshot.notes).toEqual([]);
     h.key("z", { ctrlKey: true }); expect(h.props.onRequestUndo).toHaveBeenCalledOnce();
+    h.key("y", { ctrlKey: true }); expect(h.props.onRequestRedo).toHaveBeenCalledOnce();
   });
   it("never edits a read-only score", () => {
     const h = harness(true, true);

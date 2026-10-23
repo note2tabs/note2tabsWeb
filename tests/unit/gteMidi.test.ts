@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { editMidiEvents, midiGridFrames, pasteMidiEvents, snapMidiFrame } from "../../lib/gteMidi";
-import { addScoreNote, scoreEvents, toggleScoreConnection } from "../../lib/gteNotation";
+import { editMidiEvents, midiFitPlan, midiGridFrames, midiPosition, pasteMidiEvents, snapMidiFrame, snapMidiStrength } from "../../lib/gteMidi";
+import { addScoreNote, scoreEvents, scorePlaybackEvents, toggleScoreConnection } from "../../lib/gteNotation";
 import { buildNotationScore } from "../../lib/gteNotationScore";
 import { restoreNotationSnapshot, serializeNotationSnapshot } from "../../lib/gteNotationPersistence";
 import { normalizeGuestSnapshot } from "../../lib/gteGuestDraft";
@@ -8,6 +8,29 @@ import type { EditorSnapshot } from "../../types/gte";
 const empty = (): EditorSnapshot => ({ id: "piano", instrumentId: "gm:piano", notes: [], chords: [], totalFrames: 480, framesPerMessure: 480, fps: 240, timeSignature: 4, timeSignatureBottom: 4, optimalsByTime: {}, cutPositionsWithCoords: [] });
 const score = () => addScoreNote(addScoreNote(empty(), 60, 0, 60, "treble", 2).snapshot, 64, 60, 120, "treble").snapshot;
 describe("shared MIDI and sheet music model", () => {
+  it("separates snap strength and triplet rhythm from zoom and preserves subgrid precision", () => {
+    expect(midiGridFrames(empty(), 8, true)).toBe(40);
+    expect(snapMidiStrength(47, 30, 1)).toBe(60);
+    expect(snapMidiStrength(47, 30, 0.5)).toBe(53.5);
+    expect(snapMidiStrength(47, 30, 0)).toBe(47);
+    expect(midiPosition(150, empty())).toBe("1.2.240");
+    expect(midiPosition(480, empty())).toBe("2.1.000");
+  });
+  it("fits content that begins much later than time zero, including pitch outliers", () => {
+    const events = scoreEvents(score()).map((event, index) => ({ ...event, start: event.start + 4800, midi: index ? 100 : 36 }));
+    const plan = midiFitPlan(events, 480, 900, 480);
+    expect(plan.left).toBeGreaterThan(0);
+    expect(plan.top).toBeLessThan((127 - 100) * plan.row);
+    expect(plan.top + 480).toBeGreaterThan((127 - 36) * plan.row);
+  });
+  it("scales velocities proportionally and constrains moved notes to a key without retuning unselected music", () => {
+    const source = score(); source.notes[0].velocity = 0.4; source.notes[1].velocity = 0.8;
+    const scaled = editMidiEvents(source, ["n:1", "n:2"], { velocityScale: 0.5 });
+    expect(scaled.notes.map((note) => note.velocity)).toEqual([0.2, 0.4]);
+    expect(scorePlaybackEvents(scaled).map((note) => note.velocity)).toEqual([0.2, 0.4]);
+    const moved = editMidiEvents(source, ["n:1"], { transpose: 1, key: { root: 0, type: 0 } });
+    expect(moved.notes[0].midiNum).toBe(60); expect(moved.notes[1]).toEqual(source.notes[1]);
+  });
   it("moves and resizes individual notes, preserving expression and manual voice", () => {
     const source = score(); source.notes[0].velocity = 0.6; source.notes[0].pitchBend = [0, 0.3];
     const moved = editMidiEvents(source, ["n:1"], { shift: 7.5, transpose: 2, lengthDelta: 22.5 });
