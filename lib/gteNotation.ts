@@ -9,12 +9,13 @@ export function isNotationTrack(snapshot: Pick<EditorSnapshot, "editorType" | "t
     /^gm:(piano|strings|synth-lead|synth-pad|instrument)$/.test(snapshot.instrumentId ?? "");
 }
 
-export type ScoreEvent = { key: string; noteId?: number; chordId?: number; member: number; midi: number; start: number; length: number; velocity: number; staff: "treble" | "bass"; voice?: 1 | 2 };
+export type ScoreEvent = { key: string; noteId?: number; chordId?: number; member: number; midi: number; start: number; length: number; velocity: number; pitchBend?: number[]; staff: "treble" | "bass"; voice?: 1 | 2 };
 export function scoreEvents(snapshot: EditorSnapshot): ScoreEvent[] {
   return [
     ...snapshot.notes.map((note) => ({
       key: "n:" + note.id, noteId: note.id, member: 0,
       voice: note.notationVoice ?? 1,
+      pitchBend: note.pitchBend,
       midi: Number.isFinite(note.midiNum) ? note.midiNum : getTabMidi(snapshot, note.tab),
       start: note.startTime, length: note.length, velocity: note.velocity ?? 1, staff: note.notationStaff ?? (note.midiNum < 60 ? "bass" as const : "treble" as const),
     })),
@@ -23,6 +24,7 @@ export function scoreEvents(snapshot: EditorSnapshot): ScoreEvent[] {
       return Array.from({ length: count }, (_, member) => ({
         key: "c:" + chord.id + ":" + member, chordId: chord.id, member,
         voice: chord.notationVoice ?? 1,
+        pitchBend: chord.pitchBends?.[member],
         midi: Number.isFinite(chord.originalMidi?.[member]) ? chord.originalMidi[member] : getTabMidi(snapshot, chord.currentTabs[member]),
         start: chord.startTime, length: chord.length, velocity: chord.velocities?.[member] ?? 1,
         staff: (chord.originalMidi[member] ?? getTabMidi(snapshot, chord.currentTabs[member])) < 60 ? "bass" as const : "treble" as const,

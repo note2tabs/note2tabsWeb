@@ -6095,7 +6095,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
             editorMode === "canvas" ? "text-slate-900" : "text-slate-600 hover:text-slate-800"
           }`}
-        >{t("Canvas")}</button>
+        >{t(notationTrackActive ? "Sheets" : "Canvas")}</button>
         {!compact && (
           <button
             type="button"
@@ -6104,7 +6104,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
               editorMode === "tab" ? "text-slate-900" : "text-slate-600 hover:text-slate-800"
             }`}
-          >{t("Tab view")}</button>
+          >{t(notationTrackActive ? "MIDI view" : "Tab view")}</button>
         )}
         <button
           type="button"
@@ -7600,7 +7600,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     practiceModeEnabled ? "[&>details]:hidden" : ""
                   }`}
                 >
-                    {!isMobileViewport && !tabViewEnabled && canvas && (
+                    {!isMobileViewport && !practiceModeEnabled && (!tabViewEnabled || notationTrackActive) && canvas && (
                       <div data-gte-floating-ui="true" data-gte-editor-control="true" role="group" aria-label={t("Snapping")}
                         className="order-6 mx-auto flex items-center gap-4 whitespace-nowrap px-3 text-slate-700 xl:absolute xl:left-1/2 xl:top-1/2 xl:-translate-x-1/2 xl:-translate-y-1/2">
                     {!notationTrackActive && <div className="flex flex-col items-center gap-0.5 text-center text-[10px] font-medium leading-3 text-slate-600">

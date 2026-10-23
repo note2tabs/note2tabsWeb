@@ -1,0 +1,69 @@
+import { describe, expect, it } from "vitest";
+import { editMidiEvents, midiGridFrames, pasteMidiEvents, snapMidiFrame } from "../../lib/gteMidi";
+import { addScoreNote, scoreEvents, toggleScoreConnection } from "../../lib/gteNotation";
+import { buildNotationScore } from "../../lib/gteNotationScore";
+import { restoreNotationSnapshot, serializeNotationSnapshot } from "../../lib/gteNotationPersistence";
+import { normalizeGuestSnapshot } from "../../lib/gteGuestDraft";
+import type { EditorSnapshot } from "../../types/gte";
+const empty = (): EditorSnapshot => ({ id: "piano", instrumentId: "gm:piano", notes: [], chords: [], totalFrames: 480, framesPerMessure: 480, fps: 240, timeSignature: 4, timeSignatureBottom: 4, optimalsByTime: {}, cutPositionsWithCoords: [] });
+const score = () => addScoreNote(addScoreNote(empty(), 60, 0, 60, "treble", 2).snapshot, 64, 60, 120, "treble").snapshot;
+describe("shared MIDI and sheet music model", () => {
+  it("moves and resizes individual notes, preserving expression and manual voice", () => {
+    const source = score(); source.notes[0].velocity = 0.6; source.notes[0].pitchBend = [0, 0.3];
+    const moved = editMidiEvents(source, ["n:1"], { shift: 7.5, transpose: 2, lengthDelta: 22.5 });
+    expect(moved.notes[0]).toMatchObject({ startTime: 7.5, length: 82.5, midiNum: 62, velocity: 0.6, pitchBend: [0, 0.3], notationVoice: 2 });
+    expect(moved.notes[1]).toEqual(source.notes[1]);
+    const engraved = buildNotationScore(moved);
+    expect(engraved.measures[0].voices.treble[1].some((token) => token.pitches.some((pitch) => pitch.midi === 62))).toBe(true);
+    expect(source.notes[0].midiNum).toBe(60);
+  });
+  it("edits one imported chord tone independently and remaps phrasing", () => {
+    const source = score(); source.chords = [{ id: 4, startTime: 240, length: 120, originalMidi: [60, 64, 67], currentTabs: [[0, 0], [0, 0], [0, 0]], ogTabs: [], velocities: [0.3, 0.5, 0.7], notationVoice: 2 }];
+    source.notation = { slurs: [{ from: "n:1", to: "c:4:1" }] };
+    const next = editMidiEvents(source, ["c:4:1"], { transpose: 1, shift: 15 });
+    expect(next.chords).toEqual([]);
+    expect(scoreEvents(next).filter((event) => event.noteId! > 2).map((event) => [event.midi, event.start, event.velocity, event.voice])).toEqual([[60, 240, 0.3, 2], [65, 255, 0.5, 2], [67, 240, 0.7, 2]]);
+    expect(next.notation?.slurs).toEqual([{ from: "n:1", to: "n:4" }]);
+    expect(source.chords).toHaveLength(1);
+  });
+  it("rejects out-of-range group edits atomically", () => {
+    const source = score();
+    expect(editMidiEvents(source, ["n:1", "n:2"], { shift: -1 })).toBe(source);
+    expect(editMidiEvents(source, ["n:1", "n:2"], { transpose: 100 })).toBe(source);
+    expect(editMidiEvents(source, ["n:1", "n:2"], { lengthDelta: -60 })).toBe(source);
+  });
+  it("supports deletion and velocity without modifying unrelated notes", () => {
+    const source = score();
+    const next = editMidiEvents(source, ["n:2"], { velocity: 45 / 127 });
+    expect(next.notes[1].velocity).toBe(45 / 127); expect(next.notes[0]).toEqual(source.notes[0]);
+    expect(editMidiEvents(next, ["n:2"], { remove: true }).notes).toHaveLength(1);
+  });
+  it("copies groups with relative time, duration, velocity and voice intact", () => {
+    const source = score(); source.notes[0].velocity = 0.4;
+    const result = pasteMidiEvents(source, scoreEvents(source), 300);
+    expect(result.keys).toEqual(["n:3", "n:4"]);
+    expect(result.snapshot.notes.slice(2).map((note) => [note.startTime, note.length, note.velocity, note.notationVoice])).toEqual([[300, 60, 0.4, 2], [360, 120, 1, 1]]);
+  });
+  it("uses meter-aware fractional grids and retains off-grid timing until explicitly snapped", () => {
+    expect(midiGridFrames(empty(), 64)).toBe(7.5);
+    expect(midiGridFrames({ ...empty(), timeSignature: 6, timeSignatureBottom: 8 }, 8)).toBe(80);
+    expect(snapMidiFrame(41, 30)).toBe(30);
+    const next = editMidiEvents(score(), ["n:1"], { shift: 0.75 });
+    buildNotationScore(next); expect(next.notes[0].startTime).toBe(0.75);
+  });
+  it("breaks invalid ties after an independent MIDI edit", () => {
+    let source = addScoreNote(addScoreNote(empty(), 60, 0, 60).snapshot, 60, 60, 60).snapshot;
+    source = toggleScoreConnection(source, { noteIds: [1, 2], chordIds: [] }, "ties");
+    expect(editMidiEvents(source, ["n:2"], { shift: 1 }).notation?.ties).toEqual([]);
+  });
+  it("round-trips precise MIDI performance through metadata and guest normalization without undoing fresh edits", () => {
+    const source = editMidiEvents(score(), ["n:1"], { shift: 0.75, lengthDelta: 0.5, velocity: 0.4 });
+    const wire = serializeNotationSnapshot(source); delete wire.notation;
+    wire.notes = wire.notes.map(({ notationVoice, notationStaff, velocity, pitchBend, ...note }) => ({ ...note, startTime: Math.round(note.startTime), length: Math.round(note.length) }));
+    const restored = restoreNotationSnapshot(wire);
+    expect(restored.notes[0]).toMatchObject({ startTime: 0.75, length: 60.5, velocity: 0.4 });
+    const edited = editMidiEvents(restored, ["n:1"], { shift: 30 });
+    expect(restoreNotationSnapshot(edited).notes[0].startTime).toBe(30.75);
+    expect(normalizeGuestSnapshot(edited).notes[0]).toMatchObject({ startTime: 30.75, length: 60.5, velocity: 0.4 });
+  });
+});
