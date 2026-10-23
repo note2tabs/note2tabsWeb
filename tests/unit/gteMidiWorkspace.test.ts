@@ -198,7 +198,7 @@ it("ignores saved snap-off settings, keeps Alt timing snapped and resizes/collap
     expect(host.querySelector('[aria-label="Selected velocity"]')?.closest('[data-midi-velocity-header]')).not.toBeNull();
     await pointer(velocity().querySelector("circle")!, "pointerdown", 30, 10);
     await pointer(velocity(), "pointermove", 30, 150); await pointer(velocity(), "pointerup", 30, 150);
-    expect(snapshot.notes[0].velocity).toBe(0);
+    expect(snapshot.notes[0].velocity).toBe(30 / 127);
     await render();
     const handle = host.querySelector('[aria-label="Resize velocity lane"]')!;
     await act(async () => handle.dispatchEvent(new dom.window.KeyboardEvent("keydown", { bubbles: true, key: "ArrowUp" })));

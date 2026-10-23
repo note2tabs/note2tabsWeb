@@ -46,7 +46,7 @@ export function editMidiEvents(source: EditorSnapshot, keys: readonly string[], 
     return [{ ...note, startTime: note.startTime + (change.shift ?? 0), length: note.length + (change.lengthDelta ?? 0),
       midiNum: change.key ? snapScorePitch(note.midiNum + (change.transpose ?? 0), change.key.root, change.key.type) : note.midiNum + (change.transpose ?? 0), optimals: change.transpose ? [] : note.optimals,
       notationVoice: change.voice ?? note.notationVoice,
-      velocity: change.velocity === undefined && change.velocityScale === undefined ? note.velocity : Math.max(0, Math.min(1, change.velocity ?? (note.velocity ?? 1) * change.velocityScale!)) }];
+      velocity: change.velocity === undefined && change.velocityScale === undefined ? note.velocity : Math.max(30 / 127, Math.min(1, change.velocity ?? (note.velocity ?? 1) * change.velocityScale!)) }];
   });
   const current = scoreEvents(next), byKey = new Map(current.map((event) => [event.key, event]));
   if (next.notation) {

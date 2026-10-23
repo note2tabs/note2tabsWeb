@@ -29,7 +29,7 @@ it("uses the requested control order, active modes, shared undo/redo and real gr
     await act(async () => root.render(React.createElement(GteMidiToolbar, p)));
     const toolbar = host.querySelector('[role="toolbar"]')!;
     expect(toolbar.className).toContain("flex-nowrap"); expect(toolbar.className).not.toContain("flex-wrap");
-    expect([...toolbar.querySelectorAll("button")].map(button => button.getAttribute("aria-label") ?? button.textContent)).toEqual(["Select", "Draw", "Undo", "Redo", "Snap to key", "Fit all", "Focus view", "View⌄"]);
+    expect([...toolbar.querySelectorAll("button")].map(button => button.getAttribute("aria-label") ?? button.textContent)).toEqual(["Select", "Draw", "Undo", "Redo", "Snap to key", "Reset scale", "Fit all", "Focus view", "View⌄"]);
     expect(button("Select").getAttribute("aria-pressed")).toBe("true"); expect(button("Snap to key").getAttribute("aria-pressed")).toBe("true");
     for (const label of ["Select", "Draw", "Undo", "Redo", "Snap to key"]) expect(button(label).title).not.toBe("");
     await act(async () => { button("Draw").click(); button("Undo").click(); button("Redo").click(); button("Snap to key").click(); });

@@ -26,8 +26,8 @@ describe("shared MIDI and sheet music model", () => {
   it("scales velocities proportionally and constrains moved notes to a key without retuning unselected music", () => {
     const source = score(); source.notes[0].velocity = 0.4; source.notes[1].velocity = 0.8;
     const scaled = editMidiEvents(source, ["n:1", "n:2"], { velocityScale: 0.5 });
-    expect(scaled.notes.map((note) => note.velocity)).toEqual([0.2, 0.4]);
-    expect(scorePlaybackEvents(scaled).map((note) => note.velocity)).toEqual([0.2, 0.4]);
+    expect(scaled.notes.map((note) => note.velocity)).toEqual([30 / 127, 0.4]);
+    expect(scorePlaybackEvents(scaled).map((note) => note.velocity)).toEqual([30 / 127, 0.4]);
     const moved = editMidiEvents(source, ["n:1"], { transpose: 1, key: { root: 0, type: 0 } });
     expect(moved.notes[0].midiNum).toBe(60); expect(moved.notes[1]).toEqual(source.notes[1]);
   });
@@ -54,6 +54,11 @@ describe("shared MIDI and sheet music model", () => {
     expect(editMidiEvents(source, ["n:1", "n:2"], { shift: -1 })).toBe(source);
     expect(editMidiEvents(source, ["n:1", "n:2"], { transpose: 100 })).toBe(source);
     expect(editMidiEvents(source, ["n:1", "n:2"], { lengthDelta: -60 })).toBe(source);
+  });
+  it("clamps typed and scaled velocities to a minimum of MIDI 30", () => {
+    for (const change of [{ velocity: 0 }, { velocity: 29 / 127 }, { velocityScale: 0.01 }]) {
+      expect(editMidiEvents(score(), ["n:1"], change).notes[0].velocity).toBe(30 / 127);
+    }
   });
   it("supports deletion and velocity without modifying unrelated notes", () => {
     const source = score();
