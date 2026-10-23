@@ -258,7 +258,7 @@ export const normalizeGuestSnapshot = (
             startTime: pitched && Number.isFinite(Number(note.startTime)) ? Math.max(0, Number(note.startTime) * frameRatio) : scaleFrame(note.startTime, frameRatio, 0),
             length: pitched && Number.isFinite(Number(note.length)) ? Math.max(0.1, Number(note.length) * frameRatio) : scaleFrame(note.length, frameRatio, 1),
             midiNum: clampInt(note.midiNum, 0, -2147483648, 2147483647),
-            ...(Number.isFinite(Number(note.velocity)) ? { velocity: Math.max(0, Math.min(1, Number(note.velocity))) } : {}),
+            ...(typeof note.velocity === "number" && Number.isFinite(note.velocity) ? { velocity: Math.max(0, Math.min(1, Number(note.velocity))) } : {}),
             ...(Array.isArray(note.pitchBend) ? { pitchBend: note.pitchBend.filter((value): value is number => typeof value === "number" && Number.isFinite(value)) } : {}),
             ...(note.notationStaff === "treble" || note.notationStaff === "bass" ? { notationStaff: note.notationStaff } : {}),
             ...(note.notationVoice === 1 || note.notationVoice === 2 ? { notationVoice: note.notationVoice } : {}),

@@ -8,6 +8,8 @@ export function isNotationTrack(snapshot: Parameters<typeof getTrackInstrumentTy
 }
 
 export type ScoreEvent = { key: string; noteId?: number; chordId?: number; member: number; midi: number; start: number; length: number; velocity: number; pitchBend?: number[]; staff: "treble" | "bass"; voice?: 1 | 2 };
+/** Notes use 0–1; chord metadata written by older paths may hold 0–127. Missing/invalid never means silent. */
+const eventVelocity = (value: unknown) => typeof value !== "number" || !Number.isFinite(value) ? 1 : Math.max(0, Math.min(1, value > 1 ? value / 127 : value));
 export function scoreEvents(snapshot: EditorSnapshot): ScoreEvent[] {
   return [
     ...snapshot.notes.map((note) => ({
@@ -15,7 +17,7 @@ export function scoreEvents(snapshot: EditorSnapshot): ScoreEvent[] {
       voice: note.notationVoice ?? 1,
       pitchBend: note.pitchBend,
       midi: Number.isFinite(note.midiNum) ? note.midiNum : getTabMidi(snapshot, note.tab),
-      start: note.startTime, length: note.length, velocity: note.velocity ?? 1, staff: note.notationStaff ?? (note.midiNum < 60 ? "bass" as const : "treble" as const),
+      start: note.startTime, length: note.length, velocity: eventVelocity(note.velocity), staff: note.notationStaff ?? (note.midiNum < 60 ? "bass" as const : "treble" as const),
     })),
     ...snapshot.chords.flatMap((chord) => {
       const count = Math.max(chord.originalMidi?.length ?? 0, chord.currentTabs.length);
@@ -24,7 +26,7 @@ export function scoreEvents(snapshot: EditorSnapshot): ScoreEvent[] {
         voice: chord.notationVoice ?? 1,
         pitchBend: chord.pitchBends?.[member],
         midi: Number.isFinite(chord.originalMidi?.[member]) ? chord.originalMidi[member] : getTabMidi(snapshot, chord.currentTabs[member]),
-        start: chord.startTime, length: chord.length, velocity: chord.velocities?.[member] ?? 1,
+        start: chord.startTime, length: chord.length, velocity: eventVelocity(chord.velocities?.[member]),
         staff: (chord.originalMidi[member] ?? getTabMidi(snapshot, chord.currentTabs[member])) < 60 ? "bass" as const : "treble" as const,
       }));
     }),
