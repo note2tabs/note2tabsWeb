@@ -2,6 +2,8 @@ import { beginTransfer } from "../lib/engagement/transferTracking";
 import { editorCount } from "../lib/i18n/editor/counts";
 import { translatedError } from "../lib/i18n/translate";
 import { useLocale } from "../lib/i18n/react";
+import { quantizeItems } from "../lib/gteQuantize";
+import { isNotationTrack } from "../lib/gteNotation";
 import {
   Fragment,
   useCallback,
@@ -405,6 +407,7 @@ const SCALE_FACTOR_MAX = 8;
 const SCALE_FACTOR_DRAG_PIXELS = 120;
 const QUANTIZE_SUBDIVISION_MIN = 1;
 const QUANTIZE_SUBDIVISION_MAX = 64;
+const QUANTIZE_SUBDIVISION_CHOICES = [1, 2, 4, 8, 16, 32, 64];
 const SINGLE_DRAG_ACTIVATION_DISTANCE_PX = 3;
 const SCALE_TOOL_MODES = ["both", "length", "start"] as const;
 const KEY_SCALE_INTERVALS = [
@@ -1676,8 +1679,8 @@ type ScaleSession = {
 };
 
 type QuantizeSession = {
-  notes: ScaleEntityBase[];
-  chords: ScaleEntityBase[];
+  notes: Array<ScaleEntityBase & { keys?: string[] }>;
+  chords: Array<ScaleEntityBase & { keys?: string[] }>;
   minTime: number;
 };
 
@@ -5303,8 +5306,8 @@ export default function GteWorkspace({
   const [scalePreviewChords, setScalePreviewChords] = useState<Record<number, ScalePreviewEntity>>({});
   const [scalePreviewMaxEnd, setScalePreviewMaxEnd] = useState(0);
   const [quantizeDialogOpen, setQuantizeDialogOpen] = useState(false);
-  const [quantizeSubdivision, setQuantizeSubdivision] = useState(8);
-  const [quantizeSubdivisionInput, setQuantizeSubdivisionInput] = useState("8");
+  const [quantizeSubdivision, setQuantizeSubdivision] = useState(16);
+  const [quantizeSubdivisionInput, setQuantizeSubdivisionInput] = useState("16");
   const quantizePreScale = 1;
   const [quantizeApplyToLength, setQuantizeApplyToLength] = useState(true);
   const [quantizePreviewNotes, setQuantizePreviewNotes] = useState<Record<number, QuantizePreviewEntity>>({});
@@ -7825,41 +7828,22 @@ export default function GteWorkspace({
       const beatsPerBar = Math.max(1, Math.round(timeSignature));
       const beatFrames = framesPerMeasure / beatsPerBar;
       const gridFrames = Math.max(1, beatFrames * timeSignatureBottom / subdivisions);
-      // Lengths are conventional binary note values, not arbitrary multiples
-      // of the onset grid (which could produce 3/8, 5/16, etc.). Retain the
-      // existing ability to use a note value half as short as the onset grid.
-      const wholeNoteFrames = beatFrames * timeSignatureBottom;
-      const shortestLength = wholeNoteFrames / 2 ** Math.floor(Math.log2(subdivisions * 2));
       const notes: Record<number, QuantizePreviewEntity> = {};
       const chords: Record<number, QuantizePreviewEntity> = {};
       let maxEnd = 0;
-
-      const quantizeStart = (startTime: number) => {
-        const scaledStart = session.minTime + (startTime - session.minTime) * preScale;
-        return Math.max(0, Math.round(Math.round(scaledStart / gridFrames) * gridFrames));
+      const scale = (startTime: number) => session.minTime + (startTime - session.minTime) * preScale;
+      const items = [
+        ...session.notes.map((note) => ({ id: `n${note.id}`, start: scale(note.startTime), length: Math.max(1, note.length * preScale), keys: note.keys })),
+        ...session.chords.map((chord) => ({ id: `c${chord.id}`, start: scale(chord.startTime), length: Math.max(1, chord.length * preScale), keys: chord.keys })),
+      ];
+      const snapped = quantizeItems(items, { step: gridFrames, quantizeLength: applyToLength });
+      const place = (id: string, target: Record<number, QuantizePreviewEntity>, numeric: number, fallback: ScaleEntityBase) => {
+        const value = snapped.get(id) ?? { start: fallback.startTime, length: fallback.length };
+        target[numeric] = { startTime: value.start, length: value.length };
+        maxEnd = Math.max(maxEnd, value.start + value.length);
       };
-      const quantizeLength = (length: number) => {
-        if (!applyToLength) return Math.max(1, Math.round(length));
-        const scaledLength = Math.max(1, length * preScale);
-        const lower = shortestLength * 2 ** Math.max(0, Math.floor(Math.log2(scaledLength / shortestLength)));
-        const upper = lower * 2;
-        // Slightly favor lengthening, but leave exact binary values unchanged.
-        return Math.max(1, Math.round(scaledLength < lower + (upper - lower) * 0.4 ? lower : upper));
-      };
-
-      session.notes.forEach((note) => {
-        const quantizedStart = quantizeStart(note.startTime);
-        const quantizedLength = quantizeLength(note.length);
-        notes[note.id] = { startTime: quantizedStart, length: quantizedLength };
-        maxEnd = Math.max(maxEnd, quantizedStart + quantizedLength);
-      });
-
-      session.chords.forEach((chord) => {
-        const quantizedStart = quantizeStart(chord.startTime);
-        const quantizedLength = quantizeLength(chord.length);
-        chords[chord.id] = { startTime: quantizedStart, length: quantizedLength };
-        maxEnd = Math.max(maxEnd, quantizedStart + quantizedLength);
-      });
+      session.notes.forEach((note) => place(`n${note.id}`, notes, note.id, note));
+      session.chords.forEach((chord) => place(`c${chord.id}`, chords, chord.id, chord));
 
       return { notes, chords, maxEnd, subdivisions, preScale };
     },
@@ -7898,12 +7882,13 @@ export default function GteWorkspace({
   const activateQuantizeTool = useCallback((selection?: { noteIds: number[]; chordIds: number[] }) => {
     const noteIds = selection?.noteIds ?? selectedNoteIds;
     const chordIds = selection?.chordIds ?? selectedChordIds;
+    const pitchedSnapshot = isNotationTrack(snapshot);
     const notes = snapshot.notes
       .filter((note) => noteIds.includes(note.id))
-      .map((note) => ({ id: note.id, startTime: note.startTime, length: note.length }));
+      .map((note) => ({ id: note.id, startTime: note.startTime, length: note.length, keys: [pitchedSnapshot ? `m${note.midiNum}` : `s${note.tab?.[0]}`] }));
     const chords = snapshot.chords
       .filter((chord) => chordIds.includes(chord.id))
-      .map((chord) => ({ id: chord.id, startTime: chord.startTime, length: chord.length }));
+      .map((chord) => ({ id: chord.id, startTime: chord.startTime, length: chord.length, keys: pitchedSnapshot ? chord.originalMidi.map((midi) => `m${midi}`) : chord.currentTabs.map((tab) => `s${tab?.[0]}`) }));
     if (!notes.length && !chords.length) {
       setError("Select at least one note/chord before using Snap to beat.");
       return false;
@@ -15864,23 +15849,10 @@ export default function GteWorkspace({
 
           <div className="mt-3 grid gap-2">
             <label className="grid gap-1 text-[11px] font-semibold text-slate-600">{t("Snap size")}<div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
-                <span className="text-sm font-semibold text-slate-700">1 /</span>
-                <input
-                  type="number"
-                  min={QUANTIZE_SUBDIVISION_MIN}
-                  max={QUANTIZE_SUBDIVISION_MAX}
-                  step={1}
-                  value={quantizeSubdivisionInput}
-                  onChange={(event) => {
-                    const nextInput = event.target.value;
-                    setQuantizeSubdivisionInput(nextInput);
-                    const parsed = Number(nextInput);
-                    if (!Number.isFinite(parsed)) return;
-                    applyQuantizePreview(parsed, quantizePreScale, quantizeApplyToLength, { syncInputs: false });
-                  }}
-                  onBlur={() => {
-                    setQuantizeSubdivisionInput(String(quantizeSubdivision));
-                  }}
+                <span className="text-sm font-semibold text-slate-700">{t("Note")}</span>
+                <select
+                  value={quantizeSubdivision}
+                  onChange={(event) => applyQuantizePreview(Number(event.target.value), quantizePreScale, quantizeApplyToLength, { syncInputs: false })}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
                       event.preventDefault();
@@ -15891,8 +15863,11 @@ export default function GteWorkspace({
                       deactivateQuantizeTool();
                     }
                   }}
+                  aria-label={t("Snap size")}
                   className="h-8 min-w-0 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-800 outline-none focus:border-sky-400"
-                />
+                >
+                  {QUANTIZE_SUBDIVISION_CHOICES.map((value) => <option key={value} value={value}>{`1/${value}`}</option>)}
+                </select>
               </div>
             </label>
 

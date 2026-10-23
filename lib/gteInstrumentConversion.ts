@@ -4,7 +4,79 @@ import { scoreEvents } from "./gteNotation";
 import { getAllTabsForMidi } from "./gteTuning";
 
 /** Conversion never transposes, trims, or discards musical events. */
-export function convertTrackInstrument(track: EditorSnapshot, target: InstrumentType): { snapshot?: EditorSnapshot; issue?: string } {
+type Conversion = { snapshot?: EditorSnapshot; issue?: string; warning?: string };
+
+/** `force` makes conversion to tablature always succeed: out-of-range pitches move by octaves,
+ * overlapping same-string notes are shortened, and only notes that cannot be placed at all are removed. */
+export function convertTrackInstrument(track: EditorSnapshot, target: InstrumentType, options?: { force?: boolean }): Conversion {
+  const strict = convertTrackInstrumentStrict(track, target);
+  if (strict.snapshot || !options?.force || (target !== "guitar-tab" && target !== "bass-tab")) return strict;
+  const source = getTrackInstrumentType(track);
+  if (source === "drums" || (source === "bass-tab" && target === "guitar-tab")) return strict;
+  return convertTrackInstrumentForced(track, target);
+}
+
+function convertTrackInstrumentForced(track: EditorSnapshot, target: "guitar-tab" | "bass-tab"): Conversion {
+  const kind = target === "bass-tab" ? "bass" : "tab";
+  const next: EditorSnapshot = { ...track, instrumentType: target, editorType: kind, type: kind, trackType: kind,
+    instrumentId: defaultInstrumentSound(target),
+    chordEditor: { ...track.chordEditor, instrumentType: target, instrumentSound: defaultInstrumentSound(target) } };
+  next.tuning = target === "bass-tab"
+    ? { presetId: "bass-standard", label: "Standard", openStringMidi: [43, 38, 33, 28], capo: 0 }
+    : { presetId: "standard", label: "Standard", openStringMidi: [64, 59, 55, 50, 45, 40], capo: 0 };
+  next.maxFret = 22;
+  const events = scoreEvents(track).filter(event => Number.isFinite(event.midi)).sort((a, b) => a.start - b.start || a.midi - b.midi);
+  let shifted = 0, trimmed = 0, dropped = 0;
+  type Placed = { midi: number; start: number; end: number; tab: TabCoord; options: TabCoord[]; event: typeof events[number] };
+  const placed: Placed[] = [], active: Placed[] = [];
+  for (const event of events) {
+    let midi = event.midi, options = getAllTabsForMidi(next, midi);
+    for (let distance = 12; !options.length && distance <= 72; distance += 12) for (const sign of [1, -1]) {
+      const candidate = event.midi + sign * distance;
+      if (candidate >= 0 && candidate <= 127 && !options.length) { const found = getAllTabsForMidi(next, candidate); if (found.length) { options = found; midi = candidate; } }
+    }
+    if (!options.length) { dropped++; continue; }
+    if (midi !== event.midi) shifted++;
+    options = options.slice().sort((a, b) => a[1] - b[1]);
+    const start = Math.max(0, event.start);
+    for (let i = active.length - 1; i >= 0; i--) if (active[i].end <= start + 1e-7) active.splice(i, 1);
+    let choice = options.find(option => !active.some(other => other.tab[0] === option[0]));
+    if (!choice) {
+      const trimmable = options.find(option => active.every(other => other.tab[0] !== option[0] || other.start < start));
+      if (trimmable) {
+        const blocker = active.find(other => other.tab[0] === trimmable[0])!;
+        blocker.end = start; trimmed++; active.splice(active.indexOf(blocker), 1); choice = trimmable;
+      }
+    }
+    if (!choice) { dropped++; continue; }
+    const row: Placed = { midi, start, end: start + Math.max(1, event.length), tab: choice, options, event };
+    placed.push(row); active.push(row);
+  }
+  let id = track.chords.reduce((max, chord) => Math.max(max, chord.id), track.notes.reduce((max, note) => Math.max(max, note.id), 0)) + 1;
+  const keys = new Map<string, string>(), notes: EditorSnapshot["notes"] = [];
+  for (const row of placed) {
+    const event = row.event, noteId = event.noteId ?? id++;
+    keys.set(event.key, `n:${noteId}`);
+    const original = event.noteId !== undefined ? track.notes.find(note => note.id === event.noteId) : undefined;
+    notes.push({ ...original, id: noteId, startTime: row.start, length: Math.max(1, row.end - row.start), midiNum: row.midi, tab: row.tab, optimals: row.options,
+      velocity: event.velocity, pitchBend: event.pitchBend, notationVoice: event.voice, notationStaff: event.staff } as EditorSnapshot["notes"][number]);
+  }
+  const alive = new Set(notes.map(note => note.id));
+  next.notes = notes.sort((a, b) => a.startTime - b.startTime || a.id - b.id);
+  next.chords = [];
+  next.noteEffects = next.noteEffects?.filter(effect => alive.has(effect.startNoteId) && alive.has(effect.endNoteId));
+  if (next.notation) next.notation = { ...next.notation,
+    ties: next.notation.ties?.flatMap(pair => { const from = keys.get(pair.from), to = keys.get(pair.to); return from && to ? [{ from, to }] : []; }),
+    slurs: next.notation.slurs?.flatMap(pair => { const from = keys.get(pair.from), to = keys.get(pair.to); return from && to ? [{ from, to }] : []; }) };
+  const parts = [
+    shifted && `${shifted} note${shifted === 1 ? " was" : "s were"} outside the playable range and moved by octaves`,
+    dropped && `${dropped} note${dropped === 1 ? " could" : "s could"} not be placed on any string and ${dropped === 1 ? "was" : "were"} removed`,
+    trimmed && `${trimmed} overlapping note${trimmed === 1 ? " was" : "s were"} shortened to fit the strings`,
+  ].filter(Boolean);
+  return { snapshot: next, warning: parts.length ? parts.join("; ") + ". Fingering was optimized automatically." : undefined };
+}
+
+function convertTrackInstrumentStrict(track: EditorSnapshot, target: InstrumentType): Conversion {
   const source = getTrackInstrumentType(track);
   if (source === target) return { snapshot: track };
   if (source === "drums" || target === "drums") return { issue: "Drum tracks cannot be converted to or from pitched instruments." };

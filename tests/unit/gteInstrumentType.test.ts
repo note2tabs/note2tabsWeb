@@ -42,6 +42,15 @@ describe("independent track type and sound", () => {
     expect(convertTrackInstrument(track([86, 86]), "guitar-tab")).toMatchObject({ issue: expect.stringContaining("overlapping") });
     expect(convertTrackInstrument(track([60, 61, 62, 63, 64, 65, 66]), "guitar-tab").snapshot).toBeUndefined();
   });
+  it("forces conversion to tab with a warning instead of cancelling", () => {
+    const outside = convertTrackInstrument(track([10]), "guitar-tab", { force: true });
+    expect(outside.snapshot).toBeDefined(); expect(outside.warning).toContain("outside");
+    expect(outside.snapshot!.notes.every(note => note.tab[0] >= 0)).toBe(true);
+    const dense = convertTrackInstrument(track([60, 61, 62, 63, 64, 65, 66]), "guitar-tab", { force: true });
+    expect(dense.snapshot).toBeDefined(); expect(dense.warning).toBeTruthy();
+    const notes = dense.snapshot!.notes;
+    expect(notes.some((a, i) => notes.some((b, j) => i < j && a.tab[0] === b.tab[0] && a.startTime < b.startTime + b.length && b.startTime < a.startTime + a.length))).toBe(false);
+  });
   it("blocks bass-to-guitar and all drum conversions", () => {
     expect(convertTrackInstrument({ ...track(), instrumentType: "bass-tab" }, "guitar-tab").snapshot).toBeUndefined();
     expect(convertTrackInstrument(track(), "drums").snapshot).toBeUndefined();

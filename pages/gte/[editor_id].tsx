@@ -2958,16 +2958,32 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     }
   };
 
-  const handleLaneTypeChange = useCallback((laneId: string, target: InstrumentType) => {
+  const handleLaneTypeChange = useCallback(async (laneId: string, target: InstrumentType) => {
     const current = canvasRef.current;
     const lane = current?.editors.find(item => item.id === laneId);
     if (!current || !lane) return;
-    const result = convertTrackInstrument(lane, target);
+    const result = convertTrackInstrument(lane, target, { force: true });
     if (!result.snapshot) { setTrackTypeIssue({ laneId, message: result.issue || "This track cannot be converted." }); return; }
-    setTrackTypeIssue(null);
-    const nextCanvas = normalizeCanvas({ ...current, editors: current.editors.map(item => item.id === laneId ? result.snapshot! : item) }, editorId);
+    let converted = result.snapshot;
+    if (target === "guitar-tab" || target === "bass-tab") {
+      // Tablature always gets the same automatic fingering pass as a transcriber import.
+      try {
+        const [{ generatePlayingCoordinatesInSnapshot }, optimizer] = await Promise.all([import("../../lib/gtePlayingCoordinates"), import("../../lib/gteFingeringOptimization")]);
+        const draft = structuredClone(converted);
+        for (let pass = 0; pass < 2; pass += 1) {
+          generatePlayingCoordinatesInSnapshot(draft);
+          optimizer.optimizeTrackFingeringInSnapshot(draft);
+          optimizer.finalizeOptimizedTrackFingeringInSnapshot(draft);
+          optimizer.mergeRedundantCutRegionsInSnapshot(draft);
+        }
+        converted = draft;
+      } catch { /* keep the unoptimized but valid conversion */ }
+    }
+    setTrackTypeIssue(result.warning ? { laneId, message: result.warning } : null);
+    const latest = canvasRef.current ?? current;
+    const nextCanvas = normalizeCanvas({ ...latest, editors: latest.editors.map(item => item.id === laneId ? converted : item) }, editorId);
     applyCanvasUpdate(nextCanvas, { markDirty: true });
-    void warmTrackInstrument(result.snapshot.instrumentId);
+    void warmTrackInstrument(converted.instrumentId);
     if (!isGuestMode) void gteApi.applySnapshot(editorId, cloneCanvas(nextCanvas)).catch((err: any) => setSaveError(err?.message || "Could not save track format."));
   }, [applyCanvasUpdate, editorId, isGuestMode, cloneCanvas, t]);
 

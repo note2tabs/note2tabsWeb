@@ -1,6 +1,7 @@
 import type { EditorSnapshot, TimingMapV2 } from "../types/gte";
 import type { TranscriberSegmentGroup, TranscriberQuantization } from "./gteApi";
 import { frameToSeconds, secondsToFrame } from "./gteTiming";
+import { quantizeItems } from "./gteQuantize";
 import { importedInstrument } from "./gteImportedInstrument";
 import type { TranscriberTrack } from "./gteApi";
 
@@ -25,22 +26,22 @@ export function restorePitchedImport(lane: EditorSnapshot, segments: Transcriber
   if (!map?.bars.length || !segments.length || segments.some(segment => !Number.isFinite(segment.start_time_s) || !Number.isFinite(segment.end_time_s) || !Number.isFinite(segment.pitch_midi))) return lane;
   const offset = Math.max(0, lane.timelineOffsetFrames ?? 0);
   const originSeconds = frameToSeconds(map, offset);
-  const step = 480 / Number((quantization?.subdivision ?? "1/16").slice(2));
-  const strength = Math.max(0, Math.min(1, quantization?.strength ?? 1));
-  const notes = segments.map((segment, index) => {
-    let start = secondsToFrame(map, originSeconds + segment.start_time_s!) - offset;
-    let end = Math.max(start + 1, secondsToFrame(map, originSeconds + segment.end_time_s!) - offset);
-    if (quantization?.enabled) {
-      start = Math.max(0, Math.round(start + (Math.round(start / step) * step - start) * strength));
-      if (quantization.quantizeDurations) {
-        const length = Math.max(step, end - start);
-        end = start + Math.round(length + (Math.max(step, Math.round(length / step) * step) - length) * strength);
-      } else end = Math.max(start + 1, end);
-    }
-    return { id: index + 1, startTime: start + offset, length: end - start, midiNum: segment.pitch_midi!,
+  const bar = map.bars[0], numerator = Math.max(1, bar?.timeSignature?.numerator ?? 4), denominator = Math.max(1, bar?.timeSignature?.denominator ?? 4);
+  const step = 480 * denominator / (numerator * Number((quantization?.subdivision ?? "1/16").slice(2)));
+  const raw = segments.map((segment, index) => {
+    const start = secondsToFrame(map, originSeconds + segment.start_time_s!) - offset;
+    return { id: index, start, length: Math.max(1, secondsToFrame(map, originSeconds + segment.end_time_s!) - offset - start), keys: ["m" + segment.pitch_midi] };
+  });
+  const snapped = quantization?.enabled
+    ? quantizeItems(raw, { step, strength: quantization.strength ?? 1, quantizeLength: quantization.quantizeDurations !== false })
+    : undefined;
+  const notes = segments.flatMap((segment, index) => {
+    const value = snapped ? snapped.get(index) : { start: raw[index].start, length: raw[index].length };
+    if (!value) return [];
+    return [{ id: index + 1, startTime: value.start + offset, length: value.length, midiNum: segment.pitch_midi!,
       tab: [0, 0] as [number, number], optimals: [],
       velocity: typeof segment.amplitude === "number" ? Math.max(0, Math.min(1, segment.amplitude)) : 1,
-      pitchBend: segment.pitch_bend ?? undefined, notationVoice: 1 as const };
+      pitchBend: segment.pitch_bend ?? undefined, notationVoice: 1 as const }];
   });
   return { ...lane, notes, chords: [], noteEffects: [], notation: {},
     totalFrames: Math.max(lane.totalFrames, Math.ceil(notes.reduce((end, note) => Math.max(end, note.startTime + note.length), 0) / 480) * 480) };

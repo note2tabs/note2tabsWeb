@@ -470,7 +470,7 @@ async function importTranscriberToSaved(
     enabled: Boolean(payload.quantize),
     subdivision: "1/16",
     strength: 1,
-    quantizeDurations: false,
+    quantizeDurations: true,
   };
   let currentEditorId = payload.editorId;
   let nextTarget: "new" | "existing" = payload.target === "existing" ? "existing" : "new";
@@ -600,7 +600,7 @@ async function importTranscriberToGuest(
           enabled: Boolean(payload.quantize),
           subdivision: "1/16",
           strength: 1,
-          quantizeDurations: false,
+          quantizeDurations: true,
         },
       }),
     },
