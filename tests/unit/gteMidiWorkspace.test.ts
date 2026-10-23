@@ -104,7 +104,7 @@ it("renders thousands of overlapping notes as bounded overview paths without cha
   } finally { await act(async () => root.unmount()); host.remove(); }
 });
 
-it.each([120, 480])("keeps group movement, key snapping and subgrid resizing correct at %i px/bar", async (zoom) => {
+it.each([120, 480])("keeps group movement, key snapping and always-snapped resizing correct at %i px/bar", async (zoom) => {
   const host = document.createElement("div"); document.body.append(host); const root = createRoot(host), editorId = "zoom-edit-" + zoom;
   savePitchedViewState(editorId, { zoom, row: 18, left: 0, top: 1100, snap: true, grid: 16 });
   let snapshot: EditorSnapshot = { id: editorId, instrumentId: "gm:piano", framesPerMessure: 480, fps: 240, totalFrames: 480, timeSignature: 4, timeSignatureBottom: 4,
@@ -123,7 +123,8 @@ it.each([120, 480])("keeps group movement, key snapping and subgrid resizing cor
     const edge = host.querySelector('[data-midi-note="n:1"]')!.querySelectorAll("rect")[2];
     const edgeX = 150 * scale - 1;
     await pointer(edge, "pointerdown", edgeX, y - 36); await pointer(surface(), "pointermove", edgeX + 6.25, y - 36, { altKey: true }); await pointer(surface(), "pointerup", edgeX + 6.25, y - 36, { altKey: true });
-    expect(snapshot.notes.map((note) => note.length)).toEqual([120 + 6.25 / scale, 120 + 6.25 / scale]);
+    const snappedLength = Math.round((150 + 6.25 / scale) / 30) * 30 - 30;
+    expect(snapshot.notes.map((note) => note.length)).toEqual([snappedLength, snappedLength]);
     await render();
     await pointer(host.querySelector('[data-midi-note="n:1"] rect')!, "pointerdown", 30 * scale + 8, y - 36);
     await pointer(surface(), "pointermove", 30 * scale + 8, y - 54, { altKey: true }); await pointer(surface(), "pointerup", 30 * scale + 8, y - 54, { altKey: true });
@@ -131,6 +132,43 @@ it.each([120, 480])("keeps group movement, key snapping and subgrid resizing cor
   } finally { await act(async () => root.unmount()); host.remove(); }
 });
 afterAll(() => { dom.window.close(); vi.unstubAllGlobals(); });
+
+it("ignores saved snap-off settings, keeps Alt timing snapped and resizes/collapses the 0–127 velocity panel", async () => {
+  const editorId = "layout-always-snap";
+  savePitchedViewState(editorId, { snap: false, strength: 0, zoom: 240, row: 18, grid: 16, left: 0, top: 1100 });
+  const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+  let snapshot: EditorSnapshot = { id: "piano", instrumentId: "upright_piano", framesPerMessure: 480, fps: 240, totalFrames: 960,
+    notes: [], chords: [], cutPositionsWithCoords: [], optimalsByTime: {} };
+  const render = async () => { await act(async () => root.render(React.createElement(GteMidiWorkspace, { editorId, snapshot, isActive: true, onSnapshotChange: next => { snapshot = next; } }))); };
+  const pointer = async (target: EventTarget, type: string, x: number, y: number) => { await act(async () => target.dispatchEvent(new dom.window.MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, altKey: true }))); };
+  try {
+    await render();
+    const roll = host.querySelector('[aria-label="MIDI piano roll"]')!, velocity = () => host.querySelector('[aria-label="MIDI velocity lane"]')!;
+    expect(velocity().getAttribute("height")).toBe("100");
+    expect(host.querySelector('[data-midi-velocity-header]')?.textContent).toContain("0–127");
+    expect(host.querySelector('[aria-label="Snap"]')).toBeNull();
+    await pointer(roll, "dblclick", 37, (127 - 60) * 18 + 6);
+    expect(snapshot.notes[0]).toMatchObject({ startTime: 60, length: 30 });
+    expect(snapshot.notes[0].velocity).toBe(100 / 127);
+    await render();
+    expect(host.querySelector('[aria-label="Selected velocity"]')?.closest('[data-midi-velocity-header]')).not.toBeNull();
+    await pointer(velocity().querySelector("circle")!, "pointerdown", 30, 10);
+    await pointer(velocity(), "pointermove", 30, 150); await pointer(velocity(), "pointerup", 30, 150);
+    expect(snapshot.notes[0].velocity).toBe(0);
+    await render();
+    const handle = host.querySelector('[aria-label="Resize velocity lane"]')!;
+    await act(async () => handle.dispatchEvent(new dom.window.KeyboardEvent("keydown", { bubbles: true, key: "ArrowUp" })));
+    expect(velocity().getAttribute("height")).toBe("110");
+    const collapse = host.querySelector('[aria-label="Show or hide velocity lane"]') as HTMLButtonElement;
+    await act(async () => collapse.click()); expect(velocity().getAttribute("height")).toBe("0");
+    await act(async () => collapse.click()); expect(velocity().getAttribute("height")).toBe("110");
+    await pointer(handle, "pointerdown", 0, 100); await pointer(dom.window, "pointermove", 0, 80); await pointer(dom.window, "pointerup", 0, 80);
+    expect(velocity().getAttribute("height")).toBe("130");
+    expect((host.querySelector('[data-midi-scroll]') as HTMLElement).className).toContain("flex-1");
+    expect(host.querySelector('[aria-label="MIDI playhead"]')?.parentElement?.className).toContain("sticky top-0");
+  } finally { await act(async () => root.unmount()); host.remove(); }
+  expect(readPitchedViewState(editorId)).toMatchObject({ snap: true, strength: 1 });
+});
 
 it("edits the real shared snapshot through draw, move, resize, selection, velocity, clipboard and undo controls", async () => {
   const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
@@ -141,7 +179,7 @@ it("edits the real shared snapshot through draw, move, resize, selection, veloci
     editorId: "canvas__ed__piano", snapshot, isActive: true, editMenuDisabled: disabled, onSnapshotChange: (next: EditorSnapshot) => { snapshot = next; changes(next); },
     onRequestUndo: undo, onRequestRedo: redo, onGlobalPlaybackFrameChange: seek,
   }))); };
-  const button = (text: string) => [...host.querySelectorAll("button")].find((button) => button.textContent === text)!;
+  const button = (text: string) => [...host.querySelectorAll("button")].find((button) => button.textContent === text || button.getAttribute("aria-label") === text)!;
   const grid = () => host.querySelector('[aria-label="MIDI piano roll"]')!;
   const pointer = async (target: Element, type: string, x: number, y: number, extra = {}) => {
     await act(async () => target.dispatchEvent(new dom.window.MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0, ...extra })));
@@ -155,6 +193,7 @@ it("edits the real shared snapshot through draw, move, resize, selection, veloci
     const y = (127 - 60) * 18 + 8;
     await pointer(grid(), "pointerdown", 30, y); await pointer(grid(), "pointermove", 60, y); await pointer(grid(), "pointerup", 60, y);
     expect(snapshot.notes).toHaveLength(1); expect(snapshot.notes[0]).toMatchObject({ midiNum: 60, startTime: 60, length: 90 });
+    expect(snapshot.notes[0].velocity).toBe(100 / 127);
     expect(changes).toHaveBeenCalledTimes(1);
     await render(); await click("Select");
     const note = () => host.querySelector('[data-midi-note]')!;

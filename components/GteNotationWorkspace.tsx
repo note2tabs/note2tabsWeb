@@ -200,6 +200,7 @@ export default function GteNotationWorkspace(props: Props) {
   const selectedKeys = new Set(selectedEvents.map((event) => event.key));
   const connected = (kind: "ties" | "slurs") => (snapshot.notation?.[kind] ?? []).some((link) => selectedKeys.has(link.from) && selectedKeys.has(link.to));
   const tools = <GteNotationToolbar mode={write ? restMode ? "rest" : "note" : "select"} voice={voice}
+    onUndo={props.onRequestUndo} onRedo={props.onRequestRedo} undoCount={props.historyUndoCount} redoCount={props.historyRedoCount}
     denominator={denominator} dotted={write ? dotted : selectedRhythm?.dotted ?? dotted} accidental={accidental} disabled={readOnly}
     tieActive={connected("ties")} slurActive={connected("slurs")}
     canTie={connected("ties") || selectedEvents.some((from) => selectedEvents.some((to) => validNotationTie(from, to)))}

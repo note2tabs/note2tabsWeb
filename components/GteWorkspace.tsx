@@ -228,6 +228,7 @@ type Props = {
   onEditMenuPointerLeave?: () => void;
   canvasKeyBase?: number;
   canvasKeyType?: number;
+  onCanvasKeyChange?: (base: number, type: number) => void;
   sharedTimeSignature?: number;
   sharedTimeSignatureBottom?: number;
   sharedViewportBarCount?: number;

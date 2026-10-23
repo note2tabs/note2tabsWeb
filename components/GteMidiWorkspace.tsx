@@ -1,9 +1,9 @@
 import { memo, useEffect, useMemo, useRef, useState, type ComponentProps, type PointerEvent as ReactPointerEvent } from "react";
 import type GteWorkspace from "./GteWorkspace";
 import { addScoreNote, scoreEvents, snapScorePitch, type ScoreEvent } from "../lib/gteNotation";
-import { editMidiEvents, midiFitPlan, midiGridFrames, midiPitchName, midiPosition, pasteMidiEvents, snapMidiFrame, snapMidiStrength, type MidiEdit } from "../lib/gteMidi";
+import { editMidiEvents, midiFitPlan, midiGridFrames, midiPitchName, midiPosition, pasteMidiEvents, snapMidiFrame, type MidiEdit } from "../lib/gteMidi";
 import { readPitchedViewState, savePitchedViewState } from "../lib/gtePitchedViewState";
-import { notationKey } from "../lib/gteNotationScore";
+import GteMidiToolbar from "./GteMidiToolbar";
 import { prepareTrackInstrument, schedulePreparedTrackNote } from "../lib/gteSamplePlayback";
 import { useLocale } from "../lib/i18n/react";
 
@@ -47,10 +47,14 @@ export default function GteMidiWorkspace(props: Props) {
   const { snapshot, editMenuDisabled: disabled = false } = props;
   const [saved] = useState(() => readPitchedViewState(props.editorId));
   const [mode, setMode] = useState<"select" | "draw">(saved.mode ?? "select");
-  const [selection, setSelection] = useState<string[]>(saved.selection ?? []), [grid, setGrid] = useState(saved.grid ?? 16), [snap, setSnap] = useState(saved.snap ?? true);
+  const [selection, setSelection] = useState<string[]>(saved.selection ?? []), [grid, setGrid] = useState(saved.grid ?? 16);
+  const snap = true, strength = 1;
   const [zoom, setZoom] = useState(saved.zoom ?? 240), [voice, setVoice] = useState<1 | 2>(1), [row, setRow] = useState(saved.row ?? 18);
-  const [triplet, setTriplet] = useState(saved.triplet ?? false), [strength, setStrength] = useState(saved.strength ?? 1);
-  const [velocityHeight, setVelocityHeight] = useState(saved.velocityHeight ?? 96), [follow, setFollow] = useState(saved.follow ?? false);
+  const [triplet, setTriplet] = useState(saved.triplet ?? false);
+  const [velocityHeight, setVelocityHeight] = useState(saved.velocityHeight ?? 100), [follow, setFollow] = useState(saved.follow ?? false);
+  const [showNoteLabels, setShowNoteLabels] = useState(saved.showNoteLabels ?? true);
+  const [workspaceHeight, setWorkspaceHeight] = useState(480);
+  const lastVelocityHeight = useRef(velocityHeight || 100);
   const [auditionDrag, setAuditionDrag] = useState(true), [hoverPitch, setHoverPitch] = useState<number | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; frame: number; midi: number } | null>(null), [velocityScale, setVelocityScale] = useState(100);
   const [loopPreview, setLoopPreview] = useState<{ startFrame: number; endFrame: number } | null>(null);
@@ -71,9 +75,17 @@ export default function GteMidiWorkspace(props: Props) {
   const snapshotRef = useRef(snapshot); snapshotRef.current = snapshot;
   const velocityResizeCleanup = useRef<() => void>(() => undefined);
   useEffect(() => () => velocityResizeCleanup.current(), []);
+  useEffect(() => {
+    const update = () => { if (root.current) setWorkspaceHeight(Math.max(320, window.innerHeight - Math.max(0, root.current.getBoundingClientRect().top) - 104)); };
+    update();
+    const banner = document.querySelector(".gte-editor-sticky-banner"), observer = new ResizeObserver(update);
+    if (banner) observer.observe(banner);
+    window.addEventListener("resize", update); window.addEventListener("scroll", update, { passive: true });
+    return () => { observer.disconnect(); window.removeEventListener("resize", update); window.removeEventListener("scroll", update); };
+  }, []);
   const audio = useRef<AudioContext | null>(null), auditionVersion = useRef(0), lastAudition = useRef(-1);
   const framesPerBar = snapshot.framesPerMessure || 480, step = midiGridFrames(snapshot, grid, triplet), scale = zoom / framesPerBar;
-  const ROW = row, PITCH_HEIGHT = 128 * row, VELOCITY_HEIGHT = velocityHeight;
+  const ROW = row, PITCH_HEIGHT = 128 * row, VELOCITY_HEIGHT = Math.min(velocityHeight, workspaceHeight - 220);
   const interacted = useRef(false), positioned = useRef(false), restoreScroll = useRef<{ left: number; top: number } | null>(null);
   const events = useMemo(() => scoreEvents(snapshot), [snapshot]);
   const chosen = useMemo(() => new Set(selection), [selection]);
@@ -89,15 +101,15 @@ export default function GteMidiWorkspace(props: Props) {
   const selected = useMemo(() => events.filter((event) => chosen.has(event.key)), [events, chosen]);
   const velocityEvents = useMemo(() => events.filter((note) => note.start * scale >= viewport.left - KEY_WIDTH && note.start * scale < viewport.left + viewport.width), [events, scale, viewport.left, viewport.width]);
   const velocityPaths = useMemo(() => {
-    if (velocityEvents.length <= 1500 || !velocityHeight) return [];
+    if (velocityEvents.length <= 1500 || !VELOCITY_HEIGHT) return [];
     const paths = ["", "", ""];
     for (const note of velocityEvents) {
       const value = chosen.has(note.key) ? preview?.velocity ?? note.velocity : note.velocity;
-      const x = (note.start * scale + 3).toFixed(2), y = (6 + (1 - value) * (velocityHeight - 12)).toFixed(2);
-      paths[chosen.has(note.key) ? 2 : note.voice === 2 ? 1 : 0] += `M${x} ${velocityHeight - 5}V${y}`;
+      const x = (note.start * scale + 3).toFixed(2), y = (6 + (1 - value) * (VELOCITY_HEIGHT - 12)).toFixed(2);
+      paths[chosen.has(note.key) ? 2 : note.voice === 2 ? 1 : 0] += `M${x} ${VELOCITY_HEIGHT - 5}V${y}`;
     }
     return paths;
-  }, [velocityEvents, velocityHeight, chosen, preview?.velocity, scale]);
+  }, [velocityEvents, VELOCITY_HEIGHT, chosen, preview?.velocity, scale]);
   const dense = visible.length > 1500;
   // At overview zoom render every note in three batched paths instead of
   // thousands of DOM nodes. Picking and box selection still use real events.
@@ -152,8 +164,8 @@ export default function GteMidiWorkspace(props: Props) {
     if (target && scroller.current) { scroller.current.scrollLeft = target.left; scroller.current.scrollTop = target.top; restoreScroll.current = null;
       setViewport({ left: scroller.current.scrollLeft, top: scroller.current.scrollTop, width: scroller.current.clientWidth, height: scroller.current.clientHeight }); }
   }, [zoom, row]);
-  const viewState = useRef({ zoom, row, ...viewport, selection, grid, triplet, strength, snap, mode, velocityHeight, follow });
-  viewState.current = { zoom, row, ...viewport, selection, grid, triplet, strength, snap, mode, velocityHeight, follow };
+  const viewState = useRef({ zoom, row, ...viewport, selection, grid, triplet, strength, snap, mode, velocityHeight, follow, showNoteLabels });
+  viewState.current = { zoom, row, ...viewport, selection, grid, triplet, strength, snap, mode, velocityHeight, follow, showNoteLabels };
   useEffect(() => () => { savePitchedViewState(props.editorId, viewState.current); }, [props.editorId]);
   useEffect(() => { savePitchedViewState(props.editorId, { selection }); }, [props.editorId, selection]);
   const clearEpoch = useRef(props.selectionClearEpoch);
@@ -171,9 +183,10 @@ export default function GteMidiWorkspace(props: Props) {
     const x = event.clientX - bounds.left, y = event.clientY - bounds.top;
     return { x, y, frame: Math.max(0, x / scale), midi: Math.max(0, Math.min(127, 127 - Math.floor(y / ROW))) };
   };
-  const quantize = (frame: number, alt = false) => Math.max(0, snap && !alt ? snapMidiStrength(frame, step, strength) : frame);
+  const quantize = (frame: number, _alt = false) => snapMidiFrame(frame, step);
   const insert = (frame: number, midi: number, length = step, chromatic = false) => {
     if (disabled) return;
+    frame = quantize(frame); length = Math.max(step, quantize(length));
     const pitch = props.globalSnapToKeyEnabled && !chromatic ? snapScorePitch(midi, props.canvasKeyBase, props.canvasKeyType) : midi;
     const result = addScoreNote(snapshotRef.current, pitch, frame, length, pitch < 60 ? "bass" : "treble", voice);
     result.note.velocity = 100 / 127; commit(result.snapshot); setSelection(["n:" + result.note.id]); void audition(pitch);
@@ -236,9 +249,10 @@ export default function GteMidiWorkspace(props: Props) {
     const targets = active.targets ?? [];
     if (!targets.length) return;
     const anchor = targets[0], raw = current.frame - active.start.frame;
-    let shift = snap && !event.altKey ? snapMidiStrength(raw, step, strength) : raw;
+    const anchorFrame = active.kind === "right" ? anchor.start + anchor.length : anchor.start;
+    let shift = snapMidiFrame(anchorFrame + raw, step) - anchorFrame;
     const shortest = Math.min(...targets.map((note) => note.length)), earliest = Math.min(...targets.map((note) => note.start));
-    const minimum = snap && strength === 1 && !event.altKey ? Math.min(step, shortest) : 0.1;
+    const minimum = Math.min(step, shortest);
     if (active.kind === "left") shift = Math.max(-earliest, Math.min(shortest - minimum, shift));
     else if (active.kind === "move") shift = Math.max(-earliest, shift);
     let transpose = current.midi - active.start.midi;
@@ -264,7 +278,7 @@ export default function GteMidiWorkspace(props: Props) {
     clearGesture();
   };
   const clipboardAction = (cut = false) => { clipboard.current = selected.map((event) => ({ ...event })); if (cut) applyEdit(selection, { remove: true }); };
-  const paste = (frame: number) => { const result = pasteMidiEvents(snapshotRef.current, clipboard.current, frame); commit(result.snapshot); setSelection(result.keys); };
+  const paste = (frame: number) => { const result = pasteMidiEvents(snapshotRef.current, clipboard.current, quantize(frame)); commit(result.snapshot); setSelection(result.keys); };
   const beginVelocity = (note: ScoreEvent, event: ReactPointerEvent<SVGElement>) => {
     if (disabled) return; event.preventDefault(); event.stopPropagation(); focus();
     const keys = chosen.has(note.key) ? selection : [note.key]; setSelection(keys);
@@ -291,8 +305,7 @@ export default function GteMidiWorkspace(props: Props) {
   }, [zoom, scale]); // eslint-disable-line react-hooks/exhaustive-deps
   const info = selected[0];
   const editPitch = info ? preview?.key ? snapScorePitch(info.midi + (preview.transpose ?? 0), preview.key.root, preview.key.type) : info.midi + (preview?.transpose ?? 0) : drawing?.midi;
-  const control = "h-8 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-40";
-  return <div ref={root} tabIndex={0} data-gte-midi-editor="true" className="min-w-0 w-full pb-28 outline-none" onFocus={() => props.onFocusWorkspace?.()}
+  return <div ref={root} tabIndex={0} data-gte-midi-editor="true" className="flex min-h-0 min-w-0 w-full flex-col gap-2 outline-none" style={{ height: workspaceHeight }} onFocus={() => props.onFocusWorkspace?.()}
     onPointerDownCapture={(event) => { if (!(event.target as HTMLElement).closest('[role="menu"]')) setMenu(null); }}
     onKeyDown={(event) => {
       if ((event.target as HTMLElement).closest("input,select,textarea") || disabled) return;
@@ -306,43 +319,24 @@ export default function GteMidiWorkspace(props: Props) {
       else if (key === "escape") { event.stopPropagation(); clearGesture(); setSelection([]); setMode("select"); setMenu(null); }
       else if (key === "delete" || key === "backspace") { event.preventDefault(); event.stopPropagation(); applyEdit(selection, { remove: true }); }
       else if (key.startsWith("arrow") && selection.length) { event.preventDefault(); event.stopPropagation(); applyEdit(selection,
-        key === "arrowup" || key === "arrowdown" ? { transpose: (key === "arrowup" ? 1 : -1) * (event.shiftKey ? 12 : 1), key: event.altKey ? undefined : keyConstraint() } : { shift: (key === "arrowright" ? 1 : -1) * step }); }
+        key === "arrowup" || key === "arrowdown" ? { transpose: (key === "arrowup" ? 1 : -1) * (event.shiftKey ? 12 : 1), key: event.altKey ? undefined : keyConstraint() } : { shift: quantize(Math.min(...selected.map(note => note.start)) + (key === "arrowright" ? 1 : -1) * step) - Math.min(...selected.map(note => note.start)) }); }
       else if (key === "b" && !mod) { event.preventDefault(); setMode((value) => value === "draw" ? "select" : "draw"); }
       else if (key === "f" && !mod) { event.preventDefault(); event.stopPropagation(); if (event.shiftKey && selected.length) fit(selected); else fit(); }
       else if (key === "home") { event.preventDefault(); event.stopPropagation(); centerPlayback(); }
       else if (key === " " && !(event.target as HTMLElement).closest("button")) { event.preventDefault(); event.stopPropagation(); props.onGlobalPlaybackToggle?.(); }
     }}>
-    <div role="toolbar" aria-label={t("MIDI tools")} data-gte-floating-ui="true" className="relative z-40 mb-2 flex flex-wrap items-center gap-1.5 text-xs">
-      <button type="button" className={control + " inline-flex items-center gap-1.5" + (mode === "select" ? " !border-emerald-600/40 !bg-emerald-50 !text-emerald-900" : "")} aria-pressed={mode === "select"} title={t("Select · Esc")} onClick={() => { setMode("select"); focus(); }}><svg viewBox="0 0 20 20" className="h-4 w-4 fill-none stroke-current" aria-hidden="true"><path d="m4 2 12 9-6 1-3 6z" strokeWidth="1.5" /></svg>{t("Select")}</button>
-      <button type="button" className={control + " mr-1 inline-flex items-center gap-1.5" + (mode === "draw" ? " !border-emerald-600/40 !bg-emerald-50 !text-emerald-900" : "")} aria-pressed={mode === "draw"} title={t("Draw · B")} disabled={disabled} onClick={() => { setMode("draw"); focus(); }}><svg viewBox="0 0 20 20" className="h-4 w-4 fill-none stroke-current" aria-hidden="true"><path d="m3 13 10-10 4 4L7 17l-5 1zM11 5l4 4" strokeWidth="1.5" /></svg>{t("Draw")}</button>
-      <label className="flex items-center gap-1 text-slate-500">{t("Grid")}<select aria-label={t("MIDI grid")} className={control} value={grid} onChange={(event) => setGrid(Number(event.target.value))}>{[1, 2, 4, 8, 16, 32, 64].map((value) => <option key={value} value={value}>1/{value}{triplet ? "T" : ""}</option>)}</select></label>
-      <button type="button" className={control + (snap ? " !bg-emerald-50" : "")} aria-pressed={snap} title={t("Snap · hold Alt to bypass")} onClick={() => setSnap(!snap)}>{t("Snap")}</button>
-      <details className="relative"><summary className={control + " flex cursor-pointer list-none items-center"} title={t("Grid and snap settings")}>▾</summary><div className="absolute left-0 top-10 grid w-48 gap-3 rounded-lg border border-slate-200 bg-[#faf9f5] p-3 shadow-lg">
-        <label className="flex items-center gap-2"><input type="checkbox" checked={triplet} onChange={(event) => setTriplet(event.target.checked)} />{t("Triplets")}</label>
-        <label className="grid gap-1">{t("Snap strength")}<input type="range" aria-label={t("Snap strength")} min={0} max={100} step={5} value={strength * 100} onChange={(event) => setStrength(Number(event.target.value) / 100)} /><span>{Math.round(strength * 100)}%</span></label>
-        <span className="text-[10px] text-slate-500">{t("Alt temporarily bypasses snap and key constraints")}</span>
-      </div></details>
-      <button type="button" className={control + (props.globalSnapToKeyEnabled ? " !border-emerald-600/40 !bg-emerald-50" : "")} aria-label={t("Snap to key")} title={t("Snap to key · hold Alt for chromatic notes")} aria-pressed={Boolean(props.globalSnapToKeyEnabled)} disabled={disabled} onClick={() => props.onGlobalSnapToKeyEnabledChange?.(!props.globalSnapToKeyEnabled)}>{notationKey(props.canvasKeyBase, props.canvasKeyType)} ♩ <span className="hidden sm:inline">{t("Snap to key")}</span></button>
-      <label className="flex items-center gap-1 text-slate-500">{t("Voice")}<select aria-label={t("MIDI voice")} className={control} value={selected[0]?.voice ?? voice} disabled={disabled} onChange={(event) => { const value = Number(event.target.value) as 1 | 2; setVoice(value); if (selection.length) applyEdit(selection, { voice: value }); }}><option value={1}>1</option><option value={2}>2</option></select></label>
-      <div role="group" aria-label={t("Zoom and navigation")} className="ml-auto flex items-center gap-1 border-l border-slate-200 pl-2">
-        <button type="button" className={control} title={t("Fit all notes · F")} onClick={() => fit()}>{t("Fit all")}</button>
-        <button type="button" className={control} title={t("Fit selection · Shift+F")} disabled={!selected.length} onClick={() => fit(selected)}>{t("Fit selection")}</button>
-        <details className="relative"><summary className={control + " flex cursor-pointer list-none items-center"}>{t("View")} ▾</summary><div className="absolute right-0 top-10 grid w-56 gap-3 rounded-lg border border-slate-200 bg-[#faf9f5] p-3 shadow-lg">
-          <label className="grid gap-1">{t("Horizontal zoom")}<input type="range" aria-label={t("MIDI zoom")} min={0.05} max={1920} step={0.05} value={zoom} onChange={(event) => zoomAt(Number(event.target.value))} /></label>
-          <label className="grid gap-1">{t("Pitch height")}<input type="range" aria-label={t("Pitch row height")} min={6} max={36} value={row} onChange={(event) => { const next = Number(event.target.value); if (scroller.current) restoreScroll.current = { left: scroller.current.scrollLeft, top: scroller.current.scrollTop * next / row }; setRow(next); }} /></label>
-          <label className="flex items-center gap-2"><input type="checkbox" checked={follow} onChange={(event) => setFollow(event.target.checked)} />{t("Follow playback")}</label>
-          <label className="flex items-center gap-2"><input type="checkbox" checked={auditionDrag} onChange={(event) => setAuditionDrag(event.target.checked)} />{t("Audition while dragging")}</label>
-          <button type="button" className={control} onClick={centerPlayback}>{t("Center playhead · Home")}</button>
-        </div></details>
-      </div>
-      {selected.length > 0 && <label className="flex items-center gap-1 text-slate-500">{t("Velocity")}<input type="number" aria-label={t("Selected velocity")} min={1} max={127} className={control + " w-16"} value={Math.round((selected[0].velocity ?? 1) * 127)} disabled={disabled} onChange={(event) => { const value = Number(event.target.value); if (value >= 1 && value <= 127) applyEdit(selection, { velocity: value / 127 }); }} /></label>}
-    </div>
-    <div className="mb-1 flex min-h-5 items-center justify-between gap-3 text-[10px] tabular-nums text-slate-500" aria-live="off" data-midi-edit-info="true">
-      <span>{editPitch !== undefined ? `${midiPitchName(editPitch)} · ${t("Start")} ${midiPosition(drawing?.frame ?? (info?.start ?? 0) + (preview?.shift ?? 0), snapshot)} · ${t("Length")} ${((drawing?.length ?? (info?.length ?? step) + (preview?.lengthDelta ?? 0)) / framesPerBar * (snapshot.timeSignature || 4)).toFixed(3)} ${t("beats")} · ${t("Velocity")} ${Math.round((preview?.velocity ?? info?.velocity ?? 100 / 127) * 127)}` : t("Double-click to add · drag note edges to resize")}</span>
-      <span>{events.length} {t("notes")}{selected.length ? ` · ${selected.length} ${t("selected")}` : ""}</span>
-    </div>
-    <div className="overflow-hidden rounded-lg border border-slate-300 bg-[#faf9f5]">
-      <div ref={scroller} data-midi-scroll="true" className="relative min-h-64 overflow-auto overscroll-contain" style={{ height: `max(280px, calc(100dvh - ${340 + velocityHeight}px))` }} onScroll={(event) => { const e = event.currentTarget; setViewport({ left: e.scrollLeft, top: e.scrollTop, width: e.clientWidth, height: e.clientHeight }); }}>
+    <GteMidiToolbar mode={mode} disabled={disabled} onMode={value => { setMode(value); focus(); }}
+      onUndo={props.onRequestUndo} onRedo={props.onRequestRedo} undoCount={props.historyUndoCount} redoCount={props.historyRedoCount}
+      grid={grid} triplet={triplet} onGrid={(value, isTriplet) => { setGrid(value); setTriplet(isTriplet); }}
+      keyBase={props.canvasKeyBase ?? 0} keyType={props.canvasKeyType ?? 0} onKeyChange={props.onCanvasKeyChange}
+      snapToKey={Boolean(props.globalSnapToKeyEnabled)} onSnapToKey={props.onGlobalSnapToKeyEnabledChange}
+      voice={selected[0]?.voice ?? voice} onVoice={value => { setVoice(value); if (selection.length) applyEdit(selection, { voice: value }); }}
+      hasSelection={selected.length > 0} onFitAll={() => fit()} onFitSelection={() => fit(selected)}
+      zoom={zoom} row={row} onZoom={value => zoomAt(value)} onRow={next => { if (scroller.current) restoreScroll.current = { left: scroller.current.scrollLeft, top: scroller.current.scrollTop * next / row }; setRow(next); }}
+      follow={follow} onFollow={setFollow} audition={auditionDrag} onAudition={setAuditionDrag}
+      labels={showNoteLabels} onLabels={setShowNoteLabels} onCenter={centerPlayback} />
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-300 bg-[#faf9f5]">
+      <div ref={scroller} data-midi-scroll="true" className="relative min-h-32 flex-1 overflow-auto overscroll-contain" onScroll={(event) => { const e = event.currentTarget; setViewport({ left: e.scrollLeft, top: e.scrollTop, width: e.clientWidth, height: e.clientHeight }); }}>
         <div style={{ width: width + KEY_WIDTH }}>
           <div className="sticky top-0 z-30 flex h-7 bg-[#eeede7]" style={{ width: width + KEY_WIDTH }}>
             <div className="sticky left-0 z-10 flex shrink-0 items-center justify-center border-r border-slate-300 bg-[#eeede7] text-[10px] text-slate-500" style={{ width: KEY_WIDTH }}>{t("Pitch")}</div>
@@ -388,7 +382,7 @@ export default function GteMidiWorkspace(props: Props) {
                   onDoubleClick={(event) => event.stopPropagation()} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); if (!chosen.has(note.key)) setSelection([note.key]); setMenu({ x: event.clientX, y: event.clientY, frame: note.start, midi: note.midi }); }}
                   onKeyDown={(event) => { if (event.key === "Enter") { event.stopPropagation(); setSelection([note.key]); void audition(note.midi); } }}>
                   <rect x={x} y={y} width={w} height={Math.max(4, ROW - 3)} rx={2} className="cursor-grab hover:brightness-110" fill={chosen.has(note.key) ? "#acf0d6" : note.voice === 2 ? "#669a91" : "#34b58b"} fillOpacity={0.7 + note.velocity * 0.3} stroke={chosen.has(note.key) ? "#174b37" : "#34856a"} strokeWidth={chosen.has(note.key) ? 1.6 : 0.65} onPointerDown={(event) => begin(event, "move")} />
-                  {w > 30 && <text x={x + 5} y={y + 10} fontSize={9} fill="#123d2d" pointerEvents="none">{midiPitchName(note.midi)}</text>}
+                  {showNoteLabels && w > 30 && <text x={x + 5} y={y + 10} fontSize={9} fill="#123d2d" pointerEvents="none">{midiPitchName(note.midi)}</text>}
                   <rect x={x} y={y} width={Math.min(6, w / 3)} height={ROW - 4} fill="transparent" cursor="ew-resize" onPointerDown={(event) => begin(event, "left")} />
                   <rect x={x + w - Math.min(6, w / 3)} y={y} width={Math.min(6, w / 3)} height={ROW - 4} fill="transparent" cursor="ew-resize" onPointerDown={(event) => begin(event, "right")} />
                 </g>;
@@ -406,19 +400,23 @@ export default function GteMidiWorkspace(props: Props) {
           </div>
         </div>
       </div>
-      <div className="relative flex h-6 items-center gap-2 border-t border-slate-300 bg-[#eeede7] px-2 text-[10px] text-slate-600">
-        <button type="button" title={t("Show or hide velocity lane")} aria-expanded={velocityHeight > 0} onClick={() => setVelocityHeight(velocityHeight ? 0 : 96)}>{velocityHeight ? "▾" : "▸"} {t("Velocity")}</button>
-        <div role="separator" aria-label={t("Resize velocity lane")} aria-orientation="horizontal" tabIndex={0} className="absolute -top-1 left-20 right-0 h-2 cursor-row-resize"
-          onPointerDown={(event) => { event.preventDefault(); velocityResizeCleanup.current(); const y = event.clientY, base = velocityHeight; event.currentTarget.setPointerCapture(event.pointerId); const move = (e: PointerEvent) => setVelocityHeight(Math.max(40, Math.min(240, base + y - e.clientY))); const end = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", end); window.removeEventListener("pointercancel", end); }; velocityResizeCleanup.current = end; window.addEventListener("pointermove", move); window.addEventListener("pointerup", end); window.addEventListener("pointercancel", end); }}
-          onKeyDown={(event) => { if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); event.stopPropagation(); setVelocityHeight(Math.max(40, Math.min(240, velocityHeight + (event.key === "ArrowUp" ? 10 : -10)))); } }} />
+      <div data-midi-velocity-header="true" className="relative flex h-8 shrink-0 items-center gap-2 border-t border-slate-300 bg-[#eeede7] px-2 text-[10px] text-slate-600">
+        <button type="button" title={t("Show or hide velocity lane")} aria-label={t("Show or hide velocity lane")} className="flex h-7 shrink-0 items-center gap-1 rounded px-1 hover:bg-black/5" aria-expanded={velocityHeight > 0} onClick={() => { if (velocityHeight) { lastVelocityHeight.current = velocityHeight; setVelocityHeight(0); } else setVelocityHeight(lastVelocityHeight.current); }}><span aria-hidden="true">{velocityHeight ? "▾" : "▸"}</span><span className="hidden sm:inline">{t("Velocity")}</span></button>
+        <span className="shrink-0 tabular-nums text-slate-500">0–127</span>
+        <span data-midi-edit-info="true" aria-live="off" className="min-w-0 flex-1 truncate text-slate-500" title={info ? `${midiPitchName(editPitch ?? info.midi)} · ${t("Start")} ${midiPosition(info.start + (preview?.shift ?? 0), snapshot)}` : undefined}>{info ? `${midiPitchName(editPitch ?? info.midi)} · ${midiPosition(info.start + (preview?.shift ?? 0), snapshot)}` : ""}</span>
+        {selected.length > 0 && <input type="number" aria-label={t("Selected velocity")} title={t("Selected velocity · 0–127")} min={0} max={127} className="h-6 w-12 rounded border border-slate-200 bg-white px-1 text-xs tabular-nums" value={Math.round((preview?.velocity ?? selected[0].velocity ?? 1) * 127)} disabled={disabled} onChange={event => { const value = Number(event.target.value); if (Number.isFinite(value) && value >= 0 && value <= 127) applyEdit(selection, { velocity: Math.round(value) / 127 }); }} />}
+        <label className="flex shrink-0 items-center gap-1"><span className="hidden sm:inline">{t("Lane")}</span><select aria-label={t("MIDI controller lane")} defaultValue="velocity" className="h-6 rounded border border-slate-200 bg-white px-1 text-xs"><option value="velocity">{t("Velocity")}</option></select></label>
+        <div role="separator" title={t("Resize velocity lane")} aria-label={t("Resize velocity lane")} aria-orientation="horizontal" aria-valuemin={0} aria-valuemax={240} aria-valuenow={VELOCITY_HEIGHT} tabIndex={0} className="flex h-6 w-6 shrink-0 cursor-row-resize items-center justify-center rounded hover:bg-black/5" style={{ touchAction: "none" }}
+          onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); velocityResizeCleanup.current(); const y = event.clientY, base = VELOCITY_HEIGHT; event.currentTarget.setPointerCapture?.(event.pointerId); const move = (e: PointerEvent) => setVelocityHeight(Math.max(40, Math.min(240, workspaceHeight - 220, base + y - e.clientY))); const end = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", end); window.removeEventListener("pointercancel", end); }; velocityResizeCleanup.current = end; window.addEventListener("pointermove", move); window.addEventListener("pointerup", end); window.addEventListener("pointercancel", end); }}
+          onKeyDown={(event) => { if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); event.stopPropagation(); setVelocityHeight(Math.max(40, Math.min(240, workspaceHeight - 220, VELOCITY_HEIGHT + (event.key === "ArrowUp" ? 10 : -10)))); } }}><svg viewBox="0 0 16 16" className="h-4 w-4 fill-current" aria-hidden="true">{[4,8,12].flatMap(y => [5,11].map(x => <circle key={`${x}:${y}`} cx={x} cy={y} r={1} />))}</svg></div>
         {selected.length > 0 && <details className="relative ml-auto"><summary className="cursor-pointer list-none" title={t("Scale selected velocities")}>{t("Scale")} ▾</summary><div className="absolute bottom-7 right-0 z-40 flex items-center gap-2 rounded-lg border border-slate-200 bg-[#faf9f5] p-2 shadow-lg"><input type="number" aria-label={t("Velocity scale percent")} min={1} max={400} value={velocityScale} onChange={(event) => setVelocityScale(Number(event.target.value))} className="w-14 rounded border border-slate-200 px-1 py-1" />%<button type="button" disabled={disabled || velocityScale <= 0 || velocityScale > 400} onClick={() => applyEdit(selection, { velocityScale: velocityScale / 100 })}>{t("Apply")}</button></div></details>}
         {preview?.velocity !== undefined && <span>{Math.round(preview.velocity * 127)}</span>}
       </div>
-      <div className="relative overflow-hidden bg-[#f1f2ec]" style={{ height: VELOCITY_HEIGHT }}>
-        <div className="absolute inset-y-0 left-0 z-10 flex items-center border-r border-slate-300 bg-[#eeede7] px-1 text-[9px] text-slate-500" style={{ width: KEY_WIDTH }}>{t("Velocity")}</div>
+      <div className="relative shrink-0 overflow-hidden bg-[#f1f2ec]" style={{ height: VELOCITY_HEIGHT }}>
+        <div className="absolute inset-y-0 left-0 z-10 border-r border-slate-300 bg-[#eeede7] px-2 text-right text-[9px] tabular-nums text-slate-500" style={{ width: KEY_WIDTH }}>{[127,96,64,32,0].map(value => <span key={value} className="absolute right-2" style={{ top: 6 + (1 - value / 127) * (VELOCITY_HEIGHT - 12), transform: "translateY(-50%)" }}>{value}</span>)}</div>
         <svg width={width} height={VELOCITY_HEIGHT} style={{ marginLeft: KEY_WIDTH, transform: `translateX(-${viewport.left}px)`, touchAction: "none" }} aria-label={t("MIDI velocity lane")}
           onPointerDown={(event) => { if (disabled || !velocityPaths.length) return; const bounds = event.currentTarget.getBoundingClientRect(), frame = (event.clientX - bounds.left) / scale; const note = velocityEvents.reduce<ScoreEvent | undefined>((best, note) => !best || Math.abs(note.start - frame) < Math.abs(best.start - frame) ? note : best, undefined); if (note) beginVelocity(note, event); }}
-          onPointerMove={(event) => { const active = gesture.current; if (active?.kind !== "velocity") return; const bounds = event.currentTarget.getBoundingClientRect(); setPreview({ velocity: Math.max(1 / 127, Math.min(1, 1 - (event.clientY - bounds.top - 6) / (VELOCITY_HEIGHT - 12))) }); }}
+          onPointerMove={(event) => { const active = gesture.current; if (active?.kind !== "velocity") return; const bounds = event.currentTarget.getBoundingClientRect(); setPreview({ velocity: Math.max(0, Math.min(1, 1 - (event.clientY - bounds.top - 6) / (VELOCITY_HEIGHT - 12))) }); }}
           onPointerUp={(event) => { const active = gesture.current; if (active?.kind === "velocity" && active.base === snapshotRef.current && preview) applyEdit(active.keys, preview); clearGesture(); event.currentTarget.releasePointerCapture?.(event.pointerId); }} onPointerCancel={clearGesture} onLostPointerCapture={clearGesture}>
           {velocityPaths.map((path, index) => <path key={index} d={path} stroke={["#34b58b", "#669a91", "#175a43"][index]} strokeWidth={2} fill="none" data-midi-velocity-density="true" />)}
           {(velocityPaths.length ? velocityEvents.filter((note) => chosen.has(note.key)).slice(0, 100) : velocityEvents).map((note) => {

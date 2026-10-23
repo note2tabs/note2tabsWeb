@@ -9005,6 +9005,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               editMenuDisabled={editMenuDisabled}
                               canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
                               canvasKeyType={normalizeKeyType(canvas.keyType)}
+                              onCanvasKeyChange={commitCanvasKey}
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
                               sharedTimeSignatureBottom={normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4}
                               sharedViewportBarCount={sharedViewportBarCount}
@@ -9292,6 +9293,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                               editMenuDisabled={editMenuDisabled}
                               canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
                               canvasKeyType={normalizeKeyType(canvas.keyType)}
+                              onCanvasKeyChange={commitCanvasKey}
                               sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
                               sharedTimeSignatureBottom={normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4}
                               sharedViewportBarCount={sharedViewportBarCount}
@@ -9844,6 +9846,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                           editMenuDisabled={editMenuDisabled || practiceModeEnabled}
                           canvasKeyBase={normalizeKeyBase(canvas.keyBase)}
                           canvasKeyType={normalizeKeyType(canvas.keyType)}
+                          onCanvasKeyChange={commitCanvasKey}
                           sharedTimeSignature={normalizeTimeSignature(canvas.editors[0]?.timeSignature) ?? 8}
                           sharedTimeSignatureBottom={normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4}
                           sharedViewportBarCount={sharedViewportBarCount}
@@ -10700,7 +10703,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           className="pointer-events-none fixed bottom-5 left-1/2 z-[9997] w-[min(calc(100vw-2rem),64rem)] -translate-x-1/2 px-2"
         >
           <div className="flex justify-center">
-            <div className="pointer-events-auto grid min-h-[4.5rem] grid-cols-[8rem_2rem_2.25rem_2rem_8rem] items-center gap-x-1 gap-y-1 rounded-2xl border border-slate-200 bg-white/95 px-2 py-2 text-slate-700 shadow-sm backdrop-blur">
+            <div data-gte-shared-transport="true" className={`pointer-events-auto grid min-h-[4.5rem] ${notationTrackActive ? "grid-cols-[2rem_2rem_2.25rem_2rem_8rem]" : "grid-cols-[8rem_2rem_2.25rem_2rem_8rem]"} items-center gap-x-1 gap-y-1 rounded-2xl border border-slate-200 bg-white/95 px-2 py-2 text-slate-700 shadow-sm backdrop-blur`}>
             {displayPreferences.showPlaybackCounter && (
               <span
                 className="col-start-3 row-start-1 justify-self-center whitespace-nowrap text-[10px] font-semibold tabular-nums text-slate-600"
@@ -10711,6 +10714,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               </span>
             )}
               <div className="col-start-1 row-start-2 flex items-center justify-end gap-1">
+                {!notationTrackActive && <>
                     <button
                       type="button"
                       onClick={handleCanvasUndo}
@@ -10732,6 +10736,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       <span className="h-4 w-4 shrink-0 bg-current" aria-hidden="true" style={{ maskImage: "url(/icons/redo-transparent.png)", WebkitMaskImage: "url(/icons/redo-transparent.png)", maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} />
                     </button>
                 <span className="mx-2 h-5 border-l border-slate-200" aria-hidden="true" />
+                </>}
                 <button
                   type="button"
                   onClick={skipGlobalPlaybackToStart}

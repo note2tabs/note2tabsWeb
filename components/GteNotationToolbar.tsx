@@ -14,12 +14,18 @@ type Props = {
   voice: 1 | 2; tieActive: boolean; slurActive: boolean; canTie: boolean; canSlur: boolean;
   onDuration: (value: number, rest: boolean) => void; onDot: () => void; onAccidental: (value: -1 | 0 | 1) => void;
   onVoice: (voice: 1 | 2) => void; onTie: () => void; onSlur: () => void; onDelete: () => void;
+  onUndo?: () => void; onRedo?: () => void; undoCount?: number; redoCount?: number;
 };
 export default function GteNotationToolbar(p: Props) {
   const { t } = useLocale();
   const style = (active = false) => `flex min-h-7 min-w-0 flex-col items-center justify-center rounded-md px-1 py-0.5 text-slate-700 transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:opacity-35 ${active ? "bg-emerald-100 text-emerald-900 ring-1 ring-inset ring-emerald-600/30" : ""}`;
   const group = "grid grid-cols-2 gap-0.5 border-t border-slate-200/70 pt-1";
   return <div role="toolbar" aria-label={t("Notation tools")} aria-orientation="vertical" className="grid w-[100px] gap-1 [@media(max-height:700px)]:w-[124px]" data-gte-floating-ui="true">
+    {(p.onUndo || p.onRedo) && <div role="group" aria-label={t("History")} className="grid grid-cols-2 gap-0.5">
+      {([false, true] as const).map(redo => <button key={String(redo)} type="button" aria-label={t(redo ? "Redo" : "Undo")} title={t(redo ? "Redo · Ctrl+Shift+Z" : "Undo · Ctrl+Z")} className={style()} disabled={p.disabled || !(redo ? p.onRedo : p.onUndo) || (redo ? p.redoCount : p.undoCount) === 0} onClick={redo ? p.onRedo : p.onUndo}>
+        <span aria-hidden="true" className="h-4 w-4 bg-current" style={{ maskImage: `url(/icons/${redo ? "redo" : "undo"}-transparent.png)`, WebkitMaskImage: `url(/icons/${redo ? "redo" : "undo"}-transparent.png)`, maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} />
+      </button>)}
+    </div>}
     {([false, true] as const).map((rest) => <div key={String(rest)} role="group" aria-label={t(rest ? "Rest durations" : "Note durations")} className={group + " [@media(max-height:700px)]:grid-cols-3"}>
       {VALUES.map((value, index) => <button key={value} type="button" className={style(p.mode === (rest ? "rest" : "note") && p.denominator === value)}
         aria-label={t(NAMES[index] + (rest ? " rest" : " note"))} title={t(NAMES[index] + (rest ? " rest" : " note"))}
