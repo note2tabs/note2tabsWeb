@@ -59,7 +59,10 @@ export function scaleImportTimingMap(map: TimingMapV2, scale: number, allowManua
 
 export function scaleImportedLane(lane: EditorSnapshot, scale: number, secondsPerBar: number): EditorSnapshot {
   if (scale === 1) return lane;
-  return { ...lane, secondsPerBar,
+  // The backend rebuilds note/chord rows only when the lane version changes.
+  // Without this, tempo metadata saves but drums/bass reload at the old frames.
+  return { ...lane, version: Math.max(1, Math.floor(lane.version || 1)) + 1, secondsPerBar,
+    fps: Math.max(1, Math.round(480 / secondsPerBar)),
     timelineOffsetFrames: (lane.timelineOffsetFrames ?? 0) * scale,
     totalFrames: Math.max(480, Math.ceil(lane.totalFrames * scale / 480) * 480),
     notes: lane.notes.map(note => ({ ...note, startTime: note.startTime * scale, length: note.length * scale })),
