@@ -1,3 +1,6 @@
+import { importedInstrument } from "./gteImportedInstrument";
+import type { InstrumentType } from "./gteInstrumentType";
+
 export type StoredTranscriberSegment = {
   start_time_s?: number;
   end_time_s?: number;
@@ -12,6 +15,7 @@ export type StoredTranscriberSegment = {
 
 export type StoredTranscriberSegmentGroup = StoredTranscriberSegment[];
 export type StoredTranscriberTrack = {
+  instrumentType?: InstrumentType;
   name: string;
   trackType: "tab" | "bass" | "drums";
   instrumentId: string;
@@ -150,11 +154,10 @@ export function normalizeTranscriberTracks(value: unknown): StoredTranscriberTra
     const name = typeof record.name === "string" && record.name.trim()
       ? record.name.trim().slice(0, 80)
       : trackType === "drums" ? "Drums" : trackType === "bass" ? "Bass" : `Instrument ${index + 1}`;
-    const instrumentId = typeof record.instrumentId === "string" && record.instrumentId.trim()
-      ? record.instrumentId.trim().slice(0, 80)
-      : trackType === "drums" ? "drum1" : trackType === "bass" ? "bass_overdrive" : "jazz";
+    const { instrumentType, instrumentId } = importedInstrument(record);
     return [{
       name,
+      instrumentType,
       trackType,
       instrumentId,
       ...(Number.isInteger(program) && program >= 0 && program <= 127 ? { program } : {}),

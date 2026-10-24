@@ -9,6 +9,8 @@ export type Note = {
   optimals: TabCoord[];
   velocity?: number;
   pitchBend?: number[];
+  notationStaff?: "treble" | "bass";
+  notationVoice?: 1 | 2;
 };
 
 export type GteTrackType = "tab" | "bass" | "chords" | "drums";
@@ -58,6 +60,7 @@ export type NoteEffect = {
 };
 
 export type Chord = {
+  notationVoice?: 1 | 2;
   id: number;
   startTime: number;
   length: number;
@@ -96,6 +99,12 @@ export type CutRegion = [number, number];
 export type CutWithCoord = [CutRegion, TabCoord];
 
 export type EditorSnapshot = {
+  instrumentType?: "notation" | "guitar-tab" | "bass-tab" | "drums";
+  notation?: {
+    rests?: Array<{ id: number; start: number; length: number; staff: "treble" | "bass"; voice: 1 | 2; denominator: number; dotted: boolean }>;
+    ties?: Array<{ from: string; to: string }>;
+    slurs?: Array<{ from: string; to: string }>;
+  };
   id: string;
   name?: string;
   editorType?: GteTrackType | string;

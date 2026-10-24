@@ -49,7 +49,7 @@ const parseManifest = (value: unknown): TrackInstrumentOption[] => {
         const midi = Number(midiValue);
         const file = typeof fileValue === "string" ? fileValue.trim() : "";
         if (!Number.isFinite(midi) || !file || file.toLowerCase().startsWith("mute_")) return [];
-        return [{ midi, url: `/sound_samples/${folder}/${file}` }];
+        return [{ midi, url: `/sound_samples/${folder.split("/").map(encodeURIComponent).join("/")}/${encodeURIComponent(file)}` }];
       })
       .sort((left, right) => left.midi - right.midi);
     if (!samples.length) return [];
@@ -74,7 +74,7 @@ if (!TRACK_INSTRUMENT_OPTIONS.length) {
   throw new Error("public/sound_samples/manifest.json must contain at least one Opus instrument.");
 }
 
-export const DEFAULT_TRACK_INSTRUMENT_ID = TRACK_INSTRUMENT_OPTIONS[0].id;
+export const DEFAULT_TRACK_INSTRUMENT_ID = "acoustic";
 
 const LEGACY_INSTRUMENT_IDS: Record<string, string> = {
   "builtin:sine": "acoustic",
@@ -95,7 +95,9 @@ export const normalizeTrackInstrumentId = (value: unknown) => {
     : DEFAULT_TRACK_INSTRUMENT_ID;
 };
 
-export const getTrackInstrumentOptions = () => TRACK_INSTRUMENT_OPTIONS.slice();
+// Only offer sounds backed by dedicated samples. Keep legacy synthesized IDs
+// resolvable for existing tracks without advertising them as sound choices.
+export const getTrackInstrumentOptions = () => TRACK_INSTRUMENT_OPTIONS.filter((option) => option.kind === "opus" && option.samples.length > 0);
 
 export const getTrackInstrumentOption = (value?: string | null) => {
   const id = normalizeTrackInstrumentId(value);

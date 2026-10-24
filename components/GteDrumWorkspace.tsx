@@ -11,6 +11,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
+import GteDrumScorePlayback from "./GteDrumScorePlayback";
 import type { DrumLoopRegion, EditorSnapshot, Note, TimingMapV2 } from "../types/gte";
 import {
   buildDrumNote,
@@ -1657,6 +1658,7 @@ export default function GteDrumWorkspace({
         playheadRef.current.style.transform = `translateX(${LABEL_WIDTH + frame * pxPerFrame}px)`;
       }
     };
+    if (!mobileViewport) return;
     applyFrame();
     if (!globalPlaybackIsPlaying) return;
     let raf = 0;
@@ -1672,6 +1674,7 @@ export default function GteDrumWorkspace({
     globalPlaybackIsPlaying,
     pxPerFrame,
     totalFrames,
+    mobileViewport,
   ]);
 
   useEffect(() => {
@@ -2140,7 +2143,6 @@ export default function GteDrumWorkspace({
     const barsPerRow = Math.max(1, Math.min(6, requestedBarsPerRow));
     const scoreRowCount = Math.max(1, Math.ceil(scoreBarCount / barsPerRow));
     const displayedNotes = materializedNotes;
-    const playheadBar = Math.max(0, Math.min(scoreBarCount - 1, Math.floor(globalPlaybackFrame / FRAMES_PER_BAR)));
 
     return (
       <div
@@ -2150,11 +2152,11 @@ export default function GteDrumWorkspace({
         className="gte-drum-score relative min-w-0 w-full overflow-x-hidden space-y-5 px-8 py-2"
         onMouseDown={onFocusWorkspace}
       >
+        <GteDrumScorePlayback root={scoreRef} frame={globalPlaybackFrame} playing={globalPlaybackIsPlaying} getFrame={getGlobalPlaybackFrame} framesPerBar={FRAMES_PER_BAR} barsPerRow={barsPerRow} rowCount={scoreRowCount} />
         {Array.from({ length: scoreRowCount }, (_, scoreRowIndex) => {
           const firstBar = scoreRowIndex * barsPerRow;
           const rowBarCount = Math.min(barsPerRow, scoreBarCount - firstBar);
           const rowStart = firstBar * FRAMES_PER_BAR;
-          const rowPlayheadFrame = globalPlaybackFrame - rowStart;
           return (
             <section key={`drum-score-row-${scoreRowIndex}`} className="gte-drum-score-row">
               <div className="gte-drum-score-gutter" aria-hidden="true">{t("KIT")}</div>
@@ -2386,13 +2388,12 @@ export default function GteDrumWorkspace({
                     </div>
                   </div>
                 ))}
-                {playheadBar >= firstBar && playheadBar < firstBar + rowBarCount ? (
                   <div
+                    data-drum-score-playhead="true"
                     className="gte-drum-playhead"
-                    style={{ left: `calc(4.5rem + ${(rowPlayheadFrame / (barsPerRow * FRAMES_PER_BAR)) * 100}% - ${(rowPlayheadFrame / (barsPerRow * FRAMES_PER_BAR)) * 4.5}rem)` }}
+                    style={{ left: "4.5rem", display: "none", willChange: "transform" }}
                     aria-hidden="true"
                   />
-                ) : null}
               </div>
             </section>
           );
