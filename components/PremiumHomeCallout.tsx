@@ -25,7 +25,7 @@ export function PremiumHomeCalloutCard({ href, onClick }: PremiumHomeCalloutCard
     <aside className="premium-home-callout" aria-label={t("Longer YouTube transcription options")}>
       <div>
         <strong>{t("Need a longer section?")}</strong>
-        <p>{t("Free accounts can transcribe 30 seconds at a time. Premium unlocks longer YouTube sections within the first 10 minutes.")}</p>
+        <p>{t("Free accounts can transcribe 30 seconds at a time. Premium supports YouTube sections up to 10 minutes long.")}</p>
       </div>
       <Link href={href} onClick={onClick}>{t("See longer options")}</Link>
     </aside>
@@ -62,18 +62,21 @@ export default function PremiumHomeCallout({ show = false }: { show?: boolean })
     setVisible(true);
     sendEvent(ANALYTICS_EVENTS.premiumPromptEligible, {
       surface: "youtube_clip_limit_inline",
+      offer_version: "inline_upgrade_v1",
       placement: "below_youtube_time_range",
       trigger: "youtube_link_added",
       ...premiumFunnelProperties(context),
     });
     sendEvent(ANALYTICS_EVENTS.premiumPromptRendered, {
       surface: "youtube_clip_limit_inline",
+      offer_version: "inline_upgrade_v1",
       placement: "below_youtube_time_range",
       trigger: "youtube_link_added",
       ...premiumFunnelProperties(context),
     });
     sendEvent(ANALYTICS_EVENTS.premiumPromptShown, {
       surface: "youtube_clip_limit_inline",
+      offer_version: "inline_upgrade_v1",
       ...premiumFunnelProperties(context),
     });
   }, [session?.user?.role, session?.user?.subscriptionPlan, show, status]);
@@ -86,6 +89,7 @@ export default function PremiumHomeCallout({ show = false }: { show?: boolean })
       viewedRef.current = true;
       sendEvent(ANALYTICS_EVENTS.premiumPromptViewed, {
         surface: "youtube_clip_limit_inline",
+        offer_version: "inline_upgrade_v1",
         placement: "below_youtube_time_range",
         trigger: "youtube_link_added",
         ...premiumFunnelProperties(funnel),
@@ -106,10 +110,12 @@ export default function PremiumHomeCallout({ show = false }: { show?: boolean })
           onClick={() => {
             sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, {
               surface: "youtube_clip_limit_inline",
+              offer_version: "inline_upgrade_v1",
               ...premiumFunnelProperties(funnel),
             });
             trackCtaClick("youtube_clip_limit_explore_premium", {
               surface: "youtube_clip_limit_inline",
+              offer_version: "inline_upgrade_v1",
               ...premiumFunnelProperties(funnel),
             });
           }}

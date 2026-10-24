@@ -1948,5 +1948,6 @@
   "Your file is {size} MB. Your plan’s upload limit is {limit} MB.": "Your file is {size} MB. Your plan’s upload limit is {limit} MB.",
   "You’re running low on credits": "You’re running low on credits",
   "You’ve used all your credits": "You’ve used all your credits",
-  "{count} credits every month": "{count} credits every month"
+  "{count} credits every month": "{count} credits every month",
+  "Free accounts can transcribe 30 seconds at a time. Premium supports YouTube sections up to 10 minutes long.": "Free accounts can transcribe 30 seconds at a time. Premium supports YouTube sections up to 10 minutes long."
 }
