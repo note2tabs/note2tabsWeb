@@ -38,6 +38,7 @@ vi.mock("../../lib/analytics", () => ({
     premiumSelectionPreservationSkipped: "save_skipped",
   },
   sendEvent: m.send,
+  trackCtaClick: vi.fn(),
 }));
 vi.mock("../../lib/checkoutTracking", () => ({
   rememberCheckoutAttempt: m.remember,
@@ -291,4 +292,55 @@ it("does not auto-resume a stale selection after a recovered Premium upgrade",as
  await render({plan:'PREMIUM',remaining:0,beforeCheckout:()=>Promise.reject(Error('storage'))});
  await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
  expect(m.assign).toHaveBeenCalledWith('/transcribe');
+});
+
+
+it("restores the old oversized-file card without opening a dialog", async()=>{
+ await render({plan:"FREE",fileBytes:60*1024*1024,remaining:10},{presentation:"classic",tracking:{source:"large_upload_gate",reason:"file_size_limit",surface:"file_size_limit_dialog",trigger:"oversized_file_selected"}});
+ expect(el.querySelector("dialog")).toBeNull();
+ expect(el.querySelector(".premium-conversion-card")?.textContent).toContain("Continue with this upload");
+ expect(el.textContent).toContain("Continue with Premium");
+ expect(el.textContent).not.toContain("Billed monthly");
+ expect(m.send.mock.calls.filter(([event])=>event==="shown")).toHaveLength(1);
+ expect(m.send.mock.calls.find(([event])=>event==="shown")?.[1]).toMatchObject({surface:"file_size_limit_card",popup_version:"classic_inline_v1"});
+});
+it("keeps silent storage recovery on the classic direct-checkout button and counts one click", async()=>{
+ m.fetch.mockResolvedValue({ok:true,json:async()=>({url:"https://checkout.stripe.com/classic"})});
+ const before=vi.fn().mockRejectedValue(Error("storage"));
+ await render({plan:"FREE",fileBytes:60*1024*1024,remaining:10,beforeCheckout:before},{presentation:"classic",tracking:{source:"large_upload_gate",reason:"file_size_limit",surface:"file_size_limit_dialog",trigger:"oversized_file_selected"}});
+ await act(async()=>el.querySelector<HTMLButtonElement>(".premium-conversion-card button")!.click());
+ expect(before).toHaveBeenCalledOnce();expect(m.fetch).toHaveBeenCalledOnce();
+ expect(m.assign).toHaveBeenCalledWith("https://checkout.stripe.com/classic");
+ expect(JSON.parse(m.fetch.mock.calls[0][1].body).returnTo).toBe("/transcribe");
+ expect(m.send.mock.calls.filter(([event])=>event==="clicked")).toHaveLength(1);
+ expect(el.querySelector('[role="alert"]')).toBeNull();
+});
+it("preserves Pro intent for files too large for Premium", async()=>{
+ await render({plan:"FREE",fileBytes:300*1024*1024,remaining:10},{presentation:"classic",tracking:{source:"large_upload_gate",reason:"pro_file_size_limit",surface:"file_size_limit_dialog",trigger:"oversized_file_selected"}});
+ expect(el.querySelector("dialog")).toBeNull();expect(el.textContent).toContain("This file needs Pro");
+ expect(el.querySelector("a")?.getAttribute("href")).toContain("plan=pro");
+ expect(m.send.mock.calls.find(([event])=>event==="shown")?.[1]).toMatchObject({surface:"pro_file_size_limit_card",popup_version:"classic_inline_v1"});
+});
+it("restores the old Heavy-model pricing link without a saving prerequisite", async()=>{
+ const before=vi.fn();
+ await render({plan:"FREE",remaining:10,beforeCheckout:before},{presentation:"classic",tracking:{source:"heavy_model",reason:"heavy_model_locked",surface:"heavy_model_locked_dialog",trigger:"locked_model_selected"}});
+ expect(el.querySelector("dialog")).toBeNull();expect(el.textContent).toContain("Use the Heavy model");
+ expect(el.querySelector("a")?.getAttribute("href")).toContain("reason=heavy_model_locked");
+ expect(before).not.toHaveBeenCalled();expect(m.fetch).not.toHaveBeenCalled();
+});
+it("sends signed-out oversized-file visitors to pricing instead of forcing login", async()=>{
+ m.session={data:null,status:"unauthenticated"};
+ await render({plan:"FREE",fileBytes:60*1024*1024,remaining:10},{presentation:"classic",tracking:{source:"large_upload_gate",reason:"file_size_limit",surface:"file_size_limit_dialog",trigger:"oversized_file_selected"}});
+ expect(el.querySelector("a")?.getAttribute("href")).toMatch(/^\/pricing\?/);
+ expect(m.signIn).not.toHaveBeenCalled();expect(m.fetch).not.toHaveBeenCalled();
+});
+it("keeps exhausted-credit upgrades inline with the old styling", async()=>{
+ await render({plan:"FREE",remaining:0},{presentation:"classic"});
+ expect(el.querySelector("dialog")).toBeNull();expect(el.textContent).toContain("Keep transcribing today");
+ expect(el.querySelector("a")?.getAttribute("href")).toContain("reason=credits_exhausted");
+});
+it("keeps Premium-to-Pro upgrades on pricing without fetching an automatic quote", async()=>{
+ await render({plan:"PREMIUM",remaining:0},{presentation:"classic"});
+ expect(el.querySelector("dialog")).toBeNull();expect(el.textContent).toContain("See Pro");
+ expect(el.querySelector("a")?.getAttribute("href")).toContain("plan=pro");expect(m.fetch).not.toHaveBeenCalled();
 });

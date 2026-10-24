@@ -1,0 +1,9 @@
+# Classic upgrade design rollback — 24 October 2026
+
+Restore the previous nonblocking PremiumConversionCard design on both transcriber entry pages for oversized files, selected duration limits, locked models and exhausted/insufficient credits. Keep the long-song, early-low-credit and YouTube offers restored previously. Paid users with a small positive balance again see the credit-reset notice. No production transcriber limit renders the full-screen priced dialog. The dialog remains available in development previews for future iteration.
+
+Preserve safety and intent fixes: bounded storage saving with automatic continuation, no stale-selection auto-resume after failure, duplicate-click protection, correct Pro routing when Premium is insufficient, locale-aware pricing links, and purchase tracking. Signed-out visitors review pricing first; signed-in free users with files within Premium's limit keep the old direct-checkout button. Other offers link to pricing. Preserve plan=pro when adding funnel attribution to the old card's links.
+
+Classic replacements report historical card surfaces plus popup_version=classic_inline_v1; inline offers retain offer_version=inline_upgrade_v1. Modern-dialog historical events retain popup_version=priced_limit_v2. Card visibility/click events come only from the card, avoiding duplicate lifecycle/click capture from the retained dialog checkout machinery.
+
+Validation covers the old file/model/credit appearance and links, absence of dialogs, correct Pro intent, signed-out pricing navigation, no automatic paid upgrade quote, silent storage failure recovery and single-counted click intent. Existing modern-dialog, clipping, currency, localization and Stripe tests remain intact. Production browser checks should confirm oversized files and locked models now show cards instead of dialogs. This rollback does not prove the previous redesign caused all lost subscriptions.

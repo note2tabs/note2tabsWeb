@@ -20,7 +20,12 @@ type Props = {
 /** Helpful offers for valid free selections; actual limit dialogs take priority. */
 export default function TranscriptionUpgradeOffers(props: Props) {
   const { t } = useLocale();
-  if (props.suppressed || props.plan !== "FREE" || props.remaining === 0) return null;
+  if (props.suppressed || props.remaining === 0) return null;
+  if (props.plan !== "FREE") {
+    return props.signedIn && props.remaining !== undefined && props.remaining > 0 && props.remaining <= 3
+      ? <div className="notice">{t("Your credits reset {date}", {date:props.resetLabel})}</div>
+      : null;
+  }
   if (props.signedIn && props.remaining !== undefined && props.remaining > 0 && props.remaining <= 3) {
     return <PremiumConversionCard
       title={t("Keep transcribing today")}

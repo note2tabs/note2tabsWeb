@@ -42,3 +42,5 @@ it("counts visibility and clicks once with a distinct inline surface and version
  expect(clicks[0][1]).toMatchObject({surface:"file_duration_limit_card",offer_version:"inline_upgrade_v1",reason:"file_duration_limit"});
 });
 it("preserves localized pricing navigation",async()=>{m.locale="ja";await render();expect(el.querySelector("a")?.getAttribute("href")).toMatch(/^\/ja\/pricing\?/);});
+
+it("restores the paid-user credit-reset notice without selling Premium again",async()=>{await render({plan:"PREMIUM",remaining:2});expect(el.textContent).toContain("Your credits reset 1 November");expect(el.querySelector("a")).toBeNull();expect(el.querySelector("dialog")).toBeNull();});

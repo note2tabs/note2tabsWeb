@@ -16,6 +16,7 @@ type PremiumConversionTracking = {
   surface: string;
   trigger: string;
   placement?: string;
+  properties?: Record<string, unknown>;
 };
 
 type PremiumConversionCardBaseProps = {
@@ -62,6 +63,7 @@ export default function PremiumConversionCard({
     const context = getOrCreatePremiumFunnelContext({ source: trackingSource, reason: trackingReason });
     setFunnel(context);
     const properties = {
+      ...tracking?.properties,
       surface: trackingSurface,
       offer_version: "inline_upgrade_v1",
       trigger: trackingTrigger,
@@ -80,6 +82,7 @@ export default function PremiumConversionCard({
       if (!entry?.isIntersecting || entry.intersectionRatio < 0.5 || viewedRef.current) return;
       viewedRef.current = true;
       sendEvent(ANALYTICS_EVENTS.premiumPromptViewed, {
+        ...tracking?.properties,
         surface: trackingSurface,
         offer_version: "inline_upgrade_v1",
         trigger: trackingTrigger,
@@ -95,6 +98,7 @@ export default function PremiumConversionCard({
   const trackClick = () => {
     if (!trackingSurface || !trackingTrigger || !funnel) return;
     const properties = {
+      ...tracking?.properties,
       surface: trackingSurface,
       offer_version: "inline_upgrade_v1",
       trigger: trackingTrigger,
@@ -103,7 +107,12 @@ export default function PremiumConversionCard({
     sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, properties);
     trackCtaClick(`${trackingSurface}_cta`, properties);
   };
-  const resolvedHref = href && funnel ? premiumPricingHref(funnel) : href;
+  const resolvedHref = href && funnel ? (() => {
+    const target = new URL(href, "https://www.note2tabs.com");
+    const measured = new URL(premiumPricingHref(funnel), "https://www.note2tabs.com");
+    measured.searchParams.forEach((value, key) => target.searchParams.set(key, value));
+    return `${target.pathname}${target.search}${target.hash}`;
+  })() : href;
 
   return (
     <aside ref={cardRef} className="premium-conversion-card" aria-label={t("Premium subscription")}>
