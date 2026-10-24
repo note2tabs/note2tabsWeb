@@ -1923,9 +1923,9 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 remaining={displayedCredits?.remaining} signedIn={isSignedIn} resetLabel={creditsResetLabel}
                 suppressed={sessionStatus === "loading" || loading || authHandoffBusy || needsPremiumForSelectedFile || needsPremiumForFileDuration || showHeavyUpgrade || blockedYoutube || blockedCredits}
               />
-              {needsPremiumForSelectedFile && !showHeavyUpgrade && <LimitUpgradePrompt context={limitContext} tracking={{source:"large_upload_gate",reason:needsProForSelectedFile?"pro_file_size_limit":"file_size_limit",surface:"file_size_limit_dialog",trigger:"oversized_file_selected"}}/>}
-              {!needsPremiumForSelectedFile && needsPremiumForFileDuration && !showHeavyUpgrade && <LimitUpgradePrompt context={limitContext} tracking={{source:"premium_prompt",reason:"file_duration_limit",surface:"file_duration_limit_dialog",trigger:"long_clip_selected"}}/>}
-              {showHeavyUpgrade && !isPremiumUser && <LimitUpgradePrompt context={limitContext} tracking={{source:"heavy_model",reason:"heavy_model_locked",surface:"heavy_model_locked_dialog",trigger:"locked_model_selected"}}/>}
+              {needsPremiumForSelectedFile && !showHeavyUpgrade && <LimitUpgradePrompt presentation="classic" context={limitContext} tracking={{source:"large_upload_gate",reason:needsProForSelectedFile?"pro_file_size_limit":"file_size_limit",surface:"file_size_limit_dialog",trigger:"oversized_file_selected"}}/>}
+              {!needsPremiumForSelectedFile && needsPremiumForFileDuration && !showHeavyUpgrade && <LimitUpgradePrompt presentation="classic" context={limitContext} tracking={{source:"premium_prompt",reason:"file_duration_limit",surface:"file_duration_limit_dialog",trigger:"long_clip_selected"}}/>}
+              {showHeavyUpgrade && !isPremiumUser && <LimitUpgradePrompt presentation="classic" context={limitContext} tracking={{source:"heavy_model",reason:"heavy_model_locked",surface:"heavy_model_locked_dialog",trigger:"locked_model_selected"}}/>}
               {isSignedIn && !isEmailVerified && (
                 <div className="notice">
                   {unverifiedTranscriptionUsed
@@ -1934,10 +1934,10 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                   <Link href={verifyHref} className="button-link">{t(" Verify now ")}</Link>
                 </div>
               )}
-              {isSignedIn && (showCreditsLow || blockedCredits) && !needsPremiumForSelectedFile && !needsPremiumForFileDuration && !showHeavyUpgrade && !blockedYoutube && (
-                <LimitUpgradePrompt context={limitContext} resetMessage={t("Your credits reset {date}", {date:creditsResetLabel})} tracking={{source:"low_credits",reason:blockedCredits?"credits_exhausted":"credits_low",surface:"low_credits_dialog",trigger:blockedCredits?"credits_exhausted":"credits_threshold_reached"}}/>
+              {isSignedIn && ((showCreditsLow && displayedCredits?.remaining === 0) || blockedCredits) && !needsPremiumForSelectedFile && !needsPremiumForFileDuration && !showHeavyUpgrade && !blockedYoutube && (
+                <LimitUpgradePrompt presentation="classic" context={limitContext} resetMessage={t("Your credits reset {date}", {date:creditsResetLabel})} tracking={{source:"low_credits",reason:blockedCredits?"credits_exhausted":"credits_low",surface:"low_credits_dialog",trigger:blockedCredits?"credits_exhausted":"credits_threshold_reached"}}/>
               )}
-              {blockedYoutube && <LimitUpgradePrompt context={limitContext} tracking={{source:"premium_prompt",reason:"youtube_duration_limit",surface:"youtube_limit_dialog",trigger:"clip_duration_limit"}}/>}
+              {blockedYoutube && <LimitUpgradePrompt presentation="classic" context={limitContext} tracking={{source:"premium_prompt",reason:"youtube_duration_limit",surface:"youtube_limit_dialog",trigger:"clip_duration_limit"}}/>}
 
             </form>
 

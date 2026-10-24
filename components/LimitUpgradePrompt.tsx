@@ -21,10 +21,13 @@ import { ANALYTICS_EVENTS, sendEvent } from "../lib/analytics";
 import { rememberCheckoutAttempt } from "../lib/checkoutTracking";
 import { PLAN_CATALOG } from "../lib/subscriptionPlans";
 import Link from "./LocaleLink";
+import PremiumConversionCard from "./PremiumConversionCard";
+import PremiumHomeCallout from "./PremiumHomeCallout";
 
 type Props = {
   context: LimitContext;
   preview?: boolean;
+  presentation?: "classic" | "dialog";
   previewControls?: ReactNode;
   tracking?: {
     source: PremiumFunnelSource;
@@ -39,6 +42,7 @@ export default function LimitUpgradePrompt({
   tracking,
   resetMessage,
   preview = false,
+  presentation = "dialog",
   previewControls,
 }: Props) {
   const { t, locale, href: localizedHref } = useLocale(),
@@ -47,7 +51,7 @@ export default function LimitUpgradePrompt({
     market = usePricingMarket();
   const reason = tracking?.reason || "credits_low",
     plan = limitUpgradePlan(reason, context);
-  const upgrade = useCreditUpgradeQuote(context.plan === "PREMIUM" && plan === "PRO", context.remaining);
+  const upgrade = useCreditUpgradeQuote(presentation !== "classic" && context.plan === "PREMIUM" && plan === "PRO", context.remaining);
   const dialog = useRef<HTMLDialogElement>(null),
     id = useId(),
     busyRef = useRef(false),
@@ -72,11 +76,15 @@ export default function LimitUpgradePrompt({
   const funnel = useRef<ReturnType<
     typeof getOrCreatePremiumFunnelContext
   > | null>(null);
+  const surface = tracking?.surface || "limit_dialog";
+  const classicSurface = surface === "file_size_limit_dialog" && plan === "PRO"
+    ? "pro_file_size_limit_card" : surface.replace(/_dialog$/, "_card");
   const props = () => ({
-    surface: tracking?.surface || "limit_dialog",
+    surface: presentation === "classic" ? classicSurface : tracking?.surface || "limit_dialog",
     trigger: tracking?.trigger || reason,
     placement: "transcriber_limit",
     ...limitPopupTracking(reason, context),
+    ...(presentation === "classic" ? {popup_version:"classic_inline_v1"} : {}),
     locale,
     target_plan: plan?.toLowerCase(),
     ...(funnel.current ? premiumFunnelProperties(funnel.current) : {}),
@@ -260,7 +268,7 @@ export default function LimitUpgradePrompt({
         reason,
       });
     funnel.current = current;
-    sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, { ...props(), cta: context.plan === "FREE" ? "start_checkout" : upgrade.quote ? "confirm_pro_upgrade" : "review_upgrade" });
+    if (presentation !== "classic") sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, { ...props(), cta: context.plan === "FREE" ? "start_checkout" : upgrade.quote ? "confirm_pro_upgrade" : "review_upgrade" });
     try {
       const preservation = await preserveSelection("checkout", attempt);
       if (preservation === "cancelled") return;
@@ -344,6 +352,30 @@ export default function LimitUpgradePrompt({
             )}
       </div>
     );
+  if (presentation === "classic") {
+    if (isYoutube && context.plan === "FREE") return <PremiumHomeCallout show />;
+    const directCheckout = isFile && context.plan === "FREE" && plan === "PREMIUM" && Boolean(session);
+    const classicTitle = isHeavy ? t("Use the Heavy model")
+      : isFile ? directCheckout ? t("Continue with this upload") : plan === "PRO" ? t("This file needs Pro") : t("This file needs Premium")
+      : reason === "file_duration_limit" ? t("Transcribe more of this file")
+      : t("Keep transcribing today");
+    const classicDescription = isHeavy ? t("The Heavy model is available with Premium or Pro for our highest transcription accuracy.")
+      : isFile ? directCheckout ? t("Your file is still selected. Premium supports audio files up to 200 MB and full-length transcription.")
+        : plan === "PRO" ? t("This file is larger than Premium's 200 MB limit. Pro supports files up to 500 MB.") : t("Free uploads are limited to 50 MB. Premium supports files up to 200 MB.")
+      : reason === "file_duration_limit" ? t("Free accounts can select up to 60 seconds. Premium unlocks full-length audio-file transcription.")
+      : context.plan === "FREE" ? t("Premium includes 100 monthly credits, rollover, and full-song audio uploads.") : description;
+    const actionLabel = directCheckout ? t("Continue with Premium") : plan === "PRO" ? t("See Pro") : isHeavy ? t("See plans") : reason === "file_duration_limit" ? t("See longer options") : t("See Premium");
+    return <>
+      <PremiumConversionCard
+        key={classicSurface} title={classicTitle} description={classicDescription} actionLabel={actionLabel}
+        planLabel={plan === "PRO" ? "Note2Tabs Pro" : "Note2Tabs Premium"}
+        resetMessage={resetMessage}
+        tracking={tracking ? {...tracking, surface:classicSurface, properties:{...limitPopupTracking(reason,context),popup_version:"classic_inline_v1"}} : undefined}
+        {...(directCheckout ? {onAction:()=>void checkout(),busy} : {href:premiumPricingHref({source:tracking?.source || "premium_prompt",reason}) + `&plan=${plan.toLowerCase()}`})}
+      />
+      {error && <p role="alert">{error}</p>}
+    </>;
+  }
   return (
     <>
       <dialog
