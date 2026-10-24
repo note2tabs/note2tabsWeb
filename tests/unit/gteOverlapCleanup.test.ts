@@ -5,6 +5,40 @@ import type { EditorSnapshot, Note } from "../../types/gte";
 const note = (id: number, startTime: number, length: number, string = 0): Note => ({ id, startTime, length, tab: [string, 3], midiNum: 67, optimals: [], velocity: 80 });
 const fixture = (): EditorSnapshot => ({ id: "overlaps", fps: 240, framesPerMessure: 480, totalFrames: 960, cutPositionsWithCoords: [], optimalsByTime: {}, notes: [note(1, 0, 122), note(2, 120, 120)], chords: [] });
 describe("negligible overlap cleanup", () => {
+  it("can shorten near-full-bar notes and chords to a half-beat attack", () => {
+    for (const length of [360, 450, 480, 600]) {
+      const source = fixture();
+      source.notes = [note(1, 0, length), note(2, 60, 60)];
+      source.chords = [
+        { id: 3, startTime: 0, length, currentTabs: [[1, 4], [2, 5]], ogTabs: [], originalMidi: [63, 60] },
+        { id: 4, startTime: 60, length: 60, currentTabs: [[1, 5]], ogTabs: [], originalMidi: [64] },
+      ];
+      expect(cleanTinyOverlapsInSnapshot(source, { manual: true })).toBe(2);
+      expect(source.notes[0].length).toBe(60);
+      expect(source.chords[0].length).toBe(60);
+      expect(source.notes[1].startTime).toBe(60);
+      expect(cleanTinyOverlapsInSnapshot(source, { manual: true })).toBe(0);
+    }
+  });
+  it("does not shorten long tails below half a beat", () => {
+    const source = fixture(); source.notes = [note(1, 0, 480), note(2, 30, 60)];
+    expect(cleanTinyOverlapsInSnapshot(source, { manual: true })).toBe(0);
+    expect(source.notes[0].length).toBe(480);
+  });
+  it("trims a sustained bar-seven chord before its final-beat replacement", () => {
+    const source = fixture(); source.notes = [];
+    const start = 6 * 480;
+    source.chords = [
+      { id: 1, startTime: start, length: 480, currentTabs: [[0, 4], [1, 5]], ogTabs: [], originalMidi: [68, 64] },
+      { id: 2, startTime: start + 360, length: 120, currentTabs: [[0, 4], [1, 5]], ogTabs: [], originalMidi: [68, 64] },
+    ];
+    const later = structuredClone(source.chords[1]);
+    expect(cleanTinyOverlapsInSnapshot(source, { manual: true })).toBe(1);
+    expect(source.chords[0].length).toBe(360);
+    expect(source.chords[1]).toEqual(later);
+    expect(meaningfulConflictInfo(source).conflictKeys.size).toBe(0);
+    expect(cleanTinyOverlapsInSnapshot(source, { manual: true })).toBe(0);
+  });
   it("manually trims a partial chord overlap in bar nine larger than 15ms", () => {
     const source = fixture();
     const start = 8 * 480 + 240;
@@ -20,7 +54,7 @@ describe("negligible overlap cleanup", () => {
     expect(cleanTinyOverlapsInSnapshot(source, { manual: true })).toBe(0);
   });
   it("keeps larger overlaps, simultaneous starts and very short articulations outside the manual margin", () => {
-    for (const [length, start, laterLength] of [[181, 120, 120], [120, 0, 120], [12, 4, 120]]) {
+    for (const [length, start, laterLength] of [[241, 120, 120], [120, 0, 120], [12, 4, 120]]) {
       const source = fixture(); source.notes = [note(1, 0, length), note(2, start, laterLength)];
       const before = structuredClone(source);
       expect(cleanTinyOverlapsInSnapshot(source, { manual: true })).toBe(0);

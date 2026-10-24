@@ -55,10 +55,16 @@ export function cleanTinyOverlapsInSnapshot(snapshot: EditorSnapshot, options: {
     const later = events[next];
     const overlap = event.end - later.start;
     // Short following notes must not shield a long preceding tail from cleanup.
-    // Allow up to half a beat, but retain at least half the earlier duration.
-    const manualTolerance = Math.min(tinyOverlapToleranceFrames(snapshot) * 16,
+    // Allow up to a beat, but retain at least half the earlier duration.
+    const manualTolerance = Math.min(tinyOverlapToleranceFrames(snapshot) * 32,
       (event.end - event.start) * 0.5);
-    const eligible = options.manual ? overlap > 0 && overlap <= manualTolerance + 1e-8
+    const bar = Number(snapshot.framesPerMessure) || 480;
+    const halfBeat = tinyOverlapToleranceFrames(snapshot) * 16;
+    // Sustained imported tails may cover most of a bar. Permit shortening them
+    // to the next attack, even down to half a beat, instead of retaining half.
+    const longTail = event.end - event.start >= bar * 0.75
+      && later.start - event.start >= halfBeat - 1e-8;
+    const eligible = options.manual ? overlap > 0 && (longTail || overlap <= manualTolerance + 1e-8)
       : isTinyBoundaryOverlap(snapshot, event, later);
     if (!eligible) return;
     const cuts = ends.get(event.owner) ?? new Map<number, number>();

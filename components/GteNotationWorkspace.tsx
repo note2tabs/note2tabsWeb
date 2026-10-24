@@ -266,6 +266,7 @@ export default function GteNotationWorkspace(props: Props) {
       {tools}
     </div>}
     <div className={reading ? "col-span-2 min-w-0" : "col-start-1 row-start-1 min-w-0"}>
+    <div data-notation-sheet-scale="true" style={{ zoom: practiceMode ? 1 : 0.75 }}>
     <GteEngravedScore score={score} input={write} restInput={restMode} disabled={readOnly} snapEnabled={true} denominator={denominator} dotted={dotted} length={entryLength}
       editorId={props.editorId} selectedBars={selectedBars}
       onBarSelect={readOnly ? undefined : selectBar}
@@ -321,6 +322,7 @@ export default function GteNotationWorkspace(props: Props) {
         const resolved = resolveScoreSelection(snapshotRef.current, chosen);
         commit(editScoreSelection(resolved.snapshot, resolved.selection, { shift, transpose })); setSelection(resolved.selection);
       }} />
+    </div>
     </div>
     {barMenu && !readOnly && <div ref={barMenuRef} role="menu" aria-label={t("Bar actions")} data-notation-bar-menu="true" data-gte-editor-control="true" data-gte-floating-ui="true"
       className="fixed z-[180] w-40 rounded-xl border border-slate-200 bg-white py-1 text-sm shadow-lg"
