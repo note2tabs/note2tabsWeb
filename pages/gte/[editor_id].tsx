@@ -10,6 +10,7 @@ import { localeSwitchHref } from "../../lib/i18n/locale";
 import { GetServerSideProps } from "next";
 import Link from "../../components/LocaleLink";
 import GteTrackInstrumentIcon from "../../components/GteTrackInstrumentIcon";
+import GteMobileNotationTransport from "../../components/GteMobileNotationTransport";
 import useGteMenuMouseIntent from "../../components/useGteMenuMouseIntent";
 import {
   useCallback,
@@ -10785,6 +10786,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     </div>
         </div>
       )}
+      <GteMobileNotationTransport
+        visible={Boolean(canvas) && isMobileViewport && (practiceModeEnabled
+          ? isNotationTrack(canvas?.editors.find((lane) => lane.id === globalControlsLaneId) ?? {})
+          : notationTrackActive)}
+        playing={globalPlaybackIsPlaying} preparing={globalPlaybackIsPreparing}
+        onToggle={toggleGlobalPlayback} onStart={skipGlobalPlaybackToStart}
+        portalTarget={practiceFullscreen ? practiceRootRef.current : null}
+      />
       {!isMobileViewport && canvas && (
         <div
           data-gte-floating-ui="true"
