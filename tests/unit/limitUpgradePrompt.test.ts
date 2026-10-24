@@ -227,6 +227,7 @@ it("lets a customer continue to checkout after a storage failure without double 
   await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
   expect(before).toHaveBeenCalledOnce();expect(m.fetch).toHaveBeenCalledOnce();
   expect(m.assign).toHaveBeenCalledWith('https://checkout.stripe.com/audit');
+  expect(JSON.parse(m.fetch.mock.calls[0][1].body).returnTo).toBe('/transcribe');
   expect(m.send.mock.calls.filter(([event])=>event==='clicked')).toHaveLength(1);
   expect(m.send.mock.calls.filter(([event])=>event==='save_skipped')).toHaveLength(1);
 });
@@ -237,6 +238,7 @@ it("lets comparison continue without saving and records its original click", asy
   expect(m.assign).not.toHaveBeenCalled();
   await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
   expect(m.assign).toHaveBeenCalledWith(expect.stringContaining('/pricing?'));
+  expect(m.assign.mock.calls[0][0]).not.toContain('resumeTranscription');
   expect(m.fetch).not.toHaveBeenCalled();
   expect(m.send.mock.calls.filter(([event])=>event==='clicked')).toHaveLength(1);
 });
