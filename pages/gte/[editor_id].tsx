@@ -1562,6 +1562,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const notationTrackActive = Boolean(canvas && isNotationTrack(
     canvas.editors.find((lane, index) => (lane.id || `ed-${index + 1}`) === activeLaneId) ?? canvas.editors[0] ?? {}
   ));
+  const drumTrackActive = Boolean(canvas && isDrumLane(
+    canvas.editors.find((lane, index) => (lane.id || `ed-${index + 1}`) === activeLaneId) ?? canvas.editors[0] ?? {}
+  ));
   const setDesktopBarsPerRow = (value: number) => {
     const nextBarsPerRow = Math.max(1, Math.min(6, Math.round(value)));
     setTimelineZoomPercent(400 / nextBarsPerRow);
@@ -4204,7 +4207,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       practiceModeEnabled &&
       activeLaneId &&
       canvas.editors.some(
-        (lane) => (lane.id || null) === activeLaneId && !isDrumLane(lane)
+        (lane) => (lane.id || null) === activeLaneId
       )
     ) {
       return activeLaneId;
@@ -4214,9 +4217,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     );
     if (tabLane) return tabLane.id || null;
     if (practiceModeEnabled) {
-      // Drum lanes are never viewable in practice mode, so never fall back to one.
-      const nonDrumLane = canvas.editors.find((lane) => !isDrumLane(lane));
-      return nonDrumLane?.id || null;
+      return canvas.editors[0]?.id || null;
     }
     return canvas.editors[0]?.id || null;
   }, [activeLaneId, canvas?.editors, mobileEditLaneId, practiceModeEnabled]);
@@ -6225,7 +6226,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             className={`relative z-10 h-7 rounded-md px-2 text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${
               editorMode === "tab" ? "text-slate-900" : "text-slate-600 hover:text-slate-800"
             }`}
-          >{t(notationTrackActive ? "MIDI view" : "Tab view")}</button>
+          >{t(notationTrackActive ? "MIDI view" : drumTrackActive ? "Notation" : "Tab view")}</button>
         )}
         <button
           type="button"
@@ -9747,7 +9748,6 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                             option.id ===
                                             normalizeTrackInstrumentId(candidate.instrumentId)
                                         )?.label || "Guitar";
-                                      // Drum tracks stay audible (mute/solo/volume) but cannot be viewed in practice mode.
                                       const candidateIsDrum = isDrumLane(candidate);
                                       const candidateMuted = Boolean(trackMuteById[candidateId]);
                                       const candidateIsolated = isolatedTrackIds.has(candidateId);
@@ -9768,31 +9768,22 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                           <button
                                             type="button"
                                             aria-pressed={selected}
-                                            disabled={candidateIsDrum}
-                                            title={
-                                              candidateIsDrum ? t("Drum tracks can't be viewed in practice mode") : undefined
-                                            }
                                             onClick={(event) => {
-                                              if (candidateIsDrum) return;
                                               setActiveLaneId(candidateId);
                                               const picker = event.currentTarget.closest("details");
                                               if (picker) picker.open = false;
                                             }}
-                                            className={`flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left ${
-                                              candidateIsDrum ? "cursor-default text-slate-400" : ""
-                                            }`}
+                                            className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left"
                                           >
                                             <span
                                               className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
-                                                candidateIsDrum
-                                                  ? "border-slate-200 bg-slate-100"
-                                                  : selected
+                                                selected
                                                   ? "border-emerald-500 bg-emerald-500 text-white"
                                                   : "border-slate-300 bg-white"
                                               }`}
                                               aria-hidden="true"
                                             >
-                                              {selected && !candidateIsDrum && (
+                                              {selected && (
                                                 <svg viewBox="0 0 20 20" className="h-3 w-3 fill-current">
                                                   <path d="m7.8 13.7-3.4-3.4 1.2-1.2 2.2 2.2 6.6-6.6 1.2 1.2z" />
                                                 </svg>
@@ -9803,7 +9794,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                                 {editorName(candidate.name, t) || t("Track {value1}", {value1: candidateIndex + 1})}
                                               </span>
                                               <span className="block truncate text-[10px] text-slate-500">
-                                                {candidateIsDrum ? t("Track {value1} · Drums (sound only)", {value1: candidateIndex + 1}) : isChordLane(candidate) ? t("Track {value1} · Chords", {value1: candidateIndex + 1}) : candidateInstrument}
+                                                {candidateIsDrum ? t("Drums") : isChordLane(candidate) ? t("Track {value1} · Chords", {value1: candidateIndex + 1}) : candidateInstrument}
                                               </span>
                                             </span>
                                           </button>
@@ -10789,9 +10780,10 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         <div
           data-gte-floating-ui="true"
           className="pointer-events-none fixed bottom-5 left-1/2 z-[9997] w-[min(calc(100vw-2rem),64rem)] -translate-x-1/2 px-2"
+          style={practiceModeEnabled ? { bottom: "max(0.5rem, env(safe-area-inset-bottom))" } : undefined}
         >
           <div className="flex justify-center">
-            <div data-gte-shared-transport="true" className={`pointer-events-auto grid min-h-[4.5rem] ${notationTrackActive ? "grid-cols-[2rem_2rem_2.25rem_2rem_8rem]" : "grid-cols-[8rem_2rem_2.25rem_2rem_8rem]"} items-center gap-x-1 gap-y-1 rounded-2xl border border-slate-200 bg-white/95 px-2 py-2 text-slate-700 shadow-sm backdrop-blur`}>
+            <div data-gte-shared-transport="true" className={`relative pointer-events-auto grid min-h-[4.5rem] ${notationTrackActive ? "grid-cols-[2rem_2rem_2.25rem_2rem_8rem]" : "grid-cols-[8rem_2rem_2.25rem_2rem_8rem]"} items-center gap-x-1 gap-y-1 rounded-2xl border border-slate-200 bg-white/95 px-2 py-2 text-slate-700 shadow-sm backdrop-blur`}>
             {displayPreferences.showPlaybackCounter && (
               <span
                 className="col-start-3 row-start-1 justify-self-center whitespace-nowrap text-[10px] font-semibold tabular-nums text-slate-600"

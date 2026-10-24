@@ -12,6 +12,7 @@ export type ScoreToken = {
 };
 export type ScoreMeasure = { index: number; voices: Record<ScoreStaff, ScoreToken[][]> };
 export type NotationScore = {
+  percussion?: boolean;
   connections?: { ties: Array<{ from: string; to: string }>; slurs: Array<{ from: string; to: string }> };
   measures: ScoreMeasure[]; framesPerBar: number; barTicks: number; beatTicks: number;
   numerator: number; denominator: number; key: string; groups: number[];
@@ -120,7 +121,7 @@ function voiceIntervals(groups: Group[]) {
 }
 
 /** Spell each interval on a shared integer rhythmic lattice. No source note is modified. */
-function spellInterval(start: number, end: number, rest: boolean, score: NotationScore, region?: TripletRegion) {
+export function spellInterval(start: number, end: number, rest: boolean, score: NotationScore, region?: TripletRegion) {
   const result: Array<{ tick: number; ticks: number; denominator: number; dotted: boolean }> = [];
   const beat = score.beatTicks;
   while (start < end) {

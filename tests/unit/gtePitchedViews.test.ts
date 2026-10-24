@@ -13,16 +13,19 @@ it("routes pitched tracks to editable Sheets/MIDI while preserving Practice and 
   }).outputText;
   vm.runInNewContext(source, { module, exports: module.exports, require: (name: string) => {
     if (name === "react/jsx-runtime") return jsx;
-    if (name === "next/dynamic") return { __esModule: true, default: (loader: () => unknown) => marker(loader.toString().includes("GteMidiWorkspace") ? "MIDI" : loader.toString().includes("GteNotationWorkspace") ? "Sheets" : loader.toString().includes('"./GteWorkspace"') ? "Tab" : "Drums") };
+    if (name === "next/dynamic") return { __esModule: true, default: (loader: () => unknown) => marker(loader.toString().includes("GteDrumNotation") ? "Drum notation" : loader.toString().includes("GtePracticeVisualization") ? "Practice" : loader.toString().includes("GteMidiWorkspace") ? "MIDI" : loader.toString().includes("GteNotationWorkspace") ? "Sheets" : loader.toString().includes('"./GteWorkspace"') ? "Tab" : "Drums") };
     if (name === "./GteWorkspace") throw new Error("Tab workspace must not be eagerly loaded for pitched/drum tracks");
     if (name.includes("gteNotation")) return { isNotationTrack };
-    if (name.includes("gteDrums")) return { isDrumTrackType: () => false };
+    if (name.includes("gteDrums")) return { isDrumTrackType: (type: string) => type === "drums" };
     return {};
   } });
-  const render = (instrumentId: string, tabViewEnabled: boolean, practiceMode = false) => module.exports.default({ snapshot: { instrumentId }, tabViewEnabled, practiceMode }).type.displayName;
+  const render = (instrumentId: string, tabViewEnabled: boolean, practiceMode = false) => module.exports.default({ editorId: "test", snapshot: { instrumentId, editorType: instrumentId === "drums" ? "drums" : undefined }, tabViewEnabled, practiceMode }).type.displayName;
   expect(render("gm:piano", false)).toBe("Sheets");
   expect(render("gm:piano", true)).toBe("MIDI");
-  expect(render("gm:piano", true, true)).toBe("Sheets");
+  expect(render("gm:piano", true, true)).toBe("Practice");
   expect(render("gm:strings", true)).toBe("MIDI");
   expect(render("guitar", true)).toBe("Tab");
+  expect(render("drums", false)).toBe("Drums");
+  expect(render("drums", true)).toBe("Drum notation");
+  expect(render("drums", false, true)).toBe("Drum notation");
 });
