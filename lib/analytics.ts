@@ -54,6 +54,8 @@ export const ANALYTICS_EVENTS = {
   premiumPromptRendered: "premium_prompt_rendered",
   premiumPromptViewed: "premium_prompt_viewed",
   premiumPromptDeferred: "premium_prompt_deferred",
+  premiumSelectionPreservationFailed: "premium_selection_preservation_failed",
+  premiumSelectionPreservationSkipped: "premium_selection_preservation_skipped",
   premiumPromptClicked: "premium_prompt_clicked",
   premiumPromptDismissed: "premium_prompt_dismissed",
   signupStarted: "signup_started",

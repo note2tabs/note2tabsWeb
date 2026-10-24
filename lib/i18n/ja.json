@@ -1948,5 +1948,7 @@
   "Move your music between tools.": "音楽データをほかのツールとやり取り。",
   "Compare transcription plans.": "TAB譜変換のプランを比較。",
   "Bass recording": "ベースの録音",
-  "Generate bass tabs": "ベースTAB譜を作成"
+  "Generate bass tabs": "ベースTAB譜を作成",
+  "Continue without saving": "保存せずに続行",
+  "Your selection couldn’t be saved. Continue without saving, or go back to keep it here.": "選択内容を保存できませんでした。保存せずに続行するか、戻ってこの画面に残してください。"
 }

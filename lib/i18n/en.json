@@ -1948,5 +1948,7 @@
   "Your file is {size} MB. Your plan’s upload limit is {limit} MB.": "Your file is {size} MB. Your plan’s upload limit is {limit} MB.",
   "You’re running low on credits": "You’re running low on credits",
   "You’ve used all your credits": "You’ve used all your credits",
-  "{count} credits every month": "{count} credits every month"
+  "{count} credits every month": "{count} credits every month",
+  "Continue without saving": "Continue without saving",
+  "Your selection couldn’t be saved. Continue without saving, or go back to keep it here.": "Your selection couldn’t be saved. Continue without saving, or go back to keep it here."
 }

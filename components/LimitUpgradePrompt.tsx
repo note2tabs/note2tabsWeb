@@ -51,12 +51,15 @@ export default function LimitUpgradePrompt({
   const dialog = useRef<HTMLDialogElement>(null),
     id = useId(),
     busyRef = useRef(false),
+    operation = useRef(0),
     shown = useRef<string | null>(null),
     viewed = useRef<string | null>(null);
   const [open, setOpen] = useState(
       reason !== "credits_low" || context.remaining === 0,
     ),
     [busy, setBusy] = useState(false),
+    [preserving, setPreserving] = useState(false),
+    [recovery, setRecovery] = useState<"checkout" | "compare" | null>(null),
     [error, setError] = useState("");
   const key = [
     reason,
@@ -80,6 +83,11 @@ export default function LimitUpgradePrompt({
     ...(funnel.current ? premiumFunnelProperties(funnel.current) : {}),
   });
   useEffect(() => {
+    operation.current++;
+    busyRef.current = false;
+    setBusy(false);
+    setPreserving(false);
+    setRecovery(null);
     setOpen(reason !== "credits_low" || context.remaining === 0);
     setError("");
   }, [key]);
@@ -131,8 +139,14 @@ export default function LimitUpgradePrompt({
       document.removeEventListener("visibilitychange", record);
     };
   }, [open, key, plan, preview]);
+  useEffect(() => () => { operation.current++; }, []);
   function dismiss(method: "escape" | "back_to_transcriber" = "back_to_transcriber") {
-    if (busy) return;
+    if (busy && !preserving) return;
+    operation.current++;
+    busyRef.current = false;
+    setBusy(false);
+    setPreserving(false);
+    setRecovery(null);
     if (!preview) sendEvent(ANALYTICS_EVENTS.premiumPromptDismissed, { ...props(), dismiss_method: method });
     setOpen(false);
   }
@@ -192,14 +206,57 @@ export default function LimitUpgradePrompt({
       source: tracking?.source || "premium_prompt",
       reason,
     }) + (plan ? `&plan=${plan.toLowerCase()}&resumeTranscription=1` : "");
-  async function checkout() {
+  async function preserveSelection(action: "checkout" | "compare", attempt: number, skip: boolean) {
+    if (skip || !context.beforeCheckout) return true;
+    setPreserving(true);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        Promise.resolve().then(() => context.beforeCheckout!()),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error("selection_save_timeout")), 3000);
+        }),
+      ]);
+      return operation.current === attempt;
+    } catch (failure) {
+      if (operation.current !== attempt) return false;
+      sendEvent(ANALYTICS_EVENTS.premiumSelectionPreservationFailed, {
+        ...props(), action,
+        failure_category: failure instanceof Error && failure.message === "selection_save_timeout" ? "timeout" : "storage_error",
+      });
+      setRecovery(action);
+      setError(t("Your selection couldn’t be saved. Continue without saving, or go back to keep it here."));
+      setBusy(false);
+      busyRef.current = false;
+      return false;
+    } finally {
+      if (timer) clearTimeout(timer);
+      if (operation.current === attempt) setPreserving(false);
+    }
+  }
+  async function comparePlans(skipSave = false) {
+    if (preview || busyRef.current) return;
+    busyRef.current = true;
+    const attempt = ++operation.current;
+    setBusy(true);
+    setRecovery(null);
+    setError("");
+    if (!skipSave) sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, {...props(), cta: "compare_plans"});
+    else sendEvent(ANALYTICS_EVENTS.premiumSelectionPreservationSkipped, {...props(), action: "compare"});
+    if (!await preserveSelection("compare", attempt, skipSave)) return;
+    if (operation.current !== attempt) return;
+    window.location.assign(localizedHref(compare));
+  }
+  async function checkout(skipSave = false) {
     if (preview) {
       setError(t("Preview only — no checkout opened."));
       return;
     }
     if (busyRef.current || !plan || status === "loading") return;
     busyRef.current = true;
+    const attempt = ++operation.current;
     setBusy(true);
+    setRecovery(null);
     setError("");
     const current =
       funnel.current ||
@@ -208,15 +265,18 @@ export default function LimitUpgradePrompt({
         reason,
       });
     funnel.current = current;
-    sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, { ...props(), cta: context.plan === "FREE" ? "start_checkout" : upgrade.quote ? "confirm_pro_upgrade" : "review_upgrade" });
+    if (skipSave) sendEvent(ANALYTICS_EVENTS.premiumSelectionPreservationSkipped, {...props(), action: "checkout"});
+    else sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, { ...props(), cta: context.plan === "FREE" ? "start_checkout" : upgrade.quote ? "confirm_pro_upgrade" : "review_upgrade" });
     try {
-      await context.beforeCheckout?.();
+      if (!await preserveSelection("checkout", attempt, skipSave)) return;
+      if (operation.current !== attempt) return;
       if (context.plan === "PREMIUM" && upgrade.quote) {
         const response = await fetch("/api/stripe/change-plan", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ plan: "pro", billingInterval: "monthly", action: "confirm", quoteId: upgrade.quote.id, locale }),
         });
         const result = await response.json();
+        if (operation.current !== attempt) return;
         if (!response.ok) { upgrade.refresh(); throw Error(); }
         window.location.assign(result.url || localizedHref("/transcribe?resumeTranscription=1"));
         return;
@@ -247,6 +307,7 @@ export default function LimitUpgradePrompt({
         }),
       });
       const data = await response.json().catch(() => ({}));
+      if (operation.current !== attempt) return;
       if (!response.ok || !data.url) throw Error();
       rememberCheckoutAttempt({
         checkoutSessionId: data.checkoutSessionId,
@@ -267,6 +328,7 @@ export default function LimitUpgradePrompt({
       });
       window.location.assign(data.url);
     } catch {
+      if (operation.current !== attempt) return;
       sendEvent(ANALYTICS_EVENTS.checkoutClientFailed, props());
       setError(
         t("Checkout is temporarily unavailable. Please try again in a moment."),
@@ -334,10 +396,11 @@ export default function LimitUpgradePrompt({
           type="button"
           className="limit-upgrade-primary"
           disabled={busy || status === "loading"}
-          onClick={() => void checkout()}
+          onClick={() => void (recovery === "compare" ? comparePlans(true) : checkout(Boolean(recovery)))}
         >
           {busy
             ? t("Opening checkout…")
+            : recovery ? t("Continue without saving")
             : upgrade.quote ? t("Upgrade to Pro — {price}", { price }) : t("Get {plan} — {price}/month", { plan: definition.name, price })}
         </button>
         {error && <p role="alert">{error}</p>}
@@ -345,25 +408,10 @@ export default function LimitUpgradePrompt({
           className="limit-upgrade-compare"
           aria-disabled={busy}
           href={compare}
-          onClick={async (event) => {
+          onClick={(event) => {
             if (preview) return;
             event.preventDefault();
-            if (busyRef.current) return;
-            busyRef.current = true;
-            setBusy(true);
-            setError("");
-            try {
-              await context.beforeCheckout?.();
-              sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, {
-                ...props(),
-                cta: "compare_plans",
-              });
-              window.location.assign(localizedHref(compare));
-            } catch {
-              setError(t("Could not save your selection. Please try again."));
-              busyRef.current = false;
-              setBusy(false);
-            }
+            void comparePlans();
           }}
         >
           {t("Compare plans")}
@@ -371,7 +419,7 @@ export default function LimitUpgradePrompt({
         <button
           type="button"
           className="limit-upgrade-back"
-          disabled={busy}
+          disabled={busy && !preserving}
           onClick={() => dismiss("back_to_transcriber")}
         >
           {t("Back to transcriber")}
