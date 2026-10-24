@@ -1,5 +1,7 @@
 import type { CutWithCoord, EditorSnapshot, TabCoord } from "../types/gte";
 import { hydrateChordFingering } from "./gteChordFingerings";
+import { restoreNotationSnapshot } from "./gteNotationPersistence";
+import { isNotationTrack } from "./gteNotation";
 import {
   DEFAULT_TRACK_INSTRUMENT_ID,
   normalizeTrackInstrumentId,
@@ -227,6 +229,7 @@ export const normalizeGuestSnapshot = (
 ): EditorSnapshot => {
   const base = createGuestSnapshot(fallbackEditorId);
   const raw = rawSnapshot && typeof rawSnapshot === "object" ? (rawSnapshot as Record<string, unknown>) : {};
+  const pitched = isNotationTrack(raw as Partial<EditorSnapshot>);
 
   const sourceFramesPerBar = Math.max(1, clampInt(raw.framesPerMessure, base.framesPerMessure, 1, 100000));
   const frameRatio = FIXED_FRAMES_PER_BAR / sourceFramesPerBar;
@@ -252,9 +255,13 @@ export const normalizeGuestSnapshot = (
           if (!tab) return null;
           return {
             id: clampInt(note.id, 0, -2147483648, 2147483647),
-            startTime: scaleFrame(note.startTime, frameRatio, 0),
-            length: scaleFrame(note.length, frameRatio, 1),
+            startTime: pitched && Number.isFinite(Number(note.startTime)) ? Math.max(0, Number(note.startTime) * frameRatio) : scaleFrame(note.startTime, frameRatio, 0),
+            length: pitched && Number.isFinite(Number(note.length)) ? Math.max(0.1, Number(note.length) * frameRatio) : scaleFrame(note.length, frameRatio, 1),
             midiNum: clampInt(note.midiNum, 0, -2147483648, 2147483647),
+            ...(typeof note.velocity === "number" && Number.isFinite(note.velocity) ? { velocity: Math.max(0, Math.min(1, Number(note.velocity))) } : {}),
+            ...(Array.isArray(note.pitchBend) ? { pitchBend: note.pitchBend.filter((value): value is number => typeof value === "number" && Number.isFinite(value)) } : {}),
+            ...(note.notationStaff === "treble" || note.notationStaff === "bass" ? { notationStaff: note.notationStaff } : {}),
+            ...(note.notationVoice === 1 || note.notationVoice === 2 ? { notationVoice: note.notationVoice } : {}),
             tab,
             optimals: Array.isArray(note.optimals)
               ? note.optimals.map((item) => normalizeTab(item)).filter((item): item is TabCoord => Boolean(item))
@@ -299,6 +306,7 @@ export const normalizeGuestSnapshot = (
             originalMidi,
             currentTabs,
             ogTabs,
+            ...(chord.notationVoice === 1 || chord.notationVoice === 2 ? { notationVoice: chord.notationVoice as 1 | 2 } : {}),
             ...(root ? { root } : {}),
             ...(quality ? { quality } : {}),
             ...(extension ? { extension } : {}),
@@ -343,7 +351,7 @@ export const normalizeGuestSnapshot = (
   const editorType = normalizeEditorType(raw.editorType ?? raw.trackType ?? raw.type);
   const chordEditor = normalizeChordEditor(raw.chordEditor);
 
-  return {
+  return restoreNotationSnapshot({
     ...base,
     ...raw,
     id,
@@ -370,7 +378,7 @@ export const normalizeGuestSnapshot = (
       : buildDefaultCutPositions(totalFrames),
     optimalsByTime: normalizeOptimalsByTime(raw.optimalsByTime, frameRatio),
     tuning,
-  };
+  });
 };
 
 export const readGuestDraft = (): EditorSnapshot | null => {
