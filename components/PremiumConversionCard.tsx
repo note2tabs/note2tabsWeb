@@ -63,6 +63,7 @@ export default function PremiumConversionCard({
     setFunnel(context);
     const properties = {
       surface: trackingSurface,
+      offer_version: "inline_upgrade_v1",
       trigger: trackingTrigger,
       placement: trackingPlacement,
       ...premiumFunnelProperties(context),
@@ -80,6 +81,7 @@ export default function PremiumConversionCard({
       viewedRef.current = true;
       sendEvent(ANALYTICS_EVENTS.premiumPromptViewed, {
         surface: trackingSurface,
+        offer_version: "inline_upgrade_v1",
         trigger: trackingTrigger,
         placement: trackingPlacement,
         ...premiumFunnelProperties(funnel),
@@ -94,6 +96,7 @@ export default function PremiumConversionCard({
     if (!trackingSurface || !trackingTrigger || !funnel) return;
     const properties = {
       surface: trackingSurface,
+      offer_version: "inline_upgrade_v1",
       trigger: trackingTrigger,
       ...premiumFunnelProperties(funnel),
     };

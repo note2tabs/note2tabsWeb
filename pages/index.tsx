@@ -70,7 +70,7 @@ import LimitUpgradePrompt from "../components/LimitUpgradePrompt";
 import {calculateTranscriptionCredits} from "../lib/transcriptionModels";
 import { publishCreditsForPremiumPrompt } from "../lib/premiumPromptSignals";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
-import PremiumHomeCallout from "../components/PremiumHomeCallout";
+import TranscriptionUpgradeOffers from "../components/TranscriptionUpgradeOffers";
 import { normalizeUploadFilename } from "../lib/uploadFilename";
 import {
   clearPendingTranscription,
@@ -293,13 +293,13 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     sessionStatus === "authenticated" && !isPremiumUser
   );
   const needsPremiumForSelectedFile = Boolean(
-    selectedFile && selectedFile.size > maxUploadBytes && selectedFile.size <= PLAN_CATALOG.PRO.maxUploadBytes
+    mode === "FILE" && selectedFile && selectedFile.size > maxUploadBytes && selectedFile.size <= PLAN_CATALOG.PRO.maxUploadBytes
   );
   const needsProForSelectedFile = Boolean(
     selectedFile && selectedFile.size > PLAN_CATALOG.PREMIUM.maxUploadBytes
   );
   const needsPremiumForFileDuration = Boolean(
-    !isPremiumUser && selectedFile && fileStartTime !== null && fileEndTime !== null && fileEndTime - fileStartTime > MAX_FREE_FILE_SNIPPET_SEC
+    mode === "FILE" && !isPremiumUser && selectedFile && fileStartTime !== null && fileEndTime !== null && fileEndTime - fileStartTime > MAX_FREE_FILE_SNIPPET_SEC
   );
   const requireVerifiedEmail = process.env.NODE_ENV === "production";
   const isEmailVerified = !requireVerifiedEmail || Boolean(transcriberSession?.user?.isEmailVerified);
@@ -1879,7 +1879,6 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                     </p>
                     </div>
                   </div>
-                  <PremiumHomeCallout show={youtubeValid} />
                 </>
               )}
               {mode === "FILE" && selectedFile && (
@@ -1918,6 +1917,12 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
               {status && !loading && !authHandoffBusy && <div className="status">{status}</div>}
               {error && <div className="error" role="alert">{translatedError(error, locale)}</div>}
+              <TranscriptionUpgradeOffers
+                plan={entitlementPlan} mode={mode} fileSelected={Boolean(selectedFile)}
+                fileDuration={fileDuration} youtubeValid={youtubeValid}
+                remaining={displayedCredits?.remaining} signedIn={isSignedIn} resetLabel={creditsResetLabel}
+                suppressed={sessionStatus === "loading" || loading || authHandoffBusy || needsPremiumForSelectedFile || needsPremiumForFileDuration || showHeavyUpgrade || blockedYoutube || blockedCredits}
+              />
               {needsPremiumForSelectedFile && !showHeavyUpgrade && <LimitUpgradePrompt context={limitContext} tracking={{source:"large_upload_gate",reason:needsProForSelectedFile?"pro_file_size_limit":"file_size_limit",surface:"file_size_limit_dialog",trigger:"oversized_file_selected"}}/>}
               {!needsPremiumForSelectedFile && needsPremiumForFileDuration && !showHeavyUpgrade && <LimitUpgradePrompt context={limitContext} tracking={{source:"premium_prompt",reason:"file_duration_limit",surface:"file_duration_limit_dialog",trigger:"long_clip_selected"}}/>}
               {showHeavyUpgrade && !isPremiumUser && <LimitUpgradePrompt context={limitContext} tracking={{source:"heavy_model",reason:"heavy_model_locked",surface:"heavy_model_locked_dialog",trigger:"locked_model_selected"}}/>}
