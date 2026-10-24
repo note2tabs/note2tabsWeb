@@ -167,16 +167,16 @@ it("does not emit analytics or create a Checkout session in the preview", async 
   expect(m.fetch).not.toHaveBeenCalled();
   expect(m.send).not.toHaveBeenCalled();
 });
-it("records comparison intent before saving and offers recovery on storage failure", async () => {
+it("records comparison intent and silently continues on storage failure", async () => {
   const before = vi.fn().mockRejectedValue(Error("storage"));
   await render({ plan: "FREE", remaining: 0, beforeCheckout: before });
   await act(async () =>
     el.querySelector<HTMLAnchorElement>(".limit-upgrade-compare")!.click(),
   );
   expect(before).toHaveBeenCalledOnce();
-  expect(el.querySelector('[role="alert"]')?.textContent).toContain(
-    "Your selection couldn’t be saved",
-  );
+  expect(el.querySelector('[role="alert"]')).toBeNull();
+  expect(m.assign).toHaveBeenCalledOnce();
+  expect(m.assign.mock.calls[0][0]).not.toContain("resumeTranscription");
   expect(m.fetch).not.toHaveBeenCalled();
 });
 it("reopens on a new blocked attempt after dismissal", async () => {
@@ -220,40 +220,42 @@ it("lets a customer continue to checkout after a storage failure without double 
   m.fetch.mockResolvedValue({ok:true,json:async()=>({url:"https://checkout.stripe.com/audit"})});
   await render({plan:"FREE",remaining:0,beforeCheckout:before});
   await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
-  expect(m.fetch).not.toHaveBeenCalled();
+  expect(el.querySelector('[role="alert"]')).toBeNull();
   expect(m.send.mock.calls.filter(([event])=>event==='save_failed')).toHaveLength(1);
   expect(m.send.mock.calls.some(([event])=>event==='failed')).toBe(false);
-  expect(el.querySelector('.limit-upgrade-primary')?.textContent).toBe('Continue without saving');
-  await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
+  expect(el.textContent).not.toContain('Continue without saving');
   expect(before).toHaveBeenCalledOnce();expect(m.fetch).toHaveBeenCalledOnce();
   expect(m.assign).toHaveBeenCalledWith('https://checkout.stripe.com/audit');
   expect(JSON.parse(m.fetch.mock.calls[0][1].body).returnTo).toBe('/transcribe');
   expect(m.send.mock.calls.filter(([event])=>event==='clicked')).toHaveLength(1);
   expect(m.send.mock.calls.filter(([event])=>event==='save_skipped')).toHaveLength(1);
+  expect(m.send.mock.calls.find(([event])=>event==='save_skipped')?.[1]).toMatchObject({automatic:true});
 });
 it("lets comparison continue without saving and records its original click", async () => {
   await render({plan:"FREE",remaining:0,beforeCheckout:()=>Promise.reject(new Error('Storage unavailable'))});
   await act(async()=>el.querySelector<HTMLAnchorElement>('.limit-upgrade-compare')!.click());
   expect(m.send.mock.calls.filter(([event])=>event==='clicked')).toHaveLength(1);
-  expect(m.assign).not.toHaveBeenCalled();
-  await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
+  expect(m.assign).toHaveBeenCalledOnce();
   expect(m.assign).toHaveBeenCalledWith(expect.stringContaining('/pricing?'));
   expect(m.assign.mock.calls[0][0]).not.toContain('resumeTranscription');
   expect(m.fetch).not.toHaveBeenCalled();
   expect(m.send.mock.calls.filter(([event])=>event==='clicked')).toHaveLength(1);
 });
-it("times out stalled saves and allows recovery instead of trapping the modal", async () => {
+it("automatically opens checkout after a stalled save times out", async () => {
   vi.useFakeTimers();
   try {
+    m.fetch.mockResolvedValue({ok:true,json:async()=>({url:"https://checkout.stripe.com/audit"})});
     await render({plan:"FREE",remaining:0,beforeCheckout:()=>new Promise<void>(()=>{})});
     await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
     expect(el.querySelector<HTMLButtonElement>('.limit-upgrade-back')!.disabled).toBe(false);
-    await act(async()=>vi.advanceTimersByTimeAsync(3000));
+    await act(async()=>vi.advanceTimersByTimeAsync(2999));
     expect(m.fetch).not.toHaveBeenCalled();
-    expect(el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.disabled).toBe(false);
+    await act(async()=>vi.advanceTimersByTimeAsync(1));
+    expect(m.fetch).toHaveBeenCalledOnce();
+    expect(m.assign).toHaveBeenCalledWith('https://checkout.stripe.com/audit');
+    expect(el.querySelector('[role="alert"]')).toBeNull();
     expect(m.send.mock.calls.find(([event])=>event==='save_failed')?.[1]).toMatchObject({failure_category:'timeout',action:'checkout'});
-    await act(async()=>el.querySelector('dialog')!.dispatchEvent(new Event('cancel',{cancelable:true})));
-    expect(el.querySelector('dialog')!.open).toBe(false);
+    expect(m.send.mock.calls.find(([event])=>event==='save_skipped')?.[1]).toMatchObject({automatic:true,action:'checkout'});
   } finally {vi.useRealTimers()}
 });
 it.each(['back','escape'])("cancels a pending save via %s and ignores late completion",async method=>{
@@ -264,14 +266,14 @@ it.each(['back','escape'])("cancels a pending save via %s and ignores late compl
  await act(async()=>resolve());
  expect(m.fetch).not.toHaveBeenCalled();expect(m.assign).not.toHaveBeenCalled();expect(el.querySelector('dialog')!.open).toBe(false);
 });
-it("does not navigate on a late save after selecting recovery",async()=>{
+it("does not navigate twice when a save completes after automatic fallback",async()=>{
  vi.useFakeTimers();try{
  let resolve!:()=>void;const pending=new Promise<void>(r=>{resolve=r});
  m.fetch.mockResolvedValue({ok:true,json:async()=>({url:'https://checkout.stripe.com/audit'})});
  await render({plan:'FREE',remaining:0,beforeCheckout:()=>pending});
  await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
  await act(async()=>vi.advanceTimersByTimeAsync(3000));
- await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
+ expect(m.assign).toHaveBeenCalledOnce();
  await act(async()=>resolve());expect(m.fetch).toHaveBeenCalledOnce();expect(m.assign).toHaveBeenCalledOnce();
  }finally{vi.useRealTimers()}
 });
@@ -280,7 +282,6 @@ it("keeps unsaved guest selections out of the post-login auto-resume flow",async
  m.session={data:null,status:'unauthenticated'};
  await render({plan:'FREE',remaining:0,beforeCheckout:()=>Promise.reject(Error('storage'))});
  await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
- await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
  expect(m.signIn.mock.calls[0][1].callbackUrl).toContain('checkout=1');
  expect(m.signIn.mock.calls[0][1].callbackUrl).not.toContain('resumeTranscription');
 });
@@ -288,7 +289,6 @@ it("does not auto-resume a stale selection after a recovered Premium upgrade",as
  const quote={id:'q1',currency:'usd',credits:1,discount:6,regularAmount:1499,dueNow:1493};
  m.fetch.mockResolvedValueOnce({ok:true,json:async()=>({quote})}).mockResolvedValue({ok:true,json:async()=>({})});
  await render({plan:'PREMIUM',remaining:0,beforeCheckout:()=>Promise.reject(Error('storage'))});
- await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
  await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
  expect(m.assign).toHaveBeenCalledWith('/transcribe');
 });

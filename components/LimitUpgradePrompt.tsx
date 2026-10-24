@@ -59,7 +59,6 @@ export default function LimitUpgradePrompt({
     ),
     [busy, setBusy] = useState(false),
     [preserving, setPreserving] = useState(false),
-    [recovery, setRecovery] = useState<"checkout" | "compare" | null>(null),
     [error, setError] = useState("");
   const key = [
     reason,
@@ -87,7 +86,6 @@ export default function LimitUpgradePrompt({
     busyRef.current = false;
     setBusy(false);
     setPreserving(false);
-    setRecovery(null);
     setOpen(reason !== "credits_low" || context.remaining === 0);
     setError("");
   }, [key]);
@@ -146,7 +144,6 @@ export default function LimitUpgradePrompt({
     busyRef.current = false;
     setBusy(false);
     setPreserving(false);
-    setRecovery(null);
     if (!preview) sendEvent(ANALYTICS_EVENTS.premiumPromptDismissed, { ...props(), dismiss_method: method });
     setOpen(false);
   }
@@ -206,8 +203,8 @@ export default function LimitUpgradePrompt({
       source: tracking?.source || "premium_prompt",
       reason,
     }) + (plan ? `&plan=${plan.toLowerCase()}&resumeTranscription=1` : "");
-  async function preserveSelection(action: "checkout" | "compare", attempt: number, skip: boolean) {
-    if (skip || !context.beforeCheckout) return true;
+  async function preserveSelection(action: "checkout" | "compare", attempt: number): Promise<"saved" | "failed" | "cancelled"> {
+    if (!context.beforeCheckout) return "saved";
     setPreserving(true);
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -217,37 +214,36 @@ export default function LimitUpgradePrompt({
           timer = setTimeout(() => reject(new Error("selection_save_timeout")), 3000);
         }),
       ]);
-      return operation.current === attempt;
+      return operation.current === attempt ? "saved" : "cancelled";
     } catch (failure) {
-      if (operation.current !== attempt) return false;
+      if (operation.current !== attempt) return "cancelled";
       sendEvent(ANALYTICS_EVENTS.premiumSelectionPreservationFailed, {
         ...props(), action,
         failure_category: failure instanceof Error && failure.message === "selection_save_timeout" ? "timeout" : "storage_error",
       });
-      setRecovery(action);
-      setError(t("Your selection couldn’t be saved. Continue without saving, or go back to keep it here."));
-      setBusy(false);
-      busyRef.current = false;
-      return false;
+      sendEvent(ANALYTICS_EVENTS.premiumSelectionPreservationSkipped, {
+        ...props(), action, automatic: true,
+      });
+      return "failed";
     } finally {
       if (timer) clearTimeout(timer);
       if (operation.current === attempt) setPreserving(false);
     }
   }
-  async function comparePlans(skipSave = false) {
+  async function comparePlans() {
     if (preview || busyRef.current) return;
     busyRef.current = true;
     const attempt = ++operation.current;
     setBusy(true);
-    setRecovery(null);
     setError("");
-    if (!skipSave) sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, {...props(), cta: "compare_plans"});
-    else sendEvent(ANALYTICS_EVENTS.premiumSelectionPreservationSkipped, {...props(), action: "compare"});
-    if (!await preserveSelection("compare", attempt, skipSave)) return;
+    sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, {...props(), cta: "compare_plans"});
+    const preservation = await preserveSelection("compare", attempt);
+    if (preservation === "cancelled") return;
+    const skipSave = preservation === "failed";
     if (operation.current !== attempt) return;
     window.location.assign(localizedHref(skipSave ? compare.replace("&resumeTranscription=1", "") : compare));
   }
-  async function checkout(skipSave = false) {
+  async function checkout() {
     if (preview) {
       setError(t("Preview only — no checkout opened."));
       return;
@@ -256,7 +252,6 @@ export default function LimitUpgradePrompt({
     busyRef.current = true;
     const attempt = ++operation.current;
     setBusy(true);
-    setRecovery(null);
     setError("");
     const current =
       funnel.current ||
@@ -265,10 +260,11 @@ export default function LimitUpgradePrompt({
         reason,
       });
     funnel.current = current;
-    if (skipSave) sendEvent(ANALYTICS_EVENTS.premiumSelectionPreservationSkipped, {...props(), action: "checkout"});
-    else sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, { ...props(), cta: context.plan === "FREE" ? "start_checkout" : upgrade.quote ? "confirm_pro_upgrade" : "review_upgrade" });
+    sendEvent(ANALYTICS_EVENTS.premiumPromptClicked, { ...props(), cta: context.plan === "FREE" ? "start_checkout" : upgrade.quote ? "confirm_pro_upgrade" : "review_upgrade" });
     try {
-      if (!await preserveSelection("checkout", attempt, skipSave)) return;
+      const preservation = await preserveSelection("checkout", attempt);
+      if (preservation === "cancelled") return;
+      const skipSave = preservation === "failed";
       if (operation.current !== attempt) return;
       if (context.plan === "PREMIUM" && upgrade.quote) {
         const response = await fetch("/api/stripe/change-plan", {
@@ -396,11 +392,10 @@ export default function LimitUpgradePrompt({
           type="button"
           className="limit-upgrade-primary"
           disabled={busy || status === "loading"}
-          onClick={() => void (recovery === "compare" ? comparePlans(true) : checkout(Boolean(recovery)))}
+          onClick={() => void checkout()}
         >
           {busy
             ? t("Opening checkout…")
-            : recovery ? t("Continue without saving")
             : upgrade.quote ? t("Upgrade to Pro — {price}", { price }) : t("Get {plan} — {price}/month", { plan: definition.name, price })}
         </button>
         {error && <p role="alert">{error}</p>}
