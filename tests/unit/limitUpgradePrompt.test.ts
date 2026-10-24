@@ -275,3 +275,20 @@ it("does not navigate on a late save after selecting recovery",async()=>{
  await act(async()=>resolve());expect(m.fetch).toHaveBeenCalledOnce();expect(m.assign).toHaveBeenCalledOnce();
  }finally{vi.useRealTimers()}
 });
+
+it("keeps unsaved guest selections out of the post-login auto-resume flow",async()=>{
+ m.session={data:null,status:'unauthenticated'};
+ await render({plan:'FREE',remaining:0,beforeCheckout:()=>Promise.reject(Error('storage'))});
+ await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
+ await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
+ expect(m.signIn.mock.calls[0][1].callbackUrl).toContain('checkout=1');
+ expect(m.signIn.mock.calls[0][1].callbackUrl).not.toContain('resumeTranscription');
+});
+it("does not auto-resume a stale selection after a recovered Premium upgrade",async()=>{
+ const quote={id:'q1',currency:'usd',credits:1,discount:6,regularAmount:1499,dueNow:1493};
+ m.fetch.mockResolvedValueOnce({ok:true,json:async()=>({quote})}).mockResolvedValue({ok:true,json:async()=>({})});
+ await render({plan:'PREMIUM',remaining:0,beforeCheckout:()=>Promise.reject(Error('storage'))});
+ await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
+ await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
+ expect(m.assign).toHaveBeenCalledWith('/transcribe');
+});

@@ -278,7 +278,7 @@ export default function LimitUpgradePrompt({
         const result = await response.json();
         if (operation.current !== attempt) return;
         if (!response.ok) { upgrade.refresh(); throw Error(); }
-        window.location.assign(result.url || localizedHref("/transcribe?resumeTranscription=1"));
+        window.location.assign(result.url || localizedHref(skipSave ? "/transcribe" : "/transcribe?resumeTranscription=1"));
         return;
       }
       // Existing subscribers review the upgrade on pricing; never create a second subscription.
