@@ -10787,7 +10787,9 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         </div>
       )}
       <GteMobileNotationTransport
-        visible={Boolean(canvas) && isMobileViewport && notationTrackActive}
+        visible={Boolean(canvas) && isMobileViewport && (practiceModeEnabled
+          ? isNotationTrack(canvas?.editors.find((lane) => lane.id === globalControlsLaneId) ?? {})
+          : notationTrackActive)}
         playing={globalPlaybackIsPlaying} preparing={globalPlaybackIsPreparing}
         onToggle={toggleGlobalPlayback} onStart={skipGlobalPlaybackToStart}
         portalTarget={practiceFullscreen ? practiceRootRef.current : null}
