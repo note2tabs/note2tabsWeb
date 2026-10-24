@@ -90,4 +90,30 @@ describe("eighth-note-preferred transcription tempo", () => {
       expect(requests.find(request=>request.url.endsWith("/snapshot"))!.body.snapshot.timingMap.bars[0].quarterNoteBpm).toBe(240);
     }finally{vi.unstubAllGlobals();}
   });
+  it.each([2,.5])("persists scaled drum/bass/piano frames through version-gated saves (%s)",factor=>{
+    const piano={...lane(60),id:"piano",version:8};
+    const bass={...lane(60),id:"bass",version:3,instrumentType:"bass-tab" as const,trackType:"bass" as const};
+    const drums={...lane(1),id:"drums",version:12,instrumentType:"drums" as const,trackType:"drums" as const,
+      notes:lane(1).notes.map((note,index)=>({...note,startTime:index*120,midiNum:38,tab:[6,0] as [number,number]})),
+      drumLoops:[{id:"loop",sourceStart:0,sourceEnd:480,loopEnd:1920}]};
+    const original={...canvas(piano),editors:[piano,bass,drums]};
+    const map=scaleImportTimingMap(original.timingMap!,factor,true);
+    const scaled=original.editors.map(track=>scaleImportedLane(track,factor,2/factor));
+    // Mirror the actual persistence contract: unchanged versions skip child rows.
+    const stored=original.editors.map((previous,index)=>({ ...scaled[index],
+      notes:scaled[index].version!==previous.version?scaled[index].notes:previous.notes }));
+    stored.forEach((track,index)=>{
+      expect(track.version).toBe(original.editors[index].version!+1);
+      expect(track.fps).toBe(Math.round(240*factor));
+      track.notes.forEach((note,n)=>{
+        expect(note.startTime).toBe(original.editors[index].notes[n].startTime*factor);
+        expect(frameToSeconds(map,note.startTime)).toBeCloseTo(frameToSeconds(original.timingMap!,original.editors[index].notes[n].startTime),9);
+      });
+    });
+    expect(stored[2].drumLoops![0]).toMatchObject({sourceEnd:480*factor,loopEnd:1920*factor});
+  });
+  it("does not invent a new lane version for a no-op scale",()=>{
+    const source={...lane(),version:5};expect(scaleImportedLane(source,1,2)).toBe(source);
+  });
+
 });
