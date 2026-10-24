@@ -227,6 +227,7 @@ it("lets a customer continue to checkout after a storage failure without double 
   await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
   expect(before).toHaveBeenCalledOnce();expect(m.fetch).toHaveBeenCalledOnce();
   expect(m.assign).toHaveBeenCalledWith('https://checkout.stripe.com/audit');
+  expect(JSON.parse(m.fetch.mock.calls[0][1].body).returnTo).toBe('/transcribe');
   expect(m.send.mock.calls.filter(([event])=>event==='clicked')).toHaveLength(1);
   expect(m.send.mock.calls.filter(([event])=>event==='save_skipped')).toHaveLength(1);
 });
@@ -237,6 +238,7 @@ it("lets comparison continue without saving and records its original click", asy
   expect(m.assign).not.toHaveBeenCalled();
   await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
   expect(m.assign).toHaveBeenCalledWith(expect.stringContaining('/pricing?'));
+  expect(m.assign.mock.calls[0][0]).not.toContain('resumeTranscription');
   expect(m.fetch).not.toHaveBeenCalled();
   expect(m.send.mock.calls.filter(([event])=>event==='clicked')).toHaveLength(1);
 });
@@ -272,4 +274,21 @@ it("does not navigate on a late save after selecting recovery",async()=>{
  await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
  await act(async()=>resolve());expect(m.fetch).toHaveBeenCalledOnce();expect(m.assign).toHaveBeenCalledOnce();
  }finally{vi.useRealTimers()}
+});
+
+it("keeps unsaved guest selections out of the post-login auto-resume flow",async()=>{
+ m.session={data:null,status:'unauthenticated'};
+ await render({plan:'FREE',remaining:0,beforeCheckout:()=>Promise.reject(Error('storage'))});
+ await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
+ await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
+ expect(m.signIn.mock.calls[0][1].callbackUrl).toContain('checkout=1');
+ expect(m.signIn.mock.calls[0][1].callbackUrl).not.toContain('resumeTranscription');
+});
+it("does not auto-resume a stale selection after a recovered Premium upgrade",async()=>{
+ const quote={id:'q1',currency:'usd',credits:1,discount:6,regularAmount:1499,dueNow:1493};
+ m.fetch.mockResolvedValueOnce({ok:true,json:async()=>({quote})}).mockResolvedValue({ok:true,json:async()=>({})});
+ await render({plan:'PREMIUM',remaining:0,beforeCheckout:()=>Promise.reject(Error('storage'))});
+ await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
+ await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
+ expect(m.assign).toHaveBeenCalledWith('/transcribe');
 });

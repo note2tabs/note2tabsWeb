@@ -245,7 +245,7 @@ export default function LimitUpgradePrompt({
     else sendEvent(ANALYTICS_EVENTS.premiumSelectionPreservationSkipped, {...props(), action: "compare"});
     if (!await preserveSelection("compare", attempt, skipSave)) return;
     if (operation.current !== attempt) return;
-    window.location.assign(localizedHref(compare));
+    window.location.assign(localizedHref(skipSave ? compare.replace("&resumeTranscription=1", "") : compare));
   }
   async function checkout(skipSave = false) {
     if (preview) {
@@ -278,17 +278,17 @@ export default function LimitUpgradePrompt({
         const result = await response.json();
         if (operation.current !== attempt) return;
         if (!response.ok) { upgrade.refresh(); throw Error(); }
-        window.location.assign(result.url || localizedHref("/transcribe?resumeTranscription=1"));
+        window.location.assign(result.url || localizedHref(skipSave ? "/transcribe" : "/transcribe?resumeTranscription=1"));
         return;
       }
       // Existing subscribers review the upgrade on pricing; never create a second subscription.
       if (context.plan !== "FREE") {
-        window.location.assign(localizedHref(compare));
+        window.location.assign(localizedHref(skipSave ? compare.replace("&resumeTranscription=1", "") : compare));
         return;
       }
       if (!session) {
         await localizedSignIn(undefined, {
-          callbackUrl: localizedHref(`${compare}&checkout=1&billing=monthly`),
+          callbackUrl: localizedHref(`${skipSave ? compare.replace("&resumeTranscription=1", "") : compare}&checkout=1&billing=monthly`),
         });
         return;
       }
@@ -303,7 +303,7 @@ export default function LimitUpgradePrompt({
           plan: plan.toLowerCase(),
           billingInterval: "monthly",
           displayCurrency: currency.toLowerCase(),
-          returnTo: "/transcribe?resumeTranscription=1",
+          returnTo: skipSave ? "/transcribe" : "/transcribe?resumeTranscription=1",
         }),
       });
       const data = await response.json().catch(() => ({}));
