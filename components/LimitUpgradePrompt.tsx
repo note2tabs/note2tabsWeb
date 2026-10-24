@@ -276,6 +276,7 @@ export default function LimitUpgradePrompt({
           body: JSON.stringify({ plan: "pro", billingInterval: "monthly", action: "confirm", quoteId: upgrade.quote.id, locale }),
         });
         const result = await response.json();
+        if (operation.current !== attempt) return;
         if (!response.ok) { upgrade.refresh(); throw Error(); }
         window.location.assign(result.url || localizedHref("/transcribe?resumeTranscription=1"));
         return;
@@ -306,6 +307,7 @@ export default function LimitUpgradePrompt({
         }),
       });
       const data = await response.json().catch(() => ({}));
+      if (operation.current !== attempt) return;
       if (!response.ok || !data.url) throw Error();
       rememberCheckoutAttempt({
         checkoutSessionId: data.checkoutSessionId,
