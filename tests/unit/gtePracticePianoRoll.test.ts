@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { isBlackPianoKey, pianoPitchCenter, practiceNoteWindow, practicePitchRange, PRACTICE_VOICE_COLORS } from "../../lib/gtePracticePianoRoll";
+import { isBlackPianoKey, pianoPitchCenter, practiceNoteWindow, practicePitchRange, practiceKeyActive, PRACTICE_VOICE_COLORS } from "../../lib/gtePracticePianoRoll";
 
 it("maps white and black keys onto a standard seven-white-key octave", () => {
   expect(pianoPitchCenter(72) - pianoPitchCenter(60)).toBe(7);
@@ -7,6 +7,14 @@ it("maps white and black keys onto a standard seven-white-key octave", () => {
   expect(pianoPitchCenter(61)).toBeLessThan(pianoPitchCenter(62));
   expect(isBlackPianoKey(61)).toBe(true);
   expect(isBlackPianoKey(60)).toBe(false);
+});
+it("releases key highlights across the four-pixel gap and retriggers at repeated onsets", () => {
+  expect(practiceKeyActive(0, 120, 107, 1200, 400)).toBe(true);
+  expect(practiceKeyActive(0, 120, 108, 1200, 400)).toBe(false);
+  expect(practiceKeyActive(120, 120, 119, 1200, 400)).toBe(false);
+  expect(practiceKeyActive(120, 120, 120, 1200, 400)).toBe(true);
+  expect(practiceKeyActive(0, 4, 0, 1200, 400)).toBe(true);
+  expect(practiceKeyActive(0, 4, 2, 1200, 400)).toBe(false);
 });
 it("projects notes toward the fixed timing line from the shared playback frame", () => {
   expect(practiceNoteWindow(100, 50, 0, 200, 400)).toEqual({ top: 100, bottom: 200, active: false });

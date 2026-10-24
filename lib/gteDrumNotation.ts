@@ -5,14 +5,14 @@ import type { ScoreEvent } from "./gteNotation";
 import { meterGroups, notationPitch, SCORE_WHOLE, spellInterval, type NotationScore, type ScorePitch, type ScoreToken } from "./gteNotationScore";
 
 // Written staff positions only; source MIDI pitches and timing remain intact.
-const positions: Record<DrumVoiceId, { midi: number; head?: string }> = {
+export const DRUM_NOTATION_POSITIONS: Record<DrumVoiceId, { midi: number; head?: string }> = {
   crash: { midi: 81, head: "x" }, ride: { midi: 77, head: "x" },
   closed_hi_hat: { midi: 79, head: "x" }, open_hi_hat: { midi: 79, head: "cx" },
   high_tom: { midi: 76 }, mid_tom: { midi: 74 }, snare: { midi: 72 },
   floor_tom: { midi: 69 }, kick: { midi: 65 },
 };
 type Region = { id: string; start: number; end: number; unit: number };
-type Hit = { source: ScoreEvent; position: typeof positions[DrumVoiceId]; role: 0 | 1; raw: number; tick: number; triplet?: Region };
+type Hit = { source: ScoreEvent; position: typeof DRUM_NOTATION_POSITIONS[DrumVoiceId]; role: 0 | 1; raw: number; tick: number; triplet?: Region };
 
 /** Percussion is onset-based. Sample duration is never a written rhythmic value. */
 export function buildDrumNotationScore(snapshot: EditorSnapshot): NotationScore {
@@ -23,7 +23,7 @@ export function buildDrumNotationScore(snapshot: EditorSnapshot): NotationScore 
   const factor = barTicks / framesPerBar, baseGrid = SCORE_WHOLE / 16;
   const hits: Hit[] = materializeDrumLoopNotes(snapshot.notes, snapshot.drumLoops ?? [], snapshot.totalFrames).map(({ note, key }) => {
     const instrument = getDrumVoiceForNote(note), role = instrument.id === "kick" ? 1 : 0;
-    return { role, position: positions[instrument.id], raw: Math.max(0, note.startTime * factor), tick: 0,
+    return { role, position: DRUM_NOTATION_POSITIONS[instrument.id], raw: Math.max(0, note.startTime * factor), tick: 0,
       source: { key: `drum:${key}`, noteId: note.id, member: 0, midi: instrument.midi, start: note.startTime,
         length: note.length, velocity: 100 / 127, staff: "treble", voice: role === 1 ? 2 : 1 } };
   });

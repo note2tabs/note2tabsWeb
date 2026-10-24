@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentProps } from "react";
 import type GteWorkspace from "./GteWorkspace";
 import { scoreEvents } from "../lib/gteNotation";
-import { pianoPitchCenter, isBlackPianoKey as blackKey, practiceNoteWindow, practicePitchRange, PRACTICE_VOICE_COLORS } from "../lib/gtePracticePianoRoll";
+import { pianoPitchCenter, isBlackPianoKey as blackKey, practiceNoteWindow, practicePitchRange, practiceKeyActive, PRACTICE_NOTE_GAP_PX, PRACTICE_VOICE_COLORS } from "../lib/gtePracticePianoRoll";
 import GtePracticeScrubber from "./GtePracticeScrubber";
 
 type Props = ComponentProps<typeof GteWorkspace>;
@@ -86,13 +86,13 @@ export default function GtePracticePianoRoll(props: Props) {
         if (!visible) continue;
         const voice = note.voice === 2 ? 2 : 1;
         const colors = PRACTICE_VOICE_COLORS[voice];
-        if (visible.active) active.set(Math.round(note.midi), (active.get(Math.round(note.midi)) ?? 0) | voice);
+        if (practiceKeyActive(note.start, note.length, frame, horizon, line)) active.set(Math.round(note.midi), (active.get(Math.round(note.midi)) ?? 0) | voice);
         const { x, w } = keyRect(Math.round(note.midi));
         ctx.fillStyle = visible.active ? colors.active : colors.upcoming;
         // Inset the trailing edge only: adjacent attacks stay distinct without
         // moving their leading edge away from the playback timing line.
         const visibleHeight = visible.bottom - visible.top;
-        const gap = Math.min(4, Math.max(0, visibleHeight - 2));
+        const gap = Math.min(PRACTICE_NOTE_GAP_PX, Math.max(0, visibleHeight - 2));
         const split = pitchVoices.get(note.midi) === 3;
         const noteWidth = split ? (w - 4) / 2 : w - 4;
         const noteX = x + 2 + (split && voice === 2 ? (w - 4) / 2 + 0.5 : 0);

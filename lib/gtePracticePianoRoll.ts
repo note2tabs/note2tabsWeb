@@ -1,6 +1,13 @@
 const centers = [0.5, 1, 1.5, 2, 2.5, 3.5, 4, 4.5, 5, 5.5, 6, 6.5];
 export const pianoPitchCenter = (pitch: number) => Math.floor(pitch / 12) * 7 + centers[pitch % 12];
 export const isBlackPianoKey = (pitch: number) => [1, 3, 6, 8, 10].includes(pitch % 12);
+export const PRACTICE_NOTE_GAP_PX = 4;
+export function practiceKeyActive(start: number, length: number, frame: number, horizon: number, height: number) {
+  // Release at the painted trailing edge, then retrigger at the next onset.
+  // Cap the gap for very short notes so their key highlight still appears.
+  const gapFrames = Math.min(length / 2, PRACTICE_NOTE_GAP_PX * horizon / Math.max(1, height));
+  return frame >= start && frame < start + length - gapFrames;
+}
 export const PRACTICE_VOICE_COLORS = {
   1: { upcoming: "#429c83", active: "#70d9b0", border: "#26735f" },
   2: { upcoming: "#6c8ed0", active: "#a3beff", border: "#4e6faa" },

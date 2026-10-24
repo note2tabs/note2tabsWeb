@@ -235,6 +235,18 @@ export function prepareNotationEngraving(score: NotationScore, viewportWidth: nu
       measure.beams.forEach((beam) => beam.setContext(context).draw());
       measure.tuplets.forEach((tuplet) => tuplet.setContext(context).draw());
       });
+      // Keep measure boundaries stronger than staff lines, even when dense
+      // measures are horizontally compressed. Draw in final screen coordinates.
+      context.save();
+      context.setFillStyle("#1d3329");
+      for (const staff of scoreStaves(score)) {
+        const stave = measure.staves[staff];
+        const top = stave.getTopLineTopY(), bottom = stave.getBottomLineBottomY();
+        for (const x of [stave.getX() * scale, (stave.getX() + stave.getWidth()) * scale]) {
+          context.fillRect(x - 0.9, top, 1.8, bottom - top);
+        }
+      }
+      context.restore();
       measure.records.forEach(({ token, note }) => {
         if (!(note instanceof StaveNote) || token.rest) return;
         token.pitches.forEach((pitch, index) => pitch.sources.forEach((source) => {
@@ -293,7 +305,7 @@ export function engravingPoint(layout: EngravedLayout, score: NotationScore, x: 
   let frame = (left.tick + ratio * (right.tick - left.tick)) / score.barTicks * score.framesPerBar;
   const barStart = measure.index * score.framesPerBar, step = Math.max(1, stepFrames);
   frame = snap ? barStart + Math.max(0, Math.min(Math.floor((score.framesPerBar - 1) / step) * step, Math.round((frame - barStart) / step) * step)) : Math.round(Math.max(barStart, Math.min(barStart + score.framesPerBar - 1, frame)));
-  const staff: ScoreStaff = Math.abs(y - (measure.staffBottom.bass - 20)) < Math.abs(y - (measure.staffBottom.treble - 20)) ? "bass" : "treble";
+  const staff: ScoreStaff = !score.percussion && Math.abs(y - (measure.staffBottom.bass - 20)) < Math.abs(y - (measure.staffBottom.treble - 20)) ? "bass" : "treble";
   const pitchStep = (staff === "bass" ? 25 : 37) + Math.round((measure.staffBottom[staff] - y) / 5);
   const naturals = [0, 2, 4, 5, 7, 9, 11], safe = Math.max(0, Math.min(74, pitchStep));
   const midi = Math.max(0, Math.min(127, Math.floor(safe / 7) * 12 + naturals[safe % 7] + notationKeyAlteration("cdefgab"[safe % 7], score.key)));
