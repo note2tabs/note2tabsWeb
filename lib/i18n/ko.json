@@ -1948,5 +1948,7 @@
   "Move your music between tools.": "음악 도구 사이에서 작업을 이어가세요.",
   "Compare transcription plans.": "채보 요금제를 비교하세요.",
   "Bass recording": "베이스 녹음",
-  "Generate bass tabs": "베이스 타브 악보 생성"
+  "Generate bass tabs": "베이스 타브 악보 생성",
+  "Continue without saving": "저장하지 않고 계속",
+  "Your selection couldn’t be saved. Continue without saving, or go back to keep it here.": "선택 내용을 저장하지 못했습니다. 저장하지 않고 계속하거나, 돌아가서 이 화면에 유지하세요."
 }

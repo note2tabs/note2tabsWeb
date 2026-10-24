@@ -9,6 +9,7 @@ const m = vi.hoisted(() => ({
   signIn: vi.fn(),
   fetch: vi.fn(),
   remember: vi.fn(),
+  assign: vi.fn(),
 }));
 vi.mock("next-auth/react", () => ({ useSession: () => m.session }));
 vi.mock("../../lib/i18n/auth", () => ({ localizedSignIn: m.signIn }));
@@ -33,6 +34,8 @@ vi.mock("../../lib/analytics", () => ({
     premiumPromptClicked: "clicked",
     premiumPromptDismissed: "dismissed",
     checkoutClientFailed: "failed",
+    premiumSelectionPreservationFailed: "save_failed",
+    premiumSelectionPreservationSkipped: "save_skipped",
   },
   sendEvent: m.send,
 }));
@@ -69,6 +72,8 @@ beforeEach(() => {
     },
   );
   vi.stubGlobal("fetch", m.fetch);
+  const realWindow=window;
+  vi.stubGlobal("window",new Proxy(realWindow,{get(t,k){return k === "location" ? {pathname:"/transcribe",assign:m.assign} : Reflect.get(t,k,t)}}));
   HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute("open", "");
   };
@@ -162,7 +167,7 @@ it("does not emit analytics or create a Checkout session in the preview", async 
   expect(m.fetch).not.toHaveBeenCalled();
   expect(m.send).not.toHaveBeenCalled();
 });
-it("preserves the selection before comparison and stays open on storage failure", async () => {
+it("records comparison intent before saving and offers recovery on storage failure", async () => {
   const before = vi.fn().mockRejectedValue(Error("storage"));
   await render({ plan: "FREE", remaining: 0, beforeCheckout: before });
   await act(async () =>
@@ -170,7 +175,7 @@ it("preserves the selection before comparison and stays open on storage failure"
   );
   expect(before).toHaveBeenCalledOnce();
   expect(el.querySelector('[role="alert"]')?.textContent).toContain(
-    "Could not save your selection",
+    "Your selection couldn’t be saved",
   );
   expect(m.fetch).not.toHaveBeenCalled();
 });
@@ -208,4 +213,63 @@ it("attaches the same explicit limit type to shown, clicked and dismissed events
   expect(m.send.mock.calls.find(([event])=>event==="clicked")?.[1]).toMatchObject({limit_type:"file_size",cta:"start_checkout"});
   await act(async()=>el.querySelector<HTMLButtonElement>(".limit-upgrade-back")!.click());
   expect(m.send.mock.calls.find(([event])=>event==="dismissed")?.[1]).toMatchObject({limit_type:"file_size",dismiss_method:"back_to_transcriber"});
+});
+
+it("lets a customer continue to checkout after a storage failure without double counting intent", async () => {
+  const before = vi.fn().mockRejectedValue(new DOMException("Quota exceeded", "QuotaExceededError"));
+  m.fetch.mockResolvedValue({ok:true,json:async()=>({url:"https://checkout.stripe.com/audit"})});
+  await render({plan:"FREE",remaining:0,beforeCheckout:before});
+  await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
+  expect(m.fetch).not.toHaveBeenCalled();
+  expect(m.send.mock.calls.filter(([event])=>event==='save_failed')).toHaveLength(1);
+  expect(m.send.mock.calls.some(([event])=>event==='failed')).toBe(false);
+  expect(el.querySelector('.limit-upgrade-primary')?.textContent).toBe('Continue without saving');
+  await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
+  expect(before).toHaveBeenCalledOnce();expect(m.fetch).toHaveBeenCalledOnce();
+  expect(m.assign).toHaveBeenCalledWith('https://checkout.stripe.com/audit');
+  expect(m.send.mock.calls.filter(([event])=>event==='clicked')).toHaveLength(1);
+  expect(m.send.mock.calls.filter(([event])=>event==='save_skipped')).toHaveLength(1);
+});
+it("lets comparison continue without saving and records its original click", async () => {
+  await render({plan:"FREE",remaining:0,beforeCheckout:()=>Promise.reject(new Error('Storage unavailable'))});
+  await act(async()=>el.querySelector<HTMLAnchorElement>('.limit-upgrade-compare')!.click());
+  expect(m.send.mock.calls.filter(([event])=>event==='clicked')).toHaveLength(1);
+  expect(m.assign).not.toHaveBeenCalled();
+  await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
+  expect(m.assign).toHaveBeenCalledWith(expect.stringContaining('/pricing?'));
+  expect(m.fetch).not.toHaveBeenCalled();
+  expect(m.send.mock.calls.filter(([event])=>event==='clicked')).toHaveLength(1);
+});
+it("times out stalled saves and allows recovery instead of trapping the modal", async () => {
+  vi.useFakeTimers();
+  try {
+    await render({plan:"FREE",remaining:0,beforeCheckout:()=>new Promise<void>(()=>{})});
+    await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
+    expect(el.querySelector<HTMLButtonElement>('.limit-upgrade-back')!.disabled).toBe(false);
+    await act(async()=>vi.advanceTimersByTimeAsync(3000));
+    expect(m.fetch).not.toHaveBeenCalled();
+    expect(el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.disabled).toBe(false);
+    expect(m.send.mock.calls.find(([event])=>event==='save_failed')?.[1]).toMatchObject({failure_category:'timeout',action:'checkout'});
+    await act(async()=>el.querySelector('dialog')!.dispatchEvent(new Event('cancel',{cancelable:true})));
+    expect(el.querySelector('dialog')!.open).toBe(false);
+  } finally {vi.useRealTimers()}
+});
+it.each(['back','escape'])("cancels a pending save via %s and ignores late completion",async method=>{
+ let resolve!:()=>void;const pending=new Promise<void>(r=>{resolve=r});
+ await render({plan:'FREE',remaining:0,beforeCheckout:()=>pending});
+ await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
+ await act(async()=>{if(method==='back')el.querySelector<HTMLButtonElement>('.limit-upgrade-back')!.click();else el.querySelector('dialog')!.dispatchEvent(new Event('cancel',{cancelable:true}))});
+ await act(async()=>resolve());
+ expect(m.fetch).not.toHaveBeenCalled();expect(m.assign).not.toHaveBeenCalled();expect(el.querySelector('dialog')!.open).toBe(false);
+});
+it("does not navigate on a late save after selecting recovery",async()=>{
+ vi.useFakeTimers();try{
+ let resolve!:()=>void;const pending=new Promise<void>(r=>{resolve=r});
+ m.fetch.mockResolvedValue({ok:true,json:async()=>({url:'https://checkout.stripe.com/audit'})});
+ await render({plan:'FREE',remaining:0,beforeCheckout:()=>pending});
+ await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
+ await act(async()=>vi.advanceTimersByTimeAsync(3000));
+ await act(async()=>el.querySelector<HTMLButtonElement>('.limit-upgrade-primary')!.click());
+ await act(async()=>resolve());expect(m.fetch).toHaveBeenCalledOnce();expect(m.assign).toHaveBeenCalledOnce();
+ }finally{vi.useRealTimers()}
 });
