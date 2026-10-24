@@ -10790,6 +10790,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         visible={Boolean(canvas) && isMobileViewport && notationTrackActive}
         playing={globalPlaybackIsPlaying} preparing={globalPlaybackIsPreparing}
         onToggle={toggleGlobalPlayback} onStart={skipGlobalPlaybackToStart}
+        portalTarget={practiceFullscreen ? practiceRootRef.current : null}
       />
       {!isMobileViewport && canvas && (
         <div

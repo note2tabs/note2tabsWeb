@@ -7,10 +7,11 @@ type Props = {
   preparing: boolean;
   onToggle: () => void;
   onStart: () => void;
+  portalTarget?: Element | null;
 };
 
 /** One song transport, accessible in mobile sheets, MIDI and practice views. */
-export default function GteMobileNotationTransport({visible,playing,preparing,onToggle,onStart}: Props) {
+export default function GteMobileNotationTransport({visible,playing,preparing,onToggle,onStart,portalTarget}: Props) {
   const { t } = useLocale();
   if (!visible || typeof document === "undefined") return null;
   return createPortal(
@@ -29,6 +30,6 @@ export default function GteMobileNotationTransport({visible,playing,preparing,on
           {playing?<><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></>:<polygon points="8,5 19,12 8,19"/>}
         </svg>
       </button>
-    </div>,document.body,
+    </div>,portalTarget ?? document.body,
   );
 }
