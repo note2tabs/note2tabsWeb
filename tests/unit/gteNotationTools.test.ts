@@ -16,7 +16,7 @@ describe("notation tools and persistence", () => {
     source.chords = [{ id: 8, startTime: 60, length: 120, originalMidi: [60,64,67], currentTabs: [[0,0],[0,0],[0,0]], ogTabs: [], velocities: [.4,.5,.6] }];
     const before = structuredClone(source), selection = { noteIds: [], chordIds: [], eventKeys: ["c:8:1"] };
     const moved = editScoreSelection(source, selection, { transpose: 1, shift: 30, length: 60 });
-    expect(scoreEvents(moved).map(note => [note.midi, note.start, note.length, note.velocity])).toEqual([[60,60,120,.4],[65,90,60,.5],[67,60,120,.6]]);
+    expect(scoreEvents(moved).map(note => [note.midi, note.start, note.length, note.velocity])).toEqual([[60,60,120,100/127],[65,90,60,100/127],[67,60,120,100/127]]);
     expect(scoreEvents(editScoreSelection(source, selection, { remove: true })).map(note => note.midi)).toEqual([60,67]);
     expect(scoreEvents(setScoreVoice(source, selection, 2)).map(note => note.voice)).toEqual([1,2,1]);
     expect(editScoreSelection(source, selection, { shift: -61 })).toBe(source);

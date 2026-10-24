@@ -17,7 +17,7 @@ beforeAll(() => {
 afterAll(() => { dom.window.close(); vi.unstubAllGlobals(); });
 const props = () => ({ mode: "select" as const, disabled: false, onMode: vi.fn(), onUndo: vi.fn(), onRedo: vi.fn(), undoCount: 1, redoCount: 1,
   grid: 16, triplet: false, onGrid: vi.fn(), keyBase: 4, keyType: 1, onKeyChange: vi.fn(), snapToKey: true, onSnapToKey: vi.fn(), voice: 1 as const, onVoice: vi.fn(),
-  hasSelection: true, onFitAll: vi.fn(), onFitSelection: vi.fn(), zoom: 240, row: 18, onZoom: vi.fn(), onRow: vi.fn(), onResetScale: vi.fn(), follow: false, onFollow: vi.fn(),
+  hasSelection: true, onSelectAll: vi.fn(), onFitAll: vi.fn(), onFitSelection: vi.fn(), zoom: 240, row: 18, onZoom: vi.fn(), onRow: vi.fn(), onResetScale: vi.fn(), follow: false, onFollow: vi.fn(),
   audition: true, onAudition: vi.fn(), labels: true, onLabels: vi.fn(), onCenter: vi.fn() });
 
 it("uses the requested control order, active modes, shared undo/redo and real grid/key/voice callbacks", async () => {
@@ -29,8 +29,10 @@ it("uses the requested control order, active modes, shared undo/redo and real gr
     await act(async () => root.render(React.createElement(GteMidiToolbar, p)));
     const toolbar = host.querySelector('[role="toolbar"]')!;
     expect(toolbar.className).toContain("flex-nowrap"); expect(toolbar.className).not.toContain("flex-wrap");
-    expect([...toolbar.querySelectorAll("button")].map(button => button.getAttribute("aria-label") ?? button.textContent)).toEqual(["Select", "Draw", "Undo", "Redo", "Snap to key", "Focus selection", "Zoom out", "Zoom in", "Fit all", "View⌄"]);
+    expect([...toolbar.querySelectorAll("button")].map(button => button.getAttribute("aria-label") ?? button.textContent)).toEqual(["Select", "Draw", "Select all", "Undo", "Redo", "Snap to key", "Focus selection", "Zoom out", "Zoom in", "Fit all", "View⌄"]);
     expect(button("Select").getAttribute("aria-pressed")).toBe("true"); expect(button("Snap to key").getAttribute("aria-pressed")).toBe("true");
+    await act(async () => button("Select all").click());
+    expect(p.onSelectAll).toHaveBeenCalledOnce();
     for (const label of ["Select", "Draw", "Undo", "Redo", "Snap to key"]) expect(button(label).title).not.toBe("");
     await act(async () => { button("Draw").click(); button("Undo").click(); button("Redo").click(); button("Snap to key").click(); });
     expect(p.onMode).toHaveBeenCalledWith("draw"); expect(p.onUndo).toHaveBeenCalledOnce(); expect(p.onRedo).toHaveBeenCalledOnce(); expect(p.onSnapToKey).toHaveBeenCalledWith(false);

@@ -85,6 +85,7 @@ import GteTrackTypeSetting from "../../components/GteTrackTypeSetting";
 import GteTrackSoundSelect from "../../components/GteTrackSoundSelect";
 import Note2TabsSelect from "../../components/Note2TabsSelect";
 import { restoreNotationSnapshot } from "../../lib/gteNotationPersistence";
+import { FIXED_NOTE_VELOCITY, withFixedVelocity } from "../../lib/gteFixedVelocity";
 import {
   getDrumVoiceForNote,
   isDrumTrackType,
@@ -443,6 +444,7 @@ const normalizeLane = (
   secondsPerBar: number,
   index: number
 ): EditorSnapshot => {
+  lane = withFixedVelocity(lane);
   if (!lane.instrumentType && lane.chordEditor?.instrumentType) lane = restoreNotationSnapshot(lane);
   if (isNotationTrack(lane)) lane = restoreNotationSnapshot(lane);
   const safeSeconds = Math.max(0.1, toNumber(secondsPerBar, toNumber(lane.secondsPerBar, DEFAULT_SECONDS_PER_BAR)));
@@ -2618,6 +2620,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
 
   const applyCanvasUpdate = useCallback(
     (next: CanvasSnapshot, options?: { markDirty?: boolean; recordHistory?: boolean }) => {
+      next = { ...next, editors: next.editors.map(withFixedVelocity) };
       setCanvas((prev) => {
         const merged = prev ? preserveDrumLoopsAcrossCanvasUpdate(next, prev) : next;
         if (prev && options?.recordHistory !== false) {
@@ -4939,7 +4942,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
 
         if (isNotationTrack(lane)) {
           scorePlaybackEvents(lane).forEach((note) => {
-            pushEvent(note.start, note.length, note.midi, 0.55 * Math.max(0, Math.min(1, note.velocity)), instrumentId, lanePan, laneId);
+            pushEvent(note.start, note.length, note.midi, 0.55 * FIXED_NOTE_VELOCITY, instrumentId, lanePan, laneId);
           });
           return;
         }
@@ -4950,7 +4953,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
 
           const baseMidi =
             Number.isFinite(note.midiNum) && note.midiNum > 0 ? note.midiNum : getMidiFromTab(lane, note.tab);
-          const noteGain = 0.55 * Math.max(0, Math.min(1, Number(note.velocity ?? 1)));
+          const noteGain = 0.55 * FIXED_NOTE_VELOCITY;
           if (!outgoingTransitions.has(note.id)) {
             pushEvent(note.startTime, note.length, baseMidi, noteGain, instrumentId, lanePan, laneId);
             return;
@@ -5089,7 +5092,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           if (chord.source === "transcription") {
             chord.currentTabs.forEach((tab, tabIndex) => {
               const midi = getMidiFromTab(lane, tab, chord.originalMidi?.[tabIndex]);
-              const velocity = Math.max(0, Math.min(1, Number(chord.velocities?.[tabIndex] ?? 1)));
+              const velocity = FIXED_NOTE_VELOCITY;
               pushEvent(chord.startTime, chord.length, midi, 0.55 * velocity, instrumentId, lanePan, laneId);
             });
             return;

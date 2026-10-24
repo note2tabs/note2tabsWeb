@@ -1,5 +1,6 @@
 import type { EditorSnapshot, Note } from "../types/gte";
 import { addScoreNote, scoreEvents, snapScorePitch, validNotationTie, type ScoreEvent } from "./gteNotation";
+import { FIXED_NOTE_VELOCITY, withFixedVelocity } from "./gteFixedVelocity";
 
 export type MidiEdit = { shift?: number; transpose?: number; lengthDelta?: number; velocity?: number; velocityScale?: number; voice?: 1 | 2; remove?: boolean; key?: { root: number; type: number } };
 export const midiPitchName = (midi: number) => ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"][midi % 12] + (Math.floor(midi / 12) - 1);
@@ -28,7 +29,7 @@ export function midiFitPlan(events: readonly ScoreEvent[], framesPerBar: number,
 export function editMidiEvents(source: EditorSnapshot, keys: readonly string[], change: MidiEdit): EditorSnapshot {
   const selected = new Set(keys), events = scoreEvents(source), targets = events.filter((event) => selected.has(event.key));
   if (!targets.length || targets.some((event) => event.start + (change.shift ?? 0) < 0 || event.midi + (change.transpose ?? 0) < 0 || event.midi + (change.transpose ?? 0) > 127 || event.length + (change.lengthDelta ?? 0) <= 0)) return source;
-  const next = structuredClone(source), remap = new Map<string, string>();
+  const next = withFixedVelocity(structuredClone(source)), remap = new Map<string, string>();
   let id = Math.max(0, ...source.notes.map((note) => note.id));
   const affected = new Set(targets.flatMap((event) => event.chordId !== undefined ? [event.chordId] : []));
   for (const chord of source.chords.filter((chord) => affected.has(chord.id))) {
@@ -46,7 +47,7 @@ export function editMidiEvents(source: EditorSnapshot, keys: readonly string[], 
     return [{ ...note, startTime: note.startTime + (change.shift ?? 0), length: note.length + (change.lengthDelta ?? 0),
       midiNum: change.key ? snapScorePitch(note.midiNum + (change.transpose ?? 0), change.key.root, change.key.type) : note.midiNum + (change.transpose ?? 0), optimals: change.transpose ? [] : note.optimals,
       notationVoice: change.voice ?? note.notationVoice,
-      velocity: change.velocity === undefined && change.velocityScale === undefined ? note.velocity : Math.max(30 / 127, Math.min(1, change.velocity ?? (note.velocity ?? 1) * change.velocityScale!)) }];
+      velocity: FIXED_NOTE_VELOCITY }];
   });
   const current = scoreEvents(next), byKey = new Map(current.map((event) => [event.key, event]));
   if (next.notation) {
@@ -67,7 +68,7 @@ export function pasteMidiEvents(source: EditorSnapshot, events: readonly ScoreEv
   let snapshot = source;
   for (const event of events) {
     const result = addScoreNote(snapshot, event.midi, Math.max(0, frame) + event.start - origin, event.length, event.staff, event.voice ?? 1);
-    result.note.velocity = event.velocity;
+    result.note.velocity = FIXED_NOTE_VELOCITY;
     result.note.pitchBend = event.pitchBend?.slice();
     snapshot = result.snapshot; keys.push("n:" + result.note.id);
   }

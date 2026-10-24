@@ -1,9 +1,11 @@
 import type { EditorSnapshot } from "../types/gte";
 import { isNotationTrack } from "./gteNotation";
 import { getTrackInstrumentType } from "./gteInstrumentType";
+import { FIXED_NOTE_VELOCITY, withFixedVelocity } from "./gteFixedVelocity";
 
 export function serializeNotationPayload(snapshot: Record<string, any>): Record<string, any> {
   const serialize = (lane: EditorSnapshot) => {
+    lane = withFixedVelocity(lane);
     const next = isNotationTrack(lane) || lane.notation !== undefined ? serializeNotationSnapshot(lane) : lane;
     const type = getTrackInstrumentType(lane);
     // The legacy backend infers bass from sound IDs. Keep its transport sound
@@ -23,6 +25,7 @@ export function serializeNotationPayload(snapshot: Record<string, any>): Record<
 /** The existing backend preserves chordEditor's JSON metadata but normalizes
  * unknown fields off notes. Keep this wire adapter separate from the music model. */
 export function serializeNotationSnapshot(snapshot: EditorSnapshot): EditorSnapshot {
+  snapshot = withFixedVelocity(snapshot);
   const assignments = Object.fromEntries([
     ...snapshot.notes.map((note) => ["n:" + note.id, { voice: note.notationVoice ?? 1, staff: note.notationStaff,
       midi: note.midiNum, velocity: note.velocity, pitchBend: note.pitchBend, start: note.startTime, length: note.length }]),
@@ -32,6 +35,7 @@ export function serializeNotationSnapshot(snapshot: EditorSnapshot): EditorSnaps
 }
 
 export function restoreNotationSnapshot(snapshot: EditorSnapshot): EditorSnapshot {
+  snapshot = withFixedVelocity(snapshot);
   if (!snapshot.instrumentType && snapshot.chordEditor?.instrumentType) {
     snapshot = { ...snapshot, instrumentType: getTrackInstrumentType(snapshot), instrumentId: typeof snapshot.chordEditor.instrumentSound === "string" ? snapshot.chordEditor.instrumentSound : snapshot.instrumentId,
       ...(snapshot.name === "Track" && typeof snapshot.chordEditor.instrumentDisplayName === "string" ? { name: snapshot.chordEditor.instrumentDisplayName } : {}),
@@ -50,7 +54,7 @@ export function restoreNotationSnapshot(snapshot: EditorSnapshot): EditorSnapsho
       const entry = assignments["n:" + note.id];
       return { ...note, notationVoice: note.notationVoice ?? (entry?.voice === 2 ? 2 : 1),
         ...(pitched && Number.isFinite(entry?.midi) ? { midiNum: entry!.midi! } : {}),
-        ...(Number.isFinite(entry?.velocity) ? { velocity: entry!.velocity } : {}),
+        velocity: FIXED_NOTE_VELOCITY,
         ...(Array.isArray(entry?.pitchBend) ? { pitchBend: entry.pitchBend } : {}),
         ...(pitched && Number.isFinite(entry?.start) && entry!.start! >= 0 ? { startTime: entry!.start! } : {}),
         ...(pitched && Number.isFinite(entry?.length) && entry!.length! > 0 ? { length: entry!.length! } : {}),

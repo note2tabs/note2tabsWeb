@@ -40,7 +40,7 @@ export function restorePitchedImport(lane: EditorSnapshot, segments: Transcriber
     if (!value) return [];
     return [{ id: index + 1, startTime: value.start + offset, length: value.length, midiNum: segment.pitch_midi!,
       tab: [0, 0] as [number, number], optimals: [],
-      velocity: typeof segment.amplitude === "number" ? Math.max(0, Math.min(1, segment.amplitude)) : 1,
+      velocity: 100 / 127,
       pitchBend: segment.pitch_bend ?? undefined, notationVoice: 1 as const }];
   });
   return { ...lane, notes, chords: [], noteEffects: [], notation: {},

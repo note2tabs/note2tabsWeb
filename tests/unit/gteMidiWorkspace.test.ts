@@ -75,12 +75,11 @@ it("loads delayed music, guards tiny drags, supports navigation, loop selection 
     await pointer(ruler, "pointerdown", 100, 10); await pointer(ruler, "pointermove", 300, 10); await pointer(ruler, "pointerup", 300, 10);
     expect(loop).toHaveBeenCalledOnce();
     expect(loop.mock.calls[0][0].endFrame).toBeGreaterThan(loop.mock.calls[0][0].startFrame);
-    const collapse = [...host.querySelectorAll("button")].find((button) => button.title === "Show or hide velocity lane")!;
-    expect(collapse.getAttribute("aria-expanded")).toBe("false");
+    expect(host.querySelector("[data-midi-velocity-header]")).toBeNull();
     scroll.scrollLeft = 420; scroll.scrollTop = 800;
     await act(async () => scroll.dispatchEvent(new dom.window.Event("scroll", { bubbles: true })));
     await act(async () => root.render(React.createElement("div", null, "Sheets")));
-    expect(readPitchedViewState("delayed-test")).toMatchObject({ left: 420, top: 800, selection: ["n:1"], velocityHeight: 0 });
+    expect(readPitchedViewState("delayed-test")).toMatchObject({ left: 420, top: 800, selection: ["n:1"] });
     await render();
     expect((host.querySelector('[data-midi-scroll]') as HTMLDivElement).scrollLeft).toBe(420);
     expect((host.querySelector('[data-midi-scroll]') as HTMLDivElement).scrollTop).toBe(800);
@@ -191,7 +190,7 @@ it.each([120, 480])("keeps group movement, key snapping and always-snapped resiz
 });
 afterAll(() => { dom.window.close(); vi.unstubAllGlobals(); });
 
-it("ignores saved snap-off settings, keeps Alt timing snapped and resizes/collapses the 0–127 velocity panel", async () => {
+it("ignores saved snap-off settings and has no velocity controls", async () => {
   const editorId = "layout-always-snap";
   savePitchedViewState(editorId, { snap: false, strength: 0, zoom: 240, row: 18, grid: 16, left: 0, top: 1100 });
   const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
@@ -201,30 +200,15 @@ it("ignores saved snap-off settings, keeps Alt timing snapped and resizes/collap
   const pointer = async (target: EventTarget, type: string, x: number, y: number) => { await act(async () => target.dispatchEvent(new dom.window.MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, altKey: true }))); };
   try {
     await render();
-    const roll = host.querySelector('[aria-label="MIDI piano roll"]')!, velocity = () => host.querySelector('[aria-label="MIDI velocity lane"]')!;
-    expect(velocity().getAttribute("height")).toBe("0");
+    const roll = host.querySelector('[aria-label="MIDI piano roll"]')!;
+    expect(host.querySelector('[aria-label="MIDI velocity lane"]')).toBeNull();
     expect(host.querySelector('[aria-label="Selected velocity"]')).toBeNull();
-    await act(async () => (host.querySelector('[aria-label="Show or hide velocity lane"]') as HTMLButtonElement).click());
-    expect(velocity().getAttribute("height")).toBe("100");
-    expect(host.querySelector('[data-midi-velocity-header]')?.textContent).toContain("0–127");
     expect(host.querySelector('[aria-label="Snap"]')).toBeNull();
     await pointer(roll, "dblclick", 37, (127 - 60) * 18 + 6);
     expect(snapshot.notes[0]).toMatchObject({ startTime: 60, length: 30 });
     expect(snapshot.notes[0].velocity).toBe(100 / 127);
     await render();
-    expect(host.querySelector('[aria-label="Selected velocity"]')?.closest('[data-midi-velocity-header]')).not.toBeNull();
-    await pointer(velocity().querySelector("circle")!, "pointerdown", 30, 10);
-    await pointer(velocity(), "pointermove", 30, 150); await pointer(velocity(), "pointerup", 30, 150);
-    expect(snapshot.notes[0].velocity).toBe(30 / 127);
-    await render();
-    const handle = host.querySelector('[aria-label="Resize velocity lane"]')!;
-    await act(async () => handle.dispatchEvent(new dom.window.KeyboardEvent("keydown", { bubbles: true, key: "ArrowUp" })));
-    expect(velocity().getAttribute("height")).toBe("110");
-    const collapse = host.querySelector('[aria-label="Show or hide velocity lane"]') as HTMLButtonElement;
-    await act(async () => collapse.click()); expect(velocity().getAttribute("height")).toBe("0");
-    await act(async () => collapse.click()); expect(velocity().getAttribute("height")).toBe("110");
-    await pointer(host.querySelector('[aria-label="Resize velocity lane"]')!, "pointerdown", 0, 100); await pointer(dom.window, "pointermove", 0, 80); await pointer(dom.window, "pointerup", 0, 80);
-    expect(velocity().getAttribute("height")).toBe("130");
+    expect(host.querySelector('[aria-label="Selected velocity"]')).toBeNull();
     expect((host.querySelector('[data-midi-scroll]') as HTMLElement).parentElement!.className).toContain("flex-1");
     expect(host.querySelector('[aria-label="MIDI playhead"]')?.parentElement?.className).toContain("sticky top-0");
   } finally { await act(async () => root.unmount()); host.remove(); }
@@ -265,25 +249,7 @@ it("edits the real shared snapshot through draw, move, resize, selection, veloci
     await pointer(note().querySelectorAll("rect")[2], "pointerdown", 105, y - 18); await pointer(grid(), "pointermove", 135, y - 18); await pointer(grid(), "pointerup", 135, y - 18);
     expect(snapshot.notes[0].length).toBe(150);
     await render();
-    await act(async () => (host.querySelector('[aria-label="Show or hide velocity lane"]') as HTMLButtonElement).click());
-    const velocity = host.querySelector('[aria-label="Selected velocity"]') as HTMLInputElement;
-    expect(velocity.value).toBe("100");
-    // Replacing a value must not persist the intermediate empty input as zero.
-    await act(async () => { velocity.dispatchEvent(new dom.window.FocusEvent("focusin", { bubbles: true })); });
-    await act(async () => { velocity.value = ""; velocity.dispatchEvent(new dom.window.Event("input", { bubbles: true })); });
-    expect(snapshot.notes[0].velocity).toBe(100 / 127);
-    await act(async () => { velocity.dispatchEvent(new dom.window.FocusEvent("focusout", { bubbles: true })); });
-    expect(snapshot.notes[0].velocity).toBe(100 / 127);
-    expect(velocity.value).toBe("100");
-    const lane = host.querySelector('[aria-label="MIDI velocity lane"]')!;
-    // Clicking near the foot of a stem selects it without silencing the notes.
-    await pointer(lane.querySelector("circle")!, "pointerdown", 60, 95);
-    await pointer(lane, "pointermove", 60, 96); await pointer(lane, "pointerup", 60, 96);
-    expect(snapshot.notes[0].velocity).toBe(100 / 127);
-    const velocityMiddle = Number(lane.getAttribute("height")) / 2;
-    await pointer(lane.querySelector("circle")!, "pointerdown", 60, 25); await pointer(lane, "pointermove", 60, velocityMiddle); await pointer(lane, "pointerup", 60, velocityMiddle);
-    expect(snapshot.notes[0].velocity).toBeCloseTo(0.5);
-    await render();
+    expect(host.querySelector('[aria-label="Selected velocity"]')).toBeNull();
     await key("c", { ctrlKey: true }); await key("v", { ctrlKey: true });
     expect(snapshot.notes).toHaveLength(2);
     await render(); await key("z", { ctrlKey: true }); await key("z", { ctrlKey: true, shiftKey: true });

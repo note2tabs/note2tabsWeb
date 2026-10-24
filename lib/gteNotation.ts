@@ -1,6 +1,7 @@
 import type { Chord, EditorSnapshot, Note } from "../types/gte";
 import { getTabMidi } from "./gteTuning";
 import { getTrackInstrumentType } from "./gteInstrumentType";
+import { FIXED_NOTE_VELOCITY } from "./gteFixedVelocity";
 
 /** Sound determines the pitched editor without introducing a new persisted track schema. */
 export function isNotationTrack(snapshot: Parameters<typeof getTrackInstrumentType>[0]) {
@@ -8,8 +9,8 @@ export function isNotationTrack(snapshot: Parameters<typeof getTrackInstrumentTy
 }
 
 export type ScoreEvent = { key: string; noteId?: number; chordId?: number; member: number; midi: number; start: number; length: number; velocity: number; pitchBend?: number[]; staff: "treble" | "bass"; voice?: 1 | 2 };
-/** Notes use 0–1; chord metadata written by older paths may hold 0–127. Missing/invalid never means silent. */
-const eventVelocity = (value: unknown) => typeof value !== "number" || !Number.isFinite(value) ? 1 : Math.max(0, Math.min(1, value > 1 ? value / 127 : value));
+/** Legacy velocity data is ignored: all editor events use MIDI velocity 100. */
+const eventVelocity = (_value: unknown) => FIXED_NOTE_VELOCITY;
 export function scoreEvents(snapshot: EditorSnapshot): ScoreEvent[] {
   return [
     ...snapshot.notes.map((note) => ({

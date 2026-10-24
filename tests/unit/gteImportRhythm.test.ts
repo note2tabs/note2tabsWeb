@@ -63,7 +63,7 @@ describe("eighth-note-preferred transcription tempo", () => {
     vi.stubGlobal("fetch",fetch);
     try {
       const result=await optimizeImportedTrackFingerings("project",source,2,["piano"],[{name:"Piano",trackType:"tab",program:0,instrumentId:"upright_piano",segments:[{start_time_s:.125,end_time_s:.25,pitch_midi:21,amplitude:.6}]}],{timingMap:source.timingMap,rhythmScale:2,preferredTimingMap:preferred});
-      expect(result.editors[0].notes[0]).toMatchObject({midiNum:21,startTime:60,length:60,velocity:.6});
+      expect(result.editors[0].notes[0]).toMatchObject({midiNum:21,startTime:60,length:60,velocity:100/127});
       expect(frameToSeconds(result.timingMap!,60)).toBe(.125);
       const wire=JSON.parse(String((fetch.mock.calls[0] as unknown as [string,RequestInit])[1].body)).snapshot;
       expect(wire.timingMap.bars[0].quarterNoteBpm).toBe(240);

@@ -26,16 +26,16 @@ describe("shared MIDI and sheet music model", () => {
   it("scales velocities proportionally and constrains moved notes to a key without retuning unselected music", () => {
     const source = score(); source.notes[0].velocity = 0.4; source.notes[1].velocity = 0.8;
     const scaled = editMidiEvents(source, ["n:1", "n:2"], { velocityScale: 0.5 });
-    expect(scaled.notes.map((note) => note.velocity)).toEqual([30 / 127, 0.4]);
-    expect(scorePlaybackEvents(scaled).map((note) => note.velocity)).toEqual([30 / 127, 0.4]);
+    expect(scaled.notes.map((note) => note.velocity)).toEqual([100 / 127, 100 / 127]);
+    expect(scorePlaybackEvents(scaled).map((note) => note.velocity)).toEqual([100 / 127, 100 / 127]);
     const moved = editMidiEvents(source, ["n:1"], { transpose: 1, key: { root: 0, type: 0 } });
-    expect(moved.notes[0].midiNum).toBe(60); expect(moved.notes[1]).toEqual(source.notes[1]);
+    expect(moved.notes[0].midiNum).toBe(60); expect(moved.notes[1]).toEqual({ ...source.notes[1], velocity: 100 / 127 });
   });
   it("moves and resizes individual notes, preserving expression and manual voice", () => {
     const source = score(); source.notes[0].velocity = 0.6; source.notes[0].pitchBend = [0, 0.3];
     const moved = editMidiEvents(source, ["n:1"], { shift: 7.5, transpose: 2, lengthDelta: 22.5 });
-    expect(moved.notes[0]).toMatchObject({ startTime: 7.5, length: 82.5, midiNum: 62, velocity: 0.6, pitchBend: [0, 0.3], notationVoice: 2 });
-    expect(moved.notes[1]).toEqual(source.notes[1]);
+    expect(moved.notes[0]).toMatchObject({ startTime: 7.5, length: 82.5, midiNum: 62, velocity: 100 / 127, pitchBend: [0, 0.3], notationVoice: 2 });
+    expect(moved.notes[1]).toEqual({ ...source.notes[1], velocity: 100 / 127 });
     const engraved = buildNotationScore(moved);
     expect(engraved.measures[0].voices.treble[1].some((token) => token.pitches.some((pitch) => pitch.midi === 62))).toBe(true);
     expect(source.notes[0].midiNum).toBe(60);
@@ -45,7 +45,7 @@ describe("shared MIDI and sheet music model", () => {
     source.notation = { slurs: [{ from: "n:1", to: "c:4:1" }] };
     const next = editMidiEvents(source, ["c:4:1"], { transpose: 1, shift: 15 });
     expect(next.chords).toEqual([]);
-    expect(scoreEvents(next).filter((event) => event.noteId! > 2).map((event) => [event.midi, event.start, event.velocity, event.voice])).toEqual([[60, 240, 0.3, 2], [65, 255, 0.5, 2], [67, 240, 0.7, 2]]);
+    expect(scoreEvents(next).filter((event) => event.noteId! > 2).map((event) => [event.midi, event.start, event.velocity, event.voice])).toEqual([[60, 240, 100 / 127, 2], [65, 255, 100 / 127, 2], [67, 240, 100 / 127, 2]]);
     expect(next.notation?.slurs).toEqual([{ from: "n:1", to: "n:4" }]);
     expect(source.chords).toHaveLength(1);
   });
@@ -55,22 +55,22 @@ describe("shared MIDI and sheet music model", () => {
     expect(editMidiEvents(source, ["n:1", "n:2"], { transpose: 100 })).toBe(source);
     expect(editMidiEvents(source, ["n:1", "n:2"], { lengthDelta: -60 })).toBe(source);
   });
-  it("clamps typed and scaled velocities to a minimum of MIDI 30", () => {
+  it("ignores legacy velocity edits and always uses MIDI 100", () => {
     for (const change of [{ velocity: 0 }, { velocity: 29 / 127 }, { velocityScale: 0.01 }]) {
-      expect(editMidiEvents(score(), ["n:1"], change).notes[0].velocity).toBe(30 / 127);
+      expect(editMidiEvents(score(), ["n:1"], change).notes[0].velocity).toBe(100 / 127);
     }
   });
   it("supports deletion and velocity without modifying unrelated notes", () => {
     const source = score();
     const next = editMidiEvents(source, ["n:2"], { velocity: 45 / 127 });
-    expect(next.notes[1].velocity).toBe(45 / 127); expect(next.notes[0]).toEqual(source.notes[0]);
+    expect(next.notes[1].velocity).toBe(100 / 127); expect(next.notes[0]).toEqual({ ...source.notes[0], velocity: 100 / 127 });
     expect(editMidiEvents(next, ["n:2"], { remove: true }).notes).toHaveLength(1);
   });
   it("copies groups with relative time, duration, velocity and voice intact", () => {
     const source = score(); source.notes[0].velocity = 0.4;
     const result = pasteMidiEvents(source, scoreEvents(source), 300);
     expect(result.keys).toEqual(["n:3", "n:4"]);
-    expect(result.snapshot.notes.slice(2).map((note) => [note.startTime, note.length, note.velocity, note.notationVoice])).toEqual([[300, 60, 0.4, 2], [360, 120, 100 / 127, 1]]);
+    expect(result.snapshot.notes.slice(2).map((note) => [note.startTime, note.length, note.velocity, note.notationVoice])).toEqual([[300, 60, 100 / 127, 2], [360, 120, 100 / 127, 1]]);
   });
   it("uses meter-aware fractional grids and retains off-grid timing until explicitly snapped", () => {
     expect(midiGridFrames(empty(), 64)).toBe(7.5);
@@ -89,10 +89,10 @@ describe("shared MIDI and sheet music model", () => {
     const wire = serializeNotationSnapshot(source); delete wire.notation;
     wire.notes = wire.notes.map(({ notationVoice, notationStaff, velocity, pitchBend, ...note }) => ({ ...note, startTime: Math.round(note.startTime), length: Math.round(note.length) }));
     const restored = restoreNotationSnapshot(wire);
-    expect(restored.notes[0]).toMatchObject({ startTime: 0.75, length: 60.5, velocity: 0.4 });
+    expect(restored.notes[0]).toMatchObject({ startTime: 0.75, length: 60.5, velocity: 100 / 127 });
     const edited = editMidiEvents(restored, ["n:1"], { shift: 30 });
     expect(restoreNotationSnapshot(edited).notes[0].startTime).toBe(30.75);
-    expect(normalizeGuestSnapshot(edited).notes[0]).toMatchObject({ startTime: 30.75, length: 60.5, velocity: 0.4 });
+    expect(normalizeGuestSnapshot(edited).notes[0]).toMatchObject({ startTime: 30.75, length: 60.5, velocity: 100 / 127 });
   });
 });
 

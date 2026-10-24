@@ -19,7 +19,7 @@ type Props = {
   keyBase: number; keyType: number; onKeyChange?: (base: number, type: number) => void;
   snapToKey: boolean; onSnapToKey?: (enabled: boolean) => void;
   voice: 1 | 2; onVoice: (voice: 1 | 2) => void;
-  hasSelection: boolean; onFitAll: () => void; onFitSelection: () => void;
+  hasSelection: boolean; onSelectAll: () => void; onFitAll: () => void; onFitSelection: () => void;
   zoom: number; row: number; onZoom: (zoom: number) => void; onRow: (row: number) => void; onResetScale: () => void;
   follow: boolean; onFollow: (enabled: boolean) => void;
   audition: boolean; onAudition: (enabled: boolean) => void;
@@ -64,6 +64,7 @@ export default function GteMidiToolbar(props: Props) {
   return <div ref={root} role="toolbar" aria-label={t("MIDI tools")} data-gte-floating-ui="true" data-gte-editor-control="true" className="relative z-40 mx-3 flex min-w-0 shrink-0 flex-nowrap items-center gap-1 rounded-lg border border-slate-200 bg-[#faf9f5] p-1.5 text-xs"
     onKeyDown={event => { if (event.key === "Escape" && open) { event.preventDefault(); event.stopPropagation(); setOpen(null); root.current?.querySelector<HTMLButtonElement>(`[data-midi-menu="${open}"]`)?.focus(); } }}>
     <div role="group" aria-label={t("Editing mode")} className={group}>{iconButton("Select · Esc", "select", () => props.onMode("select"), false, props.mode === "select")}{iconButton("Draw · B", "draw", () => props.onMode("draw"), props.disabled, props.mode === "draw")}</div>
+    {iconButton("Select all · A", "selection", props.onSelectAll)}
     {showHistory && <div className={group}>{history}</div>}
     <label className={group + " text-slate-500"}><span className={width < 420 ? "sr-only" : ""}>{t("Grid")}</span>
       <select aria-label={t("MIDI grid")} title={t("Grid resolution · always snapped")} className={control} value={`${props.grid}${props.triplet ? "T" : ""}`} onChange={event => props.onGrid(parseInt(event.target.value, 10), event.target.value.endsWith("T"))}>
