@@ -219,6 +219,25 @@ describe("transcriber import chunking", () => {
     expect(result.editors.find((lane) => lane.id === "imported-bass")?.notes[0].length).toBe(120);
   });
 
+  it("cleans imported piano repetitions by pitch and voice without trimming polyphony or existing tracks", async () => {
+    const piano = { ...buildCanvas("canvas-1", [120]).editors[0], id: "new-piano", instrumentType: "notation" as const,
+      instrumentId: "upright_piano", notes: [
+        { id: 1, startTime: 0, length: 135, midiNum: 60, tab: [0,0] as [number,number], optimals: [] },
+        { id: 2, startTime: 120, length: 120, midiNum: 60, tab: [0,0] as [number,number], optimals: [] },
+        { id: 3, startTime: 0, length: 135, midiNum: 64, tab: [0,0] as [number,number], optimals: [] },
+        { id: 4, startTime: 120, length: 120, midiNum: 67, tab: [0,0] as [number,number], optimals: [] },
+        { id: 5, startTime: 0, length: 135, midiNum: 72, notationVoice: 2 as const, tab: [0,0] as [number,number], optimals: [] },
+        { id: 6, startTime: 120, length: 120, midiNum: 72, notationVoice: 1 as const, tab: [0,0] as [number,number], optimals: [] },
+      ], chords: [] };
+    const source: CanvasSnapshot = { ...buildCanvas("canvas-1", [120]), editors: [{ ...structuredClone(piano), id: "existing-piano" }, piano] };
+    const before = structuredClone(source);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 })));
+    const result = await optimizeImportedTrackFingerings("canvas-1", source, 2, [piano.id], { manual: true });
+    expect(result.editors[1].notes.map(note => note.length)).toEqual([120,120,135,120,135,120]);
+    expect(result.editors[0]).toEqual(before.editors[0]);
+    expect(source).toEqual(before);
+  });
+
   it("creates the first chunk directly and appends later chunks as one aligned import", async () => {
     const requests: Array<{ url: string; body: any }> = [];
     const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {

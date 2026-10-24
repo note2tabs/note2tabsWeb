@@ -37,7 +37,9 @@ type EditorBootstrapResult = {
 };
 type EditorBootstrap = {
   editorId: string;
-  promise: Promise<EditorBootstrapResult>;
+  promise?: Promise<EditorBootstrapResult>;
+  snapshot?: EditorOrCanvasSnapshot;
+  expiresAt?: number;
 };
 
 declare global {
@@ -222,6 +224,8 @@ function takeBootstrappedEditor(editorId: string) {
   const bootstrap = window.__note2tabsEditorBootstrap;
   if (!bootstrap || bootstrap.editorId !== editorId) return null;
   delete window.__note2tabsEditorBootstrap;
+  if (bootstrap.snapshot) return (bootstrap.expiresAt ?? 0) > Date.now() ? Promise.resolve(bootstrap.snapshot) : null;
+  if (!bootstrap.promise) return null;
   return bootstrap.promise.then(({ ok, status, text }) => {
     if (!ok) throw new Error(editorRequestError(text, status));
     if (!text) return {} as EditorOrCanvasSnapshot;
@@ -256,6 +260,7 @@ function getPrefetchedEditor(editorId: string) {
   if (!cached || cached.expiresAt <= Date.now()) {
     return takeBootstrappedEditor(editorId) ?? fetchEditor(editorId);
   }
+  if (typeof window !== "undefined" && window.__note2tabsEditorBootstrap?.editorId === editorId) delete window.__note2tabsEditorBootstrap;
   return cached.promise;
 }
 
@@ -714,8 +719,12 @@ export async function optimizeImportedTrackFingerings(
 
   optimized.editors.forEach((lane) => {
     if (importedLaneIds && !importedLaneIds.has(lane.id)) return;
+    if (isNotationTrack(lane)) {
+      if (importedLaneIds?.has(lane.id)) cleanTinyOverlapsInSnapshot(lane, overlapCleanupOptions);
+      return;
+    }
     if (
-      isDrumLane(lane) || isNotationTrack(lane) ||
+      isDrumLane(lane) ||
       !Array.isArray(lane.notes) ||
       !Array.isArray(lane.chords) ||
       (lane.notes.length === 0 && lane.chords.length === 0)
@@ -733,7 +742,7 @@ export async function optimizeImportedTrackFingerings(
     if (importedLaneIds?.has(lane.id)) cleanTinyOverlapsInSnapshot(lane, overlapCleanupOptions);
   });
 
-  await requestForEditor<{ ok: true; snapshot: EditorOrCanvasSnapshot; canvas?: CanvasSnapshot }>(
+  const saved = await requestForEditor<{ ok: true; snapshot?: EditorOrCanvasSnapshot; canvas?: CanvasSnapshot }>(
     canvasId,
     `/editors/${encodeURIComponent(canvasId)}/snapshot`,
     {
@@ -742,7 +751,12 @@ export async function optimizeImportedTrackFingerings(
       body: JSON.stringify({ snapshot: serializeNotationPayload(optimized) }),
     }
   );
-  editorPrefetches.delete(canvasId);
+  // The following navigation already has a confirmed, complete save response.
+  // Consume it once instead of downloading the entire score again on first open.
+  const savedSnapshot = saved.canvas ?? saved.snapshot ?? optimized;
+  const expiresAt = Date.now() + 60_000;
+  editorPrefetches.set(canvasId, { expiresAt, promise: Promise.resolve(savedSnapshot) });
+  if (typeof window !== "undefined") window.__note2tabsEditorBootstrap = { editorId: canvasId, snapshot: savedSnapshot, expiresAt };
   return optimized;
 }
 

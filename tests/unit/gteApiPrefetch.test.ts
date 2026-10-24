@@ -1,11 +1,28 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { gteApi } from "../../lib/gteApi";
+import { gteApi, optimizeImportedTrackFingerings } from "../../lib/gteApi";
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
 describe("editor snapshot prefetching", () => {
+  it("hands the confirmed import save to the first editor load without another GET", async () => {
+    const source = { id: "import-handoff", version: 1, editors: [] };
+    const confirmed = { ...source, version: 2 };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, canvas: confirmed }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...confirmed, version: 3 }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("window", {});
+    await optimizeImportedTrackFingerings(source.id, source);
+    expect(window.__note2tabsEditorBootstrap?.editorId).toBe(source.id);
+    await expect(gteApi.getEditor(source.id)).resolves.toEqual(confirmed);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(window.__note2tabsEditorBootstrap).toBeUndefined();
+    // Handoff is single-use: later reopens fetch current server state.
+    await expect(gteApi.getEditor(source.id)).resolves.toEqual({ ...confirmed, version: 3 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
   it("reuses an intent-prefetched snapshot for the following editor load", async () => {
     const snapshot = {
       id: "editor-prefetch",

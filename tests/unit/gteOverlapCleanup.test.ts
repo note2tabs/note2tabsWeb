@@ -20,12 +20,27 @@ describe("negligible overlap cleanup", () => {
     expect(cleanTinyOverlapsInSnapshot(source, { manual: true })).toBe(0);
   });
   it("keeps larger overlaps, simultaneous starts and very short articulations outside the manual margin", () => {
-    for (const [length, start, laterLength] of [[152, 120, 120], [120, 0, 120], [12, 4, 120]]) {
+    for (const [length, start, laterLength] of [[181, 120, 120], [120, 0, 120], [12, 4, 120]]) {
       const source = fixture(); source.notes = [note(1, 0, length), note(2, start, laterLength)];
       const before = structuredClone(source);
       expect(cleanTinyOverlapsInSnapshot(source, { manual: true })).toBe(0);
       expect(source).toEqual(before);
     }
+  });
+  it("cleans a long bar-eleven chord tail before short following chords", () => {
+    const source = fixture(); source.notes = [];
+    const start = 10 * 480;
+    source.chords = [
+      { id: 1, startTime: start, length: 120, currentTabs: [[0, 4], [1, 5]], ogTabs: [], originalMidi: [68, 64] },
+      { id: 2, startTime: start + 90, length: 30, currentTabs: [[0, 4], [1, 5]], ogTabs: [], originalMidi: [68, 64] },
+      { id: 3, startTime: start + 120, length: 60, currentTabs: [[0, 4], [1, 5]], ogTabs: [], originalMidi: [68, 64] },
+    ];
+    const following = structuredClone(source.chords.slice(1));
+    expect(cleanTinyOverlapsInSnapshot(source, { manual: true })).toBe(1);
+    expect(source.chords[0].length).toBe(90);
+    expect(source.chords.slice(1)).toEqual(following);
+    expect(meaningfulConflictInfo(source).conflictKeys.size).toBe(0);
+    expect(cleanTinyOverlapsInSnapshot(source, { manual: true })).toBe(0);
   });
   it("shares a bounded timing and relative-duration tolerance with conflict detection", () => {
     const source = fixture();

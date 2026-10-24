@@ -104,8 +104,16 @@ function quantizeEvents(events: ScoreEvent[], factor: number, barTicks: number):
  * source onset and release in the independent performance model. */
 function voiceIntervals(groups: Group[]) {
   const boundaries = [...new Set(groups.flatMap((group) => [group.start, group.end]))].sort((a, b) => a - b);
+  const starts = new Map<number, number[]>(), ends = new Map<number, number[]>();
+  groups.forEach((group, index) => {
+    const begin = starts.get(group.start) ?? []; begin.push(index); starts.set(group.start, begin);
+    const finish = ends.get(group.end) ?? []; finish.push(index); ends.set(group.end, finish);
+  });
+  const sounding = new Set<number>();
   return boundaries.slice(0, -1).flatMap((start, index) => {
-    const end = boundaries[index + 1], active = groups.filter((group) => group.start <= start && group.end >= end);
+    for (const id of ends.get(start) ?? []) sounding.delete(id);
+    for (const id of starts.get(start) ?? []) sounding.add(id);
+    const end = boundaries[index + 1], active = [...sounding].sort((a,b) => a-b).map(id => groups[id]);
     return active.length ? [{ start, end, staff: active[0].staff, events: active.flatMap((group) => group.events), region: active.find((group) => group.region)?.region,
       tieIn: active.some((group) => group.start < start), tieOut: active.some((group) => group.end > end) }] : [];
   });

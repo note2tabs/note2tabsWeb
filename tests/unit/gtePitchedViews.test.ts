@@ -13,8 +13,8 @@ it("routes pitched tracks to editable Sheets/MIDI while preserving Practice and 
   }).outputText;
   vm.runInNewContext(source, { module, exports: module.exports, require: (name: string) => {
     if (name === "react/jsx-runtime") return jsx;
-    if (name === "next/dynamic") return { __esModule: true, default: (loader: () => unknown) => marker(loader.toString().includes("GteMidiWorkspace") ? "MIDI" : loader.toString().includes("GteNotationWorkspace") ? "Sheets" : "Drums") };
-    if (name === "./GteWorkspace") return { __esModule: true, default: marker("Tab") };
+    if (name === "next/dynamic") return { __esModule: true, default: (loader: () => unknown) => marker(loader.toString().includes("GteMidiWorkspace") ? "MIDI" : loader.toString().includes("GteNotationWorkspace") ? "Sheets" : loader.toString().includes('"./GteWorkspace"') ? "Tab" : "Drums") };
+    if (name === "./GteWorkspace") throw new Error("Tab workspace must not be eagerly loaded for pitched/drum tracks");
     if (name.includes("gteNotation")) return { isNotationTrack };
     if (name.includes("gteDrums")) return { isDrumTrackType: () => false };
     return {};

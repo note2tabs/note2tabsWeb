@@ -1,9 +1,13 @@
 import { EditorLoadingState } from "./EditorLoadingState";
 import type { ComponentProps } from "react";
 import dynamic from "next/dynamic";
-import GteWorkspace from "./GteWorkspace";
+import type GteWorkspace from "./GteWorkspace";
 import { isDrumTrackType } from "../lib/gteDrums";
 import { isNotationTrack } from "../lib/gteNotation";
+
+const GteTabWorkspace = dynamic(() => import("./GteWorkspace"), {
+  loading: () => <EditorLoadingState />,
+});
 
 const GteNotationWorkspace = dynamic(() => import("./GteNotationWorkspace"), {
   loading: () => <EditorLoadingState />,
@@ -25,7 +29,7 @@ export default function GteTrackWorkspace(props: Props) {
     ? <GteMidiWorkspace {...props} /> : <GteNotationWorkspace {...props} />;
   const trackType =
     props.snapshot.editorType ?? props.snapshot.trackType ?? props.snapshot.type;
-  if (!isDrumTrackType(trackType)) return <GteWorkspace {...props} />;
+  if (!isDrumTrackType(trackType)) return <GteTabWorkspace {...props} />;
 
   const delimiterIndex = props.editorId.indexOf(LANE_DELIMITER);
   const canvasId =
