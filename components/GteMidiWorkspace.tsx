@@ -117,6 +117,12 @@ export default function GteMidiWorkspace(props: Props) {
   const visible = useMemo(() => events.filter((event) => event.start * scale < viewport.left + viewport.width && (event.start + event.length) * scale > viewport.left - KEY_WIDTH &&
     (127 - event.midi) * ROW < viewport.top + viewport.height && (128 - event.midi) * ROW > viewport.top - 32), [events, scale, viewport, ROW]);
   const selected = useMemo(() => events.filter((event) => chosen.has(event.key)), [events, chosen]);
+  const allSelected = events.length > 0 && selected.length === events.length;
+  const toggleSelectAll = () => {
+    clearGesture(); setFocusBox(false);
+    setSelection(allSelected ? [] : events.map(note => note.key));
+    focus();
+  };
   const dense = visible.length > 1500;
   // At overview zoom render every note in three batched paths instead of
   // thousands of DOM nodes. Picking and box selection still use real events.
@@ -331,12 +337,18 @@ export default function GteMidiWorkspace(props: Props) {
   }, [zoom, scale]); // eslint-disable-line react-hooks/exhaustive-deps
   return <div ref={root} tabIndex={0} data-gte-midi-editor="true" className="flex min-h-0 min-w-0 w-full flex-col gap-2 outline-none" style={{ height: workspaceHeight }} onFocus={() => props.onFocusWorkspace?.()}
     onPointerDownCapture={(event) => { if (!(event.target as HTMLElement).closest('[role="menu"]')) setMenu(null); }}
+    onKeyDownCapture={(event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        clearGesture(); setFocusBox(false); setSelection([]); setMode("select"); setMenu(null);
+      }
+    }}
     onKeyDown={(event) => {
       if ((event.target as HTMLElement).closest("input,select,textarea") || disabled) return;
       const key = event.key.toLowerCase(), mod = event.ctrlKey || event.metaKey;
       if (mod && key === "z") { event.preventDefault(); event.stopPropagation(); if (event.shiftKey) props.onRequestRedo?.(); else props.onRequestUndo?.(); }
       else if (mod && key === "y") { event.preventDefault(); event.stopPropagation(); props.onRequestRedo?.(); }
-      else if (key === "a" && !event.altKey) { event.preventDefault(); event.stopPropagation(); clearGesture(); setFocusBox(false); setSelection(events.map((note) => note.key)); }
+      else if (key === "a" && !event.altKey) { event.preventDefault(); event.stopPropagation(); toggleSelectAll(); }
       else if (mod && (key === "c" || key === "x")) { event.preventDefault(); event.stopPropagation(); clipboardAction(key === "x"); }
       else if (mod && key === "v") { event.preventDefault(); event.stopPropagation(); paste(cursor.current); }
       else if (mod && key === "d") { event.preventDefault(); event.stopPropagation(); clipboardAction(); paste(Math.max(...selected.map((note) => note.start + note.length), 0)); }
@@ -355,7 +367,7 @@ export default function GteMidiWorkspace(props: Props) {
       keyBase={props.canvasKeyBase ?? 0} keyType={props.canvasKeyType ?? 0} onKeyChange={props.onCanvasKeyChange}
       snapToKey={Boolean(props.globalSnapToKeyEnabled)} onSnapToKey={props.onGlobalSnapToKeyEnabledChange}
       voice={selected[0]?.voice ?? voice} onVoice={value => { setVoice(value); if (selection.length) applyEdit(selection, { voice: value }); }}
-      hasSelection={selected.length > 0} onSelectAll={() => { clearGesture(); setFocusBox(false); setSelection(events.map(note => note.key)); focus(); }} onFitAll={() => { setFocusBox(false); fit(); }} onFitSelection={focusView}
+      hasSelection={selected.length > 0} allSelected={allSelected} onSelectAll={toggleSelectAll} onFitAll={() => { setFocusBox(false); fit(); }} onFitSelection={focusView}
       zoom={zoom} row={row} onZoom={value => zoomAt(value)} onRow={next => { if (scroller.current) restoreScroll.current = { left: scroller.current.scrollLeft, top: scroller.current.scrollTop * next / row }; setRow(next); }}
       onResetScale={() => {
         clearGesture(); setFocusBox(false);

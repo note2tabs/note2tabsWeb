@@ -259,6 +259,19 @@ it("edits the real shared snapshot through draw, move, resize, selection, veloci
     await key("Escape");
     await pointer(grid(), "pointerdown", 0, y - 22); await pointer(grid(), "pointermove", 200, y); await pointer(grid(), "pointerup", 200, y);
     expect(host.querySelectorAll('[data-midi-note][aria-pressed="true"]').length).toBe(2);
+    await key("a");
+    expect(host.querySelectorAll('[data-midi-note][aria-pressed="true"]')).toHaveLength(0);
+    await click("Select all");
+    expect(host.querySelectorAll('[data-midi-note][aria-pressed="true"]')).toHaveLength(2);
+    await click("Deselect all");
+    expect(host.querySelectorAll('[data-midi-note][aria-pressed="true"]')).toHaveLength(0);
+    await key("a");
+    expect(host.querySelectorAll('[data-midi-note][aria-pressed="true"]')).toHaveLength(2);
+    // Escape also clears notes when focus is inside a toolbar control/menu.
+    await act(async () => (host.querySelector('[data-midi-menu="view"]') as HTMLButtonElement).click());
+    await act(async () => host.querySelector('[aria-label="MIDI zoom"]')!.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(host.querySelectorAll('[data-midi-note][aria-pressed="true"]')).toHaveLength(0);
+    await key("a");
     await key("Delete"); expect(snapshot.notes).toHaveLength(0);
     await render(true); await pointer(grid(), "dblclick", 100, y); expect(snapshot.notes).toHaveLength(0);
   } finally { await act(async () => root.unmount()); host.remove(); }
