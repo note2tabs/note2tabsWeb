@@ -20,7 +20,9 @@ describe('instrument landing localization',()=>{
   for(const locale of TRANSLATED_LOCALES){
    const c=instrumentCatalogs[locale]!;
    for(const [key,length] of Object.entries({names:5,titles:6,descriptions:6,actions:6,workflow:6,workflowBodies:6,sections:8,piano:4,drums:2,ukulele:2,hub:10,metaTitles:6,imageAlts:3,drumReview:3,drumEditor:2,ukuleleEditor:2,questions:8,exports:3,recordingLabels:3,resultLabels:3})){
-    const entries=c[key as keyof typeof c];expect(entries,`${locale}:${key}`).toHaveLength(length);expect(entries.every(value=>value.trim().length>0)).toBe(true);
+    const entries=c[key as keyof typeof c];
+    if(!Array.isArray(entries))throw new Error(`Expected an array for ${locale}:${key}`);
+    expect(entries,`${locale}:${key}`).toHaveLength(length);expect(entries.every(value=>value.trim().length>0)).toBe(true);
    }
   }
  });
