@@ -1,5 +1,15 @@
 export type InstrumentCopy = {
  project: string;
+ hubMetaTitle: string;
+ recordingLabels: string[];
+ resultLabels: string[];
+ metaTitles: string[];
+ imageAlts: string[];
+ drumReview: string[];
+ drumEditor: string[];
+ ukuleleEditor: string[];
+ questions: string[];
+ exports: string[];
  names: string[];
  titles: string[];
  descriptions: string[];

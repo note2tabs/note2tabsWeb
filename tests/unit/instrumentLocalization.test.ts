@@ -19,7 +19,7 @@ describe('instrument landing localization',()=>{
   expect(Object.keys(instrumentCatalogs).sort()).toEqual([...TRANSLATED_LOCALES].sort());
   for(const locale of TRANSLATED_LOCALES){
    const c=instrumentCatalogs[locale]!;
-   for(const [key,length] of Object.entries({names:5,titles:6,descriptions:6,actions:6,workflow:6,workflowBodies:6,sections:8,piano:4,drums:2,ukulele:2,hub:10})){
+   for(const [key,length] of Object.entries({names:5,titles:6,descriptions:6,actions:6,workflow:6,workflowBodies:6,sections:8,piano:4,drums:2,ukulele:2,hub:10,metaTitles:6,imageAlts:3,drumReview:3,drumEditor:2,ukuleleEditor:2,questions:8,exports:3,recordingLabels:3,resultLabels:3})){
     const entries=c[key as keyof typeof c];expect(entries,`${locale}:${key}`).toHaveLength(length);expect(entries.every(value=>value.trim().length>0)).toBe(true);
    }
   }
@@ -35,6 +35,9 @@ describe('instrument landing localization',()=>{
     expect(page.primaryCta.label).not.toBe(source.primaryCta.label);
     expect(page.hasTranslation).toBe(true);
     expect(page.preview?.src).toBe(source.preview?.src);
+    expect(page.preview?.alt).not.toBe(page.description);
+    expect(page.metaTitle).toContain(instrumentCatalogs[locale]!.metaTitles[translatedInstrumentPaths.findIndex(p=>p===source.canonicalPath)]);
+    expect(page.faqs).toHaveLength(2);
     const path=localeHref(source.canonicalPath,locale);
     expect(existsSync(`pages${path}.tsx`)).toBe(true);
     const html=renderToStaticMarkup(createElement(LocaleProvider,{path,children:createElement(SeoLandingPage,page)}));
@@ -46,6 +49,10 @@ describe('instrument landing localization',()=>{
     expect(d.querySelector('.search-landing-primary')?.getAttribute('href')).toBe(localeHref(page.primaryCta.href,locale));
     expect(d.querySelector('main')?.textContent).not.toContain(source.description);
     expect(d.querySelector('main')?.textContent).not.toContain('undefined');
+    expect(d.querySelectorAll('.search-landing-faq details')).toHaveLength(2);
+    const schemas=[...d.querySelectorAll('script[type="application/ld+json"]')].map(el=>JSON.parse(el.textContent||'{}'));
+    const faq=schemas.find(item=>item['@type']==='FAQPage');
+    expect(faq.mainEntity.map((item:{name:string})=>item.name)).toEqual(page.faqs!.map(faq=>faq.question));
    }
   });
  }

@@ -67,7 +67,7 @@
     "El editor de batería permite colocar y mover golpes, repetir un compás y escuchar juntos los distintos elementos de la batería. Comprueba las transiciones entre compases y fills antes de ampliar el arreglo. Exporta en MIDI o guarda el proyecto para continuar más tarde."
   ],
   "ukulele": [
-    "La afinación estándar del ukelele es sol–do–mi–la. La tablatura muestra las cuerdas de arriba abajo en el orden la, mi, do, sol. Elige sol agudo o sol grave según tu instrumento; las posiciones y las alturas siguen la afinación seleccionada.",
+    "La afinación estándar del ukelele es sol–do–mi–la. La tablatura muestra las cuerdas de arriba abajo en el orden la, mi, do, sol. Elige sol agudo o sol grave según tu instrumento; las posiciones y las alturas siguen la afinación seleccionada. Con sol agudo, la cuarta cuerda suena más alta que las cuerdas de do y mi; la afinación con sol grave baja esa cuarta cuerda.",
     "La transcripción proporciona las alturas y el ritmo; el arreglo determina las cuerdas y los trastes que vas a tocar. Escucha una frase breve, comprueba las notas y elige posiciones cómodas. Trabaja la melodía y el acompañamiento antes de unir la pieza. Exporta una tablatura de texto, un archivo MIDI o el proyecto."
   ],
   "hub": [
@@ -82,5 +82,57 @@
     "Transcribir guitarra",
     "Transcribir bajo"
   ],
-  "project": "Proyecto"
+  "project": "Proyecto",
+  "metaTitles": [
+    "Piano: de audio a partitura y MIDI",
+    "Editor de partituras de piano online",
+    "Transcripción de batería: de audio a partitura y MIDI",
+    "Editor de partituras de batería online",
+    "Editor de tablaturas de ukelele online",
+    "Transcripción de ukelele: de audio a notas"
+  ],
+  "imageAlts": [
+    "Dos compases de piano con melodía y acompañamiento de bajo",
+    "Dos compases de batería con bombo, caja y charles (hi-hat)",
+    "Dos compases de tablatura de ukelele en las cuerdas la, mi, do y sol"
+  ],
+  "drumReview": [
+    "Revisa los golpes y el ritmo",
+    "Abre la pista de batería y compara los golpes con la grabación. Ajusta su posición y elige el bombo, la caja, los toms o los platos correspondientes.",
+    "Coloca el bombo y la caja, añade el charles (hi-hat) y construye un fill con los toms. Escucha cada compás para comprobar los golpes simultáneos."
+  ],
+  "drumEditor": [
+    "Escribe un ritmo básico y desarrolla una parte completa. La partitura muestra los elementos de la batería; la línea de tiempo permite comprobar la posición de cada golpe. Escucha el ritmo antes de repetirlo en el siguiente compás.",
+    "Para trabajar una transición, escribe el fill junto al primer compás que le sigue. Comprueba dónde cae el último tom o crash. Puedes mantener el bajo y el piano en el mismo proyecto para escuchar las partes juntas."
+  ],
+  "questions": [
+    "¿Puedo convertir una grabación de piano en partitura?",
+    "¿Puedo escribir una partitura de piano directamente online?",
+    "¿Puedo transcribir batería desde un archivo de audio?",
+    "¿Puedo escribir y escuchar una partitura de batería?",
+    "¿Qué afinación usa el editor de ukelele?",
+    "¿La transcripción elige las cuerdas y los trastes del ukelele?",
+    "¿Necesito una cuenta para empezar a escribir?",
+    "¿Cómo puedo guardar o exportar el arreglo?"
+  ],
+  "exports": [
+    "Exporta en MIDI para tu programa de producción musical, en MusicXML para un programa de notación o conserva el proyecto Note2Tabs. Inicia sesión para guardar la canción en tu biblioteca.",
+    "Exporta la parte de batería en MIDI para tu programa de música o conserva el proyecto Note2Tabs. Inicia sesión para guardar la canción en tu biblioteca.",
+    "Exporta una tablatura de texto, un archivo MIDI o un proyecto Note2Tabs. Inicia sesión para guardar la canción en tu biblioteca."
+  ],
+  "ukuleleEditor": [
+    "Escribe una melodía sobre cuatro cuerdas, añade un acompañamiento de arpegios y ajusta las duraciones. El número de traste indica dónde tocar; las figuras rítmicas y los silencios indican cuándo.",
+    "Escucha la frase antes de repetirla en el siguiente compás. Puedes cambiar de cuerda o traste para encontrar una posición más cómoda y mantener la altura deseada."
+  ],
+  "recordingLabels": [
+    "Grabación de piano",
+    "Grabación de batería",
+    "Grabación de ukelele"
+  ],
+  "resultLabels": [
+    "Partitura de piano editable",
+    "Partitura de batería editable",
+    "Notas editables"
+  ],
+  "hubMetaTitle": "Transcripción y editores de música por instrumento"
 }

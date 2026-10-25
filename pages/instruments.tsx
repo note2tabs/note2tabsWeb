@@ -15,7 +15,7 @@ export default function InstrumentsPage() {
   const {locale} = useLocale();
   const c = instrumentCatalogs[locale];
   return <>
-    <SeoHead title={c ? `${c.hub[4]} | Note2Tabs` : "Piano, Guitar, Bass, Drums & Ukulele Tools | Note2Tabs"} description={c?.hub[5] ?? "Choose your instrument. Transcribe a recording or start writing in an online piano, guitar, bass, drum or ukulele editor."} canonicalPath="/instruments" hasTranslation={true} contentLocale={locale} jsonLd={{
+    <SeoHead title={c ? `${c.hubMetaTitle} | Note2Tabs` : "Piano, Guitar, Bass, Drums & Ukulele Tools | Note2Tabs"} description={c?.hub[5] ?? "Choose your instrument. Transcribe a recording or start writing in an online piano, guitar, bass, drum or ukulele editor."} canonicalPath="/instruments" hasTranslation={true} contentLocale={locale} jsonLd={{
       "@context": "https://schema.org", "@type": "ItemList", name: c?.hub[4] ?? "Note2Tabs instrument tools",
       itemListElement: instruments.map((instrument, index) => ({ "@type": "ListItem", position: index + 1, name: c?.names[index] ?? instrument.name, url: absoluteUrl(instrument.transcribe) })),
     }} />

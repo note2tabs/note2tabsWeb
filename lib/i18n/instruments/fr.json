@@ -11,24 +11,24 @@
     "Écrivez vos partitions de piano en ligne",
     "Transcrivez un enregistrement de batterie",
     "Écrivez vos partitions de batterie en ligne",
-    "Écrivez vos tablatures de ukulélé en ligne",
-    "Transcrivez un enregistrement de ukulélé"
+    "Écrivez vos tablatures d’ukulélé en ligne",
+    "Transcrivez un enregistrement d’ukulélé"
   ],
   "descriptions": [
     "Transcrivez un fichier MP3, WAV ou un extrait YouTube de piano en notes modifiables. Relisez la partition, écoutez le résultat et exportez en MIDI ou MusicXML.",
     "Créez une partition de piano dans votre navigateur. Écrivez en clés de sol et de fa, utilisez le piano roll, écoutez votre arrangement et exportez en MIDI ou MusicXML.",
     "Transformez un enregistrement de batterie en notation modifiable. Vérifiez la grosse caisse, la caisse claire et les cymbales, puis exportez le rythme en MIDI.",
     "Créez des rythmes et des breaks de batterie dans votre navigateur. Placez les coups, écoutez la mesure et enregistrez ou exportez votre arrangement.",
-    "Créez des tablatures de ukulélé à quatre cordes en accordage sol–do–mi–la. Modifiez les cases et le rythme, écoutez le résultat et exportez votre morceau.",
-    "Relevez les notes et le rythme d’un enregistrement de ukulélé, puis travaillez votre arrangement sur une tablature à quatre cordes."
+    "Créez des tablatures d’ukulélé à quatre cordes en accordage sol–do–mi–la. Modifiez les cases et le rythme, écoutez le résultat et exportez votre morceau.",
+    "Relevez les notes et le rythme d’un enregistrement d’ukulélé, puis travaillez votre arrangement sur une tablature à quatre cordes."
   ],
   "actions": [
     "Transcrire le piano",
     "Ouvrir l’éditeur de piano",
     "Transcrire la batterie",
     "Ouvrir l’éditeur de batterie",
-    "Ouvrir l’éditeur de ukulélé",
-    "Transcrire le ukulélé"
+    "Ouvrir l’éditeur d’ukulélé",
+    "Transcrire l’ukulélé"
   ],
   "workflow": [
     "Choisissez un enregistrement",
@@ -36,7 +36,7 @@
     "Écoutez et exportez",
     "Ouvrez une partition vierge",
     "Écrivez votre arrangement",
-    "Écoutez et répétez"
+    "Écoutez et entraînez-vous"
   ],
   "workflowBodies": [
     "Importez un fichier audio ou choisissez un passage d’une vidéo YouTube publique. Commencez par une courte phrase facile à comparer avec l’original.",
@@ -50,7 +50,7 @@
     "Comment ça marche",
     "De l’enregistrement à l’arrangement",
     "Notation, lecture et export",
-    "Écrire et répéter dans le navigateur",
+    "Écrire et s’entraîner dans le navigateur",
     "Choisir le bon point de départ",
     "Voir les offres et les tarifs",
     "Commencer avec un enregistrement",
@@ -67,7 +67,7 @@
     "L’éditeur de batterie permet de placer et de déplacer les coups, de répéter une mesure et d’écouter les différentes pièces du kit ensemble. Vérifiez les transitions entre les mesures et les breaks avant de développer l’arrangement. Exportez en MIDI ou enregistrez le projet pour reprendre le travail."
   ],
   "ukulele": [
-    "L’accordage standard du ukulélé est sol–do–mi–la. La tablature affiche les cordes de haut en bas dans l’ordre la, mi, do, sol. Choisissez le sol aigu traditionnel ou le sol grave selon votre instrument ; les positions et les hauteurs suivent l’accordage sélectionné.",
+    "L’accordage standard de l’ukulélé est sol–do–mi–la. La tablature affiche les cordes de haut en bas dans l’ordre la, mi, do, sol. Choisissez le sol aigu traditionnel ou le sol grave selon votre instrument ; les positions et les hauteurs suivent l’accordage sélectionné. Dans l’accordage à sol aigu, la quatrième corde sonne plus haut que les cordes de do et de mi ; le sol grave abaisse cette quatrième corde.",
     "La transcription fournit les hauteurs et le rythme ; l’arrangement détermine les cordes et les cases à jouer. Écoutez une courte phrase, vérifiez les notes et choisissez des positions confortables. Travaillez la mélodie et l’accompagnement avant d’enchaîner le morceau. Exportez une tablature texte, un fichier MIDI ou votre projet."
   ],
   "hub": [
@@ -82,5 +82,57 @@
     "Transcrire la guitare",
     "Transcrire la basse"
   ],
-  "project": "Projet"
+  "project": "Projet",
+  "metaTitles": [
+    "Piano : audio en partition et MIDI",
+    "Éditeur de partitions de piano en ligne",
+    "Transcription de batterie : audio en partition et MIDI",
+    "Éditeur de partitions de batterie en ligne",
+    "Éditeur de tablatures d’ukulélé en ligne",
+    "Transcription d’ukulélé : audio en notes"
+  ],
+  "imageAlts": [
+    "Deux mesures de piano avec mélodie et accompagnement à la basse",
+    "Deux mesures de batterie avec grosse caisse, caisse claire et charleston",
+    "Deux mesures de tablature d’ukulélé sur les cordes la, mi, do et sol"
+  ],
+  "drumReview": [
+    "Vérifiez les frappes et le rythme",
+    "Ouvrez la piste de batterie et comparez les frappes à l’enregistrement. Ajustez leur placement et choisissez la grosse caisse, la caisse claire, les toms ou les cymbales correspondants.",
+    "Placez la grosse caisse et la caisse claire, ajoutez le charleston et construisez un break avec les toms. Écoutez chaque mesure pour vérifier les coups simultanés."
+  ],
+  "drumEditor": [
+    "Écrivez un rythme de base, puis développez une partie complète. La partition montre les éléments du kit ; la chronologie permet de vérifier le placement de chaque frappe. Écoutez le groove avant de le reprendre dans la mesure suivante.",
+    "Pour travailler une transition, écrivez le break avec la première mesure qui le suit. Vérifiez où tombe le dernier tom ou le crash. Vous pouvez garder la basse et le piano dans le même projet pour écouter les parties ensemble."
+  ],
+  "questions": [
+    "Peut-on convertir un enregistrement de piano en partition ?",
+    "Peut-on écrire une partition de piano directement en ligne ?",
+    "Peut-on transcrire la batterie à partir d’un fichier audio ?",
+    "Peut-on écrire et écouter une partition de batterie ?",
+    "Quel accordage utilise l’éditeur d’ukulélé ?",
+    "La transcription choisit-elle les cordes et les cases de l’ukulélé ?",
+    "Faut-il un compte pour commencer à écrire ?",
+    "Comment conserver ou exporter mon arrangement ?"
+  ],
+  "exports": [
+    "Exportez en MIDI pour un logiciel de production musicale, en MusicXML pour un logiciel de notation, ou conservez un projet Note2Tabs. Connectez-vous pour enregistrer le morceau dans votre bibliothèque.",
+    "Exportez la partie de batterie en MIDI pour votre logiciel de musique, ou conservez le projet Note2Tabs. Connectez-vous pour enregistrer le morceau dans votre bibliothèque.",
+    "Exportez une tablature texte, un fichier MIDI ou un projet Note2Tabs. Connectez-vous pour conserver le morceau dans votre bibliothèque."
+  ],
+  "ukuleleEditor": [
+    "Écrivez une mélodie sur quatre cordes, ajoutez un accompagnement en arpèges et réglez la durée des notes. Un numéro de case indique où jouer ; les valeurs rythmiques et les silences indiquent quand jouer.",
+    "Écoutez la phrase avant de la répéter dans la mesure suivante. Vous pouvez changer de corde ou de case pour trouver une position plus confortable, tout en gardant la hauteur souhaitée."
+  ],
+  "recordingLabels": [
+    "Enregistrement de piano",
+    "Enregistrement de batterie",
+    "Enregistrement d’ukulélé"
+  ],
+  "resultLabels": [
+    "Partition de piano modifiable",
+    "Partition de batterie modifiable",
+    "Notes modifiables"
+  ],
+  "hubMetaTitle": "Transcription et éditeurs de musique par instrument"
 }

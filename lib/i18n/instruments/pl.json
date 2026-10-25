@@ -16,7 +16,7 @@
   ],
   "descriptions": [
     "Zamień plik MP3, WAV lub fragment z YouTube z partią fortepianu na edytowalne nuty. Sprawdź zapis, posłuchaj i wyeksportuj MIDI lub MusicXML.",
-    "Twórz zapis nutowy na fortepian w przeglądarce. Korzystaj z klucza wiolinowego i basowego oraz widoku piano roll, odsłuchuj i eksportuj MIDI lub MusicXML.",
+    "Twórz zapis nutowy na fortepian i pianino w przeglądarce. Korzystaj z klucza wiolinowego i basowego oraz widoku piano roll, odsłuchuj i eksportuj MIDI lub MusicXML.",
     "Zamień nagranie perkusji na edytowalny zapis nutowy. Sprawdź stopę, werbel i talerze, a następnie wyeksportuj rytm do MIDI.",
     "Twórz rytmy i przejścia perkusyjne w przeglądarce. Wstawiaj uderzenia, odsłuchuj takty i zapisuj lub eksportuj aranżację.",
     "Twórz czterostrunowe tabulatury ukulele w stroju G–C–E–A. Edytuj progi i rytm, odsłuchuj i eksportuj utwór.",
@@ -57,7 +57,7 @@
     "Napisz partię samodzielnie"
   ],
   "piano": [
-    "Transkrybuj wykonanie utworu na fortepianie, improwizację lub nagraną melodię. Pliki MP3 i WAV obsłużysz tak samo: wybierz fragment, uruchom transkrypcję i kontynuuj w edytorze fortepianowym. W przypadku YouTube przejdź do trybu linku i wskaż fragment do opracowania.",
+    "Transkrybuj wykonanie utworu na fortepianie lub pianinie, improwizację lub nagraną melodię. Pliki MP3 i WAV obsłużysz tak samo: wybierz fragment, uruchom transkrypcję i kontynuuj w edytorze fortepianowym. W przypadku YouTube przejdź do trybu linku i wskaż fragment do opracowania.",
     "Widok nutowy przedstawia partię na pięcioliniach w kluczu wiolinowym i basowym. Widok MIDI, czyli piano roll, pokazuje początki, długości i nakładanie się dźwięków. Oba widoki edytują tę samą aranżację, więc nie musisz przepisywać nut przy ich przełączaniu.",
     "Pisząc nuty na fortepian, zacznij od melodii lub progresji akordów, a następnie dodaj akompaniament i bas. Przed rozbudowaniem utworu sprawdź puls, prowadzenie głosów i połączenia fraz. Odtwarzanie działa również na telefonie.",
     "Jeśli masz już zgodny plik MIDI lub MusicXML, zaimportuj go do edytora zamiast ponownie transkrybować audio. Eksport MIDI pozwala kontynuować pracę w programie DAW, a MusicXML w programie do zapisu nutowego. Możesz też zachować projekt Note2Tabs na następną sesję."
@@ -67,7 +67,7 @@
     "Edytor perkusyjny umożliwia dodawanie i przesuwanie uderzeń, powtarzanie taktu oraz odsłuch całego zestawu. Sprawdź połączenia taktów i przejścia przed rozbudowaniem aranżacji. Wyeksportuj MIDI lub zapisz projekt, by wrócić do niego później."
   ],
   "ukulele": [
-    "Standardowy strój ukulele to G–C–E–A. Tabulatura pokazuje struny od góry w kolejności A, E, C, G. Wybierz wysokie lub niskie G odpowiednio do instrumentu; wysokości dźwięków i pozycje na progach będą zgodne z wybranym strojem.",
+    "Standardowy strój ukulele to G–C–E–A. Tabulatura pokazuje struny od góry w kolejności A, E, C, G. Wybierz wysokie lub niskie G odpowiednio do instrumentu; wysokości dźwięków i pozycje na progach będą zgodne z wybranym strojem. W stroju z wysokim G czwarta struna brzmi wyżej niż struny C i E; wariant z niskim G obniża dźwięk czwartej struny.",
     "Transkrypcja dostarcza wysokości dźwięków i rytm, a aranżacja określa struny oraz progi. Posłuchaj krótkiej frazy, sprawdź nuty i wybierz wygodne pozycje. Opracuj melodię i akompaniament, zanim połączysz całość. Wyeksportuj tabulaturę tekstową, plik MIDI lub projekt."
   ],
   "hub": [
@@ -82,5 +82,57 @@
     "Transkrybuj gitarę",
     "Transkrybuj bas"
   ],
-  "project": "Projekt"
+  "project": "Projekt",
+  "metaTitles": [
+    "Audio na nuty fortepianowe i MIDI",
+    "Edytor nut na fortepian i pianino online",
+    "Transkrypcja perkusji — audio na nuty i MIDI",
+    "Edytor nut perkusyjnych online",
+    "Edytor tabulatur ukulele online",
+    "Transkrypcja ukulele — audio na nuty"
+  ],
+  "imageAlts": [
+    "Dwa takty zapisu fortepianowego z melodią i akompaniamentem basowym",
+    "Dwa takty nut perkusyjnych ze stopą, werblem i hi-hatem",
+    "Dwa takty tabulatury ukulele na strunach A, E, C i G"
+  ],
+  "drumReview": [
+    "Sprawdź uderzenia i rytm",
+    "Otwórz ścieżkę perkusji i porównaj uderzenia z nagraniem. Dostosuj ich położenie i sprawdź, czy odpowiadają stopie, werblowi, tomom lub talerzom.",
+    "Wstaw stopę i werbel, dodaj hi-hat i zbuduj przejście na tomach. Odsłuchaj każdy takt, aby sprawdzić równoczesne uderzenia."
+  ],
+  "drumEditor": [
+    "Zacznij od prostego rytmu i rozwiń go w kompletną partię. Zapis nutowy pokazuje elementy zestawu, a oś czasu pozwala sprawdzić położenie uderzeń. Odsłuchaj groove przed rozwinięciem go w kolejnym takcie.",
+    "Pracując nad przejściem, zapisz je razem z pierwszym taktem następnej sekcji. Sprawdź położenie ostatniego tomu lub crasha. W tym samym projekcie możesz zachować bas i fortepian, by słuchać partii razem."
+  ],
+  "questions": [
+    "Czy mogę zamienić nagranie fortepianu na nuty?",
+    "Czy mogę pisać nuty na fortepian bezpośrednio online?",
+    "Czy mogę transkrybować perkusję z pliku audio?",
+    "Czy mogę pisać i odtwarzać nuty perkusyjne?",
+    "Jaki strój ma ukulele w edytorze?",
+    "Czy transkrypcja wybiera struny i progi ukulele?",
+    "Czy potrzebuję konta, aby zacząć pisać?",
+    "Jak zachować lub wyeksportować aranżację?"
+  ],
+  "exports": [
+    "Wyeksportuj MIDI do programu DAW, MusicXML do programu do zapisu nutowego lub zachowaj projekt Note2Tabs. Zaloguj się, aby zapisać utwór w bibliotece.",
+    "Wyeksportuj partię perkusji do MIDI, aby pracować w swoim programie muzycznym, lub zachowaj projekt Note2Tabs. Zaloguj się, aby zapisać utwór w bibliotece.",
+    "Wyeksportuj tabulaturę tekstową, plik MIDI lub projekt Note2Tabs. Zaloguj się, aby zachować utwór w bibliotece."
+  ],
+  "ukuleleEditor": [
+    "Napisz melodię na czterech strunach, dodaj akompaniament fingerstyle i ustaw długości dźwięków. Numer progu mówi, gdzie zagrać, a wartości rytmiczne i pauzy wskazują kiedy.",
+    "Odsłuchaj frazę, zanim powtórzysz ją w następnym takcie. Możesz zmienić strunę lub próg, aby znaleźć wygodniejszą pozycję, zachowując wybraną wysokość dźwięku."
+  ],
+  "recordingLabels": [
+    "Nagranie fortepianu",
+    "Nagranie perkusji",
+    "Nagranie ukulele"
+  ],
+  "resultLabels": [
+    "Edytowalne nuty fortepianowe",
+    "Edytowalne nuty perkusyjne",
+    "Edytowalne nuty"
+  ],
+  "hubMetaTitle": "Transkrypcja i edytory muzyczne według instrumentu"
 }
