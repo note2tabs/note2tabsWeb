@@ -14,7 +14,7 @@ export default function GtePracticeVisualization({ children, ...props }: Compone
     try { if (localStorage.getItem(preferenceKey) === "piano-roll") setMode("piano-roll"); } catch { /* Storage can be disabled. */ }
   }, []);
   return <div className="min-w-0">
-    <div className="mb-3 flex justify-center" data-gte-editor-control="true">
+    <div className={`${mode === "piano-roll" ? "mb-1.5" : "mb-3"} flex justify-center`} data-gte-editor-control="true">
       <div role="group" aria-label={t("Practice visualization")} className="inline-flex rounded-lg border border-slate-200 bg-[#f1f5f9] p-0.5 text-sm">
         {[["notation", "Notation"], ["piano-roll", "Piano roll"]].map(([value, label]) => <button key={value} type="button" aria-pressed={mode === value}
           className={`rounded-md px-3 py-1.5 ${mode === value ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:bg-white/60"}`}

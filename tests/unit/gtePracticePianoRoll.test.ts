@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { isBlackPianoKey, pianoPitchCenter, practiceNoteWindow, practicePitchRange, practiceKeyActive, PRACTICE_VOICE_COLORS } from "../../lib/gtePracticePianoRoll";
+import { isBlackPianoKey, pianoPitchCenter, practiceNoteWindow, practicePitchRange, practiceKeyActive, practiceKeyIllumination, practiceVisibleStart, PRACTICE_VOICE_COLORS } from "../../lib/gtePracticePianoRoll";
 
 it("maps white and black keys onto a standard seven-white-key octave", () => {
   expect(pianoPitchCenter(72) - pianoPitchCenter(60)).toBe(7);
@@ -7,6 +7,20 @@ it("maps white and black keys onto a standard seven-white-key octave", () => {
   expect(pianoPitchCenter(61)).toBeLessThan(pianoPitchCenter(62));
   expect(isBlackPianoKey(61)).toBe(true);
   expect(isBlackPianoKey(60)).toBe(false);
+});
+it("animates key attack and release from musical time while preserving repeated-note gaps", () => {
+  expect(practiceKeyIllumination(120, 120, 119, 1200, 400, 240)).toBe(0);
+  expect(practiceKeyIllumination(120, 120, 120, 1200, 400, 240)).toBeGreaterThan(0);
+  expect(practiceKeyIllumination(120, 120, 124, 1200, 400, 240)).toBeGreaterThan(practiceKeyIllumination(120, 120, 120, 1200, 400, 240));
+  expect(practiceKeyIllumination(120, 120, 230, 1200, 400, 240)).toBeLessThan(practiceKeyIllumination(120, 120, 228, 1200, 400, 240));
+  expect(practiceKeyIllumination(120, 120, 239, 1200, 400, 240)).toBe(0);
+  expect(practiceKeyIllumination(120, 120, 240, 1200, 400, 240)).toBe(0);
+});
+it("skips completed notes without skipping sustained notes, and handles backward seeks", () => {
+  expect(practiceVisibleStart([10, 100, 100, 130], 20)).toBe(1);
+  expect(practiceVisibleStart([10, 100, 100, 130], 100)).toBe(3);
+  expect(practiceVisibleStart([10, 100, 100, 130], 0)).toBe(0);
+  expect(practiceVisibleStart([], 0)).toBe(0);
 });
 it("releases key highlights across the four-pixel gap and retriggers at repeated onsets", () => {
   expect(practiceKeyActive(0, 120, 107, 1200, 400)).toBe(true);

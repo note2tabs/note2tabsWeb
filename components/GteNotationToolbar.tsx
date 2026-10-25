@@ -11,7 +11,7 @@ export function NotationValueSymbol({ index, rest = false }: { index: number; re
 }
 type Props = {
   mode: "select" | "note" | "rest"; denominator: number; dotted: boolean; accidental: -1 | 0 | 1 | null; disabled: boolean;
-  voice: 1 | 2; tieActive: boolean; slurActive: boolean; canTie: boolean; canSlur: boolean;
+  voice: 1 | 2; selectedVoices?: readonly (1 | 2)[]; tieActive: boolean; slurActive: boolean; canTie: boolean; canSlur: boolean;
   onDuration: (value: number, rest: boolean) => void; onDot: () => void; onAccidental: (value: -1 | 0 | 1) => void;
   onVoice: (voice: 1 | 2) => void; onTie: () => void; onSlur: () => void; onDelete: () => void; onSnapSelectionToKey?: () => void; canSnapToKey?: boolean;
   onUndo?: () => void; onRedo?: () => void; undoCount?: number; redoCount?: number;
@@ -38,7 +38,7 @@ export default function GteNotationToolbar(p: Props) {
       {([[-1, "♭", "Flat"], [0, "♮", "Natural"], [1, "♯", "Sharp"]] as const).map(([value, symbol, name]) => <button key={value} type="button" className={style(p.accidental === value)} aria-label={t(name)} title={t(name + " · chromatic override")} aria-pressed={p.accidental === value} disabled={p.disabled} onClick={() => p.onAccidental(value)}><span className="text-2xl leading-none">{symbol}</span></button>)}
     </div>
     <div role="group" aria-label={t("Voice")} className={group}>
-      {([1, 2] as const).map((value) => <button key={value} type="button" className={style(p.voice === value)} aria-label={t("Voice") + " " + value} title={t("Voice") + " " + value} aria-pressed={p.voice === value} disabled={p.disabled} onClick={() => p.onVoice(value)}><span className="text-[10px]">{t("Voice")} {value}</span></button>)}
+      {([1, 2] as const).map((value) => <button key={value} type="button" className={style(p.selectedVoices?.includes(value) ?? p.voice === value)} aria-label={t("Voice") + " " + value} title={t("Voice") + " " + value} aria-pressed={p.selectedVoices?.includes(value) ?? p.voice === value} disabled={p.disabled} onClick={() => p.onVoice(value)}><span className="text-[10px]">{t("Voice")} {value}</span></button>)}
     </div>
     <div role="group" aria-label={t("Ties and slurs")} className={group}>
       {([false, true] as const).map((slur) => <button key={String(slur)} type="button" className={style(slur ? p.slurActive : p.tieActive)} aria-label={t(slur ? "Slur" : "Tie")} title={t(slur ? "Slur · select phrase endpoints" : "Tie · select consecutive notes of the same pitch")} aria-pressed={slur ? p.slurActive : p.tieActive} disabled={p.disabled || !(slur ? p.canSlur : p.canTie)} onClick={slur ? p.onSlur : p.onTie}>

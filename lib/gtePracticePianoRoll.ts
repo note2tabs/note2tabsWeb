@@ -9,9 +9,22 @@ export function practiceKeyActive(start: number, length: number, frame: number, 
   return frame >= start && frame < start + length - gapFrames;
 }
 export const PRACTICE_VOICE_COLORS = {
-  1: { upcoming: "#429c83", active: "#70d9b0", border: "#26735f" },
-  2: { upcoming: "#6c8ed0", active: "#a3beff", border: "#4e6faa" },
+  1: { upcoming: "#16bce8", active: "#a0efff", blackActive: "#129bc8", border: "#6fe5ff" },
+  2: { upcoming: "#28d973", active: "#b0ffcb", blackActive: "#15ae58", border: "#79ffa9" },
 } as const;
+export function practiceKeyIllumination(start: number, length: number, frame: number, horizon: number, height: number, fps: number) {
+  if (frame < start || frame >= start + length) return 0;
+  const gap = Math.min(length / 2, PRACTICE_NOTE_GAP_PX * horizon / Math.max(1, height));
+  const release = start + length - gap;
+  if (frame >= release) return 0.85 * Math.max(0, 1 - (frame - release) / Math.max(0.001, Math.min(gap * 0.3, fps * 0.035)));
+  const age = (frame - start) / Math.max(1, fps);
+  return Math.min(1, 0.65 + age / 0.06) * (0.85 + 0.15 * Math.exp(-age / 0.12));
+}
+export function practiceVisibleStart(prefixEnds: number[], frame: number) {
+  let low = 0, high = prefixEnds.length;
+  while (low < high) { const mid = (low + high) >>> 1; if (prefixEnds[mid] <= frame) low = mid + 1; else high = mid; }
+  return low;
+}
 export function practicePitchRange(pitches: number[]) {
   let low = 60, high = 71;
   if (pitches.length) { low = 127; high = 0; for (const pitch of pitches) { low = Math.min(low, pitch); high = Math.max(high, pitch); } }

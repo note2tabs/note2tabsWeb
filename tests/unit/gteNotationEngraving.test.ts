@@ -24,6 +24,16 @@ const source = (notes: Note[], extra: Partial<EditorSnapshot> = {}): EditorSnaps
   framesPerMessure: 480, totalFrames: 1920, timeSignature: 4, timeSignatureBottom: 4, fps: 240, notes, chords: [], cutPositionsWithCoords: [], optimalsByTime: {}, ...extra });
 
 describe("real-font notation engraving", () => {
+  it.each([1, 2] as const)("keeps Voice %i stems consistent when no other voice is present", voice => {
+    const notes = Array.from({ length: 4 }, (_, index) => ({ ...note(index, index * 60, 60, voice === 1 ? 84 : 40), notationVoice: voice }));
+    const snapshot = source(notes, { totalFrames: 480 });
+    const before = structuredClone(snapshot);
+    const prepared = prepareNotationEngraving(buildNotationScore(snapshot), 900);
+    for (const record of prepared.built.flatMap(measure => measure.records).filter(record => !record.token.rest)) {
+      expect(record.note.getStemDirection()).toBe(voice === 1 ? Stem.UP : Stem.DOWN);
+    }
+    expect(snapshot).toEqual(before);
+  });
   it("renders manual voices, explicit ties, cross-bar sustains and phrasing slurs", () => {
     const snapshot = source([note(1, 0, 120, 76), note(2, 120, 120, 76),
       { ...note(3, 0, 240, 64), notationVoice: 2 }, note(4, 420, 180, 79)], {
