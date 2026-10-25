@@ -19,7 +19,7 @@ export const instrumentSeoPages: Record<string, SeoLandingPageProps> = {
     ],
     detail: { title: "A recording is the starting point", paragraphs: [
       "Transcribe a piano cover, an improvisation or a melody you recorded before you forgot it. Note2Tabs connects audio transcription with an editor, so the result stays usable when you want to change a phrase, organise the arrangement or practise it.",
-      "Read the piano part on treble and bass staves, or switch to the piano roll to see exactly when each note starts and how long it lasts. Chords appear as simultaneous pitches rather than guitar fret numbers.",
+      "Read the piano part on treble and bass staves, or switch to the piano roll to see exactly when each note starts and how long it lasts. The notes and chords keep their pitch and duration in both views.",
     ] },
     contentSections: [
       { title: "Piano and keyboard recordings: MP3, WAV and YouTube", paragraphs: [

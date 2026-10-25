@@ -31,7 +31,7 @@ describe("instrument SEO and task matching", () => {
     expect(html).not.toContain('Guitar recording');
     if(slug.startsWith('piano')) expect(html).not.toContain('Audio → editable tabs');
     if(slug.endsWith('editor')) expect(page.primaryCta.href).toMatch(/^\/gte\/new\?track=(piano|drums|ukulele)$/);
-    else expect(page.primaryCta.href).toMatch(/^\/transcribe\?instrument=(piano|drums|ukulele)$/);
+    else expect(page.primaryCta.href).toBe(slug === 'piano-transcription' ? '/piano-transcription' : `/transcribe?instrument=${slug.startsWith('drum') ? 'drums' : 'ukulele'}`);
   });
   it.each(instrumentGuides)("compiles $slug into a full article with valid headings and useful internal links",async guide => {
     const result=await instrumentGuideProps(guide.slug);
@@ -45,7 +45,7 @@ describe("instrument SEO and task matching", () => {
     expect(paths[0].label.toLowerCase()).toContain(guide.instrument==='drums'?'drum':guide.instrument);
     expect(paths.every(item=>!item.href.includes('guitar'))).toBe(true);
     const action=getBlogPrimaryAction(guide.slug,guide.title);
-    expect(action.href).toBe(guide.goal === 'transcribe'?`/transcribe?instrument=${guide.instrument}${guide.mode === 'youtube' ? '&mode=youtube' : ''}`:`/gte/new?track=${guide.instrument}`);
+    expect(action.href).toBe(guide.goal === 'transcribe'?transcriptionEntryHref(guide.instrument, guide.mode === 'youtube'):`/gte/new?track=${guide.instrument}`);
     const links=[...result.props.post.contentHtml.matchAll(/href="(\/[^"#?]*)/g)].map(item=>item[1]);
     for(const href of links)expect(existsSync(`pages${href}.tsx`)||existsSync(`pages${href}/index.tsx`)||href==='/gte/new').toBe(true);
   });
@@ -66,7 +66,7 @@ it("keeps instrument entry context allowlisted and separate from audio detection
   for(const instrument of ["piano","bass","drums","ukulele"] as const) {
     expect(transcriptionEntryInstrument(instrument)).toBe(instrument);
     expect(TRANSCRIPTION_ENTRY_TITLES[instrument]).toMatch(/^Transcribe/);
-    expect(transcriptionEntryHref(instrument)).toBe(`/transcribe?instrument=${instrument}`);
+    expect(transcriptionEntryHref(instrument)).toBe(instrument === "piano" ? "/piano-transcription" : `/transcribe?instrument=${instrument}`);
   }
   for(const value of ["__proto__","constructor",["piano"],"<script>",null])expect(transcriptionEntryInstrument(value)).toBeUndefined();
 });
@@ -95,6 +95,6 @@ it("links each other instrument to its own writing, practice and transcription g
 });
 it("routes correction articles to editing and YouTube articles to the correct input mode", () => {
   expect(getBlogPrimaryAction('how-to-fix-a-piano-transcription','How to Fix a Piano Transcription').href).toBe('/gte/new?track=piano');
-  expect(getBlogPrimaryAction('how-to-transcribe-piano-from-youtube','How to Transcribe Piano from YouTube').href).toBe('/transcribe?instrument=piano&mode=youtube');
+  expect(getBlogPrimaryAction('how-to-transcribe-piano-from-youtube','How to Transcribe Piano from YouTube').href).toBe('/piano-transcription?mode=youtube');
   expect(getBlogProductPaths('piano-roll-vs-sheet-music-notation','Piano Roll vs Sheet Music')[1].label).toBe('Piano music notation editor');
 });

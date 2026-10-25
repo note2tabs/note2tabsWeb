@@ -14798,3 +14798,5 @@ html[lang="ar"] [data-editor-locale="ar"] :is(input[type="text"], textarea) {
 }
 .instrument-guide-groups details { align-self: start; }
 .instrument-guide-groups summary { cursor: pointer; font-size: 17px; font-weight: 600; padding-bottom: 16px; }
+.search-landing.search-landing-support { padding-top: 0; }
+.piano-editor-alternative { color: #15583e; font-size: 14px; text-underline-offset: 4px; }

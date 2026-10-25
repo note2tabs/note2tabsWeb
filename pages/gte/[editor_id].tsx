@@ -1,3 +1,4 @@
+import { focusPianoTranscription } from "../../lib/instrumentTranscriptionEntry";
 import { editorEntryInstrument, ensureInstrumentEditorEntry } from "../../lib/instrumentEditorEntry";
 import { useEngagementExperiment, announceEngagementPlayback, ENGAGEMENT_PLAYBACK_ACTIVE_EVENT, acknowledgeEngagementContact } from "../../lib/engagement/react";
 import {editorInstrumentName} from "../../lib/i18n/editor/instruments";
@@ -2110,6 +2111,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       let normalized = normalizeCanvas(data, editorId);
       const entryInstrument = editorEntryInstrument(router.query.track);
       if (entryInstrument) normalized = normalizeCanvas(await ensureInstrumentEditorEntry(editorId, normalized, entryInstrument), editorId);
+      if (router.query.focusInstrument === "piano") normalized = focusPianoTranscription(normalized);
       const previous = canvasRef.current;
       if (previous?.id === normalized.id) recordCanvasHistory(previous, normalized);
       else resetCanvasHistory();
@@ -2165,6 +2167,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           }
           const entryInstrument = editorEntryInstrument(router.query.track);
           if (entryInstrument) normalized = normalizeCanvas(await ensureInstrumentEditorEntry(editorId, normalized, entryInstrument), editorId);
+          if (router.query.focusInstrument === "piano") normalized = focusPianoTranscription(normalized);
           const previous = canvasRef.current;
           if (previous?.id === normalized.id) recordCanvasHistory(previous, normalized);
           else resetCanvasHistory();

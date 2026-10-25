@@ -9,6 +9,7 @@ type TranscriptionModelDropdownProps = {
   value: TranscriptionModelChoice;
   onChange: (value: TranscriptionModelChoice) => void;
   disabled?: boolean;
+  lightDescription?: string;
   id?: string;
   canUseHeavy?: boolean;
   heavyPreviewAvailable?: boolean;
@@ -25,6 +26,7 @@ export default function TranscriptionModelDropdown({
   heavyPreviewAvailable = false,
   verificationRequired = false,
   onLockedHeavySelect,
+  lightDescription,
 }: TranscriptionModelDropdownProps) {
   const { t } = useLocale();
   const detailsRef = useRef<HTMLDetailsElement | null>(null);
@@ -129,7 +131,7 @@ export default function TranscriptionModelDropdown({
                   </span>
                 </span>
                 <span className="model-dropdown-option-description">
-                  {t(option.description)}
+                  {t(option.value === "light" && lightDescription ? lightDescription : option.description)}
                 </span>
               </span>
               <span className="model-dropdown-check" aria-hidden="true">

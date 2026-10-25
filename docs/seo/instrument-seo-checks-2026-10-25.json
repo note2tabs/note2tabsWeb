@@ -16,7 +16,7 @@
       "h1": 1,
       "canonical": "https://www.note2tabs.com/piano-transcription",
       "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
-      "schemaBlocks": 4
+      "schemaBlocks": 3
     },
     {
       "path": "/piano-sheet-music-editor",
@@ -185,5 +185,14 @@
   "mobileWidthsChecked": [
     390
   ],
-  "backendDisposableProjectSaveReload": "passed and deleted"
+  "backendDisposableProjectSaveReload": "passed and deleted",
+  "pianoDirectEntry": {
+    "formOnCanonicalUrl": true,
+    "audioFileAndYouTube": true,
+    "signInReturnPath": "/piano-transcription?resumeTranscription=1",
+    "eightSecondLiveLightTest": "completed and opened a populated piano notation track",
+    "temporaryEditorDeleted": true,
+    "guitarDefaultRegression": "passed",
+    "testsPassed": 155
+  }
 }

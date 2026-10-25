@@ -37,7 +37,7 @@ New long-form content currently has **English editions only**. There are no fake
 
 All new canonical URLs are added to the sitemap with a truthful content modification date. Existing localized sitemap generation is unchanged. New static articles use the established article layout, heading compilation, sanitisation, contents list and Article schema, with Note2Tabs correctly represented as an organisation. They appear in the English RSS feed and an English guide section on the blog index and are internally linked from the matching instrument pages. Existing database articles are untouched.
 
-Query-based transcriber entry keeps `/transcribe` canonical and does not create indexable instrument/format aliases. Its heading reflects the incoming instrument so a piano player does not land under “Convert Any Song to Guitar Tabs.” The model, pricing, allowance, upload flow and instrument detection are unchanged. The query describes requested context, not confirmed audio content.
+Generic query-based transcriber entry keeps `/transcribe` canonical. The direct piano form has its own established `/piano-transcription` canonical, with YouTube mode canonicalised to that same piano URL. Neither creates format/synonym aliases. Its heading reflects the incoming instrument so a piano player does not land under “Convert Any Song to Guitar Tabs.” The model, pricing, allowance, upload flow and instrument detection are unchanged. The query describes requested context, not confirmed audio content.
 
 ## Product-entry validation
 
@@ -84,3 +84,19 @@ This audit tightened three shared areas:
 - English RSS adds space for the new guides rather than pushing any of the existing 50 fetched article entries out of the feed. Existing sitemap URLs and their released language variants remain present.
 
 Regression coverage includes mixed-instrument guitar article titles, rendered blog ordering, all established guitar product sitemap URLs across ten locales, and preservation of all 50 prior RSS entries. The focused SEO suite passed 65 tests; the combined instrument, localization, editor and guitar-protection run passed all 119 tests across 18 suites. These safeguards address implementation risks; they are not a guarantee of future search rankings. After release, compare the existing guitar query/page cohort with its prior baseline separately from the new instrument pages.
+
+## Immediate piano transcription entry
+
+The piano commercial URL now renders the existing transcriber form directly, using shared upload, YouTube, account, model and limit handling. It is no longer an explanatory page followed by a second click to reach an upload form. Its piano title, description, self-canonical, guide links and FAQ schema are preserved. Supporting content renders below the form without a second hero, H1 or main landmark. The separate piano editor landing remains the writing destination.
+
+Piano guide CTAs and YouTube links now point to `/piano-transcription` and its `?mode=youtube` variant. Sign-in/verification callbacks retain this route; resume-query cleanup does not send piano users to the generic guitar transcriber. The job/review redirect preserves allowlisted instrument context. Piano completion focuses an existing populated piano track only; it never invents an empty track or relabels another instrument. The default guitar transcriber remains covered by a rendered regression check.
+
+Validation includes:
+- One real eight-second Light-model transcription of an original sequence assembled from the product's upright-piano samples. Presign/upload returned 200, submission 202, inference completed, and normal finalization/import opened the editor automatically in Sheets view with a populated upright-piano notation track. This checks the workflow, not general model accuracy or instrument-isolation quality.
+- Browser file selection, eight-second clip detection, IndexedDB handoff persistence and a sign-in return URL of `/piano-transcription?resumeTranscription=1`.
+- Direct YouTube mode on the piano URL at a phone width, with one H1, correct canonical and no horizontal overflow.
+- Server-rendered tests for the actual upload form, piano-only main content, FAQ/schema preservation and unchanged default guitar hero/canonical; populated-track focus and no-piano/empty-track cases.
+
+New long-form content remains English-only and the branch remains unmerged. The short real transcription is a QA fixture on the authorised account; it is not a customer song or a benchmark claim.
+
+Final direct-entry validation: 155 tests across 26 suites passed, including model dropdown, guitar SEO, job polling/import/finalization and piano form checks. Production webpack/TypeScript build passed. The 22-URL metadata/sitemap/RSS audit was rerun after the form integration. The disposable imported piano editor was deleted; the short QA transcription is labelled in account history.

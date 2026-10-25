@@ -1,5 +1,6 @@
-import SeoLandingPage from "../components/SeoLandingPage";
+import TranscriberPage from "./transcriber";
 import { instrumentSeoPages } from "../lib/instrumentSeoPages";
-export default function InstrumentPage() {
-  return <SeoLandingPage {...instrumentSeoPages["piano-transcription"]} />;
+
+export default function PianoTranscriptionPage() {
+  return <TranscriberPage initialInstrument="piano" landingPage={instrumentSeoPages["piano-transcription"]} />;
 }

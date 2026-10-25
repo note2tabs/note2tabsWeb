@@ -40,4 +40,4 @@ These formats serve different jobs. MIDI is performance-oriented; MusicXML carri
 
 Loop a difficult section and choose a comfortable playback speed. Work on the melody and accompaniment separately, then bring them together. Save the arrangement once the phrase is understandable, and keep refining the next section in the same project.
 
-[Transcribe a piano recording](/transcribe?instrument=piano) or explore the [piano sheet music editor](/piano-sheet-music-editor).
+[Transcribe a piano recording](/piano-transcription) or explore the [piano sheet music editor](/piano-sheet-music-editor).

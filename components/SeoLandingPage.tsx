@@ -11,6 +11,7 @@ export type SeoLandingPageProps = {
   description: string;
   canonicalPath: string;
   hasTranslation?: boolean;
+  contentOnly?: boolean;
   preview?: { src: string; width: number; height: number; alt: string; label: string; transcription?: boolean; sourceLabel?: string; resultLabel?: string; caption?: string; exportLabel?: string };
   primaryCta: {
     label: string;
@@ -50,6 +51,7 @@ export default function SeoLandingPage({
   description,
   canonicalPath,
   hasTranslation = true,
+  contentOnly = false,
   preview,
   primaryCta,
   secondaryCta,
@@ -134,6 +136,55 @@ export default function SeoLandingPage({
     {t(primaryCta.label)} <span aria-hidden="true">→</span>
   </Link>;
 
+  const supportingContent = (<>
+          <section className="search-landing-workflow" aria-labelledby="search-workflow-title">
+            <h2 id="search-workflow-title">{t("How it works")}</h2>
+            <ol>{steps.map((step, index) => <li key={step.title}>
+              <span className="search-landing-step-number" aria-hidden="true">0{index + 1}</span>
+              <div><h3>{t(step.title)}</h3><p>{t(step.body)}</p></div>
+            </li>)}</ol>
+          </section>
+
+          <div className="search-landing-reference">
+            {detail && <section className="search-landing-detail"><h2>{t(detail.title)}</h2>
+              {detail.paragraphs.map(paragraph => <p key={paragraph}>{t(paragraph)}</p>)}
+              {detail.benefits?.length ? <ul className="search-landing-benefits">{detail.benefits.map(benefit => <li key={benefit.title}><strong>{t(benefit.title)}</strong> {t(benefit.body)}</li>)}</ul> : null}
+            </section>}
+            {contentSections.map(section => <section className="search-landing-detail" key={section.title}>
+              <h2>{t(section.title)}</h2>
+              {section.paragraphs.map(paragraph => <p key={paragraph}>{t(paragraph)}</p>)}
+              {section.bullets?.length ? <ul>{section.bullets.map(bullet => <li key={bullet}>{t(bullet)}</li>)}</ul> : null}
+              {section.action && <Link href={section.action.href} className="search-landing-section-action"
+                onClick={() => trackAction(section.action!.href, "search_content")}>
+                {t(section.action.label)} <span aria-hidden="true">→</span>
+              </Link>}
+            </section>)}
+          </div>
+
+          {guides && <section className="search-instrument-guides" aria-labelledby="instrument-guides-heading">
+            <h2 id="instrument-guides-heading">{guides.label} guides</h2>
+            <ul>{guides.guides.map(guide => <li key={guide.slug}>
+              <Link href={`/blog/${guide.slug}`}>{guide.title} <span aria-hidden="true">↗</span></Link>
+              <p>{guide.excerpt}</p>
+            </li>)}</ul>
+          </section>}
+
+          {faqs.length > 0 && <section className="search-landing-faq" aria-labelledby="search-faq-title">
+            <h2 id="search-faq-title">{t("Frequently asked questions")}</h2>
+            <div>{faqs.map(faq => <details key={faq.question}>
+              <summary>{t(faq.question)}<span aria-hidden="true">+</span></summary><p>{t(faq.answer)}</p>
+            </details>)}</div>
+          </section>}
+
+          <section className="search-landing-next" aria-label={t(primaryCta.label)}>
+            {primaryAction("search_end")}<Link href="/pricing">{t("Plans and pricing")} <span aria-hidden="true">↗</span></Link>
+          </section>
+          <nav className="search-landing-related" aria-label={t("Related guides and tools")}>
+            {relatedLinks.filter(link => !link.englishOnly || locale === "en").map(link => <Link href={link.href} key={link.href}>{t(link.label)} <span aria-hidden="true">↗</span></Link>)}
+          </nav>
+  </>);
+  if (contentOnly) return <div className="search-landing search-landing-support"><div className="container search-landing-shell">{supportingContent}</div></div>;
+
   return (
     <>
       <SeoHead title={t(metaTitle)} description={description} canonicalPath={canonicalPath} hasTranslation={hasTranslation} jsonLd={jsonLd} />
@@ -180,51 +231,7 @@ export default function SeoLandingPage({
             </figure>
           </section>
 
-          <section className="search-landing-workflow" aria-labelledby="search-workflow-title">
-            <h2 id="search-workflow-title">{t("How it works")}</h2>
-            <ol>{steps.map((step, index) => <li key={step.title}>
-              <span className="search-landing-step-number" aria-hidden="true">0{index + 1}</span>
-              <div><h3>{t(step.title)}</h3><p>{t(step.body)}</p></div>
-            </li>)}</ol>
-          </section>
-
-          <div className="search-landing-reference">
-            {detail && <section className="search-landing-detail"><h2>{t(detail.title)}</h2>
-              {detail.paragraphs.map(paragraph => <p key={paragraph}>{t(paragraph)}</p>)}
-              {detail.benefits?.length ? <ul className="search-landing-benefits">{detail.benefits.map(benefit => <li key={benefit.title}><strong>{t(benefit.title)}</strong> {t(benefit.body)}</li>)}</ul> : null}
-            </section>}
-            {contentSections.map(section => <section className="search-landing-detail" key={section.title}>
-              <h2>{t(section.title)}</h2>
-              {section.paragraphs.map(paragraph => <p key={paragraph}>{t(paragraph)}</p>)}
-              {section.bullets?.length ? <ul>{section.bullets.map(bullet => <li key={bullet}>{t(bullet)}</li>)}</ul> : null}
-              {section.action && <Link href={section.action.href} className="search-landing-section-action"
-                onClick={() => trackAction(section.action!.href, "search_content")}>
-                {t(section.action.label)} <span aria-hidden="true">→</span>
-              </Link>}
-            </section>)}
-          </div>
-
-          {guides && <section className="search-instrument-guides" aria-labelledby="instrument-guides-heading">
-            <h2 id="instrument-guides-heading">{guides.label} guides</h2>
-            <ul>{guides.guides.map(guide => <li key={guide.slug}>
-              <Link href={`/blog/${guide.slug}`}>{guide.title} <span aria-hidden="true">↗</span></Link>
-              <p>{guide.excerpt}</p>
-            </li>)}</ul>
-          </section>}
-
-          {faqs.length > 0 && <section className="search-landing-faq" aria-labelledby="search-faq-title">
-            <h2 id="search-faq-title">{t("Frequently asked questions")}</h2>
-            <div>{faqs.map(faq => <details key={faq.question}>
-              <summary>{t(faq.question)}<span aria-hidden="true">+</span></summary><p>{t(faq.answer)}</p>
-            </details>)}</div>
-          </section>}
-
-          <section className="search-landing-next" aria-label={t(primaryCta.label)}>
-            {primaryAction("search_end")}<Link href="/pricing">{t("Plans and pricing")} <span aria-hidden="true">↗</span></Link>
-          </section>
-          <nav className="search-landing-related" aria-label={t("Related guides and tools")}>
-            {relatedLinks.filter(link => !link.englishOnly || locale === "en").map(link => <Link href={link.href} key={link.href}>{t(link.label)} <span aria-hidden="true">↗</span></Link>)}
-          </nav>
+          {supportingContent}
         </div>
       </main>
     </>

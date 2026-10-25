@@ -1,6 +1,6 @@
 A useful YouTube piano transcription starts with a clearly chosen passage. An intro, a repeated accompaniment or a short solo phrase is easier to check than a whole performance at once. Once the notes are generated, use notation and playback to turn that section into a part you can practise.
 
-Open the [piano transcriber in YouTube mode](/transcribe?instrument=piano&mode=youtube) with a public recording you are entitled to use. You can also upload your own audio through the [piano transcription page](/piano-transcription).
+Open the [piano transcriber in YouTube mode](/piano-transcription?mode=youtube) with a public recording you are entitled to use. You can also upload your own audio through the [piano transcription page](/piano-transcription).
 
 ## Choose the performance you want to learn
 
@@ -36,4 +36,4 @@ Return to the performance's speed and listen again before making another edit. S
 
 Save the project to return to the passage. Export MIDI for a DAW, MusicXML for a notation application or a native project file to keep working in Note2Tabs. Continue with another section only after the first one is understandable.
 
-[Choose a YouTube piano passage](/transcribe?instrument=piano&mode=youtube), or read the [piano transcription guide](/blog/how-to-transcribe-piano-audio-to-sheet-music) for a step-by-step review of melody, accompaniment and timing.
+[Choose a YouTube piano passage](/piano-transcription?mode=youtube), or read the [piano transcription guide](/blog/how-to-transcribe-piano-audio-to-sheet-music) for a step-by-step review of melody, accompaniment and timing.
