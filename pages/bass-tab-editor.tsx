@@ -40,6 +40,7 @@ export default function BassTabEditorPage() {
       { question: "Does the bass tab maker work in a browser?", answer: "Yes. Open Note2Tabs in your browser to write, play and edit bass tablature without installing software." },
     ]}
     relatedLinks={[
+      { label: "Write a playable bassline", href: "/blog/how-to-transcribe-a-bassline-from-a-recording", description: "Check the groove, register and fingering.", englishOnly: true },
       { label: "Guitar tab editor", href: "/editor", description: "Write guitar parts alongside your bassline." },
       { label: "Import and export", href: "/features/guitar-tab-import-export", description: "Move music between your tools." },
       { label: "Audio to bass tabs", href: "/audio-to-bass-tabs", description: "Transcribe a bass recording." },

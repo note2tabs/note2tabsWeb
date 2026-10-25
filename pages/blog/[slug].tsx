@@ -65,7 +65,7 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
     datePublished: published,
     dateModified: new Date(post.updatedAt).toISOString(),
     author: {
-      "@type": "Person",
+      "@type": post.authorName === "Note2Tabs" ? "Organization" : "Person",
       name: post.authorName,
       url: absoluteUrl("/about"),
     },

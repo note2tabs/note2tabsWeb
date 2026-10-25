@@ -1949,5 +1949,15 @@
   "Compare transcription plans.": "채보 요금제를 비교하세요.",
   "Bass recording": "베이스 녹음",
   "Generate bass tabs": "베이스 타브 악보 생성",
-  "Free accounts can transcribe 30 seconds at a time. Premium supports YouTube sections up to 10 minutes long.": "무료 계정은 한 번에 30초까지 채보할 수 있습니다. Premium에서는 YouTube 영상의 원하는 위치에서 최대 10분까지 채보할 수 있습니다."
+  "Free accounts can transcribe 30 seconds at a time. Premium supports YouTube sections up to 10 minutes long.": "무료 계정은 한 번에 30초까지 채보할 수 있습니다. Premium에서는 YouTube 영상의 원하는 위치에서 최대 10분까지 채보할 수 있습니다.",
+  "Piano transcription": "피아노 채보",
+  "Instruments": "악기",
+  "AI music transcription": "AI 음악 채보",
+  "Turn a recording into editable notes and timing.": "녹음을 편집 가능한 음표와 리듬으로 변환하세요.",
+  "Transcribe piano audio": "피아노 녹음 채보하기",
+  "Transcribe drum audio": "드럼 녹음 채보하기",
+  "Transcribe ukulele audio": "우쿨렐레 녹음 채보하기",
+  "Bass transcription guide": "베이스 채보 가이드",
+  "Write a playable bassline": "연주하기 편한 베이스라인 만들기",
+  "Check the groove, register and fingering.": "그루브, 음역과 운지법을 확인하세요."
 }

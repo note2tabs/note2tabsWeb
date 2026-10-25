@@ -1,3 +1,4 @@
+import { TRANSCRIPTION_ENTRY_TITLES, transcriptionEntryInstrument } from "../lib/instrumentTranscriptionEntry";
 import dynamic from "next/dynamic";
 const PaywallDesignPreview = process.env.NODE_ENV === "development" ? dynamic(()=>import("../components/PaywallDesignPreview"),{ssr:false}) : ()=>null;
 import { uploadTranscriptionFile, TranscriptionUploadError } from "../lib/transcriptionUpload";
@@ -201,6 +202,8 @@ export default function TranscriberPage() {
   const { t, locale } = useLocale();
   const { data: session, status: sessionStatus, update: updateSession } = useSession();
   const router = useRouter();
+  const requestedInstrument = transcriptionEntryInstrument(router.query.instrument);
+  const transcriptionEntryPath = requestedInstrument ? `/transcribe?instrument=${requestedInstrument}` : "/transcribe";
   const [mode, setMode] = useState<"FILE" | "YOUTUBE">("FILE");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -296,7 +299,7 @@ export default function TranscriberPage() {
     () => credits ?? (disableDbInDev ? buildDevCreditsSummary() : null),
     [credits, disableDbInDev]
   );
-  const verifyHref = `/auth/verify-email?next=${encodeURIComponent("/transcribe")}${
+  const verifyHref = `/auth/verify-email?next=${encodeURIComponent(transcriptionEntryPath)}${
     transcriberSession?.user?.email
       ? `&email=${encodeURIComponent(transcriberSession.user.email)}`
       : ""
@@ -898,7 +901,7 @@ export default function TranscriberPage() {
         sendEvent(ANALYTICS_EVENTS.authHandoffRequired, { reason: "signed_out", mode });
         sendEvent(ANALYTICS_EVENTS.authHandoffSaved, { mode, path: "/transcribe" });
         const navigated = await router.push(
-          `/auth/login?next=${encodeURIComponent("/transcribe?resumeTranscription=1")}`
+          `/auth/login?next=${encodeURIComponent(`${transcriptionEntryPath}${requestedInstrument ? "&" : "?"}resumeTranscription=1`)}`
         );
         if (!navigated) reportBlockedSubmission("auth_navigation_failed", "auth_handoff");
       } catch {
@@ -1282,11 +1285,11 @@ export default function TranscriberPage() {
 
   const handleHeroPrimaryAction = () => {
     if (mode === "FILE" && !selectedFile) {
-      trackCtaClick("choose_audio_file", { surface: "transcriber_funnel" });
+      trackCtaClick("choose_audio_file", { surface: "transcriber_funnel", requested_instrument: requestedInstrument });
       fileInputRef.current?.click();
       return;
     }
-    trackCtaClick("convert_to_tabs", { surface: "transcriber_funnel", mode });
+    trackCtaClick("convert_to_tabs", { surface: "transcriber_funnel", mode, requested_instrument: requestedInstrument });
     void handleConvert();
   };
 
@@ -1528,11 +1531,11 @@ export default function TranscriberPage() {
           </div>
           <div className="container hero-stack hero-stack--centered">
             <div className="hero-heading" data-reveal>
-              <p className="hero-eyebrow">{t("AI tabs built for guitarists")}</p>
+              <p className="hero-eyebrow">{t(requestedInstrument ? "AI music transcription" : "AI tabs built for guitarists")}</p>
               <div className="hero-title-row">
-                <h1 className="hero-title">{t("Convert Any Song to Guitar Tabs")}</h1>
+                <h1 className="hero-title">{t(requestedInstrument ? TRANSCRIPTION_ENTRY_TITLES[requestedInstrument] : "Convert Any Song to Guitar Tabs")}</h1>
               </div>
-              <p className="hero-subtitle hero-subtitle--conversion">{t(" Turn recordings into guitar tab you can edit, practice, and export. ")}</p>
+              <p className="hero-subtitle hero-subtitle--conversion">{t(requestedInstrument ? "Turn a recording into editable notes and timing." : " Turn recordings into guitar tab you can edit, practice, and export. ")}</p>
 
             </div>
             <form
@@ -1582,7 +1585,7 @@ export default function TranscriberPage() {
                         surface: "transcriber",
                         trigger: "offer",
                       });
-                      trackCtaClick("use_free_heavy_preview", { surface: "transcriber_funnel" });
+                      trackCtaClick("use_free_heavy_preview", { surface: "transcriber_funnel", requested_instrument: requestedInstrument });
                     }}
                   />
                 ) : (

@@ -1,3 +1,4 @@
+import { instrumentGuides } from "../../lib/instrumentGuideIndex";
 import { useLocale } from "../../lib/i18n/react";
 import type { GetServerSideProps } from "next";
 import Link from "../../components/LocaleLink";
@@ -47,7 +48,7 @@ export default function BlogIndexPage({
   activeTag,
   dataUnavailable = false,
 }: Props) {
-  const { t, href: localePath } = useLocale();
+  const { t, locale, href: localePath } = useLocale();
   const pageParams = new URLSearchParams();
   if (activeCategory) pageParams.set("category", activeCategory);
   if (activeTag) pageParams.set("tag", activeTag);
@@ -112,6 +113,11 @@ export default function BlogIndexPage({
             </div>
           </div>
         </header>
+
+        {locale === "en" && page === 1 && !activeCategory && !activeTag && <section className="instrument-guides-index" aria-labelledby="instrument-guides-title">
+          <h2 id="instrument-guides-title">Piano, bass, drums and ukulele</h2>
+          <ul>{instrumentGuides.map(guide => <li key={guide.slug}><Link href={`/blog/${guide.slug}`}>{guide.title}</Link></li>)}</ul>
+        </section>}
 
         {pillars.length > 0 && (
           <section className="blog-section blog-feature">
@@ -178,7 +184,7 @@ export default function BlogIndexPage({
           {posts.length === 0 && (
             <div className="blog-empty stack-tight" role={dataUnavailable ? "status" : undefined}>
               <strong>{t(dataUnavailable ? "The guides are temporarily unavailable." : "No posts found for this filter.")}</strong>
-              {dataUnavailable && (
+        {dataUnavailable && (
                 <span>{t("Try again shortly, or continue with the editor and transcriber while the library reconnects.")}</span>
               )}
               {dataUnavailable && (

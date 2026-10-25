@@ -1,3 +1,4 @@
+import { transcriptionEntryHref } from "./instrumentTranscriptionEntry";
 import { localeHref, type AppLocale } from "./i18n/locale";
 
 /** Correct the known tool-labelled article link without rewriting editorial links. */
@@ -14,9 +15,25 @@ export type BlogProductPath = {
   description: string;
 };
 
+const instrumentProductPaths = (topic: string): BlogProductPath[] | null => {
+  const routes = /piano/.test(topic) ? { name: "Piano", transcribe: "/piano-transcription", editor: "/piano-sheet-music-editor" }
+    : /drum/.test(topic) ? { name: "Drum", transcribe: "/drum-transcription", editor: "/drum-notation-editor" }
+    : /ukulele|ukelele/.test(topic) ? { name: "Ukulele", transcribe: "/ukulele-transcription", editor: "/ukulele-tab-editor" }
+    : /bassline|\bbass\b/.test(topic) ? { name: "Bass", transcribe: "/audio-to-bass-tabs", editor: "/bass-tab-editor" } : null;
+  return routes ? [
+    { href: routes.transcribe, label: `${routes.name} transcription`, description: "Start from a recording and review the notes and timing." },
+    { href: routes.editor, label: `${routes.name} editor`, description: "Write, edit and play the part in your browser." },
+  ] : null;
+};
+
 /** Match the reader's task, rather than incidental words in a long title. */
 export function getBlogPrimaryAction(slug: string, title: string) {
   const topic = `${slug} ${title}`.toLowerCase();
+  const instrument = /piano/.test(topic) ? "piano" : /drum/.test(topic) ? "drums" : /ukulele|ukelele/.test(topic) ? "ukulele" : /bassline|\bbass\b/.test(topic) ? "bass" : null;
+  if (instrument) {
+    const transcribe = /transcri|audio|recording/.test(topic);
+    return { href: transcribe ? transcriptionEntryHref(instrument) : `/gte/new?track=${instrument}`, label: transcribe ? "Transcribe audio" : "Open the editor", cta: transcribe ? "blog_transcribe" : "blog_editor" };
+  }
   const editorial = /note-to-tab|fingering|practice|how-to-(?:write|edit|read)|import-export|guitar-pro-alternative/.test(slug);
   const transcribe = !editorial && /youtube|\bmp3\b|\bwav\b|audio|recording|transcri|generator|song-to/.test(topic);
   return {
@@ -34,6 +51,9 @@ const editorPath: BlogProductPath = {
 
 export function getBlogProductPaths(slug: string, title: string): BlogProductPath[] {
   const topic = `${slug} ${title}`.toLowerCase();
+
+  const instrumentPaths = instrumentProductPaths(topic);
+  if (instrumentPaths) return instrumentPaths;
 
   if (/youtube|video/.test(topic)) {
     return [

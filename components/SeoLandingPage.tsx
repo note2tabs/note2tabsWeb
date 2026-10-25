@@ -4,13 +4,13 @@ import Image from "next/image";
 import { trackCtaClick } from "../lib/analytics";
 import SeoHead, { ORGANIZATION_ID, SITE_NAME, WEBSITE_ID, absoluteUrl } from "./SeoHead";
 
-type SeoLandingPageProps = {
+export type SeoLandingPageProps = {
   title: string;
   metaTitle: string;
   description: string;
   canonicalPath: string;
   hasTranslation?: boolean;
-  preview?: { src: string; width: number; height: number; alt: string; label: string; transcription?: boolean };
+  preview?: { src: string; width: number; height: number; alt: string; label: string; transcription?: boolean; sourceLabel?: string; resultLabel?: string; caption?: string; exportLabel?: string };
   primaryCta: {
     label: string;
     href: string;
@@ -39,6 +39,7 @@ type SeoLandingPageProps = {
     label: string;
     href: string;
     description: string;
+    englishOnly?: boolean;
   }>;
 };
 
@@ -57,7 +58,7 @@ export default function SeoLandingPage({
   faqs = [],
   relatedLinks = [],
 }: SeoLandingPageProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const jsonLd = [
     {
       "@context": "https://schema.org",
@@ -154,8 +155,8 @@ export default function SeoLandingPage({
               <div className="search-landing-preview-label">
                 <span>{t(preview?.label || "Guitar tab editor")}</span><span aria-hidden="true" dir="ltr">01 — 02</span>
               </div>
-              {preview?.transcription && <div className="search-transcription-input" aria-label={t("Audio → editable tabs")}>
-                <div className="search-transcription-source"><span>{t(canonicalPath.includes("bass") ? "Bass recording" : "Guitar recording")}</span><span>{canonicalPath.includes("mp3") ? "MP3" : canonicalPath.includes("youtube") ? "YouTube" : "WAV"}</span></div>
+              {preview?.transcription && <div className="search-transcription-input" aria-label={t(preview.resultLabel || "Audio → editable tabs")}>
+                <div className="search-transcription-source"><span>{t(preview.sourceLabel || (canonicalPath.includes("bass") ? "Bass recording" : "Guitar recording"))}</span><span>{canonicalPath.includes("mp3") ? "MP3" : canonicalPath.includes("youtube") ? "YouTube" : "WAV"}</span></div>
                 <div className="search-transcription-wave-wrap"><svg viewBox="0 0 480 64" className="search-transcription-wave" aria-hidden="true">
                   {Array.from({ length: 80 }, (_, i) => {
                     const height = 6 + Math.round(Math.abs(Math.sin(i * .71) * Math.cos(i * .19)) * 48);
@@ -164,7 +165,7 @@ export default function SeoLandingPage({
                 </svg><span className="search-transcription-scan" aria-hidden="true" /></div>
                 <div className="search-transcription-direction">
                   <svg viewBox="0 0 32 48" aria-hidden="true"><path d="M16 2v38M5 30l11 12 11-12" /></svg>
-                  <span>{t("Audio → editable tabs")}</span>
+                  <span>{t(preview.resultLabel || "Audio → editable tabs")}</span>
                 </div>
               </div>}
               <div className="search-landing-score">
@@ -172,7 +173,7 @@ export default function SeoLandingPage({
                   alt={t(preview?.alt || "Example tab in the Note2Tabs editor")}
                   priority sizes="(max-width: 800px) 100vw, 650px" />
               </div>
-              <figcaption><span>{t(preview?.transcription ? "Example tab · Edit and play back" : "Write, arrange, play, and practice")}</span><span dir="ltr">TXT · MIDI · MusicXML</span></figcaption>
+              <figcaption><span>{t(preview?.caption || (preview?.transcription ? "Example tab · Edit and play back" : "Write, arrange, play, and practice"))}</span><span dir="ltr">{preview?.exportLabel || "TXT · MIDI · MusicXML"}</span></figcaption>
 
             </figure>
           </section>
@@ -212,7 +213,7 @@ export default function SeoLandingPage({
             {primaryAction("search_end")}<Link href="/pricing">{t("Plans and pricing")} <span aria-hidden="true">↗</span></Link>
           </section>
           <nav className="search-landing-related" aria-label={t("Related guides and tools")}>
-            {relatedLinks.map(link => <Link href={link.href} key={link.href}>{t(link.label)} <span aria-hidden="true">↗</span></Link>)}
+            {relatedLinks.filter(link => !link.englishOnly || locale === "en").map(link => <Link href={link.href} key={link.href}>{t(link.label)} <span aria-hidden="true">↗</span></Link>)}
           </nav>
         </div>
       </main>

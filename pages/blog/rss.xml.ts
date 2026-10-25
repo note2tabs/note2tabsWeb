@@ -1,3 +1,5 @@
+import { instrumentGuides } from "../../lib/instrumentGuideIndex";
+import { INSTRUMENT_SEO_UPDATED } from "../../lib/instrumentSeoPages";
 import { articleTranslation } from "../../lib/i18n/blog/localize";
 import { localeFromPath, localeHref } from "../../lib/i18n/locale";
 import type { GetServerSideProps } from "next";
@@ -28,7 +30,14 @@ export const getServerSideProps: GetServerSideProps = async ({ res, resolvedUrl 
     return [];
   });
 
-  const items = posts
+  const guideDate = new Date(`${INSTRUMENT_SEO_UPDATED}T00:00:00.000Z`);
+  const knownSlugs = new Set(posts.map(post => post.slug));
+  const feedPosts = [...posts, ...(locale === "en" ? instrumentGuides.filter(guide => !knownSlugs.has(guide.slug)).map(guide => ({
+    title: guide.title, slug: guide.slug, excerpt: guide.excerpt,
+    publishedAt: guideDate, publishAt: null, updatedAt: guideDate,
+  })) : [])].sort((a, b) => (b.publishedAt || b.publishAt || b.updatedAt).getTime() - (a.publishedAt || a.publishAt || a.updatedAt).getTime()).slice(0, 50);
+
+  const items = feedPosts
     .map((post) => {
       const translated = locale !== "en" ? articleTranslation(post.slug, post.updatedAt.toISOString(), post.title, locale) : null;
       const link = `${baseUrl}${localeHref(`/blog/${post.slug}`, translated ? locale : "en")}`;

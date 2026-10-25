@@ -11,6 +11,7 @@ import {
 type Props = {
   hasAccount: boolean;
   passedTutorial: boolean;
+  autoOpen?: boolean;
   cards?: EditorTutorialCard[];
 };
 
@@ -138,7 +139,7 @@ const renderTutorialText = (text: string, t: (source: string) => string) =>
     return match ? tutorialToken(match[1], index, t) : part;
   });
 
-export default function EditorTutorial({ hasAccount, passedTutorial, cards = EDITOR_TUTORIAL_CARDS }: Props) {
+export default function EditorTutorial({ hasAccount, passedTutorial, autoOpen = true, cards = EDITOR_TUTORIAL_CARDS }: Props) {
   const { t, locale } = useLocale();
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
@@ -170,8 +171,8 @@ export default function EditorTutorial({ hasAccount, passedTutorial, cards = EDI
 
   useEffect(() => {
     const guestAlreadyInteracted = !hasAccount && localStorage.getItem(EDITOR_TUTORIAL_GUEST_STORAGE_KEY) === "true";
-    if (!passedTutorial && !guestAlreadyInteracted) setOpen(true);
-  }, [hasAccount, passedTutorial]);
+    if (autoOpen && !passedTutorial && !guestAlreadyInteracted) setOpen(true);
+  }, [hasAccount, passedTutorial, autoOpen]);
 
   useEffect(() => {
     if (!open) return;

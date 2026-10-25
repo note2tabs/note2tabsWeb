@@ -30,7 +30,7 @@ it("lists the English bass pages once", async () => {
 it("separates bass transcription from manual editing with distinct content and cross-links", () => {
   const html = renderToStaticMarkup(createElement(BassTranscriptionPage));
   expect(html).toContain("Turn bass audio into tabs");
-  expect(html).toContain('href="/transcribe"');
+  expect(html).toContain('href="/transcribe?instrument=bass"');
   expect(html).toContain('href="/bass-tab-editor"');
   expect(html).toContain("isolated bass stem");
   expect(html.match(/<h1\b/g)).toHaveLength(1);

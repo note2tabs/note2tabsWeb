@@ -1949,5 +1949,15 @@
   "Compare transcription plans.": "比较转谱方案。",
   "Bass recording": "贝斯录音",
   "Generate bass tabs": "生成贝斯指法谱",
-  "Free accounts can transcribe 30 seconds at a time. Premium supports YouTube sections up to 10 minutes long.": "免费账户每次可转录30秒。Premium支持从YouTube视频的任意位置选取最长10分钟的片段进行转录。"
+  "Free accounts can transcribe 30 seconds at a time. Premium supports YouTube sections up to 10 minutes long.": "免费账户每次可转录30秒。Premium支持从YouTube视频的任意位置选取最长10分钟的片段进行转录。",
+  "Piano transcription": "钢琴扒谱",
+  "Instruments": "乐器",
+  "AI music transcription": "AI 自动扒谱",
+  "Turn a recording into editable notes and timing.": "将录音转换为可编辑的音符和节奏。",
+  "Transcribe piano audio": "为钢琴录音扒谱",
+  "Transcribe drum audio": "为鼓录音扒谱",
+  "Transcribe ukulele audio": "为尤克里里录音扒谱",
+  "Bass transcription guide": "贝斯扒谱指南",
+  "Write a playable bassline": "编写顺手的贝斯声部",
+  "Check the groove, register and fingering.": "检查律动、音区和指法。"
 }
