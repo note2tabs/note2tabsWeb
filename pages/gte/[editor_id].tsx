@@ -79,6 +79,7 @@ import {
 } from "../../lib/gteSamplePlayback";
 import { buildDiscreteSlideSteps } from "../../lib/gteSlidePlayback";
 import { TRACK_INSTRUMENT_OPTIONS } from "../../lib/gteInstrumentManifest";
+import { readViewMode, saveViewMode } from "../../lib/gteViewModePreference";
 import { getOpenStringMidiFromSnapshot, getTabMidi as getSnapshotTabMidi } from "../../lib/gteTuning";
 import { isNotationTrack, scorePlaybackEvents } from "../../lib/gteNotation";
 import { selectNotationBars, insertNotationBars, deleteNotationBars } from "../../lib/gteNotationBars";
@@ -2419,6 +2420,18 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       setEditorMode("practice");
     }
   }, [isMobileViewport, router.isReady, router.query.mode]);
+
+  // Reopen the view you were last in (Canvas, Tab view/MIDI view, Practice) for a while after a reload.
+  // An explicit ?mode= link wins; phones only offer the middle view for piano tracks.
+  const viewModeRestoredRef = useRef(false);
+  useEffect(() => {
+    if (viewModeRestoredRef.current || !router.isReady || !canvas) return;
+    viewModeRestoredRef.current = true;
+    if (router.query.mode) return;
+    const saved = readViewMode(editorId);
+    if (!saved) return;
+    setEditorMode(isMobileViewport && saved === "tab" && !notationTrackActive ? "canvas" : saved);
+  }, [canvas, editorId, isMobileViewport, notationTrackActive, router.isReady, router.query.mode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -6408,6 +6421,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
 
   const selectEditorMode = (mode: "canvas" | "tab" | "practice") => {
     if (isMobileViewport) setMobileEditLaneId(null);
+    saveViewMode(editorId, mode);
     if (mode === "canvas") setEditorMode("canvas");
     else if (mode === "tab") setEditorMode("tab");
     else setEditorMode("practice");
