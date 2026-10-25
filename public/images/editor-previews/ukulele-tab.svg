@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="790" height="220" viewBox="0 0 790 220">
+  <title>An original two-bar ukulele phrase</title>
+  <rect width="790" height="220" fill="#fffefb"/>
+  <g fill="#68736b" font-family="Arial, sans-serif" font-size="13">
+    <text x="76" y="35">1</text><text x="405" y="35">2</text>
+  </g>
+  <g stroke="#a2a9a2" stroke-width="1">
+    <path d="M70 70H750 M70 100H750 M70 130H750 M70 160H750"/>
+    <path d="M70 70V160 M395 70V160 M748 70V160 M752 70V160"/>
+  </g>
+  <g fill="#263d30" font-family="Arial, sans-serif" font-size="17">
+    <text x="37" y="76">A</text><text x="37" y="106">E</text><text x="37" y="136">C</text><text x="37" y="166">G</text>
+  </g>
+  <g fill="#fffefb">
+    <path d="M100 148h24v24h-24z M176 148h24v24h-24z M252 148h24v24h-24z M328 148h24v24h-24z M430 118h24v24h-24z M506 118h24v24h-24z M582 148h24v24h-24z M658 148h24v24h-24z"/>
+  </g>
+  <g fill="#182b20" font-family="Menlo, Consolas, monospace" font-size="24" font-weight="500" text-anchor="middle">
+    <text x="112" y="168">0</text><text x="188" y="168">3</text><text x="264" y="168">5</text><text x="340" y="168">3</text>
+    <text x="442" y="138">0</text><text x="518" y="138">2</text><text x="594" y="168">5</text><text x="670" y="168">3</text>
+  </g>
+</svg>

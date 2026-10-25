@@ -6,7 +6,7 @@ export default function AudioToBassTabsPage() {
     metaTitle="Audio to Bass Tabs – Bass Transcription Online | Note2Tabs"
     description="Transcribe a bass recording into editable tablature. Upload your audio, generate tabs, then listen, refine the bassline and export your part."
     canonicalPath="/audio-to-bass-tabs"
-    primaryCta={{ label: "Transcribe bass audio", href: "/transcribe" }}
+    primaryCta={{ label: "Transcribe bass audio", href: "/transcribe?instrument=bass" }}
     secondaryCta={{ label: "Write a bass tab instead", href: "/bass-tab-editor" }}
     preview={{ src: "/images/editor-previews/bass-transcription-tab.svg", width: 790, height: 220, label: "Audio to bass tabs", transcription: true, alt: "Two-bar bass tablature with fret numbers on four strings" }}
     steps={[
@@ -44,6 +44,7 @@ export default function AudioToBassTabsPage() {
       { question: "Can I write a bass tab without audio?", answer: "Yes. Open the bass tab editor to start a blank four-string bass track and enter the part yourself." },
     ]}
     relatedLinks={[
+      { label: "Bass transcription guide", href: "/blog/how-to-transcribe-a-bassline-from-a-recording", description: "Check the groove, register and fingering.", englishOnly: true },
       { label: "Bass tab editor", href: "/bass-tab-editor", description: "Write and edit four-string bass tabs." },
       { label: "Import and export", href: "/features/guitar-tab-import-export", description: "Move your music between tools." },
       { label: "Plans and pricing", href: "/pricing", description: "Compare transcription plans." },

@@ -1,3 +1,4 @@
+import { transcriptionEntryInstrument } from "../../lib/instrumentTranscriptionEntry";
 import { localizedSignIn as signIn } from "../../lib/i18n/auth";
 import { translatedError } from "../../lib/i18n/translate";
 import { useLocale } from "../../lib/i18n/react";
@@ -699,6 +700,7 @@ export default function JobPage() {
   const canOpenGuestEditor = !isSignedIn && isLocalNoDbClientMode;
   const getEditorHref = (editorId: string, source = "job") => {
     const params = new URLSearchParams({ source });
+    if (transcriptionEntryInstrument(router.query.instrument) === "piano") params.set("focusInstrument", "piano");
     if (modelHint) {
       params.set("transcriptionModel", modelHint);
       if (typeof job_id === "string") params.set("transcriptionJobId", job_id);
@@ -1251,7 +1253,7 @@ export default function JobPage() {
   }, [job_id, router.isReady, sessionStatus, showReviewUi]);
 
   const handleRestart = () => {
-    void router.push("/");
+    void router.push(transcriptionEntryInstrument(router.query.instrument) === "piano" ? "/piano-transcription" : "/");
   };
 
   const handleSkipAd = () => {
@@ -1263,7 +1265,7 @@ export default function JobPage() {
   };
 
   const showAdGate = isFinalizedJob && !hasWatchedAd;
-  const title = showReviewUi ? t("Opening editor - Note2Tabs") : t("Preparing Tabs - Note2Tabs");
+  const title = showReviewUi ? t("Opening editor - Note2Tabs") : t(transcriptionEntryInstrument(router.query.instrument) === "piano" ? "Preparing Piano Transcription - Note2Tabs" : "Preparing Tabs - Note2Tabs");
 
   return (
     <>
@@ -1282,10 +1284,10 @@ export default function JobPage() {
         <div className="container stack">
           <div className="page-header job-route-header">
             <div>
-              <h1 className="page-title">{showReviewUi ? t("Opening your editor") : t("Preparing your guitar tab")}</h1>
+              <h1 className="page-title">{showReviewUi ? t("Opening your editor") : t(transcriptionEntryInstrument(router.query.instrument) === "piano" ? "Preparing your piano transcription" : "Preparing your guitar tab")}</h1>
             </div>
             {!showReviewUi && (
-              <button type="button" onClick={() => void router.push("/")} className="button-ghost button-small">
+              <button type="button" onClick={() => void router.push(transcriptionEntryInstrument(router.query.instrument) === "piano" ? "/piano-transcription" : "/")} className="button-ghost button-small">
                 {t("Back")}
               </button>
             )}

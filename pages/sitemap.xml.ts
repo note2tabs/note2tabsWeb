@@ -1,3 +1,5 @@
+import { instrumentSeoPages, INSTRUMENT_SEO_UPDATED } from "../lib/instrumentSeoPages";
+import { instrumentGuides } from "../lib/instrumentGuideIndex";
 import {INDEXABLE_BLOG_CLUSTERS} from "../lib/blogIndexPolicy";
 import {articleLocales} from "../lib/i18n/blog/availability";
 import { localeFromPath, localeHref, stripLocale, TRANSLATED_LOCALES, normalizeLocale } from "../lib/i18n/locale";
@@ -103,6 +105,14 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
         }
       : {}),
   }));
+
+  // English-only editions must not advertise nonexistent localized alternates.
+  const instrumentPaths = ["/instruments", ...Object.values(instrumentSeoPages).map(page => page.canonicalPath), ...instrumentGuides.map(guide => `/blog/${guide.slug}`)];
+  const knownUrls = new Set(entries.map(entry => entry.loc));
+  for (const path of instrumentPaths) {
+    const loc = buildUrl(baseUrl, path);
+    if (!knownUrls.has(loc)) entries.push({ loc, lastmod: `${INSTRUMENT_SEO_UPDATED}T00:00:00.000Z` });
+  }
 
   const translatedArticles = new Map<string, typeof releasedLocales>();
   posts.forEach((post) => {

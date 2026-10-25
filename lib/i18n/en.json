@@ -1949,5 +1949,15 @@
   "You’re running low on credits": "You’re running low on credits",
   "You’ve used all your credits": "You’ve used all your credits",
   "{count} credits every month": "{count} credits every month",
-  "Free accounts can transcribe 30 seconds at a time. Premium supports YouTube sections up to 10 minutes long.": "Free accounts can transcribe 30 seconds at a time. Premium supports YouTube sections up to 10 minutes long."
+  "Free accounts can transcribe 30 seconds at a time. Premium supports YouTube sections up to 10 minutes long.": "Free accounts can transcribe 30 seconds at a time. Premium supports YouTube sections up to 10 minutes long.",
+  "Piano transcription": "Piano transcription",
+  "Instruments": "Instruments",
+  "AI music transcription": "AI music transcription",
+  "Turn a recording into editable notes and timing.": "Turn a recording into editable notes and timing.",
+  "Transcribe piano audio": "Transcribe piano audio",
+  "Transcribe drum audio": "Transcribe drum audio",
+  "Transcribe ukulele audio": "Transcribe ukulele audio",
+  "Bass transcription guide": "Bass transcription guide",
+  "Write a playable bassline": "Write a playable bassline",
+  "Check the groove, register and fingering.": "Check the groove, register and fingering."
 }

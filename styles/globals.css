@@ -14760,3 +14760,43 @@ html[lang="ar"] [data-editor-locale="ar"] :is(input[type="text"], textarea) {
 .import-export-related a { text-decoration: underline; text-underline-offset: 4px; }
 .blog-post .post-header--reader { padding-block: 40px 18px; }
 @media (max-width: 640px) { .blog-post .post-header--reader { padding-top: 24px; } }
+
+/* Instrument directory: a short route to the task, with piano first. */
+.instrument-hub { max-width: 1050px; padding-block: clamp(48px, 8vw, 100px); }
+.instrument-hub header { max-width: 650px; margin-bottom: 48px; }
+.instrument-hub h1 { font-size: clamp(38px, 6vw, 64px); letter-spacing: -.045em; line-height: 1.06; margin: 18px 0; }
+.instrument-hub header > p:last-child { color: #5a655f; font-size: 19px; }
+.instrument-hub-list { border-top: 1px solid #dce3dd; }
+.instrument-hub-list section { display: grid; grid-template-columns: 150px 1fr; gap: 12px 30px; padding: 30px 0; border-bottom: 1px solid #dce3dd; }
+.instrument-hub-list h2 { margin: 0; font-size: 26px; letter-spacing: -.025em; }
+.instrument-hub-list p { margin: 0; max-width: 600px; color: #5a655f; line-height: 1.65; }
+.instrument-hub-list nav { grid-column: 2; display: flex; flex-wrap: wrap; gap: 16px 30px; }
+.instrument-hub-list a, .instrument-guides-index a { color: #15583e; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.instrument-hub-list a { font-weight: 600; padding-block: 10px; }
+.instrument-guides-index { margin-block: 32px; padding-block: 24px; border-block: 1px solid #dce3dd; }
+.instrument-guides-index h2 { font-size: 23px; letter-spacing: -.02em; margin: 0 0 16px; }
+.instrument-guides-index ul { padding-inline-start: 20px; display: grid; gap: 12px; }
+@media (max-width: 600px) {
+  .instrument-hub-list section { grid-template-columns: 1fr; gap: 12px; }
+  .instrument-hub-list nav { grid-column: 1; }
+}
+.search-instrument-guides { padding-block: 32px; border-top: 1px solid #dce3dd; }
+.search-instrument-guides h2 { font-size: 24px; letter-spacing: -.025em; margin: 0 0 24px; }
+.search-instrument-guides ul { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 40px; padding: 0; margin: 0; list-style: none; }
+.search-instrument-guides a { color: #15583e; font-weight: 600; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.search-instrument-guides p { margin: 8px 0 0; font-size: 14px; color: #5a655f; line-height: 1.65; }
+.instrument-guide-groups { display: grid; grid-template-columns: 1fr 1fr; gap: 24px 40px; }
+.instrument-guide-groups h3 { font-size: 17px; margin: 0 0 16px; }
+.instrument-guide-groups ul { margin: 0; }
+.instrument-directory-guides { grid-column: 2; color: #5a655f; }
+.instrument-directory-guides summary { cursor: pointer; padding-block: 8px; font-size: 14px; }
+.instrument-directory-guides ul { padding-inline-start: 20px; display: grid; gap: 10px; }
+.instrument-directory-guides a { font-weight: 400; padding-block: 0; font-size: 14px; }
+@media (max-width: 600px) {
+  .search-instrument-guides ul, .instrument-guide-groups { grid-template-columns: 1fr; }
+  .instrument-directory-guides { grid-column: 1; }
+}
+.instrument-guide-groups details { align-self: start; }
+.instrument-guide-groups summary { cursor: pointer; font-size: 17px; font-weight: 600; padding-bottom: 16px; }
+.search-landing.search-landing-support { padding-top: 0; }
+.piano-editor-alternative { color: #15583e; font-size: 14px; text-underline-offset: 4px; }

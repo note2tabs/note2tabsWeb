@@ -2,7 +2,7 @@ import { beginTransfer } from "./engagement/transferTracking";
 import { buildTabTextFromSnapshot } from "./gteTabText";
 import type { EditorSnapshot, TabCoord, TimingMapV2 } from "../types/gte";
 import { normalizeTimingMap } from "./gteTiming";
-import { getOpenStringMidiFromSnapshot, getTabMidi, isBassSnapshot } from "./gteTuning";
+import { getOpenStringMidiFromSnapshot, getTabMidi, isBassSnapshot, isUkuleleSnapshot } from "./gteTuning";
 
 export type GteExportFormat = "json" | "txt" | "musicxml" | "midi";
 
@@ -142,7 +142,7 @@ export const buildMusicXmlFromSnapshot = (
     '<score-partwise version="3.1">',
     `  <work><work-title>${xmlEscape(title)}</work-title></work>`,
     "  <part-list>",
-    `    <score-part id="P1"><part-name>${isBassSnapshot(snapshot) ? "Bass" : "Guitar"}</part-name></score-part>`,
+    `    <score-part id="P1"><part-name>${isUkuleleSnapshot(snapshot) ? "Ukulele" : isBassSnapshot(snapshot) ? "Bass" : "Guitar"}</part-name></score-part>`,
     "  </part-list>",
     '  <part id="P1">',
   ];
@@ -164,7 +164,7 @@ export const buildMusicXmlFromSnapshot = (
     if (measureIndex === 0) {
       lines.push("        <key><fifths>0</fifths></key>");
       lines.push("        <clef><sign>TAB</sign><line>5</line></clef>");
-      if (isBassSnapshot(snapshot)) {
+      if (isBassSnapshot(snapshot) || isUkuleleSnapshot(snapshot)) {
         const tuning = [...getOpenStringMidiFromSnapshot(snapshot)].reverse();
         lines.push("        <staff-details><staff-lines>4</staff-lines>");
         tuning.forEach((midi, index) => {

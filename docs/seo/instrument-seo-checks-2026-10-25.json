@@ -1,0 +1,198 @@
+{
+  "environment": "local production build",
+  "checkedAt": "2026-10-25",
+  "pages": [
+    {
+      "path": "/instruments",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/instruments",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 1
+    },
+    {
+      "path": "/piano-transcription",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/piano-transcription",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 3
+    },
+    {
+      "path": "/piano-sheet-music-editor",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/piano-sheet-music-editor",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 4
+    },
+    {
+      "path": "/drum-transcription",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/drum-transcription",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 4
+    },
+    {
+      "path": "/drum-notation-editor",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/drum-notation-editor",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 4
+    },
+    {
+      "path": "/ukulele-transcription",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/ukulele-transcription",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 4
+    },
+    {
+      "path": "/ukulele-tab-editor",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/ukulele-tab-editor",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 4
+    },
+    {
+      "path": "/blog/how-to-write-drum-beats-and-fills",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/blog/how-to-write-drum-beats-and-fills",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 2
+    },
+    {
+      "path": "/blog/how-to-write-bass-tabs-online",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/blog/how-to-write-bass-tabs-online",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 2
+    },
+    {
+      "path": "/blog/how-to-practise-a-bassline-with-tabs",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/blog/how-to-practise-a-bassline-with-tabs",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 2
+    },
+    {
+      "path": "/blog/how-to-write-piano-music-notation-online",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/blog/how-to-write-piano-music-notation-online",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 2
+    },
+    {
+      "path": "/blog/how-to-fix-a-piano-transcription",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/blog/how-to-fix-a-piano-transcription",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 2
+    },
+    {
+      "path": "/blog/how-to-transcribe-drums-from-a-recording",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/blog/how-to-transcribe-drums-from-a-recording",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 2
+    },
+    {
+      "path": "/blog/how-to-transcribe-piano-from-youtube",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/blog/how-to-transcribe-piano-from-youtube",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 2
+    },
+    {
+      "path": "/blog/how-to-transcribe-a-ukulele-melody",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/blog/how-to-transcribe-a-ukulele-melody",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 2
+    },
+    {
+      "path": "/blog/how-to-practise-fingerstyle-ukulele-with-tabs",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/blog/how-to-practise-fingerstyle-ukulele-with-tabs",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 2
+    },
+    {
+      "path": "/blog/piano-roll-vs-sheet-music-notation",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/blog/piano-roll-vs-sheet-music-notation",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 2
+    },
+    {
+      "path": "/blog/how-to-transcribe-piano-audio-to-sheet-music",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/blog/how-to-transcribe-piano-audio-to-sheet-music",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 2
+    },
+    {
+      "path": "/blog/how-to-edit-piano-midi-as-sheet-music",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/blog/how-to-edit-piano-midi-as-sheet-music",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 2
+    },
+    {
+      "path": "/blog/how-to-transcribe-a-bassline-from-a-recording",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/blog/how-to-transcribe-a-bassline-from-a-recording",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 2
+    },
+    {
+      "path": "/blog/how-to-write-ukulele-tabs-high-g-low-g",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/blog/how-to-write-ukulele-tabs-high-g-low-g",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 2
+    },
+    {
+      "path": "/blog/how-to-read-drum-notation",
+      "status": 200,
+      "h1": 1,
+      "canonical": "https://www.note2tabs.com/blog/how-to-read-drum-notation",
+      "robots": "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1",
+      "schemaBlocks": 2
+    }
+  ],
+  "sitemapNewUrlsUnique": true,
+  "noUntranslatedLocaleVariants": true,
+  "allFifteenGuidesInEnglishRss": true,
+  "mobileWidthsChecked": [
+    390
+  ],
+  "backendDisposableProjectSaveReload": "passed and deleted",
+  "pianoDirectEntry": {
+    "formOnCanonicalUrl": true,
+    "audioFileAndYouTube": true,
+    "signInReturnPath": "/piano-transcription?resumeTranscription=1",
+    "eightSecondLiveLightTest": "completed and opened a populated piano notation track",
+    "temporaryEditorDeleted": true,
+    "guitarDefaultRegression": "passed",
+    "testsPassed": 155
+  }
+}

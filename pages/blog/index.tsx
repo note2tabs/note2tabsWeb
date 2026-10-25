@@ -1,3 +1,4 @@
+import { instrumentGuideGroups } from "../../lib/instrumentGuideIndex";
 import { useLocale } from "../../lib/i18n/react";
 import type { GetServerSideProps } from "next";
 import Link from "../../components/LocaleLink";
@@ -47,7 +48,7 @@ export default function BlogIndexPage({
   activeTag,
   dataUnavailable = false,
 }: Props) {
-  const { t, href: localePath } = useLocale();
+  const { t, locale, href: localePath } = useLocale();
   const pageParams = new URLSearchParams();
   if (activeCategory) pageParams.set("category", activeCategory);
   if (activeTag) pageParams.set("tag", activeTag);
@@ -223,6 +224,11 @@ export default function BlogIndexPage({
             </div>
           </nav>
         )}
+        {locale === "en" && page === 1 && !activeCategory && !activeTag && <section className="instrument-guides-index" aria-labelledby="instrument-guides-title">
+          <h2 id="instrument-guides-title">Piano, bass, drums and ukulele</h2>
+          <div className="instrument-guide-groups">{instrumentGuideGroups.map(group => <details key={group.instrument} open={group.instrument === "piano"}><summary>{group.label} guides</summary><ul>{group.guides.map(guide => <li key={guide.slug}><Link href={`/blog/${guide.slug}`}>{guide.title}</Link></li>)}</ul></details>)}</div>
+        </section>}
+
       </div>
     </main>
   );

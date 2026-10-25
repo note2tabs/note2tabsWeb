@@ -1,3 +1,4 @@
+import { transcriptionEntryInstrument } from "../../lib/instrumentTranscriptionEntry";
 import type { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
@@ -35,11 +36,12 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   }
 
   const parsed = parseStoredTabPayload(tabJob.resultJson);
-  const destination = parsed.backendJobId
+  let destination = parsed.backendJobId
     ? typeof appendEditorId === "string" && appendEditorId.trim()
       ? `/job/${encodeURIComponent(parsed.backendJobId)}?review=1&appendEditorId=${encodeURIComponent(appendEditorId)}`
       : `/job/${encodeURIComponent(parsed.backendJobId)}?review=1`
     : "/tabs";
+  if (parsed.backendJobId && transcriptionEntryInstrument(ctx.query.instrument) === "piano") destination += "&instrument=piano";
 
   return {
     redirect: {

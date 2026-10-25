@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { randomUUID } from "crypto";
+import { getOpenStringMidiFromSnapshot } from "../../../lib/gteTuning";
 import {
   GTE_GUEST_EDITOR_ID,
   createGuestSnapshot,
@@ -18,7 +19,6 @@ const DEFAULT_SECONDS_PER_BAR = 2;
 const DEFAULT_MAX_FRET = 22;
 const DEFAULT_CUT_COORD: TabCoord = [2, 0];
 const MAX_EVENT_LENGTH_FRAMES = 800;
-const STANDARD_TUNING_MIDI = [64, 59, 55, 50, 45, 40];
 const KEY_BASE_COUNT = 12;
 const KEY_TYPE_COUNT = 10;
 
@@ -46,25 +46,13 @@ const normalizeEditorType = (value: unknown) => {
   if (raw === "bass" || raw === "basseditor" || raw === "bass-editor") return "bass";
   return "tab";
 };
-const getLaneOpenStringMidi = (lane: Pick<EditorSnapshot, "tuning">) => {
-  const tuningOpen =
-    Array.isArray(lane.tuning?.openStringMidi) &&
-    lane.tuning.openStringMidi.length >= 6 &&
-    lane.tuning.openStringMidi.every((value) => Number.isFinite(Number(value)))
-      ? lane.tuning.openStringMidi.slice(0, 6).map((value) => Number(value))
-      : null;
-  const capo = Number.isFinite(Number(lane.tuning?.capo)) ? Math.max(0, Math.round(Number(lane.tuning?.capo))) : 0;
-  if (tuningOpen) {
-    return tuningOpen.map((value) => Math.round(value + capo));
-  }
-  return [...STANDARD_TUNING_MIDI];
-};
+const getLaneOpenStringMidi = getOpenStringMidiFromSnapshot;
 const getMaxFret = (lane: Pick<EditorSnapshot, "maxFret">) =>
   clamp(Math.round(toNumber(lane.maxFret, DEFAULT_MAX_FRET)), 1, 36);
-const clampTab = (lane: Pick<EditorSnapshot, "maxFret">, tab?: TabCoord | null): TabCoord => {
+const clampTab = (lane: Pick<EditorSnapshot, "maxFret" | "tuning">, tab?: TabCoord | null): TabCoord => {
   const source = tab ?? DEFAULT_CUT_COORD;
   return [
-    clamp(Math.round(toNumber(source[0], 0)), 0, 5),
+    clamp(Math.round(toNumber(source[0], 0)), 0, getLaneOpenStringMidi(lane).length - 1),
     clamp(Math.round(toNumber(source[1], 0)), 0, getMaxFret(lane)),
   ];
 };

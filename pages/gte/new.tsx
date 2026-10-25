@@ -1,4 +1,5 @@
 import Head from "next/head";
+import { editorEntryInstrument } from "../../lib/instrumentEditorEntry";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useLocale, useLocaleRouter } from "../../lib/i18n/react";
@@ -24,7 +25,8 @@ export default function NewEditorPage() {
         ? (createdEditorId.current ?? (createdEditorId.current = (await gteApi.createEditor()).editorId))
         : GTE_GUEST_EDITOR_ID;
       // Replace the entry route so Back cannot create another blank tab.
-      const navigated = await router.replace(`/gte/${editorId}${router.query?.track === "bass" ? "?track=bass" : ""}`);
+      const instrument = editorEntryInstrument(router.query?.track);
+      const navigated = await router.replace(`/gte/${editorId}${instrument ? `?track=${instrument}` : ""}`);
       if (navigated === false) throw new Error("We could not start a new tab. Check your connection and try again.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "We could not start a new tab. Check your connection and try again.");

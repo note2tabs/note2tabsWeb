@@ -1949,5 +1949,15 @@
   "Compare transcription plans.": "Compara los planes de transcripción.",
   "Bass recording": "Grabación de bajo",
   "Generate bass tabs": "Genera la tablatura de bajo",
-  "Free accounts can transcribe 30 seconds at a time. Premium supports YouTube sections up to 10 minutes long.": "Las cuentas gratuitas pueden transcribir 30 segundos cada vez. Premium permite transcribir fragmentos de YouTube de hasta 10 minutos."
+  "Free accounts can transcribe 30 seconds at a time. Premium supports YouTube sections up to 10 minutes long.": "Las cuentas gratuitas pueden transcribir 30 segundos cada vez. Premium permite transcribir fragmentos de YouTube de hasta 10 minutos.",
+  "Piano transcription": "Transcripción de piano",
+  "Instruments": "Instrumentos",
+  "AI music transcription": "Transcripción musical con IA",
+  "Turn a recording into editable notes and timing.": "Convierte una grabación en notas y ritmos editables.",
+  "Transcribe piano audio": "Transcribir audio de piano",
+  "Transcribe drum audio": "Transcribir audio de batería",
+  "Transcribe ukulele audio": "Transcribir audio de ukelele",
+  "Bass transcription guide": "Guía de transcripción de bajo",
+  "Write a playable bassline": "Escribe una línea de bajo que puedas tocar",
+  "Check the groove, register and fingering.": "Comprueba el groove, el registro y la digitación."
 }

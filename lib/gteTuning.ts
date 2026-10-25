@@ -20,9 +20,15 @@ export const BASS_TUNING_PRESETS: TuningPreset[] = [
   { id: "bass-standard", label: "Standard", openStringMidi: [43, 38, 33, 28] },
   { id: "bass-drop-d", label: "Drop D", openStringMidi: [43, 38, 33, 26] },
 ];
+export const UKULELE_TUNING_PRESETS: TuningPreset[] = [
+  { id: "ukulele-high-g", label: "Ukulele high G", openStringMidi: [69, 64, 60, 67] },
+  { id: "ukulele-low-g", label: "Ukulele low G", openStringMidi: [69, 64, 60, 55] },
+];
 const NOTE_NAMES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"] as const;
 const DEFAULT_TUNING_ID = "standard";
 export const TUNING_STRING_LABELS: Record<string, string[]> = {
+  "ukulele-high-g": ["A", "E", "C", "G"],
+  "ukulele-low-g": ["A", "E", "C", "G"],
   standard: ["E", "B", "G", "D", "A", "E"],
   "drop-d": ["E", "B", "G", "D", "A", "D"],
   "half-step-down": ["Eb", "Bb", "Gb", "Db", "Ab", "Eb"],
@@ -33,13 +39,16 @@ export const TUNING_STRING_LABELS: Record<string, string[]> = {
 };
 
 export const getTuningPreset = (presetId: string | undefined) =>
-  [...TUNING_PRESETS, ...BASS_TUNING_PRESETS].find((preset) => preset.id === presetId) || TUNING_PRESETS[0];
+  [...TUNING_PRESETS, ...BASS_TUNING_PRESETS, ...UKULELE_TUNING_PRESETS].find((preset) => preset.id === presetId) || TUNING_PRESETS[0];
 
 export const isBassSnapshot = (snapshot: Pick<EditorSnapshot, "trackType" | "editorType" | "type">) =>
   String(snapshot.trackType || snapshot.editorType || snapshot.type || "").toLowerCase() === "bass";
 
-export const getTuningPresetsForSnapshot = (snapshot: Pick<EditorSnapshot, "trackType" | "editorType" | "type">) =>
-  isBassSnapshot(snapshot) ? BASS_TUNING_PRESETS : TUNING_PRESETS;
+export const isUkuleleSnapshot = (snapshot: Pick<EditorSnapshot, "tuning">) =>
+  Boolean(snapshot.tuning?.presetId?.startsWith("ukulele-"));
+
+export const getTuningPresetsForSnapshot = (snapshot: Pick<EditorSnapshot, "trackType" | "editorType" | "type" | "tuning">) =>
+  isUkuleleSnapshot(snapshot) ? UKULELE_TUNING_PRESETS : isBassSnapshot(snapshot) ? BASS_TUNING_PRESETS : TUNING_PRESETS;
 
 export const normalizeCapo = (value: unknown) => {
   const parsed = Math.round(Number(value));

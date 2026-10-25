@@ -1,16 +1,18 @@
+import { instrumentGuidesForPath } from "../lib/instrumentGuideIndex";
 import { useLocale } from "../lib/i18n/react";
 import Link from "./LocaleLink";
 import Image from "next/image";
 import { trackCtaClick } from "../lib/analytics";
 import SeoHead, { ORGANIZATION_ID, SITE_NAME, WEBSITE_ID, absoluteUrl } from "./SeoHead";
 
-type SeoLandingPageProps = {
+export type SeoLandingPageProps = {
   title: string;
   metaTitle: string;
   description: string;
   canonicalPath: string;
   hasTranslation?: boolean;
-  preview?: { src: string; width: number; height: number; alt: string; label: string; transcription?: boolean };
+  contentOnly?: boolean;
+  preview?: { src: string; width: number; height: number; alt: string; label: string; transcription?: boolean; sourceLabel?: string; resultLabel?: string; caption?: string; exportLabel?: string };
   primaryCta: {
     label: string;
     href: string;
@@ -39,6 +41,7 @@ type SeoLandingPageProps = {
     label: string;
     href: string;
     description: string;
+    englishOnly?: boolean;
   }>;
 };
 
@@ -48,6 +51,7 @@ export default function SeoLandingPage({
   description,
   canonicalPath,
   hasTranslation = true,
+  contentOnly = false,
   preview,
   primaryCta,
   secondaryCta,
@@ -57,7 +61,8 @@ export default function SeoLandingPage({
   faqs = [],
   relatedLinks = [],
 }: SeoLandingPageProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const guides = locale === "en" ? instrumentGuidesForPath(canonicalPath) : undefined;
   const jsonLd = [
     {
       "@context": "https://schema.org",
@@ -131,52 +136,7 @@ export default function SeoLandingPage({
     {t(primaryCta.label)} <span aria-hidden="true">→</span>
   </Link>;
 
-  return (
-    <>
-      <SeoHead title={t(metaTitle)} description={description} canonicalPath={canonicalPath} hasTranslation={hasTranslation} jsonLd={jsonLd} />
-      <main className="search-landing">
-        <div className="container search-landing-shell">
-          <section className="search-landing-hero" aria-labelledby="search-landing-title">
-            <div className="search-landing-intro">
-              <p className="search-landing-kicker">Note2Tabs <span aria-hidden="true">/</span> {t(preview?.label || sourceLabel)}</p>
-              <h1 id="search-landing-title">{t(title)}</h1>
-              <p className="search-landing-description">{t(description)}</p>
-              <div className="search-landing-actions">
-                {primaryAction("search_hero")}
-                <span className="search-landing-note">{t(editorFirst ? "Guest mode" : "Free to try")}</span>
-              </div>
-              {secondaryCta && <Link href={secondaryCta.href} className="search-landing-alternative"
-                onClick={() => trackAction(secondaryCta.href, "search_alternative")}>
-                {t(secondaryCta.label)} <span aria-hidden="true">↗</span>
-              </Link>}
-            </div>
-            <figure className={`search-landing-preview${preview?.transcription ? " search-landing-preview-transcription" : ""}`}>
-              <div className="search-landing-preview-label">
-                <span>{t(preview?.label || "Guitar tab editor")}</span><span aria-hidden="true" dir="ltr">01 — 02</span>
-              </div>
-              {preview?.transcription && <div className="search-transcription-input" aria-label={t("Audio → editable tabs")}>
-                <div className="search-transcription-source"><span>{t(canonicalPath.includes("bass") ? "Bass recording" : "Guitar recording")}</span><span>{canonicalPath.includes("mp3") ? "MP3" : canonicalPath.includes("youtube") ? "YouTube" : "WAV"}</span></div>
-                <div className="search-transcription-wave-wrap"><svg viewBox="0 0 480 64" className="search-transcription-wave" aria-hidden="true">
-                  {Array.from({ length: 80 }, (_, i) => {
-                    const height = 6 + Math.round(Math.abs(Math.sin(i * .71) * Math.cos(i * .19)) * 48);
-                    return <rect key={i} x={i * 6} y={(64 - height) / 2} width="3" height={height} rx="1.5" />;
-                  })}
-                </svg><span className="search-transcription-scan" aria-hidden="true" /></div>
-                <div className="search-transcription-direction">
-                  <svg viewBox="0 0 32 48" aria-hidden="true"><path d="M16 2v38M5 30l11 12 11-12" /></svg>
-                  <span>{t("Audio → editable tabs")}</span>
-                </div>
-              </div>}
-              <div className="search-landing-score">
-                <Image src={preview?.src || "/images/editor-previews/search-editor.png"} width={preview?.width || 790} height={preview?.height || 170}
-                  alt={t(preview?.alt || "Example tab in the Note2Tabs editor")}
-                  priority sizes="(max-width: 800px) 100vw, 650px" />
-              </div>
-              <figcaption><span>{t(preview?.transcription ? "Example tab · Edit and play back" : "Write, arrange, play, and practice")}</span><span dir="ltr">TXT · MIDI · MusicXML</span></figcaption>
-
-            </figure>
-          </section>
-
+  const supportingContent = (<>
           <section className="search-landing-workflow" aria-labelledby="search-workflow-title">
             <h2 id="search-workflow-title">{t("How it works")}</h2>
             <ol>{steps.map((step, index) => <li key={step.title}>
@@ -201,6 +161,14 @@ export default function SeoLandingPage({
             </section>)}
           </div>
 
+          {guides && <section className="search-instrument-guides" aria-labelledby="instrument-guides-heading">
+            <h2 id="instrument-guides-heading">{guides.label} guides</h2>
+            <ul>{guides.guides.map(guide => <li key={guide.slug}>
+              <Link href={`/blog/${guide.slug}`}>{guide.title} <span aria-hidden="true">↗</span></Link>
+              <p>{guide.excerpt}</p>
+            </li>)}</ul>
+          </section>}
+
           {faqs.length > 0 && <section className="search-landing-faq" aria-labelledby="search-faq-title">
             <h2 id="search-faq-title">{t("Frequently asked questions")}</h2>
             <div>{faqs.map(faq => <details key={faq.question}>
@@ -212,8 +180,58 @@ export default function SeoLandingPage({
             {primaryAction("search_end")}<Link href="/pricing">{t("Plans and pricing")} <span aria-hidden="true">↗</span></Link>
           </section>
           <nav className="search-landing-related" aria-label={t("Related guides and tools")}>
-            {relatedLinks.map(link => <Link href={link.href} key={link.href}>{t(link.label)} <span aria-hidden="true">↗</span></Link>)}
+            {relatedLinks.filter(link => !link.englishOnly || locale === "en").map(link => <Link href={link.href} key={link.href}>{t(link.label)} <span aria-hidden="true">↗</span></Link>)}
           </nav>
+  </>);
+  if (contentOnly) return <div className="search-landing search-landing-support"><div className="container search-landing-shell">{supportingContent}</div></div>;
+
+  return (
+    <>
+      <SeoHead title={t(metaTitle)} description={description} canonicalPath={canonicalPath} hasTranslation={hasTranslation} jsonLd={jsonLd} />
+      <main className="search-landing">
+        <div className="container search-landing-shell">
+          <section className="search-landing-hero" aria-labelledby="search-landing-title">
+            <div className="search-landing-intro">
+              <p className="search-landing-kicker">Note2Tabs <span aria-hidden="true">/</span> {t(preview?.label || sourceLabel)}</p>
+              <h1 id="search-landing-title">{t(title)}</h1>
+              <p className="search-landing-description">{t(description)}</p>
+              <div className="search-landing-actions">
+                {primaryAction("search_hero")}
+                <span className="search-landing-note">{t(editorFirst ? "Guest mode" : "Free to try")}</span>
+              </div>
+              {secondaryCta && <Link href={secondaryCta.href} className="search-landing-alternative"
+                onClick={() => trackAction(secondaryCta.href, "search_alternative")}>
+                {t(secondaryCta.label)} <span aria-hidden="true">↗</span>
+              </Link>}
+            </div>
+            <figure className={`search-landing-preview${preview?.transcription ? " search-landing-preview-transcription" : ""}`}>
+              <div className="search-landing-preview-label">
+                <span>{t(preview?.label || "Guitar tab editor")}</span><span aria-hidden="true" dir="ltr">01 — 02</span>
+              </div>
+              {preview?.transcription && <div className="search-transcription-input" aria-label={t(preview.resultLabel || "Audio → editable tabs")}>
+                <div className="search-transcription-source"><span>{t(preview.sourceLabel || (canonicalPath.includes("bass") ? "Bass recording" : "Guitar recording"))}</span><span>{canonicalPath.includes("mp3") ? "MP3" : canonicalPath.includes("youtube") ? "YouTube" : "WAV"}</span></div>
+                <div className="search-transcription-wave-wrap"><svg viewBox="0 0 480 64" className="search-transcription-wave" aria-hidden="true">
+                  {Array.from({ length: 80 }, (_, i) => {
+                    const height = 6 + Math.round(Math.abs(Math.sin(i * .71) * Math.cos(i * .19)) * 48);
+                    return <rect key={i} x={i * 6} y={(64 - height) / 2} width="3" height={height} rx="1.5" />;
+                  })}
+                </svg><span className="search-transcription-scan" aria-hidden="true" /></div>
+                <div className="search-transcription-direction">
+                  <svg viewBox="0 0 32 48" aria-hidden="true"><path d="M16 2v38M5 30l11 12 11-12" /></svg>
+                  <span>{t(preview.resultLabel || "Audio → editable tabs")}</span>
+                </div>
+              </div>}
+              <div className="search-landing-score">
+                <Image src={preview?.src || "/images/editor-previews/search-editor.png"} width={preview?.width || 790} height={preview?.height || 170}
+                  alt={t(preview?.alt || "Example tab in the Note2Tabs editor")}
+                  priority sizes="(max-width: 800px) 100vw, 650px" />
+              </div>
+              <figcaption><span>{t(preview?.caption || (preview?.transcription ? "Example tab · Edit and play back" : "Write, arrange, play, and practice"))}</span><span dir="ltr">{preview?.exportLabel || "TXT · MIDI · MusicXML"}</span></figcaption>
+
+            </figure>
+          </section>
+
+          {supportingContent}
         </div>
       </main>
     </>

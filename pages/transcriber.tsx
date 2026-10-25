@@ -1,3 +1,5 @@
+import SeoLandingPage, { type SeoLandingPageProps } from "../components/SeoLandingPage";
+import { TRANSCRIPTION_ENTRY_TITLES, transcriptionEntryInstrument } from "../lib/instrumentTranscriptionEntry";
 import dynamic from "next/dynamic";
 const PaywallDesignPreview = process.env.NODE_ENV === "development" ? dynamic(()=>import("../components/PaywallDesignPreview"),{ssr:false}) : ()=>null;
 import { uploadTranscriptionFile, TranscriptionUploadError } from "../lib/transcriptionUpload";
@@ -197,10 +199,14 @@ const parseYouTubeId = (value: string): string | null => {
   return null;
 };
 
-export default function TranscriberPage() {
+type TranscriberPageProps = { initialInstrument?: keyof typeof TRANSCRIPTION_ENTRY_TITLES; landingPage?: SeoLandingPageProps };
+export default function TranscriberPage({ initialInstrument, landingPage }: TranscriberPageProps = {}) {
   const { t, locale } = useLocale();
   const { data: session, status: sessionStatus, update: updateSession } = useSession();
   const router = useRouter();
+  const requestedInstrument = initialInstrument ?? transcriptionEntryInstrument(router.query.instrument);
+  const pianoContext = requestedInstrument === "piano";
+  const transcriptionEntryPath = landingPage?.canonicalPath ?? (requestedInstrument ? `/transcribe?instrument=${requestedInstrument}` : "/transcribe");
   const [mode, setMode] = useState<"FILE" | "YOUTUBE">("FILE");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -296,7 +302,7 @@ export default function TranscriberPage() {
     () => credits ?? (disableDbInDev ? buildDevCreditsSummary() : null),
     [credits, disableDbInDev]
   );
-  const verifyHref = `/auth/verify-email?next=${encodeURIComponent("/transcribe")}${
+  const verifyHref = `/auth/verify-email?next=${encodeURIComponent(transcriptionEntryPath)}${
     transcriberSession?.user?.email
       ? `&email=${encodeURIComponent(transcriberSession.user.email)}`
       : ""
@@ -526,7 +532,7 @@ export default function TranscriberPage() {
       if (!pending) {
         reportBlockedSubmission("saved_upload_missing", "auth_resume");
         setError(t("Your saved upload expired or could not be restored. Please choose it again to continue."));
-        await router.replace("/transcribe", undefined, { shallow: true });
+        await router.replace(transcriptionEntryPath, undefined, { shallow: true });
         return;
       }
 
@@ -616,8 +622,8 @@ export default function TranscriberPage() {
         setStatus(t("Welcome back — your transcription is ready to continue."));
       }
 
-      sendEvent(ANALYTICS_EVENTS.authHandoffResumed, { mode: pending.mode, path: "/transcribe" });
-      await router.replace("/transcribe", undefined, { shallow: true });
+      sendEvent(ANALYTICS_EVENTS.authHandoffResumed, { mode: pending.mode, path: transcriptionEntryPath.split("?")[0] });
+      await router.replace(transcriptionEntryPath, undefined, { shallow: true });
     };
 
     void restorePendingTranscription().catch(() => {
@@ -780,7 +786,7 @@ export default function TranscriberPage() {
     ? t("Continue to sign in")
     : heavyPreviewAvailable && transcriptionModel === "super_heavy"
     ? t("Use free Heavy preview")
-    : t("Generate tabs");
+    : t(pianoContext ? "Transcribe piano" : "Generate tabs");
   const transcribingStatusLabel = t("Transcribing audio...");
   const youtubeTranscribingStatusLabel = t("Downloading YouTube audio and transcribing...");
 
@@ -829,7 +835,7 @@ export default function TranscriberPage() {
   const openTabsInGuestEditor = async (segments: string[][]) => {
     const { stamps, totalFrames } = tabSegmentsToStamps(segments);
     if (stamps.length === 0) {
-      throw new Error(t("No tabs available to import into the guest editor."));
+      throw new Error(t(pianoContext ? "No piano notes available to import into the guest editor." : "No tabs available to import into the guest editor."));
     }
     const guestLaneEditorId = buildLaneEditorRef(GTE_GUEST_EDITOR_ID, "ed-1");
     await gteApi.deleteEditor(GTE_GUEST_EDITOR_ID).catch(() => {});
@@ -896,9 +902,9 @@ export default function TranscriberPage() {
         );
         handoffSaved = true;
         sendEvent(ANALYTICS_EVENTS.authHandoffRequired, { reason: "signed_out", mode });
-        sendEvent(ANALYTICS_EVENTS.authHandoffSaved, { mode, path: "/transcribe" });
+        sendEvent(ANALYTICS_EVENTS.authHandoffSaved, { mode, path: transcriptionEntryPath.split("?")[0] });
         const navigated = await router.push(
-          `/auth/login?next=${encodeURIComponent("/transcribe?resumeTranscription=1")}`
+          `/auth/login?next=${encodeURIComponent(`${transcriptionEntryPath}${transcriptionEntryPath.includes("?") ? "&" : "?"}resumeTranscription=1`)}`
         );
         if (!navigated) reportBlockedSubmission("auth_navigation_failed", "auth_handoff");
       } catch {
@@ -1152,6 +1158,7 @@ export default function TranscriberPage() {
         });
         const jobParams = new URLSearchParams();
         jobParams.set("mode", mode);
+        if (requestedInstrument) jobParams.set("instrument", requestedInstrument);
         jobParams.set("separateGuitar", separateGuitar ? "1" : "0");
         jobParams.set("multipleGuitars", multipleGuitars ? "1" : "0");
         jobParams.set("model", transcriptionModel);
@@ -1202,7 +1209,7 @@ export default function TranscriberPage() {
       if (!data.tabs || !Array.isArray(data.tabs)) {
         setStatus(null);
         reportBlockedSubmission("invalid_response", "server", { http_status: response.status, request_id: response.headers.get("x-request-id") || undefined });
-        setError(t("The transcription finished without a usable tab. Try a clearer section or switch models."));
+        setError(t(pianoContext ? "The transcription finished without usable notes. Try a clearer section or switch models." : "The transcription finished without a usable tab. Try a clearer section or switch models."));
         sendEvent("transcribe_error", {
           ...researchProperties,
           error_code: "no_tabs",
@@ -1243,26 +1250,26 @@ export default function TranscriberPage() {
         jobId: data.jobId,
       });
       if (transcriberSession && data.tabJobId) {
-        setStatus(t("Tabs ready. Opening transcription..."));
+        setStatus(t(pianoContext ? "Notes ready. Opening transcription..." : "Tabs ready. Opening transcription..."));
         await router.push(
           appendEditorId
-            ? `/tabs/${data.tabJobId}?appendEditorId=${encodeURIComponent(appendEditorId)}`
-            : `/tabs/${data.tabJobId}`
+            ? `/tabs/${data.tabJobId}?appendEditorId=${encodeURIComponent(appendEditorId)}${requestedInstrument ? `&instrument=${requestedInstrument}` : ""}`
+            : `/tabs/${data.tabJobId}${requestedInstrument ? `?instrument=${requestedInstrument}` : ""}`
         );
         return;
       }
       if (!transcriberSession) {
         if (disableDbInDev) {
           setTabsResult(nextTabs);
-          setStatus(t("Tabs ready. Select blocks below."));
+          setStatus(t(pianoContext ? "Notes ready. Select blocks below." : "Tabs ready. Select blocks below."));
           return;
         }
         setTabsResult(nextTabs);
-        setStatus(t("Tabs ready."));
+        setStatus(t(pianoContext ? "Notes ready." : "Tabs ready."));
         return;
       }
       setTabsResult(nextTabs);
-      setStatus(t("Tabs ready. Import below."));
+      setStatus(t(pianoContext ? "Notes ready. Import below." : "Tabs ready. Import below."));
       return;
     } catch (err: any) {
       if (!submissionAccepted) reportBlockedSubmission("request_failed", submissionPhase, failureDetails);
@@ -1282,11 +1289,11 @@ export default function TranscriberPage() {
 
   const handleHeroPrimaryAction = () => {
     if (mode === "FILE" && !selectedFile) {
-      trackCtaClick("choose_audio_file", { surface: "transcriber_funnel" });
+      trackCtaClick("choose_audio_file", { surface: "transcriber_funnel", requested_instrument: requestedInstrument });
       fileInputRef.current?.click();
       return;
     }
-    trackCtaClick("convert_to_tabs", { surface: "transcriber_funnel", mode });
+    trackCtaClick("convert_to_tabs", { surface: "transcriber_funnel", mode, requested_instrument: requestedInstrument });
     void handleConvert();
   };
 
@@ -1325,12 +1332,12 @@ export default function TranscriberPage() {
           ...eventProperties,
           editor_id: imported.editorId,
         });
-        await router.push(`/gte/${imported.editorId}`);
+        await router.push(`/gte/${imported.editorId}${pianoContext ? "?focusInstrument=piano" : ""}`);
         return;
       }
       const { stamps, totalFrames } = tabSegmentsToStamps(tabsResult);
       if (stamps.length === 0) {
-        setImportError(t("No tabs available to import."));
+        setImportError(t(pianoContext ? "No piano notes available to import." : "No tabs available to import."));
         sendEvent(ANALYTICS_EVENTS.transcriptionEditorImportFailed, {...eventProperties,error_code:"no_tabs"});
         return;
       }
@@ -1353,7 +1360,7 @@ export default function TranscriberPage() {
         ...eventProperties,
         editor_id: targetEditorId,
       });
-      await router.push(`/gte/${targetEditorId}`);
+      await router.push(`/gte/${targetEditorId}${pianoContext ? "?focusInstrument=piano" : ""}`);
     } catch (err: any) {
       const message =
         err?.message ||
@@ -1396,7 +1403,7 @@ export default function TranscriberPage() {
           ...eventProperties,
           editor_id: imported.editorId,
         });
-        await router.push(`/gte/${imported.editorId}?source=transcriber`);
+        await router.push(`/gte/${imported.editorId}?source=transcriber${pianoContext ? "&focusInstrument=piano" : ""}`);
         return;
       }
       const editorId = await openTabsInGuestEditor(tabsResult);
@@ -1405,7 +1412,7 @@ export default function TranscriberPage() {
         ...eventProperties,
         editor_id: editorId,
       });
-      await router.push(`/gte/${editorId}?source=transcriber`);
+      await router.push(`/gte/${editorId}?source=transcriber${pianoContext ? "&focusInstrument=piano" : ""}`);
     } catch (err: any) {
       const message =
         err?.message ||
@@ -1429,15 +1436,15 @@ export default function TranscriberPage() {
   const showCreditsLow = displayedCredits && displayedCredits.remaining <= 3;
   const resetLabelText = isPremiumRole(transcriberSession?.user?.role) ? t("Next credits") : t("Resets");
   const transcriberDescription =
-    t("Upload audio or enter a YouTube segment to generate a structured, playable guitar tab you can open in the Note2Tabs editor.");
+    landingPage?.description ?? t("Upload audio or enter a YouTube segment to generate a structured, playable guitar tab you can open in the Note2Tabs editor.");
   const transcriberJsonLd = [
     {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
-      name: t("Note2Tabs Transcriber"),
+      name: t(landingPage ? "Note2Tabs Piano Transcriber" : "Note2Tabs Transcriber"),
       applicationCategory: "MusicApplication",
       operatingSystem: "Web",
-      url: absoluteUrl("/transcribe"),
+      url: absoluteUrl(landingPage?.canonicalPath ?? "/transcribe"),
       description: transcriberDescription,
       isPartOf: { "@id": WEBSITE_ID },
       provider: { "@id": ORGANIZATION_ID },
@@ -1460,11 +1467,12 @@ export default function TranscriberPage() {
         {
           "@type": "ListItem",
           position: 2,
-          name: t("Transcriber"),
-          item: absoluteUrl("/transcribe"),
+          name: t(landingPage?.title ?? "Transcriber"),
+          item: absoluteUrl(landingPage?.canonicalPath ?? "/transcribe"),
         },
       ],
     },
+    ...(landingPage?.faqs?.length ? [{ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: landingPage.faqs.map(faq => ({ "@type": "Question", name: faq.question, acceptedAnswer: { "@type": "Answer", text: faq.answer } })) }] : []),
   ];
 
   useEffect(()=>{setBlockedCredits(false);setBlockedYoutube(false);},[selectedFile,mode,ytStartTime,ytEndTime,fileStartTime,fileEndTime,entitlementPlan]);
@@ -1512,27 +1520,28 @@ export default function TranscriberPage() {
         }}
       />
       <SeoHead
-        title={t("Audio to Guitar Tab Transcriber | Note2Tabs")}
+        title={t(landingPage?.metaTitle ?? "Audio to Guitar Tab Transcriber | Note2Tabs")}
         description={transcriberDescription}
-        canonicalPath="/transcribe"
+        canonicalPath={landingPage?.canonicalPath ?? "/transcribe"}
+        hasTranslation={landingPage ? landingPage.hasTranslation : true}
         jsonLd={transcriberJsonLd}
       />
 
       <main className="page page-home">
         <section className="hero hero--landing-funnel" id="hero">
           <div className="hero-doodle-field" aria-hidden="true">
-            <span className="hero-doodle hero-doodle--guitar" />
+            {!pianoContext && <span className="hero-doodle hero-doodle--guitar" />}
             <span className="hero-doodle hero-doodle--notes" />
-            <span className="hero-doodle hero-doodle--fretboard" />
-            <span className="hero-doodle hero-doodle--picks" />
+            {!pianoContext && <span className="hero-doodle hero-doodle--fretboard" />}
+            {!pianoContext && <span className="hero-doodle hero-doodle--picks" />}
           </div>
           <div className="container hero-stack hero-stack--centered">
             <div className="hero-heading" data-reveal>
-              <p className="hero-eyebrow">{t("AI tabs built for guitarists")}</p>
+              <p className="hero-eyebrow">{t(requestedInstrument ? "AI music transcription" : "AI tabs built for guitarists")}</p>
               <div className="hero-title-row">
-                <h1 className="hero-title">{t("Convert Any Song to Guitar Tabs")}</h1>
+                <h1 className="hero-title">{t(landingPage?.title ?? (requestedInstrument ? TRANSCRIPTION_ENTRY_TITLES[requestedInstrument] : "Convert Any Song to Guitar Tabs"))}</h1>
               </div>
-              <p className="hero-subtitle hero-subtitle--conversion">{t(" Turn recordings into guitar tab you can edit, practice, and export. ")}</p>
+              <p className="hero-subtitle hero-subtitle--conversion">{t(pianoContext ? "Turn piano recordings into sheet music you can edit, play and export." : requestedInstrument ? "Turn a recording into editable notes and timing." : " Turn recordings into guitar tab you can edit, practice, and export. ")}</p>
 
             </div>
             <form
@@ -1549,6 +1558,7 @@ export default function TranscriberPage() {
                   <div className="model-choice model-choice--meta">
                     <TranscriptionModelDropdown
                       id="transcriber-transcription-model"
+                      lightDescription={pianoContext ? "For piano and keyboard recordings." : undefined}
                       value={transcriptionModel}
                       onChange={selectTranscriptionModel}
                       disabled={loading || authHandoffBusy}
@@ -1582,7 +1592,7 @@ export default function TranscriberPage() {
                         surface: "transcriber",
                         trigger: "offer",
                       });
-                      trackCtaClick("use_free_heavy_preview", { surface: "transcriber_funnel" });
+                      trackCtaClick("use_free_heavy_preview", { surface: "transcriber_funnel", requested_instrument: requestedInstrument });
                     }}
                   />
                 ) : (
@@ -1743,11 +1753,12 @@ export default function TranscriberPage() {
               {blockedYoutube && <LimitUpgradePrompt presentation="classic" context={limitContext} tracking={{source:"premium_prompt",reason:"youtube_duration_limit",surface:"youtube_limit_dialog",trigger:"clip_duration_limit"}}/>}
 
             </form>
+            {landingPage?.secondaryCta && <Link className="piano-editor-alternative" href={landingPage.secondaryCta.href}>{t(landingPage.secondaryCta.label)} <span aria-hidden="true">↗</span></Link>}
 
             <div className="hero-outcome-row" data-reveal>
               <span>MP3, WAV, M4A</span>
               <span>{t("YouTube clips")}</span>
-              <span>{t("Editable tab")}</span>
+              <span>{t(pianoContext ? "Editable piano notation" : "Editable tab")}</span>
             </div>
 
           </div>
@@ -1758,7 +1769,7 @@ export default function TranscriberPage() {
             <div className="container results-shell">
               <div className="results-header">
                 <div>
-                  <h2>{t("Your tabs are ready")}</h2>
+                  <h2>{t(pianoContext ? "Your piano transcription is ready" : "Your tabs are ready")}</h2>
                   <p>{t("Choose where to open the transcription.")}</p>
                 </div>
                 <div className="results-actions">
@@ -1798,6 +1809,7 @@ export default function TranscriberPage() {
             </div>
           </section>
         )}
+        {landingPage && <SeoLandingPage {...landingPage} primaryCta={{ ...landingPage.primaryCta, href: "#hero" }} contentOnly />}
       </main>
     </>
   );

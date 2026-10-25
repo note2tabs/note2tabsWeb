@@ -17,7 +17,7 @@ export async function ensureBassEditorEntry(editorId: string, canvas: CanvasSnap
     const secondsPerBar = canvas.secondsPerBar ?? reference?.secondsPerBar ?? result.canvas.secondsPerBar;
     const next = { ...result.canvas, secondsPerBar, activeLaneId: result.editor.id,
       editors: result.canvas.editors.map(lane => lane.id === result.editor.id ? {
-        ...lane, secondsPerBar,
+        ...lane, instrumentType: "bass-tab" as const, instrumentId: "bass_overdrive", secondsPerBar,
         timeSignature: reference?.timeSignature ?? lane.timeSignature,
         timeSignatureBottom: reference?.timeSignatureBottom ?? lane.timeSignatureBottom,
       } : lane),
