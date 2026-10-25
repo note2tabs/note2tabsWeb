@@ -1,7 +1,7 @@
 /** User-facing languages; editor project URLs are shared across languages. */
 export type AppLocale = "en" | "pt-BR" | "es" | "ja" | "ko" | "pl" | "ar" | "zh-Hans" | "fr" | "it";
 export const LOCALE_VERSION = "multilingual-audit-20261016";
-export const LOCALIZED_PUBLIC_PATHS = ["/","/transcribe","/pricing","/editor","/about","/contact","/terms","/privacy","/affiliate-program","/internship-application","/features","/bass-tab-editor","/audio-to-bass-tabs","/audio-to-guitar-tab-converter","/mp3-to-guitar-tabs","/youtube-to-guitar-tabs","/ai-guitar-tab-generator","/free-guitar-tab-maker","/online-guitar-tab-editor","/blog"] as const;
+export const LOCALIZED_PUBLIC_PATHS = ["/piano-transcription","/piano-sheet-music-editor","/drum-transcription","/drum-notation-editor","/ukulele-tab-editor","/ukulele-transcription","/instruments","/","/transcribe","/pricing","/editor","/about","/contact","/terms","/privacy","/affiliate-program","/internship-application","/features","/bass-tab-editor","/audio-to-bass-tabs","/audio-to-guitar-tab-converter","/mp3-to-guitar-tabs","/youtube-to-guitar-tabs","/ai-guitar-tab-generator","/free-guitar-tab-maker","/online-guitar-tab-editor","/blog"] as const;
 export const LOCALIZED_FLOW_PATHS = [
   ...LOCALIZED_PUBLIC_PATHS, "/auth/login", "/auth/signup", "/auth/verify-email",
   "/reset-password", "/premium/welcome", "/settings", "/home", "/shared", "/tabs", "/account", "/history", "/affiliate", "/email/unsubscribe", "/email/share-preferences",

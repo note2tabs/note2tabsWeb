@@ -1,0 +1,86 @@
+{
+  "names": [
+    "Piano",
+    "Guitare",
+    "Basse",
+    "Batterie",
+    "Ukulélé"
+  ],
+  "titles": [
+    "Transformez un enregistrement de piano en partition",
+    "Écrivez vos partitions de piano en ligne",
+    "Transcrivez un enregistrement de batterie",
+    "Écrivez vos partitions de batterie en ligne",
+    "Écrivez vos tablatures de ukulélé en ligne",
+    "Transcrivez un enregistrement de ukulélé"
+  ],
+  "descriptions": [
+    "Transcrivez un fichier MP3, WAV ou un extrait YouTube de piano en notes modifiables. Relisez la partition, écoutez le résultat et exportez en MIDI ou MusicXML.",
+    "Créez une partition de piano dans votre navigateur. Écrivez en clés de sol et de fa, utilisez le piano roll, écoutez votre arrangement et exportez en MIDI ou MusicXML.",
+    "Transformez un enregistrement de batterie en notation modifiable. Vérifiez la grosse caisse, la caisse claire et les cymbales, puis exportez le rythme en MIDI.",
+    "Créez des rythmes et des breaks de batterie dans votre navigateur. Placez les coups, écoutez la mesure et enregistrez ou exportez votre arrangement.",
+    "Créez des tablatures de ukulélé à quatre cordes en accordage sol–do–mi–la. Modifiez les cases et le rythme, écoutez le résultat et exportez votre morceau.",
+    "Relevez les notes et le rythme d’un enregistrement de ukulélé, puis travaillez votre arrangement sur une tablature à quatre cordes."
+  ],
+  "actions": [
+    "Transcrire le piano",
+    "Ouvrir l’éditeur de piano",
+    "Transcrire la batterie",
+    "Ouvrir l’éditeur de batterie",
+    "Ouvrir l’éditeur de ukulélé",
+    "Transcrire le ukulélé"
+  ],
+  "workflow": [
+    "Choisissez un enregistrement",
+    "Vérifiez les notes et le rythme",
+    "Écoutez et exportez",
+    "Ouvrez une partition vierge",
+    "Écrivez votre arrangement",
+    "Écoutez et répétez"
+  ],
+  "workflowBodies": [
+    "Importez un fichier audio ou choisissez un passage d’une vidéo YouTube publique. Commencez par une courte phrase facile à comparer avec l’original.",
+    "Ouvrez la partie transcrite dans l’éditeur. Comparez-la à l’enregistrement et ajustez les notes, les accords et leur durée.",
+    "Écoutez le résultat, corrigez les transitions et exportez votre arrangement pour continuer à travailler.",
+    "Ouvrez directement une piste adaptée à votre instrument. Vous pouvez commencer sans compte ; connectez-vous pour enregistrer le projet dans votre bibliothèque.",
+    "Placez les notes et choisissez leur durée. Construisez la mélodie ou le rythme, puis vérifiez chaque mesure à l’écoute.",
+    "Répétez un passage en boucle à une vitesse confortable. Enregistrez le projet pour reprendre votre travail plus tard."
+  ],
+  "sections": [
+    "Comment ça marche",
+    "De l’enregistrement à l’arrangement",
+    "Notation, lecture et export",
+    "Écrire et répéter dans le navigateur",
+    "Choisir le bon point de départ",
+    "Voir les offres et les tarifs",
+    "Commencer avec un enregistrement",
+    "Écrire la partie vous-même"
+  ],
+  "piano": [
+    "Relevez une reprise au piano, une improvisation ou une mélodie enregistrée. Les fichiers MP3 et WAV suivent le même parcours : choisissez un passage, lancez la transcription et continuez dans l’éditeur de piano. Pour YouTube, sélectionnez l’extrait à transcrire en mode lien.",
+    "La vue partition présente les notes sur les portées en clés de sol et de fa. La vue MIDI montre précisément les attaques, les durées et les notes qui se chevauchent. Les deux vues modifient le même arrangement : vous pouvez passer de l’une à l’autre sans recopier votre travail.",
+    "Pour écrire une partition de piano, commencez par une mélodie ou une suite d’accords, puis ajoutez l’accompagnement et la basse. Vérifiez la pulsation, les voix et les transitions avant de développer le morceau. Les commandes de lecture fonctionnent aussi sur mobile.",
+    "Si vous avez déjà un fichier MIDI ou MusicXML compatible, importez-le dans l’éditeur au lieu de retranscrire l’audio. Exportez en MIDI pour un logiciel de production musicale, en MusicXML pour un logiciel de notation, ou conservez le projet Note2Tabs pour votre prochaine séance."
+  ],
+  "drums": [
+    "Choisissez un groove, un break ou un passage de morceau. Écoutez séparément la grosse caisse, la caisse claire et les cymbales pour vérifier la transcription. Contrôlez d’abord la pulsation et les temps forts, puis les subdivisions et les coups simultanés.",
+    "L’éditeur de batterie permet de placer et de déplacer les coups, de répéter une mesure et d’écouter les différentes pièces du kit ensemble. Vérifiez les transitions entre les mesures et les breaks avant de développer l’arrangement. Exportez en MIDI ou enregistrez le projet pour reprendre le travail."
+  ],
+  "ukulele": [
+    "L’accordage standard du ukulélé est sol–do–mi–la. La tablature affiche les cordes de haut en bas dans l’ordre la, mi, do, sol. Choisissez le sol aigu traditionnel ou le sol grave selon votre instrument ; les positions et les hauteurs suivent l’accordage sélectionné.",
+    "La transcription fournit les hauteurs et le rythme ; l’arrangement détermine les cordes et les cases à jouer. Écoutez une courte phrase, vérifiez les notes et choisissez des positions confortables. Travaillez la mélodie et l’accompagnement avant d’enchaîner le morceau. Exportez une tablature texte, un fichier MIDI ou votre projet."
+  ],
+  "hub": [
+    "Quel instrument jouez-vous ?",
+    "Partez d’un enregistrement ou écrivez votre propre partie.",
+    "Ouvrir l’éditeur",
+    "Instruments",
+    "Transcription et éditeurs pour piano, guitare, basse, batterie et ukulélé",
+    "Choisissez votre instrument pour transcrire un enregistrement ou commencer à écrire dans un éditeur en ligne.",
+    "Convertissez un enregistrement de guitare en tablature et choisissez des positions adaptées à votre jeu.",
+    "Transcrivez une ligne de basse ou écrivez un groove sur quatre cordes accordées mi–la–ré–sol.",
+    "Transcrire la guitare",
+    "Transcrire la basse"
+  ],
+  "project": "Projet"
+}

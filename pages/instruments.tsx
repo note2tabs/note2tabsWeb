@@ -1,3 +1,5 @@
+import { useLocale } from "../lib/i18n/react";
+import { instrumentCatalogs } from "../lib/i18n/instruments";
 import { instrumentGuideGroups } from "../lib/instrumentGuideIndex";
 import Link from "../components/LocaleLink";
 import SeoHead, { absoluteUrl } from "../components/SeoHead";
@@ -10,17 +12,19 @@ export const instruments = [
   { name: "Ukulele", description: "Review notes from a recording and arrange a four-string part in high-G or low-G tuning.", transcribe: "/ukulele-transcription", editor: "/ukulele-tab-editor" },
 ];
 export default function InstrumentsPage() {
+  const {locale} = useLocale();
+  const c = instrumentCatalogs[locale];
   return <>
-    <SeoHead title="Piano, Guitar, Bass, Drums & Ukulele Tools | Note2Tabs" description="Choose your instrument. Transcribe a recording or start writing in an online piano, guitar, bass, drum or ukulele editor." canonicalPath="/instruments" hasTranslation={false} contentLocale="en" jsonLd={{
-      "@context": "https://schema.org", "@type": "ItemList", name: "Note2Tabs instrument tools",
-      itemListElement: instruments.map((instrument, index) => ({ "@type": "ListItem", position: index + 1, name: instrument.name, url: absoluteUrl(instrument.transcribe) })),
+    <SeoHead title={c ? `${c.hub[4]} | Note2Tabs` : "Piano, Guitar, Bass, Drums & Ukulele Tools | Note2Tabs"} description={c?.hub[5] ?? "Choose your instrument. Transcribe a recording or start writing in an online piano, guitar, bass, drum or ukulele editor."} canonicalPath="/instruments" hasTranslation={true} contentLocale={locale} jsonLd={{
+      "@context": "https://schema.org", "@type": "ItemList", name: c?.hub[4] ?? "Note2Tabs instrument tools",
+      itemListElement: instruments.map((instrument, index) => ({ "@type": "ListItem", position: index + 1, name: c?.names[index] ?? instrument.name, url: absoluteUrl(instrument.transcribe) })),
     }} />
     <main className="instrument-hub container">
-      <header><p className="search-landing-kicker">Note2Tabs / Instruments</p><h1>What do you play?</h1><p>Start with a recording, or write the part yourself.</p></header>
-      <div className="instrument-hub-list">{instruments.map(instrument => <section key={instrument.name}>
-        <h2>{instrument.name}</h2><p>{instrument.description}</p>
-        <nav aria-label={`${instrument.name} tools`}><Link href={instrument.transcribe}>Transcribe {instrument.name.toLowerCase()} <span aria-hidden="true">→</span></Link><Link href={instrument.editor}>Open editor <span aria-hidden="true">↗</span></Link></nav>
-        {instrumentGuideGroups.find(group => group.instrument === instrument.name.toLowerCase()) && <details className="instrument-directory-guides">
+      <header><p className="search-landing-kicker">Note2Tabs / {c?.hub[3] ?? "Instruments"}</p><h1>{c?.hub[0] ?? "What do you play?"}</h1><p>{c?.hub[1] ?? "Start with a recording, or write the part yourself."}</p></header>
+      <div className="instrument-hub-list">{instruments.map((instrument,index) => <section key={instrument.name}>
+        <h2>{c?.names[index] ?? instrument.name}</h2><p>{c ? (index === 0 ? c.descriptions[0] : index === 3 ? c.descriptions[2] : index === 4 ? c.descriptions[5] : c.hub[index === 1 ? 6 : 7]) : instrument.description}</p>
+        <nav aria-label={c ? `${c.names[index]} — ${c.hub[3]}` : `${instrument.name} tools`}><Link href={instrument.transcribe}>{c ? (index===0 ? c.actions[0] : index===3 ? c.actions[2] : index===4 ? c.actions[5] : c.hub[index===1 ? 8 : 9]) : `Transcribe ${instrument.name.toLowerCase()}`} <span aria-hidden="true">→</span></Link><Link href={instrument.editor}>{c?.hub[2] ?? "Open editor"} <span aria-hidden="true">↗</span></Link></nav>
+        {locale === "en" && instrumentGuideGroups.find(group => group.instrument === instrument.name.toLowerCase()) && <details className="instrument-directory-guides">
           <summary>{instrument.name} guides</summary>
           <ul>{instrumentGuideGroups.find(group => group.instrument === instrument.name.toLowerCase())!.guides.map(guide => <li key={guide.slug}><Link href={`/blog/${guide.slug}`}>{guide.title}</Link></li>)}</ul>
         </details>}

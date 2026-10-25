@@ -1959,5 +1959,17 @@
   "Transcribe ukulele audio": "为尤克里里录音扒谱",
   "Bass transcription guide": "贝斯扒谱指南",
   "Write a playable bassline": "编写顺手的贝斯声部",
-  "Check the groove, register and fingering.": "检查律动、音区和指法。"
+  "Check the groove, register and fingering.": "检查律动、音区和指法。",
+  "For piano and keyboard recordings.": "适用于钢琴和键盘乐器录音。",
+  "Editable piano notation": "可编辑的钢琴乐谱",
+  "Your piano transcription is ready": "钢琴转谱已完成",
+  "Notes ready.": "音符已就绪。",
+  "Notes ready. Opening transcription...": "音符已就绪，正在打开转谱结果…",
+  "Notes ready. Select blocks below.": "音符已就绪，请选择下方区块。",
+  "Notes ready. Import below.": "音符已就绪，可在下方导入。",
+  "No piano notes available to import.": "没有可导入的钢琴音符。",
+  "The transcription finished without usable notes. Try a clearer section or switch models.": "转谱结果中没有可用音符。请尝试更清晰的片段或其他模型。",
+  "No piano notes available to import into the guest editor.": "没有可导入的钢琴音符。",
+  "Turn piano recordings into sheet music you can edit, play and export.": "将钢琴MP3、WAV或YouTube片段转成可编辑的音符。查看乐谱、试听结果，并导出MIDI或MusicXML。",
+  "Transcribe piano": "钢琴音频转谱"
 }

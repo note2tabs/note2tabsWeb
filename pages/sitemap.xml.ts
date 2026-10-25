@@ -1,3 +1,4 @@
+import { translatedInstrumentPaths } from "../lib/i18n/instruments";
 import { instrumentSeoPages, INSTRUMENT_SEO_UPDATED } from "../lib/instrumentSeoPages";
 import { instrumentGuides } from "../lib/instrumentGuideIndex";
 import {INDEXABLE_BLOG_CLUSTERS} from "../lib/blogIndexPolicy";
@@ -114,6 +115,13 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
     if (!knownUrls.has(loc)) entries.push({ loc, lastmod: `${INSTRUMENT_SEO_UPDATED}T00:00:00.000Z` });
   }
 
+  for (const path of translatedInstrumentPaths) {
+    for (const locale of releasedLocales) {
+      const loc = buildUrl(baseUrl, localeHref(path, locale));
+      if (!knownUrls.has(loc)) { entries.push({loc, lastmod: `${INSTRUMENT_SEO_UPDATED}T00:00:00.000Z`}); knownUrls.add(loc); }
+    }
+  }
+
   const translatedArticles = new Map<string, typeof releasedLocales>();
   posts.forEach((post) => {
     entries.push({
@@ -129,7 +137,7 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
 
   const alternateLinks = (entry: SitemapEntry) => {
     const path = stripLocale(new URL(entry.loc).pathname);
-    if (!releasedLocales.length || !(staticPaths.includes(path) || translatedArticles.has(path))) return "";
+    if (!releasedLocales.length || !(staticPaths.includes(path) || translatedInstrumentPaths.some(item => item === path) || translatedArticles.has(path))) return "";
     return ["en", ...(translatedArticles.get(path) || releasedLocales), "x-default"].map(language => {
       const href = buildUrl(baseUrl, localeHref(path, normalizeLocale(language)));
       return `\n    <xhtml:link rel="alternate" hreflang="${language}" href="${escapeXml(href)}"/>`;
