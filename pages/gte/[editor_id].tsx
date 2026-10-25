@@ -2118,7 +2118,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       setCanvas(normalized);
       hydrateEditorInputSettings(normalized);
       setActiveLaneId((prev) => resolveActiveLaneId(entryInstrument || router.query.focusInstrument === "piano" ? null : prev, normalized));
-      if (entryInstrument === "piano" || router.query.focusInstrument === "piano") setEditorMode("tab");
+      if (entryInstrument === "piano" || router.query.focusInstrument === "piano") setEditorMode("canvas");
       activeLaneHydratedRef.current = true;
       setLastCommittedAt(normalized.updatedAt || null);
       setHasPendingCommit(false);
@@ -2175,7 +2175,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           setCanvas(normalized);
           hydrateEditorInputSettings(normalized);
           setActiveLaneId((prev) => resolveActiveLaneId(entryInstrument || router.query.focusInstrument === "piano" ? null : prev, normalized));
-          if (entryInstrument === "piano" || router.query.focusInstrument === "piano") setEditorMode("tab");
+          if (entryInstrument === "piano" || router.query.focusInstrument === "piano") setEditorMode("canvas");
           setLastCommittedAt(normalized.updatedAt || null);
           setHasPendingCommit(false);
         } catch (err: any) {
