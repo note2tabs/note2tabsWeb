@@ -644,6 +644,16 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(200).json({ ok: true, snapshot: canvas, canvas });
     }
 
+    if (rest[0] === "name" && method === "POST" && laneId) {
+      const nextName = typeof body.name === "string" ? body.name.trim() : "";
+      if (!nextName) return res.status(400).json({ error: "Track name is required." });
+      const result = applyLaneMutation(canvas, laneId, (lane) => {
+        lane.name = nextName;
+      });
+      canvas = persistCanvas(sessionId, result.canvas);
+      return res.status(200).json({ ok: true, snapshot: result.snapshot, canvas });
+    }
+
     if (rest[0] === "canvas" && !laneId) {
       if (rest[1] === "editors" && method === "POST" && rest.length === 2) {
         const existing = new Set(canvas.editors.map((lane) => lane.id));

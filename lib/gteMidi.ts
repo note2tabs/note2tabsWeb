@@ -1,5 +1,5 @@
 import type { EditorSnapshot, Note } from "../types/gte";
-import { addScoreNote, scoreEvents, snapScorePitch, validNotationTie, type ScoreEvent } from "./gteNotation";
+import { addScoreNote, scoreEvents, setScoreVoice, snapScorePitch, validNotationTie, type ScoreEvent } from "./gteNotation";
 import { FIXED_NOTE_VELOCITY, withFixedVelocity } from "./gteFixedVelocity";
 
 export type MidiEdit = { shift?: number; transpose?: number; lengthDelta?: number; velocity?: number; velocityScale?: number; voice?: 1 | 2; remove?: boolean; key?: { root: number; type: number } };
@@ -27,6 +27,7 @@ export function midiFitPlan(events: readonly ScoreEvent[], framesPerBar: number,
 /** MIDI edits address individual pitches, including members of imported chords.
  * Only affected chords are expanded; their other members and phrasing survive. */
 export function editMidiEvents(source: EditorSnapshot, keys: readonly string[], change: MidiEdit): EditorSnapshot {
+  if (change.voice && Object.keys(change).every(key => key === "voice")) return setScoreVoice(source, { noteIds: [], chordIds: [], eventKeys: keys }, change.voice);
   const selected = new Set(keys), events = scoreEvents(source), targets = events.filter((event) => selected.has(event.key));
   if (!targets.length || targets.some((event) => event.start + (change.shift ?? 0) < 0 || event.midi + (change.transpose ?? 0) < 0 || event.midi + (change.transpose ?? 0) > 127 || event.length + (change.lengthDelta ?? 0) <= 0)) return source;
   const next = withFixedVelocity(structuredClone(source)), remap = new Map<string, string>();
@@ -35,7 +36,7 @@ export function editMidiEvents(source: EditorSnapshot, keys: readonly string[], 
   for (const chord of source.chords.filter((chord) => affected.has(chord.id))) {
     for (const event of events.filter((event) => event.chordId === chord.id)) {
       const note: Note = { id: ++id, midiNum: event.midi, startTime: event.start, length: event.length, velocity: event.velocity,
-        pitchBend: chord.pitchBends?.[event.member], notationVoice: event.voice ?? 1, notationStaff: event.staff, tab: [0, 0], optimals: [] };
+        pitchBend: chord.pitchBends?.[event.member], notationVoice: event.voice ?? 1, notationVoiceSource: chord.notationVoiceSource, notationVoiceLocked: chord.notationVoiceLocked, notationStaff: event.staff, tab: [0, 0], optimals: [] };
       remap.set(event.key, "n:" + note.id); next.notes.push(note);
     }
   }
@@ -47,6 +48,7 @@ export function editMidiEvents(source: EditorSnapshot, keys: readonly string[], 
     return [{ ...note, startTime: note.startTime + (change.shift ?? 0), length: note.length + (change.lengthDelta ?? 0),
       midiNum: change.key ? snapScorePitch(note.midiNum + (change.transpose ?? 0), change.key.root, change.key.type) : note.midiNum + (change.transpose ?? 0), optimals: change.transpose ? [] : note.optimals,
       notationVoice: change.voice ?? note.notationVoice,
+      ...(change.voice ? { notationVoiceSource: "manual" as const, notationVoiceLocked: true } : {}),
       velocity: FIXED_NOTE_VELOCITY }];
   });
   const current = scoreEvents(next), byKey = new Map(current.map((event) => [event.key, event]));

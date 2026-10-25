@@ -2230,6 +2230,54 @@ input[type="number"] {
   background: var(--bg);
 }
 
+/* Piano-roll Practice is a viewport workspace, not a scrolling score page. */
+html:has([data-gte-practice-piano-roll]),
+body:has([data-gte-practice-piano-roll]) {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+main.page:has([data-gte-practice-piano-roll]) {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+.gte-editor-stage:has([data-gte-practice-piano-roll]) {
+  min-height: 0 !important;
+  padding-top: 8px;
+  padding-bottom: 0;
+}
+.gte-practice-seek {
+  --seek-progress: 0%;
+  appearance: none;
+  height: 18px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.gte-practice-seek::-webkit-slider-runnable-track {
+  height: 2px;
+  background: linear-gradient(to right, #35bae5 var(--seek-progress), #394858 var(--seek-progress));
+}
+.gte-practice-seek::-moz-range-track { height: 2px; background: #394858; }
+.gte-practice-seek::-moz-range-progress { height: 2px; background: #35bae5; }
+.gte-practice-seek::-webkit-slider-thumb {
+  appearance: none;
+  width: 7px;
+  height: 12px;
+  margin-top: -5px;
+  border: 0;
+  border-radius: 2px;
+  background: #b3c1cc;
+}
+.gte-practice-seek::-moz-range-thumb {
+  width: 7px;
+  height: 12px;
+  border: 0;
+  border-radius: 2px;
+  background: #b3c1cc;
+}
+.gte-practice-seek:focus-visible { outline: 2px solid #35bae5; outline-offset: 1px; }
+
 .page-header {
   display: flex;
   align-items: center;
@@ -14001,9 +14049,9 @@ input[type="number"] {
   }
 
   [data-midi-key][data-playing="true"] {
-    background: #64cba0 !important;
+    background: var(--midi-playing-background, #64cba0) !important;
     color: #123e2d !important;
-    box-shadow: inset 0 0 0 2px #267451 !important;
+    box-shadow: inset 0 0 0 2px var(--midi-playing-border, #267451) !important;
   }
 
   [data-desktop-track-selector="true"] > div {
@@ -14800,3 +14848,21 @@ html[lang="ar"] [data-editor-locale="ar"] :is(input[type="text"], textarea) {
 .instrument-guide-groups summary { cursor: pointer; font-size: 17px; font-weight: 600; padding-bottom: 16px; }
 .search-landing.search-landing-support { padding-top: 0; }
 .piano-editor-alternative { color: #15583e; font-size: 14px; text-underline-offset: 4px; }
+
+/* Touch editor: instant taps, no iOS focus-zoom on form fields, no sideways rubber-banding. */
+@media (pointer: coarse) {
+  main.page-tight[data-editor-locale] :is(button, summary, select, label, a, [role="button"], [role="option"], [role="tab"]),
+  [data-gte-floating-ui="true"] :is(button, summary, select, label, a, [role="button"], [role="option"]) {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  main.page-tight[data-editor-locale] :is(input:not([type="range"], [type="checkbox"], [type="radio"]), select, textarea),
+  [data-gte-floating-ui="true"] :is(input:not([type="range"], [type="checkbox"], [type="radio"]), select, textarea) {
+    font-size: max(16px, 1em);
+  }
+  main.page-tight[data-editor-locale] {
+    overscroll-behavior-x: none;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+}

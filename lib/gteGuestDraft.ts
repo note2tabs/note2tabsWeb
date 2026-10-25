@@ -262,6 +262,8 @@ export const normalizeGuestSnapshot = (
             ...(Array.isArray(note.pitchBend) ? { pitchBend: note.pitchBend.filter((value): value is number => typeof value === "number" && Number.isFinite(value)) } : {}),
             ...(note.notationStaff === "treble" || note.notationStaff === "bass" ? { notationStaff: note.notationStaff } : {}),
             ...(note.notationVoice === 1 || note.notationVoice === 2 ? { notationVoice: note.notationVoice } : {}),
+            ...(["auto", "manual", "import"].includes(String(note.notationVoiceSource)) ? { notationVoiceSource: note.notationVoiceSource as "auto" | "manual" | "import" } : {}),
+            ...(typeof note.notationVoiceLocked === "boolean" ? { notationVoiceLocked: note.notationVoiceLocked } : {}),
             tab,
             optimals: Array.isArray(note.optimals)
               ? note.optimals.map((item) => normalizeTab(item)).filter((item): item is TabCoord => Boolean(item))
@@ -307,6 +309,9 @@ export const normalizeGuestSnapshot = (
             currentTabs,
             ogTabs,
             ...(chord.notationVoice === 1 || chord.notationVoice === 2 ? { notationVoice: chord.notationVoice as 1 | 2 } : {}),
+            ...(["auto", "manual", "import"].includes(String(chord.notationVoiceSource)) ? { notationVoiceSource: chord.notationVoiceSource as "auto" | "manual" | "import" } : {}),
+            ...(typeof chord.notationVoiceLocked === "boolean" ? { notationVoiceLocked: chord.notationVoiceLocked } : {}),
+            ...(Array.isArray(chord.notationMemberVoices) && chord.notationMemberVoices.every(voice => voice === 1 || voice === 2) ? { notationMemberVoices: chord.notationMemberVoices as Array<1 | 2> } : {}),
             ...(root ? { root } : {}),
             ...(quality ? { quality } : {}),
             ...(extension ? { extension } : {}),

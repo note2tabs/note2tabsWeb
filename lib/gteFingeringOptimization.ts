@@ -1,4 +1,5 @@
 import type { Chord, CutWithCoord, EditorSnapshot, Note, NoteEffect, TabCoord } from "../types/gte";
+import { chordVoiceMetadata, noteVoiceMetadata } from "./gteVoiceMetadata";
 import {
   getAllTabsForMidi,
   getMaxFretFromSnapshot,
@@ -293,6 +294,7 @@ const buildChord = (snapshot: EditorSnapshot, notes: Note[], id: number): Chord 
       startTime,
       length: clampLength(endTime - startTime),
       originalMidi: ordered.map((note) => note.midiNum || getTabMidi(snapshot, note.tab)),
+      ...chordVoiceMetadata(ordered),
       currentTabs,
       ogTabs: currentTabs.map(cloneTab),
       velocities: ordered.map((note) => note.velocity ?? 100),
@@ -392,7 +394,7 @@ export const finalizeOptimizedTrackFingeringInSnapshot = (draft: EditorSnapshot)
     const midis = chord.originalMidi.length ? chord.originalMidi : tabs.map((tab) => getTabMidi(draft, tab));
     if (Math.max(tabs.length, midis.length) !== 1) return true;
     if (!tabs[0]) return false;
-    draft.notes.push({ id: nextId++, startTime: Math.round(chord.startTime), length: clampLength(chord.length), midiNum: midis[0] ?? getTabMidi(draft, tabs[0]), tab: cloneTab(tabs[0]), optimals: [], velocity: chord.velocities?.[0], pitchBend: chord.pitchBends?.[0] ? [...chord.pitchBends[0]] : undefined });
+    draft.notes.push({ ...noteVoiceMetadata(chord, 0), id: nextId++, startTime: Math.round(chord.startTime), length: clampLength(chord.length), midiNum: midis[0] ?? getTabMidi(draft, tabs[0]), tab: cloneTab(tabs[0]), optimals: [], velocity: chord.velocities?.[0], pitchBend: chord.pitchBends?.[0] ? [...chord.pitchBends[0]] : undefined });
     return false;
   });
   const events = [

@@ -95,7 +95,7 @@ describe("independent track type and sound", () => {
   it("reconstructs low and high notation imports using aligned timing, retaining velocity and bend", () => {
     const source = track([]), map = synthesizeTimingMap(2, 960, 4, 4);
     const result = restorePitchedImport(source, [{ start_time_s: .125, end_time_s: .375, pitch_midi: 21, amplitude: .4, pitch_bend: [0, 20] }], map);
-    expect(result.notes[0]).toMatchObject({ startTime: 30, length: 60, midiNum: 21, velocity: .4, pitchBend: [0,20] });
+    expect(result.notes[0]).toMatchObject({ startTime: 30, length: 60, midiNum: 21, velocity: 100 / 127, pitchBend: [0,20] });
     expect(source.notes).toHaveLength(0);
     const offset = restorePitchedImport({ ...source, timelineOffsetFrames: 480 }, [{ start_time_s: .125, end_time_s: .375, pitch_midi: 108 }], map);
     expect(offset.notes[0]).toMatchObject({ startTime: 510, length: 60, midiNum: 108 });

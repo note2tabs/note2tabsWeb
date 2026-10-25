@@ -1,9 +1,13 @@
 import { EditorLoadingState } from "./EditorLoadingState";
 import type { ComponentProps } from "react";
 import dynamic from "next/dynamic";
-import GteWorkspace from "./GteWorkspace";
+import type GteWorkspace from "./GteWorkspace";
 import { isDrumTrackType } from "../lib/gteDrums";
 import { isNotationTrack } from "../lib/gteNotation";
+
+const GteTabWorkspace = dynamic(() => import("./GteWorkspace"), {
+  loading: () => <EditorLoadingState />,
+});
 
 const GteNotationWorkspace = dynamic(() => import("./GteNotationWorkspace"), {
   loading: () => <EditorLoadingState />,
@@ -15,17 +19,21 @@ const GteMidiWorkspace = dynamic(() => import("./GteMidiWorkspace"), {
 const GteDrumWorkspace = dynamic(() => import("./GteDrumWorkspace"), {
   loading: () => <EditorLoadingState />,
 });
+const GtePracticeVisualization = dynamic(() => import("./GtePracticeVisualization"));
+const GteDrumNotation = dynamic(() => import("./GteDrumNotation"), { loading: () => <EditorLoadingState /> });
 
 type Props = ComponentProps<typeof GteWorkspace>;
 
 const LANE_DELIMITER = "__ed__";
 
 export default function GteTrackWorkspace(props: Props) {
+  if (isNotationTrack(props.snapshot) && props.practiceMode) return <GtePracticeVisualization {...props}><GteNotationWorkspace {...props} /></GtePracticeVisualization>;
   if (isNotationTrack(props.snapshot)) return props.tabViewEnabled && !props.practiceMode
     ? <GteMidiWorkspace {...props} /> : <GteNotationWorkspace {...props} />;
   const trackType =
     props.snapshot.editorType ?? props.snapshot.trackType ?? props.snapshot.type;
-  if (!isDrumTrackType(trackType)) return <GteWorkspace {...props} />;
+  if (!isDrumTrackType(trackType)) return <GteTabWorkspace {...props} />;
+  if (props.tabViewEnabled || props.practiceMode) return <GteDrumNotation {...props} />;
 
   const delimiterIndex = props.editorId.indexOf(LANE_DELIMITER);
   const canvasId =

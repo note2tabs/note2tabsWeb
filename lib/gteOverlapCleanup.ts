@@ -1,4 +1,5 @@
 import type { EditorSnapshot } from "../types/gte";
+import { isNotationTrack } from "./gteNotation";
 
 type Span = { start: number; end: number };
 type StringEvent = Span & { key: string; owner: string; string: number; noteId?: number };
@@ -14,8 +15,11 @@ export function isTinyBoundaryOverlap(snapshot: EditorSnapshot, a: Span, b: Span
   return overlap > 0 && overlap <= tolerance + 1e-8;
 }
 function stringEvents(snapshot: EditorSnapshot) {
-  const events: StringEvent[] = snapshot.notes.map((note) => ({ key: `note-${note.id}`, owner: `n:${note.id}`, string: note.tab[0], start: note.startTime, end: note.startTime + note.length, noteId: note.id }));
-  snapshot.chords.forEach((chord) => chord.currentTabs.forEach((tab, index) => events.push({ key: `chord-${chord.id}-${index}`, owner: `c:${chord.id}`, string: tab[0], start: chord.startTime, end: chord.startTime + chord.length })));
+  // Notation has no physical strings: only repeated pitches within the same
+  // manually assigned voice compete. Different pitches remain polyphonic.
+  const pitched = isNotationTrack(snapshot);
+  const events: StringEvent[] = snapshot.notes.map((note) => ({ key: `note-${note.id}`, owner: `n:${note.id}`, string: pitched ? note.midiNum + 128 * (note.notationVoice ?? 1) : note.tab[0], start: note.startTime, end: note.startTime + note.length, noteId: note.id }));
+  snapshot.chords.forEach((chord) => chord.currentTabs.forEach((tab, index) => events.push({ key: `chord-${chord.id}-${index}`, owner: `c:${chord.id}`, string: pitched ? chord.originalMidi[index] + 128 * (chord.notationVoice ?? 1) : tab[0], start: chord.startTime, end: chord.startTime + chord.length })));
   const strings = new Map<number, StringEvent[]>();
   events.filter((event) => Number.isFinite(event.start) && Number.isFinite(event.end) && event.end > event.start).forEach((event) => {
     const group = strings.get(event.string) ?? []; group.push(event); strings.set(event.string, group);
@@ -50,9 +54,17 @@ export function cleanTinyOverlapsInSnapshot(snapshot: EditorSnapshot, options: {
     if (next >= events.length) return;
     const later = events[next];
     const overlap = event.end - later.start;
-    const manualTolerance = Math.min(tinyOverlapToleranceFrames(snapshot) * 8,
-      (event.end - event.start) * 0.5, (later.end - later.start) * 0.5);
-    const eligible = options.manual ? overlap > 0 && overlap <= manualTolerance + 1e-8
+    // Short following notes must not shield a long preceding tail from cleanup.
+    // Allow up to a beat, but retain at least half the earlier duration.
+    const manualTolerance = Math.min(tinyOverlapToleranceFrames(snapshot) * 32,
+      (event.end - event.start) * 0.5);
+    const bar = Number(snapshot.framesPerMessure) || 480;
+    const halfBeat = tinyOverlapToleranceFrames(snapshot) * 16;
+    // Sustained imported tails may cover most of a bar. Permit shortening them
+    // to the next attack, even down to half a beat, instead of retaining half.
+    const longTail = event.end - event.start >= bar * 0.75
+      && later.start - event.start >= halfBeat - 1e-8;
+    const eligible = options.manual ? overlap > 0 && (longTail || overlap <= manualTolerance + 1e-8)
       : isTinyBoundaryOverlap(snapshot, event, later);
     if (!eligible) return;
     const cuts = ends.get(event.owner) ?? new Map<number, number>();
@@ -60,7 +72,8 @@ export function cleanTinyOverlapsInSnapshot(snapshot: EditorSnapshot, options: {
   }));
   let changed = 0;
   snapshot.notes.forEach((note) => {
-    const end = ends.get(`n:${note.id}`)?.get(note.tab[0]);
+    const group = isNotationTrack(snapshot) ? note.midiNum + 128 * (note.notationVoice ?? 1) : note.tab[0];
+    const end = ends.get(`n:${note.id}`)?.get(group);
     if (end !== undefined && end - note.startTime >= 1) { note.length = end - note.startTime; changed += 1; }
   });
   snapshot.chords.forEach((chord) => {

@@ -8,6 +8,7 @@ import {
   getTabImportExtension,
   parseTabImportFile,
   type ParsedTabFileImport,
+  type ImportedNotationNote,
 } from "../lib/gteTabImport";
 import type { CanvasSnapshot, EditorSnapshot, Note, TabCoord } from "../types/gte";
 import {
@@ -32,6 +33,12 @@ type Props = {
 };
 
 type ImportTrack = {
+  timeSignature?: number;
+  timeSignatureBottom?: number;
+  warning?: string;
+  notationNotes?: ImportedNotationNote[];
+  notationRests?: Array<{ start: number; length: number; staff: "treble" | "bass"; voice: 1 | 2 }>;
+  instrumentType?: "notation";
   name?: string;
   stamps: Array<[number, TabCoord, number]>;
   framesPerMessure?: number;
@@ -97,7 +104,9 @@ const buildDefaultCuts = (lane: EditorSnapshot, totalFrames: number, framesPerBa
 
 export const applyImportTrackToLane = (lane: EditorSnapshot, track: ImportTrack): EditorSnapshot => {
   const framesPerBar = Math.max(1, Math.round(Number(track.framesPerMessure ?? lane.framesPerMessure ?? 480)));
-  const notes: Note[] = track.stamps.map((entry, index) => {
+  const notes: Note[] = track.notationNotes ? track.notationNotes.map((note, index) => ({ id: index + 1, startTime: note.start, length: note.length, midiNum: note.midi,
+    tab: clampTab(lane, track.stamps[index]?.[1]), optimals: [], notationStaff: note.staff, notationVoice: note.voice,
+    ...(note.voice ? { notationVoiceSource: "import" as const } : {}) })) : track.stamps.map((entry, index) => {
     const tab = clampTab(lane, entry[1]);
     const startTime = Math.max(0, Math.round(Number(entry[0] ?? 0)));
     const length = Math.max(1, Math.round(Number(entry[2] ?? Math.round(framesPerBar / 16))));
@@ -117,6 +126,17 @@ export const applyImportTrackToLane = (lane: EditorSnapshot, track: ImportTrack)
   );
   return {
     ...lane,
+    ...(track.timeSignature ? { timeSignature: track.timeSignature, timeSignatureBottom: track.timeSignatureBottom ?? 4 } : {}),
+    ...(track.instrumentType === "notation" ? { instrumentType: "notation" as const, instrumentId: track.trackType === "bass" ? "bass_overdrive" : "gm:piano" } : {}),
+    ...(track.notationNotes ? { notation: {
+      voiceWarnings: track.warning?.includes("more than two voices") ? [track.warning] : [],
+      rests: track.notationRests?.map((rest, index) => ({ ...rest, id: index + 1, denominator: Math.max(1, Math.round(framesPerBar / rest.length)), dotted: false })),
+      ties: track.notationNotes.flatMap((note, index, all) => {
+        if (!note.tieStop) return [];
+        const from = all.findIndex(previous => previous.tieStart && previous.midi === note.midi && previous.staff === note.staff && previous.voice === note.voice && Math.abs(previous.start + previous.length - note.start) < 0.01);
+        return from < 0 ? [] : [{ from: `n:${from + 1}`, to: `n:${index + 1}` }];
+      }),
+    } } : {}),
     name: track.name || lane.name,
     framesPerMessure: framesPerBar,
     fps: Math.max(1, Math.round(Number(track.fps ?? lane.fps ?? 240))),
@@ -305,6 +325,9 @@ export default function GteFileImportButton({
                 trackType: parsed.trackType,
                 program: parsed.program,
                 droppedNoteCount: parsed.droppedNoteCount,
+                notationNotes: parsed.notationNotes, notationRests: parsed.notationRests, instrumentType: parsed.instrumentType,
+                warning: parsed.warning,
+                timeSignature: parsed.timeSignature, timeSignatureBottom: parsed.timeSignatureBottom,
               },
             ];
       const selectableFormat = getSelectableImportFormat(parsed.fileName);
@@ -477,6 +500,7 @@ export default function GteFileImportButton({
           >
             <h2 id="gte-import-track-title" className="text-base font-semibold text-slate-900">{t("Select tracks to import")}</h2>
             <p className="mt-1 text-sm text-slate-500">{pendingTrackSelection.parsed.fileName}</p>
+            {pendingTrackSelection.parsed.warning?.includes("more than two voices") && <p role="status" className="mt-2 text-sm text-slate-600">{t(pendingTrackSelection.parsed.warning)}</p>}
             <div className="mt-4 max-h-72 space-y-1 overflow-y-auto pr-1">
               {pendingTrackSelection.tracks.map((track, index) => (
                 <div

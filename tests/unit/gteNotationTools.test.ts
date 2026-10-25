@@ -19,6 +19,13 @@ describe("notation tools and persistence", () => {
     expect(scoreEvents(moved).map(note => [note.midi, note.start, note.length, note.velocity])).toEqual([[60,60,120,100/127],[65,90,60,100/127],[67,60,120,100/127]]);
     expect(scoreEvents(editScoreSelection(source, selection, { remove: true })).map(note => note.midi)).toEqual([60,67]);
     expect(scoreEvents(setScoreVoice(source, selection, 2)).map(note => note.voice)).toEqual([1,2,1]);
+    const voiced = setScoreVoice(source, selection, 2);
+    expect(voiced.chords).toHaveLength(1);
+    expect(voiced.notes).toHaveLength(0);
+    const wire = serializeNotationSnapshot(voiced);
+    const reopened = restoreNotationSnapshot({ ...wire, notation: undefined, chords: source.chords });
+    expect(scoreEvents(reopened).map(note => note.voice)).toEqual([1,2,1]);
+    expect(setScoreVoice(voiced, selection, 1).chords[0].notationMemberVoices).toBeUndefined();
     expect(editScoreSelection(source, selection, { shift: -61 })).toBe(source);
     expect(source).toEqual(before);
   });

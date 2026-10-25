@@ -4,6 +4,7 @@ import { translatedError } from "../lib/i18n/translate";
 import { useLocale } from "../lib/i18n/react";
 import { quantizeItems } from "../lib/gteQuantize";
 import { isNotationTrack } from "../lib/gteNotation";
+import { chordVoiceMetadata, noteVoiceMetadata } from "../lib/gteVoiceMetadata";
 import {
   Fragment,
   useCallback,
@@ -290,6 +291,7 @@ type Props = {
   barSelectionClearExemptEditorId?: string | null;
   multiTrackSelectionActive?: boolean;
   onSelectionStateChange?: (selection: {
+    eventKeys?: string[];
     noteCount: number;
     chordCount: number;
     noteIds: number[];
@@ -1244,6 +1246,7 @@ const buildChordFromCluster = (
     startTime,
     length: clampEventLength(endTime - startTime),
     originalMidi: ordered.map((note) => note.midiNum || getTabMidi(snapshot, note.tab)),
+    ...chordVoiceMetadata(ordered),
     currentTabs,
     ogTabs: currentTabs.map((tab) => cloneTabCoord(tab)),
     velocities: ordered.map((note) => note.velocity ?? 100),
@@ -1376,6 +1379,7 @@ const disbandChordInSnapshot = (draft: EditorSnapshot, chordId: number) => {
   const chord = draft.chords[chordIndex];
   const nextNoteId = draft.notes.reduce((max, note) => Math.max(max, note.id), 0) + 1;
   const disbandedNotes = chord.currentTabs.map((tab, idx) => ({
+    ...noteVoiceMetadata(chord, idx),
     id: nextNoteId + idx,
     startTime: chord.startTime,
     length: chord.length,
@@ -1404,6 +1408,7 @@ const makeChordInSnapshot = (draft: EditorSnapshot, noteIds: number[]) => {
     startTime,
     length,
     originalMidi: chordNotes.map((note) => note.midiNum),
+    ...chordVoiceMetadata(chordNotes),
     currentTabs: tabs,
     ogTabs: tabs.map((tab) => cloneTabCoord(tab)),
   });

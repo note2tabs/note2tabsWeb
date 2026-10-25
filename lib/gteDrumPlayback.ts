@@ -6,6 +6,19 @@ import {
 
 export type PreparedDrumKit = Map<DrumVoiceId, AudioBuffer>;
 
+// Keep cymbal sustain beneath the main hits, with headroom for combined hits.
+export const DRUM_SAMPLE_GAINS: Readonly<Record<DrumVoiceId, number>> = {
+  kick: 0.8,
+  snare: 0.8,
+  high_tom: 0.95,
+  mid_tom: 0.95,
+  floor_tom: 0.95,
+  closed_hi_hat: 0.5,
+  open_hi_hat: 0.4,
+  crash: 0.25,
+  ride: 0.18,
+};
+
 const sampleData = new Map<string, Promise<ArrayBuffer | null>>();
 const preparedByContext = new WeakMap<AudioContext, Promise<PreparedDrumKit>>();
 let previewContext: AudioContext | null = null;
@@ -67,7 +80,8 @@ export const schedulePreparedDrumHit = (input: {
   const amp = input.ctx.createGain();
   const start = Math.max(input.ctx.currentTime, input.startTime);
   source.buffer = buffer;
-  amp.gain.setValueAtTime(Math.max(0, input.gain), start);
+  const sampleGain = DRUM_SAMPLE_GAINS[input.voiceId];
+  amp.gain.setValueAtTime(Math.max(0, input.gain) * sampleGain, start);
   source.connect(amp);
   amp.connect(input.destination);
   source.start(start);

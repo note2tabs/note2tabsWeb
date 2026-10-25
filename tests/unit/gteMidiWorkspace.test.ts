@@ -6,6 +6,7 @@ import GteMidiWorkspace, { MidiPlayhead } from "../../components/GteMidiWorkspac
 import { buildNotationScore } from "../../lib/gteNotationScore";
 import type { EditorSnapshot } from "../../types/gte";
 import { readPitchedViewState, savePitchedViewState } from "../../lib/gtePitchedViewState";
+import { MIDI_VOICE_COLORS } from "../../lib/gteMidiVoiceColors";
 
 vi.mock("../../lib/i18n/react", () => ({ useLocale: () => ({ t: (key: string) => key }) }));
 vi.mock("../../lib/gteSamplePlayback", () => ({ prepareTrackInstrument: vi.fn(), schedulePreparedTrackNote: vi.fn() }));
@@ -120,7 +121,8 @@ it("updates playback highlights and follow position from the audio clock without
   globalThis.requestAnimationFrame = (callback) => { callbacks.set(++id, callback); return id; };
   globalThis.cancelAnimationFrame = (key) => { callbacks.delete(key); };
   const commits = vi.fn(), scroll = React.createRef<HTMLDivElement>();
-  const notes = [{ key: "n:1", noteId: 1, member: 0, midi: 60, start: 0, length: 120, velocity: 0.5, staff: "treble" as const }];
+  const notes = [{ key: "n:1", noteId: 1, member: 0, midi: 60, start: 0, length: 120, velocity: 0.5, staff: "treble" as const, voice: 1 as const },
+    { key: "n:2", noteId: 2, member: 0, midi: 60, start: 0, length: 60, velocity: 0.5, staff: "treble" as const, voice: 2 as const }];
   try {
     await act(async () => root.render(React.createElement(React.Profiler, { id: "midi-playback", onRender: commits }, React.createElement("div", { ref: scroll },
       React.createElement("button", { "data-midi-key": 60 }), React.createElement("svg", null,
@@ -128,10 +130,15 @@ it("updates playback highlights and follow position from the audio clock without
     const count = commits.mock.calls.length;
     expect(host.querySelector('[data-midi-playing] rect')).toBeTruthy();
     expect(host.querySelector('[data-midi-key="60"]')?.getAttribute("data-playing")).toBe("true");
+    const keyStyle = (host.querySelector('[data-midi-key="60"]') as HTMLElement).style;
+    expect(keyStyle.getPropertyValue("--midi-playing-background")).toContain("linear-gradient");
+    expect(keyStyle.getPropertyValue("--midi-playing-background")).toContain(MIDI_VOICE_COLORS[2].note);
+    expect([...host.querySelectorAll('[data-midi-playing] rect')].map(note => note.getAttribute("fill"))).toEqual([MIDI_VOICE_COLORS[1].selected, MIDI_VOICE_COLORS[2].selected]);
     for (let index = 0; index < 60; index++) { frame += 3; const pending = [...callbacks.values()]; callbacks.clear(); await act(async () => pending.forEach((callback) => callback(0))); }
     expect(host.querySelector('[data-midi-playhead]')!.getAttribute("x1")).toBe("180");
     expect(host.querySelector('[data-midi-playing] rect')).toBeNull();
     expect(host.querySelector('[data-midi-key="60"]')?.hasAttribute("data-playing")).toBe(false);
+    expect(keyStyle.getPropertyValue("--midi-playing-background")).toBe("");
     frame = 2000;
     const pending = [...callbacks.values()]; callbacks.clear(); await act(async () => pending.forEach(callback => callback(0)));
     expect(scroll.current!.scrollLeft).toBeGreaterThan(0);
@@ -148,13 +155,16 @@ it("updates playback highlights and follow position from the audio clock without
 it("renders thousands of overlapping notes as bounded overview paths without changing the arrangement", async () => {
   const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
   const snapshot: EditorSnapshot = { id: "dense-midi", instrumentId: "gm:piano", framesPerMessure: 480, fps: 240, totalFrames: 120000, timeSignature: 4, timeSignatureBottom: 4,
-    notes: Array.from({ length: 5000 }, (_, id) => ({ id: id + 1, startTime: id * 24, length: 48, midiNum: 60 + id % 12, tab: [0, 0], optimals: [], velocity: 0.5 })), chords: [], optimalsByTime: {}, cutPositionsWithCoords: [] };
+    notes: Array.from({ length: 5000 }, (_, id) => ({ id: id + 1, startTime: id * 24, length: 48, midiNum: 60 + id % 12, tab: [0, 0], optimals: [], velocity: 0.5, notationVoice: id % 2 ? 2 : 1 })), chords: [], optimalsByTime: {}, cutPositionsWithCoords: [] };
   const changes = vi.fn();
   try {
     await act(async () => root.render(React.createElement(GteMidiWorkspace, { editorId: "dense-midi-test", snapshot, isActive: true, onSnapshotChange: changes })));
     expect(host.querySelector('[data-midi-density]')).toBeTruthy();
-    expect(host.querySelectorAll('[data-midi-density] path').length).toBe(3);
-    expect(host.querySelector('[data-midi-density] path')!.getAttribute("d")!.split("M").length).toBeGreaterThan(4000);
+    const paths = [...host.querySelectorAll('[data-midi-density] path')];
+    expect(paths.length).toBe(4);
+    expect(paths[0].getAttribute("d")!.split("M").length).toBeGreaterThan(2000);
+    expect(paths[1].getAttribute("d")!.split("M").length).toBeGreaterThan(2000);
+    expect(paths.map(path => path.getAttribute("fill"))).toEqual([MIDI_VOICE_COLORS[1].note, MIDI_VOICE_COLORS[2].note, MIDI_VOICE_COLORS[1].selected, MIDI_VOICE_COLORS[2].selected]);
     expect(host.querySelectorAll("line").length).toBeLessThan(200);
     expect(host.querySelectorAll('[data-midi-note]').length).toBeLessThan(200);
     expect(snapshot.notes).toHaveLength(5000); expect(changes).not.toHaveBeenCalled();

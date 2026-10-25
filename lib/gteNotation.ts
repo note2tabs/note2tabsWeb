@@ -2,6 +2,7 @@ import type { Chord, EditorSnapshot, Note } from "../types/gte";
 import { getTabMidi } from "./gteTuning";
 import { getTrackInstrumentType } from "./gteInstrumentType";
 import { FIXED_NOTE_VELOCITY } from "./gteFixedVelocity";
+import { allocateNotationHands } from "./gteNotationHands";
 
 /** Sound determines the pitched editor without introducing a new persisted track schema. */
 export function isNotationTrack(snapshot: Parameters<typeof getTrackInstrumentType>[0]) {
@@ -12,7 +13,7 @@ export type ScoreEvent = { key: string; noteId?: number; chordId?: number; membe
 /** Legacy velocity data is ignored: all editor events use MIDI velocity 100. */
 const eventVelocity = (_value: unknown) => FIXED_NOTE_VELOCITY;
 export function scoreEvents(snapshot: EditorSnapshot): ScoreEvent[] {
-  return [
+  const events: ScoreEvent[] = [
     ...snapshot.notes.map((note) => ({
       key: "n:" + note.id, noteId: note.id, member: 0,
       voice: note.notationVoice ?? 1,
@@ -24,7 +25,7 @@ export function scoreEvents(snapshot: EditorSnapshot): ScoreEvent[] {
       const count = Math.max(chord.originalMidi?.length ?? 0, chord.currentTabs.length);
       return Array.from({ length: count }, (_, member) => ({
         key: "c:" + chord.id + ":" + member, chordId: chord.id, member,
-        voice: chord.notationVoice ?? 1,
+        voice: chord.notationMemberVoices?.[member] ?? chord.notationVoice ?? 1,
         pitchBend: chord.pitchBends?.[member],
         midi: Number.isFinite(chord.originalMidi?.[member]) ? chord.originalMidi[member] : getTabMidi(snapshot, chord.currentTabs[member]),
         start: chord.startTime, length: chord.length, velocity: eventVelocity(chord.velocities?.[member]),
@@ -32,6 +33,7 @@ export function scoreEvents(snapshot: EditorSnapshot): ScoreEvent[] {
       }));
     }),
   ].filter((event) => Number.isFinite(event.midi) && event.midi >= 0 && event.midi <= 127 && event.length > 0);
+  return isNotationTrack(snapshot) ? allocateNotationHands(events, new Set(snapshot.notes.filter(note => note.notationStaff !== undefined).map(note => "n:" + note.id))) : events;
 }
 
 const NATURALS = [0, 2, 4, 5, 7, 9, 11];
@@ -84,7 +86,8 @@ export function resolveScoreSelection(source: EditorSnapshot, selection: Selecti
   const next = structuredClone(source), remap = new Map<string, string>(), noteIds = [...selection.noteIds];
   let id = Math.max(0, ...source.notes.map(note => note.id));
   for (const event of events.filter(event => event.chordId !== undefined && partial.has(event.chordId))) {
-    const note: Note = { id: ++id, midiNum: event.midi, startTime: event.start, length: event.length, velocity: event.velocity, pitchBend: event.pitchBend?.slice(), notationVoice: event.voice ?? 1, notationStaff: event.staff, tab: [0, 0], optimals: [] };
+    const chord = source.chords.find(chord => chord.id === event.chordId)!;
+    const note: Note = { id: ++id, midiNum: event.midi, startTime: event.start, length: event.length, velocity: event.velocity, pitchBend: event.pitchBend?.slice(), notationVoice: event.voice ?? 1, notationVoiceSource: chord.notationVoiceSource, notationVoiceLocked: chord.notationVoiceLocked, notationStaff: event.staff, tab: [0, 0], optimals: [] };
     next.notes.push(note); remap.set(event.key, "n:" + id);
     if (scoreEventSelected(event, selection)) noteIds.push(id);
   }
@@ -133,9 +136,17 @@ export function toggleScoreConnection(source: EditorSnapshot, selection: Selecti
   return { ...source, notation: { ...source.notation, [kind]: [...existing, ...links] } };
 }
 export function setScoreVoice(source: EditorSnapshot, selection: Selection, voice: 1 | 2) {
-  ({ snapshot: source, selection } = resolveScoreSelection(source, selection));
-  return { ...source, notes: source.notes.map((note) => selection.noteIds.includes(note.id) ? { ...note, notationVoice: voice } : note),
-    chords: source.chords.map((chord) => selection.chordIds.includes(chord.id) ? { ...chord, notationVoice: voice } : chord) };
+  const keys = new Set(scoreEvents(source).filter(event => scoreEventSelected(event, selection)).map(event => event.key));
+  if (!keys.size) return source;
+  return { ...source, notes: source.notes.map(note => keys.has(`n:${note.id}`) ? { ...note, notationVoice: voice, notationVoiceSource: "manual" as const, notationVoiceLocked: true } : note),
+    chords: source.chords.map(chord => {
+      const count = Math.max(chord.originalMidi.length, chord.currentTabs.length);
+      if (!Array.from({ length: count }, (_, member) => keys.has(`c:${chord.id}:${member}`)).some(Boolean)) return chord;
+      const voices = Array.from({ length: count }, (_, member) => keys.has(`c:${chord.id}:${member}`) ? voice : chord.notationMemberVoices?.[member] ?? chord.notationVoice ?? 1);
+      const uniform = voices.every(value => value === voices[0]);
+      return { ...chord, notationVoice: uniform ? voices[0] : undefined, notationMemberVoices: uniform ? undefined : voices,
+        notationVoiceSource: "manual" as const, notationVoiceLocked: true };
+    }) };
 }
 export function addScoreRest(source: EditorSnapshot, rest: NonNullable<NonNullable<EditorSnapshot["notation"]>["rests"]>[number]) {
   const rests = source.notation?.rests ?? [];
@@ -196,6 +207,8 @@ export function addScoreNote(source: EditorSnapshot, midi: number, start: number
   const note: Note = { id, midiNum: Math.max(0, Math.min(127, Math.round(midi))), startTime: Math.max(0, start), length: Math.max(1, length), velocity: 100 / 127, tab: [0, 0], optimals: [] };
   if (staff) note.notationStaff = staff;
   note.notationVoice = voice;
+  note.notationVoiceSource = "manual";
+  note.notationVoiceLocked = true;
   if (next.notation?.rests) next.notation.rests = next.notation.rests.filter((rest) => rest.staff !== (staff ?? (midi < 60 ? "bass" : "treble")) || rest.voice !== voice || rest.start + rest.length <= note.startTime || rest.start >= note.startTime + note.length);
   next.notes.push(note);
   next.totalFrames = Math.max(next.totalFrames, note.startTime + note.length);

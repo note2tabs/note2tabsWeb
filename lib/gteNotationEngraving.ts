@@ -13,14 +13,18 @@ export type EngravedMeasure = {
 };
 export type EngravedLayout = { width: number; height: number; hits: EngravedHit[]; measures: EngravedMeasure[]; beamCount: number; tupletCount: number; tieCount: number };
 type Built = ReturnType<typeof buildMeasure>;
+const scoreStaves = (score: NotationScore): ScoreStaff[] => score.percussion ? ["treble"] : ["treble", "bass"];
 
 function buildMeasure(model: ScoreMeasure, score: NotationScore, first: boolean) {
   const staves = { treble: new Stave(0, 20, 500), bass: new Stave(0, 140, 500) };
-  if (first) for (const staff of ["treble", "bass"] as const) staves[staff].addClef(staff).addKeySignature(score.key).addTimeSignature(score.numerator + "/" + score.denominator);
+  if (first) for (const staff of scoreStaves(score)) {
+    staves[staff].addClef(score.percussion ? "percussion" : staff);
+    if (!score.percussion) staves[staff].addKeySignature(score.key);
+    staves[staff].addTimeSignature(score.numerator + "/" + score.denominator);
+  }
   const records: Array<{ token: ScoreToken; note: StemmableNote }> = [], voices: Voice[] = [], beams: Beam[] = [], tuplets: Tuplet[] = [];
   const formatter = new Formatter();
-  for (const staff of ["treble", "bass"] as const) {
-    const bothVoices = model.voices[staff].every((voice) => voice.some((token) => !token.rest));
+  for (const staff of scoreStaves(score)) {
     const staffVoices = model.voices[staff].map((tokens, voiceIndex) => {
       const tupletNotes = new Map<string, StemmableNote[]>();
       const notes = tokens.map((token) => {
@@ -29,8 +33,10 @@ function buildMeasure(model: ScoreMeasure, score: NotationScore, first: boolean)
         const note = token.hidden ? new GhostNote(structure) : new StaveNote({
           ...structure, clef: staff, keys: token.rest ? [staff === "bass" ? "d/3" : "b/4"] : token.pitches.map((pitch) => pitch.key),
           alignCenter: token.measureRest,
-          autoStem: !bothVoices,
-          stemDirection: bothVoices ? voiceIndex % 2 === 0 ? Stem.UP : Stem.DOWN : undefined,
+          // The same persisted voice shown by the toolbar controls engraving,
+          // regardless of provenance or whether the other voice is empty.
+          autoStem: false,
+          stemDirection: voiceIndex % 2 === 0 ? Stem.UP : Stem.DOWN,
         });
         note.setStave(staves[staff]);
         if (token.dotted && !token.hidden) Dot.buildAndAttach([note], { all: true });
@@ -42,17 +48,17 @@ function buildMeasure(model: ScoreMeasure, score: NotationScore, first: boolean)
       const voice = new Voice({ numBeats: score.numerator, beatValue: score.denominator }).addTickables(notes);
       beams.push(...Beam.generateBeams(notes, {
         groups: score.groups.map((value) => new Fraction(value, score.denominator)),
-        maintainStemDirections: bothVoices,
+        maintainStemDirections: true,
         beamRests: false,
       }));
       return voice;
     });
-    Accidental.applyAccidentals(staffVoices, score.key);
+    if (!score.percussion) Accidental.applyAccidentals(staffVoices, score.key);
     formatter.joinVoices(staffVoices);
     voices.push(...staffVoices);
   }
   const minNotes = formatter.preCalculateMinTotalWidth(voices);
-  const start = Math.max(staves.treble.getNoteStartX(), staves.bass.getNoteStartX());
+  const start = Math.max(...scoreStaves(score).map(staff => staves[staff].getNoteStartX()));
   const minWidth = Math.ceil(minNotes + start + 28);
   return { model, staves, records, voices, beams, tuplets, formatter, minWidth, start };
 }
@@ -102,7 +108,7 @@ export function prepareNotationEngraving(score: NotationScore, viewportWidth: nu
     const bassHigh = Math.max(33, ...bassPitches.map((pitch) => pitch.step));
     const trebleY = systemY + Math.max(24, (topStep - 45) * 5 + 24);
     const bassY = trebleY + Math.max(92, (37 - lowStep) * 5 + (bassHigh - 25) * 5 + 57);
-    let x = leftInset, bottom = bassY + 88;
+    let x = leftInset, bottom = score.percussion ? trebleY + 100 : bassY + 88;
     system.forEach((item, position) => {
       const measure = position === 0 ? buildMeasure(score.measures[item.index], score, true) : models[item.index];
       // The actual prefix width is known from the clef, key and time signature metrics.
@@ -110,10 +116,10 @@ export function prepareNotationEngraving(score: NotationScore, viewportWidth: nu
       const scaleX = Math.min(1, available / width);
       const mapX = (value: number) => value * scaleX;
       scales.set(measure, scaleX); if (position === 0) firstMeasures.add(measure);
-      for (const staff of ["treble", "bass"] as const) measure.staves[staff].setX(x / scaleX).setY(staff === "treble" ? trebleY : bassY).setWidth(width);
-      const startX = Math.max(measure.staves.treble.getNoteStartX(), measure.staves.bass.getNoteStartX());
-      const endX = Math.min(measure.staves.treble.getNoteEndX(), measure.staves.bass.getNoteEndX());
-      for (const staff of ["treble", "bass"] as const) measure.staves[staff].setNoteStartX(startX);
+      for (const staff of scoreStaves(score)) measure.staves[staff].setX(x / scaleX).setY(staff === "treble" ? trebleY : bassY).setWidth(width);
+      const startX = Math.max(...scoreStaves(score).map(staff => measure.staves[staff].getNoteStartX()));
+      const endX = Math.min(...scoreStaves(score).map(staff => measure.staves[staff].getNoteEndX()));
+      for (const staff of scoreStaves(score)) measure.staves[staff].setNoteStartX(startX);
       measure.records.forEach(({ token, note }) => note.setStave(measure.staves[token.staff]));
       measure.formatter.format(measure.voices, Math.max(1, endX - startX - 12), { alignRests: false });
       measure.beams.forEach((beam) => beam.postFormat());
@@ -188,7 +194,7 @@ export function prepareNotationEngraving(score: NotationScore, viewportWidth: nu
       });
       if (!columns.has(item.index * score.barTicks)) columns.set(item.index * score.barTicks, startX + 10);
       columns.set((item.index + 1) * score.barTicks, endX - 8);
-      layout.measures.push({ index: item.index, x, width: mapX(width), top: trebleY + 22, bottom: bassY + 90, startX: mapX(startX), endX: mapX(endX),
+      layout.measures.push({ index: item.index, x, width: mapX(width), top: trebleY + 22, bottom: score.percussion ? trebleY + 90 : bassY + 90, startX: mapX(startX), endX: mapX(endX),
         staffBottom: { treble: measure.staves.treble.getYForLine(4), bass: measure.staves.bass.getYForLine(4) },
         columns: [...columns].map(([tick, x]) => ({ tick, x: mapX(x) })).sort((a, b) => a.tick - b.tick) });
       built.push(measure);
@@ -220,13 +226,28 @@ export function prepareNotationEngraving(score: NotationScore, viewportWidth: nu
     built.forEach((measure) => {
       const scale = scales.get(measure) ?? 1;
       scaled(scale, () => {
-      measure.staves.treble.setContext(context).draw(); measure.staves.bass.setContext(context).draw();
+      measure.staves.treble.setContext(context).draw();
+      if (!score.percussion) {
+      measure.staves.bass.setContext(context).draw();
       new StaveConnector(measure.staves.treble, measure.staves.bass).setType(StaveConnector.type.SINGLE_LEFT).setContext(context).draw();
       if (firstMeasures.has(measure)) new StaveConnector(measure.staves.treble, measure.staves.bass).setType(StaveConnector.type.BRACE).setContext(context).draw();
+      }
       measure.voices.forEach((voice) => voice.draw(context));
       measure.beams.forEach((beam) => beam.setContext(context).draw());
       measure.tuplets.forEach((tuplet) => tuplet.setContext(context).draw());
       });
+      // Keep measure boundaries stronger than staff lines, even when dense
+      // measures are horizontally compressed. Draw in final screen coordinates.
+      context.save();
+      context.setFillStyle("#1d3329");
+      for (const staff of scoreStaves(score)) {
+        const stave = measure.staves[staff];
+        const top = stave.getTopLineTopY(), bottom = stave.getBottomLineBottomY();
+        for (const x of [stave.getX() * scale, (stave.getX() + stave.getWidth()) * scale]) {
+          context.fillRect(x - 0.9, top, 1.8, bottom - top);
+        }
+      }
+      context.restore();
       measure.records.forEach(({ token, note }) => {
         if (!(note instanceof StaveNote) || token.rest) return;
         token.pitches.forEach((pitch, index) => pitch.sources.forEach((source) => {
@@ -285,7 +306,7 @@ export function engravingPoint(layout: EngravedLayout, score: NotationScore, x: 
   let frame = (left.tick + ratio * (right.tick - left.tick)) / score.barTicks * score.framesPerBar;
   const barStart = measure.index * score.framesPerBar, step = Math.max(1, stepFrames);
   frame = snap ? barStart + Math.max(0, Math.min(Math.floor((score.framesPerBar - 1) / step) * step, Math.round((frame - barStart) / step) * step)) : Math.round(Math.max(barStart, Math.min(barStart + score.framesPerBar - 1, frame)));
-  const staff: ScoreStaff = Math.abs(y - (measure.staffBottom.bass - 20)) < Math.abs(y - (measure.staffBottom.treble - 20)) ? "bass" : "treble";
+  const staff: ScoreStaff = !score.percussion && Math.abs(y - (measure.staffBottom.bass - 20)) < Math.abs(y - (measure.staffBottom.treble - 20)) ? "bass" : "treble";
   const pitchStep = (staff === "bass" ? 25 : 37) + Math.round((measure.staffBottom[staff] - y) / 5);
   const naturals = [0, 2, 4, 5, 7, 9, 11], safe = Math.max(0, Math.min(74, pitchStep));
   const midi = Math.max(0, Math.min(127, Math.floor(safe / 7) * 12 + naturals[safe % 7] + notationKeyAlteration("cdefgab"[safe % 7], score.key)));

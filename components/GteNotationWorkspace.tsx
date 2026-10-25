@@ -7,6 +7,7 @@ import GteNotationToolbar from "./GteNotationToolbar";
 import GteEngravedScore from "./GteEngravedScore";
 import { buildNotationScore, notationKeyAlteration, notationPitch } from "../lib/gteNotationScore";
 import { readPitchedViewState, savePitchedViewState } from "../lib/gtePitchedViewState";
+import { assignVoices } from "../lib/gteAssignVoices";
 
 type Props = ComponentProps<typeof GteWorkspace>;
 const NOTE_LETTERS: Record<string, number> = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
@@ -36,14 +37,22 @@ export default function GteNotationWorkspace(props: Props) {
   const [cursor, setCursor] = useState<{ frame: number; midi: number; staff?: "treble" | "bass" } | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const snapshotRef = useRef(snapshot);
+  const voiceCheckedSnapshot = useRef<typeof snapshot | null>(null);
   const audioRef = useRef<AudioContext | null>(null);
   const auditionId = useRef(0);
   snapshotRef.current = snapshot;
+  useEffect(() => {
+    if (editMenuDisabled || voiceCheckedSnapshot.current === snapshot) return;
+    voiceCheckedSnapshot.current = snapshot;
+    const result = assignVoices({ track: snapshot });
+    if (result.changed) onSnapshotChange(result.track, { recordHistory: false, markDirty: true });
+  }, [snapshot, editMenuDisabled, practiceMode, onSnapshotChange]);
   const denominator = props.defaultNoteLengthDenominator ?? localDenominator;
   const entryLength = durationFrames(snapshot, denominator) * (dotted ? 1.5 : 1);
   const snapToKey = props.globalSnapToKeyEnabled ?? false;
   const entryPitch = (midi: number) => accidental === null && snapToKey ? snapScorePitch(midi, props.canvasKeyBase, props.canvasKeyType) : midi;
   const reading = Boolean(practiceMode || props.tabViewEnabled);
+  const compactTools = Boolean(props.mobileViewport);
   const readOnly = editMenuDisabled || reading;
   const [toolbarTop, setToolbarTop] = useState(8);
   useEffect(() => {
@@ -64,6 +73,9 @@ export default function GteNotationWorkspace(props: Props) {
   useEffect(() => {
     const outside = (event: PointerEvent) => {
       const target = event.target as Element;
+      // Menus operate on the current selection; opening Tools must not erase it
+      // before the menu action can read the selected notes/chord members.
+      if (target.closest?.('.gte-editor-sticky-banner, details, [data-gte-editor-control="true"], [data-gte-floating-ui="true"]')) return;
       const inside = root.current?.contains(target);
       if (inside && target.closest?.('[data-gte-sheet="true"], [data-gte-notation-toolbar="true"], [data-notation-bar-menu="true"]')) return;
       setWrite(false); setCursor(null);
@@ -206,14 +218,15 @@ export default function GteNotationWorkspace(props: Props) {
   const selectedEvents = segments.filter((event) => scoreEventSelected(event, selection));
   const selectedKeys = new Set(selectedEvents.map((event) => event.key));
   const connected = (kind: "ties" | "slurs") => (snapshot.notation?.[kind] ?? []).some((link) => selectedKeys.has(link.from) && selectedKeys.has(link.to));
-  const tools = <GteNotationToolbar mode={write ? restMode ? "rest" : "note" : "select"} voice={voice}
+  const tools = <GteNotationToolbar compact={compactTools} mode={write ? restMode ? "rest" : "note" : "select"} voice={voice}
+    selectedVoices={selectedEvents.length ? [...new Set(selectedEvents.map(event => event.voice ?? 1))] : undefined}
     onUndo={props.onRequestUndo} onRedo={props.onRequestRedo} undoCount={props.historyUndoCount} redoCount={props.historyRedoCount}
     denominator={denominator} dotted={write ? dotted : selectedRhythm?.dotted ?? dotted} accidental={accidental} disabled={readOnly}
     tieActive={connected("ties")} slurActive={connected("slurs")}
     canTie={connected("ties") || selectedEvents.some((from) => selectedEvents.some((to) => validNotationTie(from, to)))}
     canSlur={connected("slurs") || selectedEvents.some((from) => selectedEvents.some((to) => from.start < to.start))}
     onDuration={chooseDuration} onDot={toggleDot} onAccidental={chooseAccidental}
-    onVoice={(value) => { setVoice(value); if (count) { const resolved = resolveScoreSelection(snapshotRef.current, selection); commit(setScoreVoice(resolved.snapshot, resolved.selection, value)); setSelection(resolved.selection); } focus(); }}
+    onVoice={(value) => { setVoice(value); if (count) commit(setScoreVoice(snapshotRef.current, selection, value)); focus(); }}
     onTie={() => { commit(toggleScoreConnection(snapshotRef.current, selection, "ties")); focus(); }}
     onSlur={() => { commit(toggleScoreConnection(snapshotRef.current, selection, "slurs")); focus(); }}
     canSnapToKey={count > 0} onSnapSelectionToKey={() => { apply({ snapKey: { root: props.canvasKeyBase ?? 0, type: props.canvasKeyType ?? 0 } }); focus(); }}
@@ -260,12 +273,14 @@ export default function GteNotationWorkspace(props: Props) {
       }
       else if (key === " " && props.onGlobalPlaybackToggle) { event.preventDefault(); event.stopPropagation(); props.onGlobalPlaybackToggle(); }
     }}>
+    {!!snapshot.notation?.voiceWarnings?.length && <p role="status" className="col-span-2 m-0 px-2 py-1 text-xs text-slate-500">{t(snapshot.notation.voiceWarnings[0])}</p>}
     {!reading && <div data-gte-notation-toolbar="true"
-      className="sticky col-start-2 row-start-1 z-[100] min-w-0 rounded-xl border border-slate-200 bg-[#faf9f5]/95 p-1.5 shadow-sm"
-      style={{ top: toolbarTop, boxSizing: "border-box" }}>
+      className={`sticky col-start-2 row-start-1 z-[100] min-w-0 rounded-xl border border-slate-200 bg-[#faf9f5]/95 shadow-sm ${compactTools ? "overflow-y-auto overscroll-contain p-1" : "p-1.5"}`}
+      style={{ top: toolbarTop, boxSizing: "border-box", ...(compactTools ? { maxHeight: `calc(100dvh - ${toolbarTop}px - 6rem)` } : {}) }}>
       {tools}
     </div>}
     <div className={reading ? "col-span-2 min-w-0" : "col-start-1 row-start-1 min-w-0"}>
+    <div data-notation-sheet-scale="true" style={{ zoom: compactTools ? 1 : 0.75 }}>
     <GteEngravedScore score={score} input={write} restInput={restMode} disabled={readOnly} snapEnabled={true} denominator={denominator} dotted={dotted} length={entryLength}
       editorId={props.editorId} selectedBars={selectedBars}
       onBarSelect={readOnly ? undefined : selectBar}
@@ -321,6 +336,7 @@ export default function GteNotationWorkspace(props: Props) {
         const resolved = resolveScoreSelection(snapshotRef.current, chosen);
         commit(editScoreSelection(resolved.snapshot, resolved.selection, { shift, transpose })); setSelection(resolved.selection);
       }} />
+    </div>
     </div>
     {barMenu && !readOnly && <div ref={barMenuRef} role="menu" aria-label={t("Bar actions")} data-notation-bar-menu="true" data-gte-editor-control="true" data-gte-floating-ui="true"
       className="fixed z-[180] w-40 rounded-xl border border-slate-200 bg-white py-1 text-sm shadow-lg"

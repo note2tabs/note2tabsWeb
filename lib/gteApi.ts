@@ -1,4 +1,5 @@
-import { serializeNotationPayload } from "./gteNotationPersistence";
+import { restoreNotationSnapshot, serializeNotationPayload } from "./gteNotationPersistence";
+import { assignVoices } from "./gteAssignVoices";
 import type {
   CanvasShare,
   CanvasSnapshot,
@@ -37,7 +38,9 @@ type EditorBootstrapResult = {
 };
 type EditorBootstrap = {
   editorId: string;
-  promise: Promise<EditorBootstrapResult>;
+  promise?: Promise<EditorBootstrapResult>;
+  snapshot?: EditorOrCanvasSnapshot;
+  expiresAt?: number;
 };
 
 declare global {
@@ -222,6 +225,8 @@ function takeBootstrappedEditor(editorId: string) {
   const bootstrap = window.__note2tabsEditorBootstrap;
   if (!bootstrap || bootstrap.editorId !== editorId) return null;
   delete window.__note2tabsEditorBootstrap;
+  if (bootstrap.snapshot) return (bootstrap.expiresAt ?? 0) > Date.now() ? Promise.resolve(bootstrap.snapshot) : null;
+  if (!bootstrap.promise) return null;
   return bootstrap.promise.then(({ ok, status, text }) => {
     if (!ok) throw new Error(editorRequestError(text, status));
     if (!text) return {} as EditorOrCanvasSnapshot;
@@ -256,6 +261,7 @@ function getPrefetchedEditor(editorId: string) {
   if (!cached || cached.expiresAt <= Date.now()) {
     return takeBootstrappedEditor(editorId) ?? fetchEditor(editorId);
   }
+  if (typeof window !== "undefined" && window.__note2tabsEditorBootstrap?.editorId === editorId) delete window.__note2tabsEditorBootstrap;
   return cached.promise;
 }
 
@@ -671,7 +677,7 @@ export async function optimizeImportedTrackFingerings(
   passes: number = 1,
   importedEditorIds?: readonly string[],
   importedTracksOrCleanupOptions?: readonly TranscriberTrack[] | { manual?: boolean },
-  importContext?: { timingMap?: TimingMapV2; quantization?: TranscriberQuantization; rhythmScale?: number; preferredTimingMap?: TimingMapV2 }
+  importContext?: { timingMap?: TimingMapV2; quantization?: TranscriberQuantization; rhythmScale?: number; preferredTimingMap?: TimingMapV2; preserveMusic?: boolean }
 ): Promise<CanvasSnapshot> {
   const importedTracks = Array.isArray(importedTracksOrCleanupOptions) ? importedTracksOrCleanupOptions : undefined;
   // Preserve main's explicit import cleanup and the older options-only callers.
@@ -696,6 +702,7 @@ export async function optimizeImportedTrackFingerings(
     optimizeTrackFingeringInSnapshot,
   } = await import("./gteFingeringOptimization");
   const importedLaneIds = importedEditorIds ? new Set(importedEditorIds) : null;
+  optimized.editors = optimized.editors.map(lane => (!importedLaneIds || importedLaneIds.has(lane.id)) && lane.notation === undefined && lane.chordEditor?.notation ? restoreNotationSnapshot(lane) : lane);
 
   for (const [index, laneId] of (importedEditorIds ?? []).entries()) {
     const source = importedTracks?.[index];
@@ -714,8 +721,13 @@ export async function optimizeImportedTrackFingerings(
 
   optimized.editors.forEach((lane) => {
     if (importedLaneIds && !importedLaneIds.has(lane.id)) return;
+    if (importContext?.preserveMusic) return;
+    if (isNotationTrack(lane)) {
+      if (importedLaneIds?.has(lane.id)) cleanTinyOverlapsInSnapshot(lane, overlapCleanupOptions);
+      return;
+    }
     if (
-      isDrumLane(lane) || isNotationTrack(lane) ||
+      isDrumLane(lane) ||
       !Array.isArray(lane.notes) ||
       !Array.isArray(lane.chords) ||
       (lane.notes.length === 0 && lane.chords.length === 0)
@@ -733,7 +745,10 @@ export async function optimizeImportedTrackFingerings(
     if (importedLaneIds?.has(lane.id)) cleanTinyOverlapsInSnapshot(lane, overlapCleanupOptions);
   });
 
-  await requestForEditor<{ ok: true; snapshot: EditorOrCanvasSnapshot; canvas?: CanvasSnapshot }>(
+  // Every import format converges here after final timing, cleanup and fingering.
+  optimized.editors = optimized.editors.map(lane => importedLaneIds && !importedLaneIds.has(lane.id) || isDrumLane(lane)
+    ? lane : assignVoices({ track: lane }).track);
+  const saved = await requestForEditor<{ ok: true; snapshot?: EditorOrCanvasSnapshot; canvas?: CanvasSnapshot }>(
     canvasId,
     `/editors/${encodeURIComponent(canvasId)}/snapshot`,
     {
@@ -742,7 +757,12 @@ export async function optimizeImportedTrackFingerings(
       body: JSON.stringify({ snapshot: serializeNotationPayload(optimized) }),
     }
   );
-  editorPrefetches.delete(canvasId);
+  // The following navigation already has a confirmed, complete save response.
+  // Consume it once instead of downloading the entire score again on first open.
+  const savedSnapshot = saved.canvas ?? saved.snapshot ?? optimized;
+  const expiresAt = Date.now() + 60_000;
+  editorPrefetches.set(canvasId, { expiresAt, promise: Promise.resolve(savedSnapshot) });
+  if (typeof window !== "undefined") window.__note2tabsEditorBootstrap = { editorId: canvasId, snapshot: savedSnapshot, expiresAt };
   return optimized;
 }
 
@@ -938,16 +958,20 @@ export const gteApi = {
       }
     ),
   importEditorJson: async (canvasId: string, laneId: string, payload: unknown) => {
+    // Native files carry voice provenance/locks. Protect them from the legacy
+    // backend's note-field normalization using the existing JSON metadata adapter.
+    const native = payload as { editor?: EditorSnapshot };
+    const importedPayload = native?.editor ? { ...native, editor: serializeNotationPayload(native.editor) } : payload;
     const response = await requestForEditor<{ ok: true; snapshot: EditorSnapshot; canvas: CanvasSnapshot }>(
       canvasId,
       `/editors/${canvasId}__ed__${laneId}/import_json`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(importedPayload),
       }
     );
-    return { ...response, canvas: await optimizeImportedTrackFingerings(canvasId, undefined, 1, [laneId]) };
+    return { ...response, canvas: await optimizeImportedTrackFingerings(canvasId, undefined, 0, [laneId], undefined, { preserveMusic: true }) };
   },
   saveDrumNote: (
     canvasId: string,
