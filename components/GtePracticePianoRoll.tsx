@@ -75,7 +75,7 @@ export default function GtePracticePianoRoll(props: Props) {
       background = ctx.createLinearGradient(0, 0, 0, line); background.addColorStop(0, "#0e1219"); background.addColorStop(1, "#222c39");
       vignette = ctx.createLinearGradient(0, 0, width, 0); vignette.addColorStop(0, "#00000055"); vignette.addColorStop(0.13, "#00000000"); vignette.addColorStop(0.87, "#00000000"); vignette.addColorStop(1, "#00000055");
       whiteKey = ctx.createLinearGradient(0, line, 0, height); whiteKey.addColorStop(0, "#d1d4dc"); whiteKey.addColorStop(0.1, "#f8f9fc"); whiteKey.addColorStop(0.92, "#e9ebf0"); whiteKey.addColorStop(1, "#b9bec9");
-      blackKeyFill = ctx.createLinearGradient(0, line, 0, line + blackHeight); blackKeyFill.addColorStop(0, "#080a0f"); blackKeyFill.addColorStop(0.18, "#2b303b"); blackKeyFill.addColorStop(0.9, "#13171e"); blackKeyFill.addColorStop(1, "#05070b");
+      blackKeyFill = ctx.createLinearGradient(0, line, 0, line + blackHeight); blackKeyFill.addColorStop(0, "#05070b"); blackKeyFill.addColorStop(0.1, "#13171e"); blackKeyFill.addColorStop(0.82, "#2b303b"); blackKeyFill.addColorStop(1, "#080a0f");
     };
     const draw = () => {
       const current = live.current;
@@ -162,7 +162,7 @@ export default function GtePracticePianoRoll(props: Props) {
         }
         ctx.strokeStyle = black ? "#080a0d" : "#bfc2c8"; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, line + 2, w - 1, keyHeight);
         if (!black) { ctx.fillStyle = "#00000010"; ctx.fillRect(x + 1, line + 5 + keyHeight - 4, w - 2, 3); }
-        if (black && !voices) { ctx.fillStyle = "#ffffff15"; ctx.fillRect(x + 2, line + 7, Math.max(1, w - 4), 2); }
+        if (black && !voices) { ctx.fillStyle = "#ffffff15"; ctx.fillRect(x + 2, line + 2 + keyHeight - 8, Math.max(1, w - 4), 2); }
         if (pitch % 12 === 0) {
           ctx.fillStyle = "#656b74"; ctx.font = "11px sans-serif"; ctx.textAlign = "center";
           ctx.fillText(`C${Math.floor(pitch / 12) - 1}`, x + w / 2, height - 10);
