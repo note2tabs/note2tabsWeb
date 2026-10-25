@@ -34,7 +34,8 @@ export async function ensureInstrumentEditorEntry(editorId: string, canvas: Canv
         ...lane, version: (lane.version ?? 1) + 1, secondsPerBar,
         timeSignature: reference?.timeSignature ?? lane.timeSignature,
         timeSignatureBottom: reference?.timeSignatureBottom ?? lane.timeSignatureBottom,
-        ...(instrument === "piano" ? { instrumentId: "upright_piano", chordEditor: { ...lane.chordEditor, instrumentType: "notation" as const, instrumentSound: "upright_piano", notation: { assignments: {} } } } : {}),
+        ...(instrument === "drums" ? { instrumentType: "drums" as const, instrumentId: "drum1" } : {}),
+        ...(instrument === "piano" ? { instrumentType: "notation" as const, instrumentId: "upright_piano", chordEditor: { ...lane.chordEditor, instrumentType: "notation" as const, instrumentSound: "upright_piano", notation: { assignments: {} } } } : {}),
         ...(instrument === "ukulele" ? { maxFret: 20, tuning: { presetId: "ukulele-high-g", label: "Ukulele high G", openStringMidi: [69, 64, 60, 67], capo: 0 } } : {}),
       } : lane),
     };

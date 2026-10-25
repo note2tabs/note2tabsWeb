@@ -11,7 +11,7 @@ const guitar = { id: "guitar", name: "Keep my riff", trackType: "tab", instrumen
 const blank: EditorSnapshot = { id: "new", version: 1, name: "New", trackType: "tab", editorType: "tab", type: "tab", notes: [], chords: [], cutPositionsWithCoords: [], optimalsByTime: {}, fps: 240, framesPerMessure: 480, totalFrames: 960 };
 const canvas = { id: "local", secondsPerBar: 3, editors: [{...guitar, secondsPerBar: 3, timeSignature: 3, timeSignatureBottom: 4 }] } as unknown as CanvasSnapshot;
 beforeEach(() => {
-  api.addCanvasEditor.mockReset().mockImplementation(async (_id, name, options) => { const editor = { ...blank, ...options, name }; return { editor, canvas: { ...canvas, editors: [...canvas.editors, editor] } }; });
+  api.addCanvasEditor.mockReset().mockImplementation(async (_id, name, options) => { const editor = { ...blank, instrumentType: "guitar-tab", instrumentId: "acoustic", ...options, name }; return { editor, canvas: { ...canvas, editors: [...canvas.editors, editor] } }; });
   api.applySnapshot.mockReset().mockResolvedValue({ ok: true });
   api.commitEditor.mockReset().mockResolvedValue({ ok: true });
 });
@@ -25,7 +25,7 @@ describe("instrument-specific editor entry", () => {
     expect(result.editors[0]).toEqual(canvas.editors[0]);
     const piano = result.editors.find(lane => lane.id === result.activeLaneId)!;
     expect(isNotationTrack(piano)).toBe(true);
-    expect(piano).toMatchObject({ instrumentId: "upright_piano", secondsPerBar: 3, timeSignature: 3, timeSignatureBottom: 4 });
+    expect(piano).toMatchObject({ instrumentType: "notation", instrumentId: "upright_piano", secondsPerBar: 3, timeSignature: 3, timeSignatureBottom: 4 });
   });
   it("keeps the requested track selected when the API response omits activeLaneId", async () => {
     api.applySnapshot.mockImplementationOnce(async (_id, next) => ({ canvas: { ...next, activeLaneId: undefined } }));
@@ -39,7 +39,7 @@ describe("instrument-specific editor entry", () => {
   });
   it("opens a drum workspace instead of a guitar tab", async () => {
     const result = await ensureInstrumentEditorEntry("local", canvas, "drums");
-    expect(result.editors.find(lane => lane.id === result.activeLaneId)).toMatchObject({ trackType: "drums", type: "drums", editorType: "drums" });
+    expect(result.editors.find(lane => lane.id === result.activeLaneId)).toMatchObject({ trackType: "drums", type: "drums", editorType: "drums", instrumentType: "drums", instrumentId: "drum1" });
   });
   it("reuses the matching existing track without creating duplicates", async () => {
     for (const [instrument, lane] of [["piano", {...blank,instrumentId:"gm:piano"}], ["drums", {...blank, trackType:"drums"}], ["ukulele", {...blank, tuning:{presetId:"ukulele-low-g"}}]] as const) {
