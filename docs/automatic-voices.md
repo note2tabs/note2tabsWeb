@@ -16,14 +16,30 @@ duration-layer splits. Candidate generation defaults to 16 alternatives; global
 beam search retains 64 states, deduplicating equivalent sounding/line states.
 Search processes the complete track, with active note releases and recent pitch,
 duration and onset spacing retained across bar boundaries. Clean monophonic or
-equal-duration block-chord sequences take a linear single-voice fast path unless
+equal-duration block-chord sequences spanning at most an octave take a linear single-voice fast path unless
 recurring bass motion under a moving melody provides independent-line evidence.
+Repeated separated chordal registers also bypass this shortcut: at least three
+nearby events must support a similar register boundary with multiple tones on
+each side. This lets synchronized accompaniment and upper chords form two voices
+without relying on a single register gap alone. This is contextual evidence, not a
+fixed middle-C cutoff or automatic assignment based on staff.
 
 Exported scoring helpers normalize pitch jumps, rhythmic changes, overlap,
 crossing, switching, chord splits and second-voice usage. Weights and search
 bounds are configurable. Second-voice activation carries an extra complexity
 cost so ordinary chords do not split merely to avoid a melodic jump. Conflicting
 same-voice rhythmic overlaps receive the strongest penalty. Crossing is soft.
+Simultaneously sounding spans beyond an octave receive a quadratic penalty,
+including held notes from earlier attacks; wide chords cannot use the shortcut.
+An octave is a soft reach target, not a guarantee for every player's hand size.
+
+Staff allocation is separate from voice assignment. `gteNotationHands.ts`
+evaluates ordered left/right partitions at each onset, considering held pitches,
+octave reach, register and previous hand centers. Explicit note staff choices
+remain fixed. Automatic placement can cross middle C without altering notes.
+This is a deterministic greedy hand allocator, not a fingering solver or a
+guaranteed globally optimal arrangement. Spans that cannot fit within two
+octave-wide groups produce a voice-assignment warning rather than pitch changes.
 
 ## State and user choices
 
@@ -31,8 +47,10 @@ same-voice rhythmic overlaps receive the strongest penalty. Crossing is soft.
 `notationVoiceLocked` preserves manual locks. Choosing a voice explicitly in
 Sheets or MIDI marks it manual/locked. Missing metadata is not defaulted to a
 persisted Voice 1. Older explicit assignments remain conservative on open;
-the manual tool asks before recalculating those whose origin is unknown.
-The tool preserves imported/manual choices and all locks. Selected chord members
+the manual tool confirms replacement of existing choices before recalculating.
+Automatic import/view assignment preserves imported/manual choices and locks.
+The explicit Tools action replaces all assignments in its scope, including
+manual, imported and locked choices, after confirmation. Selected chord members
 can have independent voice metadata without disbanding the chord. Unselected
 notes provide fixed context and are never changed by a scoped operation.
 

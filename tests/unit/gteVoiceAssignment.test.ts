@@ -9,8 +9,24 @@ const voices = (notes: VoiceInputNote[]) => Object.fromEntries(assignNoteVoices(
 const track = (input: VoiceInputNote[]): EditorSnapshot => ({ id: "piano", instrumentType: "notation", instrumentId: "gm:piano", framesPerMessure: 384, fps: 192, totalFrames: 768,
   notes: input.map((note, i) => ({ id: i + 1, midiNum: note.pitch, startTime: note.onset, length: note.duration, tab: [0, 0], optimals: [] })), chords: [], cutPositionsWithCoords: [], optimalsByTime: {} });
 describe("bounded global voice assignment", () => {
+  it("separates repeated lower accompaniment chords from upper chords with shared rhythms", () => {
+    const input = [[45,52,57,69,73], [45,52,57,69,73], [47,54,59,71,75], [45,52,57,69,73]]
+      .flatMap((pitches, i) => pitches.map((pitch, j) => note(`${i}:${j}`, pitch, i * 96, 96)));
+    const before = structuredClone(input), assigned = voices(input);
+    input.forEach(item => expect(assigned[item.id]).toBe(Number(item.id.split(":")[1]) < 3 ? 2 : 1));
+    expect(input).toEqual(before);
+    expect(voices([...input].reverse())).toEqual(assigned);
+  });
+  it("splits even an isolated unreachably wide chord into comfortable groups", () => {
+    expect(Object.values(voices([45,52,57,69,73].map(pitch => note(String(pitch), pitch, 0))))).toEqual([2,2,2,1,1]);
+  });
   it("A: leaves a monophonic melody in Voice 1", () => {
     expect(Object.values(voices([60, 62, 64, 65, 67].map((pitch, i) => note(String(i), pitch, i * 96))))).toEqual([1, 1, 1, 1, 1]);
+  });
+  it("reports inherently impossible two-hand reach without removing pitches", () => {
+    const result = assignNoteVoices([36,60,84].map(pitch => note(String(pitch),pitch,0)));
+    expect(result.assignments).toHaveLength(3);
+    expect(result.warnings.some(warning => warning.includes("manual arrangement"))).toBe(true);
   });
   it("B: leaves ordinary block chords together in Voice 1", () => {
     const input = [[60, 64, 67], [65, 69, 72], [67, 71, 74]].flatMap((pitches, i) => pitches.map(pitch => note(`${i}:${pitch}`, pitch, i * 96)));
@@ -61,6 +77,35 @@ describe("bounded global voice assignment", () => {
   });
 });
 describe("shared editor integration", () => {
+  it("reassigns imported five-note chords into upper and lower member voices", () => {
+    const source = track([]);
+    source.chords = Array.from({ length: 4 }, (_, i) => ({ id: i + 1, startTime: i * 96, length: 96,
+      originalMidi: [45,52,57,69,73], currentTabs: [[0,0],[1,0],[2,0],[3,0],[4,0]] as [number,number][], ogTabs: [],
+      notationVoice: 1 as const, notationVoiceSource: "manual" as const, notationVoiceLocked: true }));
+    const result = assignVoices({ track: source, overwriteAll: true }).track;
+    result.chords.forEach(chord => expect(chord.notationMemberVoices).toEqual([2,2,2,1,1]));
+    expect(result.chords.map(chord => [chord.id,chord.startTime,chord.length,chord.originalMidi])).toEqual(source.chords.map(chord => [chord.id,chord.startTime,chord.length,chord.originalMidi]));
+  });
+  it("explicit reassignment overrides manual/imported/locked choices without changing music", () => {
+    const source = track([note("bass", 48, 0, 384), ...[64,65,67,69].map((pitch, i) => note(String(i), pitch, i * 96))]);
+    source.notes.forEach((note, i) => { note.notationVoice = i === 0 ? 1 : 2; note.notationVoiceSource = i % 2 ? "import" : "manual"; note.notationVoiceLocked = true; });
+    const before = structuredClone(source);
+    const result = assignVoices({ track: source, overwriteAll: true });
+    expect(result.track.notes.map(note => note.notationVoice)).toEqual([2,1,1,1,1]);
+    expect(result.track.notes.every(note => note.notationVoiceSource === "auto" && note.notationVoiceLocked === false)).toBe(true);
+    expect(source).toEqual(before);
+    expect(result.track.notes.map(note => [note.id,note.midiNum,note.startTime,note.length])).toEqual(before.notes.map(note => [note.id,note.midiNum,note.startTime,note.length]));
+    const scoped = assignVoices({ track: source, overwriteAll: true, scope: { noteIds: [1], chordIds: [] } });
+    expect(scoped.track.notes.slice(1)).toEqual(source.notes.slice(1));
+  });
+  it("explicit reassignment also replaces a locked chord's voice", () => {
+    const source = track([]);
+    source.chords = [{ id: 8, startTime: 0, length: 96, originalMidi: [60,64,67], currentTabs: [[0,0],[1,0],[2,0]], ogTabs: [], notationVoice: 2, notationVoiceSource: "manual", notationVoiceLocked: true }];
+    const next = assignVoices({ track: source, overwriteAll: true }).track;
+    expect(next.chords[0]).toMatchObject({ notationVoice: 1, notationVoiceSource: "auto", notationVoiceLocked: false });
+    expect(next.chords[0].originalMidi).toEqual(source.chords[0].originalMidi);
+    expect(next.notes).toHaveLength(0);
+  });
   const music = () => track([note("bass", 48, 0, 384), ...[64, 65, 67, 69].map((pitch, i) => note(String(i), pitch, i * 96))]);
   it("fills missing voices once and preserves them on reopening and unrelated edits", () => {
     const original = music(), first = assignVoices({ track: original });

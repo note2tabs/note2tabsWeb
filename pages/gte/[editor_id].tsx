@@ -3565,22 +3565,21 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           if (!current || isDrumLane(current)) return;
           const selected = laneSelectionById[current.id];
           const hasSelection = Boolean(selected && (selected.noteIds.length || selected.chordIds.length || selected.eventKeys?.length));
-          const legacyChoices = current.notes.some(note => note.notationVoice && !note.notationVoiceSource && !note.notationVoiceLocked && (!hasSelection || selected.noteIds.includes(note.id)))
-            || current.chords.some(chord => (chord.notationVoice || chord.notationMemberVoices?.length) && !chord.notationVoiceSource && !chord.notationVoiceLocked && (!hasSelection || selected.chordIds.includes(chord.id) || selected.eventKeys?.some(key => key.startsWith(`c:${chord.id}:`))));
+          const existingChoices = current.notes.some(note => note.notationVoice && (!hasSelection || selected.noteIds.includes(note.id) || selected.eventKeys?.includes(`n:${note.id}`)))
+            || current.chords.some(chord => (chord.notationVoice || chord.notationMemberVoices?.length) && (!hasSelection || selected.chordIds.includes(chord.id) || selected.eventKeys?.some(key => key.startsWith(`c:${chord.id}:`))));
           const apply = () => {
             const latest = canvasRef.current?.editors.find(candidate => candidate.id === current.id);
             if (!latest || isDrumLane(latest)) return;
-            const result = assignVoices({ track: latest, preserveExisting: false,
-              reassignLegacy: legacyChoices,
+            const result = assignVoices({ track: latest, overwriteAll: true,
               scope: selected ? { noteIds: selected.noteIds, chordIds: selected.eventKeys?.length ? [] : selected.chordIds, eventKeys: selected.eventKeys } : undefined });
             if (result.changed) { handleLaneSnapshotChange(current.id, result.track); queueDrumSave(current.id, result.track); }
-            setVoiceAssignmentMessage(result.warnings[0] ?? (result.changed ? t("Voice assignments updated. Manual choices preserved.") : t("Existing manual voice choices preserved.")));
+            setVoiceAssignmentMessage(result.warnings[0] ?? (result.changed ? t("Voices reassigned.") : t("No notes to assign.")));
           };
-          if (legacyChoices) setVoiceAssignmentConfirm({ apply, selection: hasSelection });
+          if (existingChoices) setVoiceAssignmentConfirm({ apply, selection: hasSelection });
           else apply();
         }}
         className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
-        title={t("Assign voices to selected notes, or the whole track. Manual voice choices are preserved.")}
+        title={t("Replace all voice assignments for selected notes, or the whole track.")}
       >{t("Auto Assign Voices")}</button>
       <button type="button" onClick={handleCleanActiveTrack}
         disabled={!lane || isDrumLane(lane) || practiceModeEnabled || lane.notes.length + lane.chords.length === 0}

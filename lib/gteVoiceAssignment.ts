@@ -1,8 +1,8 @@
 /** Deterministic, bounded voice separation. Times are notation ticks, not audio seconds. */
 export type VoiceInputNote = { id: string; pitch: number; onset: number; duration: number; existingVoice?: 1 | 2; voiceLocked?: boolean };
 export type VoiceAssignmentResult = { assignments: Array<{ noteId: string; voice: 1 | 2 }>; warnings: string[] };
-export type VoiceWeights = { melody: number; rhythm: number; overlap: number; crossing: number; switching: number; complexity: number; chordSplit: number };
-export const DEFAULT_VOICE_WEIGHTS: VoiceWeights = { melody: 1.6, rhythm: 0.6, overlap: 9, crossing: 0.8, switching: 1.4, complexity: 0.45, chordSplit: 2 };
+export type VoiceWeights = { melody: number; rhythm: number; overlap: number; crossing: number; switching: number; complexity: number; chordSplit: number; span: number };
+export const DEFAULT_VOICE_WEIGHTS: VoiceWeights = { melody: 1.6, rhythm: 0.6, overlap: 9, crossing: 0.8, switching: 1.4, complexity: 0.45, chordSplit: 2, span: 12 };
 type Candidate = (1 | 2)[];
 type Line = { low: number; high: number; onset: number; end: number; duration: number; spacing?: number };
 type Active = { pitch: number; onset: number; end: number; voice: 1 | 2 };
@@ -39,10 +39,13 @@ export function generateVoiceCandidates(notes: VoiceInputNote[], cap = 16): Cand
   return result.slice(0, Math.max(2, cap));
 }
 
-function transition(state: State, event: VoiceInputNote[], candidate: Candidate, weights: VoiceWeights, beat: number, order: number, independentContour = false): State {
+function transition(state: State, event: VoiceInputNote[], candidate: Candidate, weights: VoiceWeights, beat: number, order: number, independentContour = false, registerSplit?: number): State {
   const onset = event[0].onset, active = state.active.filter(note => note.end > onset);
   const lines: State["lines"] = [...state.lines];
   let melody = independentContour && new Set(candidate).size === 1 ? 2 : 0, rhythm = 0, overlap = 0, switching = 0;
+  // Repeated, separated chordal registers are two lines even with identical
+  // attack/release times. Compare the whole partition, not only its extremes.
+  if (registerSplit !== undefined) melody += 3 * candidate.filter((voice, i) => voice !== (i < registerSplit ? 2 : 1)).length / event.length;
   for (const voice of [1, 2] as const) {
     const group = event.filter((_, i) => candidate[i] === voice);
     if (!group.length) continue;
@@ -69,10 +72,15 @@ function transition(state: State, event: VoiceInputNote[], candidate: Candidate,
   }
   const nextActive = [...active, ...event.map((note, i) => ({ pitch: note.pitch, onset, end: onset + note.duration, voice: candidate[i] }))];
   const upper = nextActive.filter(note => note.voice === 1), lower = nextActive.filter(note => note.voice === 2);
+  const span = [upper, lower].reduce((cost, sounding) => {
+    if (!sounding.length) return cost;
+    const pitches = sounding.map(note => note.pitch);
+    return cost + (Math.max(0, Math.max(...pitches)-Math.min(...pitches)-12)/12) ** 2;
+  },0);
   const crossing = upper.length && lower.length ? voiceCrossingCost(Math.min(...upper.map(note => note.pitch)), Math.max(...lower.map(note => note.pitch))) : 0;
   // Favor upper-line identity at a simultaneous entrance, never impose a pitch cutoff.
   const complexity = voiceComplexityCost(candidate) * (state.lines[1] ? 1 : 5);
-  const cost = melody * weights.melody + rhythm * weights.rhythm + overlap * weights.overlap + crossing * weights.crossing + switching * weights.switching + complexity * weights.complexity + chordSplitCost(event, candidate) * weights.chordSplit * (independentContour ? 0.15 : 1);
+  const cost = span * weights.span + melody * weights.melody + rhythm * weights.rhythm + overlap * weights.overlap + crossing * weights.crossing + switching * weights.switching + complexity * weights.complexity + chordSplitCost(event, candidate) * weights.chordSplit * (independentContour ? 0.15 : 1);
   return { cost: state.cost + cost, lines, active: nextActive, parent: state, event, candidate, order };
 }
 
@@ -86,6 +94,28 @@ export function assignNoteVoices(input: readonly VoiceInputNote[], options: { ca
   // attacks happen together. Require contextual contour evidence, not register
   // alone; otherwise ordinary homorhythmic chords stay intact.
   const independentContours = new Set<number>();
+  const registerSplits = new Map<number, number>();
+  const separated = events.map(event => {
+    let split = -1, gap = 0;
+    // Require chordal material on both sides; a lone bass plus an ordinary
+    // chord is not by itself evidence of an independent second voice.
+    for (let i = 2; i <= event.length - 2; i++) {
+      const distance = event[i].pitch - event[i - 1].pitch;
+      if (distance >= 7 && distance > gap) { split = i; gap = distance; }
+    }
+    return split < 0 ? undefined : { split, boundary: (event[split].pitch + event[split - 1].pitch) / 2 };
+  });
+  separated.forEach((partition, index) => {
+    if (!partition) return;
+    // Look locally, across bar boundaries. Do not infer two lines from one
+    // unusually open voicing, or from unrelated passages far apart in time.
+    const support = separated.slice(Math.max(0, index - 4), index + 5).filter((other, offset) => {
+      const otherIndex = Math.max(0, index - 4) + offset;
+      return other && Math.abs(other.boundary - partition.boundary) <= 5
+        && Math.abs(events[otherIndex][0].onset - events[index][0].onset) <= (options.beatTicks ?? 96) * 8;
+    }).length;
+    if (support >= 3) { registerSplits.set(index, partition.split); independentContours.add(index); }
+  });
   for (let index = 0; index + 3 < events.length; index++) {
     const window = events.slice(index, index + 4);
     if (!window.every(event => event.length === 2 && event[1].pitch - event[0].pitch >= 12)) continue;
@@ -101,7 +131,7 @@ export function assignNoteVoices(input: readonly VoiceInputNote[], options: { ca
   let previousEnd = -Infinity;
   const singleVoice = !independentContours.size && !notes.some(note => note.voiceLocked && note.existingVoice === 2) && events.every(event => {
     const end = event[0].onset + event[0].duration;
-    const fits = event[0].onset >= previousEnd && event.every(note => note.onset + note.duration === end);
+    const fits = event[0].onset >= previousEnd && event.at(-1)!.pitch-event[0].pitch <= 12 && event.every(note => note.onset + note.duration === end);
     previousEnd = end; return fits;
   });
   if (singleVoice) return { assignments: notes.map(note => ({ noteId: note.id, voice: 1 as const })).sort((a, b) => a.noteId.localeCompare(b.noteId)), warnings: [] };
@@ -109,7 +139,7 @@ export function assignNoteVoices(input: readonly VoiceInputNote[], options: { ca
   let beam: State[] = [{ cost: 0, lines: [undefined, undefined], active: [], order: 0 }], order = 0;
   for (const [index, event] of events.entries()) {
     const candidates = generateVoiceCandidates(event, options.candidateCap ?? 16);
-    const next = beam.flatMap(state => candidates.map(candidate => transition(state, event, candidate, weights, options.beatTicks ?? 96, order++, independentContours.has(index))));
+    const next = beam.flatMap(state => candidates.map(candidate => transition(state, event, candidate, weights, options.beatTicks ?? 96, order++, independentContours.has(index), registerSplits.get(index))));
     next.sort((a, b) => a.cost - b.cost || a.order - b.order);
     const seen = new Set<string>();
     beam = [];
@@ -138,6 +168,16 @@ export function assignNoteVoices(input: readonly VoiceInputNote[], options: { ca
       if (!warnings.length) warnings.push("Some overlapping rhythmic layers need more than two voices, or conflict with preserved voice choices. All notes were retained.");
     }
     active[index].push(note);
+  }
+  const soundingHands: VoiceInputNote[] = [];
+  for (const event of events) {
+    for (let i = soundingHands.length-1; i >= 0; i--) if (soundingHands[i].onset+soundingHands[i].duration <= event[0].onset) soundingHands.splice(i,1);
+    soundingHands.push(...event);
+    // Detect inherently excessive total reach even after the best ordered
+    // two-hand split. Do not silently drop/transplant pitches to make it fit.
+    const pitches = soundingHands.map(note => note.pitch).sort((a,b) => a-b);
+    const possible = pitches.some((_,i) => pitches[i]-pitches[0] <= 12 && (i === pitches.length-1 || pitches.at(-1)!-pitches[i+1] <= 12));
+    if (!possible) { warnings.push("Some simultaneous notes cannot fit within an octave per hand. All pitches were retained; these passages need manual arrangement."); break; }
   }
   return { assignments, warnings };
 }

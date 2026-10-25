@@ -2,6 +2,7 @@ import type { Chord, EditorSnapshot, Note } from "../types/gte";
 import { getTabMidi } from "./gteTuning";
 import { getTrackInstrumentType } from "./gteInstrumentType";
 import { FIXED_NOTE_VELOCITY } from "./gteFixedVelocity";
+import { allocateNotationHands } from "./gteNotationHands";
 
 /** Sound determines the pitched editor without introducing a new persisted track schema. */
 export function isNotationTrack(snapshot: Parameters<typeof getTrackInstrumentType>[0]) {
@@ -12,7 +13,7 @@ export type ScoreEvent = { key: string; noteId?: number; chordId?: number; membe
 /** Legacy velocity data is ignored: all editor events use MIDI velocity 100. */
 const eventVelocity = (_value: unknown) => FIXED_NOTE_VELOCITY;
 export function scoreEvents(snapshot: EditorSnapshot): ScoreEvent[] {
-  return [
+  const events: ScoreEvent[] = [
     ...snapshot.notes.map((note) => ({
       key: "n:" + note.id, noteId: note.id, member: 0,
       voice: note.notationVoice ?? 1,
@@ -32,6 +33,7 @@ export function scoreEvents(snapshot: EditorSnapshot): ScoreEvent[] {
       }));
     }),
   ].filter((event) => Number.isFinite(event.midi) && event.midi >= 0 && event.midi <= 127 && event.length > 0);
+  return isNotationTrack(snapshot) ? allocateNotationHands(events, new Set(snapshot.notes.filter(note => note.notationStaff !== undefined).map(note => "n:" + note.id))) : events;
 }
 
 const NATURALS = [0, 2, 4, 5, 7, 9, 11];

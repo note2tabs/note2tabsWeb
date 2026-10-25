@@ -26,7 +26,7 @@ export default function GteVoiceAssignmentDialog({ selection, onCancel, onConfir
       }}>
       <h2 id="voice-assignment-title" className="m-0 text-base font-semibold text-slate-900">{t("Auto assign voices?")}</h2>
       <p id="voice-assignment-description" className="mb-5 mt-2 text-sm leading-relaxed text-slate-600">
-        {t(selection ? "Recalculate voices for the selected notes. Manually locked voices will stay unchanged." : "Recalculate voices for this track. Manually locked voices will stay unchanged.")}
+        {t(selection ? "Replace all voice assignments for the selected notes, including manual and locked choices." : "Replace all voice assignments for this track, including manual and locked choices.")}
       </p>
       <div className="flex justify-end gap-2">
         <button ref={cancel} type="button" onClick={onCancel} className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50">{t("Cancel")}</button>
