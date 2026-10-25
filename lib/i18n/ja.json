@@ -1959,5 +1959,17 @@
   "Transcribe ukulele audio": "ウクレレの録音を採譜",
   "Bass transcription guide": "ベース採譜ガイド",
   "Write a playable bassline": "演奏しやすいベースラインを書く",
-  "Check the groove, register and fingering.": "グルーヴ、音域、運指を確認しましょう。"
+  "Check the groove, register and fingering.": "グルーヴ、音域、運指を確認しましょう。",
+  "For piano and keyboard recordings.": "ピアノ・キーボードの録音向け。",
+  "Editable piano notation": "編集できるピアノ楽譜",
+  "Your piano transcription is ready": "ピアノの採譜が完了しました",
+  "Notes ready.": "音符を準備できました。",
+  "Notes ready. Opening transcription...": "音符を準備できました。採譜結果を開いています…",
+  "Notes ready. Select blocks below.": "音符を準備できました。下のブロックを選択してください。",
+  "Notes ready. Import below.": "音符を準備できました。下から読み込めます。",
+  "No piano notes available to import.": "読み込めるピアノの音符がありません。",
+  "The transcription finished without usable notes. Try a clearer section or switch models.": "採譜結果に利用できる音符がありません。より明瞭な区間や別のモデルをお試しください。",
+  "No piano notes available to import into the guest editor.": "読み込めるピアノの音符がありません。",
+  "Turn piano recordings into sheet music you can edit, play and export.": "ピアノのMP3・WAV音源やYouTubeの一節を、編集できる音符に変換。楽譜を確認・再生し、MIDIやMusicXMLで書き出せます。",
+  "Transcribe piano": "ピアノを採譜"
 }

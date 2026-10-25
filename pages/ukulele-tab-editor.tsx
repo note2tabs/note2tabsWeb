@@ -1,5 +1,8 @@
+import { useLocale } from "../lib/i18n/react";
+import { localizeInstrumentPage } from "../lib/i18n/instruments";
 import SeoLandingPage from "../components/SeoLandingPage";
 import { instrumentSeoPages } from "../lib/instrumentSeoPages";
 export default function InstrumentPage() {
-  return <SeoLandingPage {...instrumentSeoPages["ukulele-tab-editor"]} />;
+  const {locale} = useLocale();
+  return <SeoLandingPage {...localizeInstrumentPage(instrumentSeoPages["ukulele-tab-editor"], locale)} />;
 }

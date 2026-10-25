@@ -1959,5 +1959,17 @@
   "Transcribe ukulele audio": "Transkrybuj nagranie ukulele",
   "Bass transcription guide": "Poradnik transkrypcji basu",
   "Write a playable bassline": "Napisz wygodną do zagrania linię basu",
-  "Check the groove, register and fingering.": "Sprawdź groove, rejestr i palcowanie."
+  "Check the groove, register and fingering.": "Sprawdź groove, rejestr i palcowanie.",
+  "For piano and keyboard recordings.": "Do nagrań fortepianu i instrumentów klawiszowych.",
+  "Editable piano notation": "Edytowalny zapis nutowy na fortepian",
+  "Your piano transcription is ready": "Transkrypcja fortepianu jest gotowa",
+  "Notes ready.": "Nuty są gotowe.",
+  "Notes ready. Opening transcription...": "Nuty są gotowe. Otwieranie transkrypcji…",
+  "Notes ready. Select blocks below.": "Nuty są gotowe. Wybierz bloki poniżej.",
+  "Notes ready. Import below.": "Nuty są gotowe. Zaimportuj je poniżej.",
+  "No piano notes available to import.": "Brak nut fortepianowych do zaimportowania.",
+  "The transcription finished without usable notes. Try a clearer section or switch models.": "Transkrypcja nie zawiera użytecznych nut. Wypróbuj wyraźniejszy fragment lub inny model.",
+  "No piano notes available to import into the guest editor.": "Brak nut fortepianowych do zaimportowania.",
+  "Turn piano recordings into sheet music you can edit, play and export.": "Zamień plik MP3, WAV lub fragment z YouTube z partią fortepianu na edytowalne nuty. Sprawdź zapis, posłuchaj i wyeksportuj MIDI lub MusicXML.",
+  "Transcribe piano": "Transkrybuj fortepian"
 }

@@ -1,0 +1,138 @@
+{
+  "names": [
+    "Piano",
+    "Guitarra",
+    "Baixo",
+    "Bateria",
+    "Ukulele"
+  ],
+  "titles": [
+    "Transforme uma gravação de piano em partitura",
+    "Escreva partituras de piano online",
+    "Transcreva uma gravação de bateria",
+    "Escreva partituras de bateria online",
+    "Escreva tablaturas de ukulele online",
+    "Transcreva uma gravação de ukulele"
+  ],
+  "descriptions": [
+    "Transcreva um arquivo MP3, WAV ou trecho do YouTube de piano em notas editáveis. Revise a partitura, ouça o resultado e exporte em MIDI ou MusicXML.",
+    "Crie partituras de piano no navegador. Escreva nas claves de sol e fá, use o piano roll, ouça seu arranjo e exporte em MIDI ou MusicXML.",
+    "Transforme uma gravação de bateria em notação editável. Confira bumbo, caixa e pratos e exporte o ritmo em MIDI.",
+    "Crie ritmos e viradas de bateria no navegador. Insira os golpes, ouça o compasso e salve ou exporte seu arranjo.",
+    "Crie tablaturas de ukulele com quatro cordas na afinação sol–dó–mi–lá. Edite casas e ritmo, ouça o resultado e exporte sua música.",
+    "Obtenha notas e ritmo de uma gravação de ukulele e trabalhe o arranjo em uma tablatura de quatro cordas."
+  ],
+  "actions": [
+    "Transcrever piano",
+    "Abrir editor de piano",
+    "Transcrever bateria",
+    "Abrir editor de bateria",
+    "Abrir editor de ukulele",
+    "Transcrever ukulele"
+  ],
+  "workflow": [
+    "Escolha uma gravação",
+    "Confira as notas e o ritmo",
+    "Ouça e exporte",
+    "Abra uma partitura em branco",
+    "Escreva seu arranjo",
+    "Ouça e pratique"
+  ],
+  "workflowBodies": [
+    "Envie um arquivo de áudio ou escolha um trecho de um vídeo público do YouTube. Comece com uma frase curta que seja fácil de comparar com o original.",
+    "Abra a parte transcrita no editor. Compare com a gravação e ajuste notas, acordes e durações.",
+    "Ouça o resultado, corrija as transições e exporte o arranjo para continuar trabalhando.",
+    "Abra diretamente uma faixa para seu instrumento. Você pode começar sem conta; entre para salvar o projeto na sua biblioteca.",
+    "Insira as notas e escolha suas durações. Monte a melodia ou o ritmo e confira cada compasso com a reprodução.",
+    "Repita um trecho em loop em uma velocidade confortável. Salve o projeto para continuar em outra sessão."
+  ],
+  "sections": [
+    "Como funciona",
+    "Da gravação ao arranjo",
+    "Notação, reprodução e exportação",
+    "Escrever e praticar no navegador",
+    "Escolha por onde começar",
+    "Ver planos e preços",
+    "Começar com uma gravação",
+    "Escrever a parte do zero"
+  ],
+  "piano": [
+    "Transcreva um cover de piano, uma improvisação ou uma melodia gravada. Os arquivos MP3 e WAV seguem o mesmo processo: escolha um trecho, inicie a transcrição e continue no editor de piano. No modo de link do YouTube, selecione o trecho que deseja transcrever.",
+    "A visualização de partitura apresenta as notas nas pautas com claves de sol e fá. A visualização MIDI mostra com precisão os ataques, as durações e as notas sobrepostas. As duas visualizações editam o mesmo arranjo: você pode alternar entre elas sem copiar seu trabalho.",
+    "Para escrever uma partitura de piano, comece com uma melodia ou progressão de acordes e acrescente o acompanhamento e o baixo. Confira a pulsação, as vozes e as transições antes de ampliar a peça. Os controles de reprodução também funcionam no celular.",
+    "Se você já tem um arquivo MIDI ou MusicXML compatível, importe no editor em vez de transcrever o áudio novamente. Exporte em MIDI para uma DAW, em MusicXML para um programa de notação ou guarde o projeto Note2Tabs para a próxima sessão."
+  ],
+  "drums": [
+    "Escolha um groove, uma virada ou uma seção da música. Ouça separadamente bumbo, caixa e pratos para conferir a transcrição. Verifique primeiro a pulsação e os acentos principais, depois as subdivisões e os golpes simultâneos.",
+    "No editor de bateria, você pode inserir e mover golpes, repetir um compasso e ouvir as peças da bateria juntas. Confira as transições entre compassos e viradas antes de ampliar o arranjo. Exporte em MIDI ou salve o projeto para continuar depois."
+  ],
+  "ukulele": [
+    "A afinação padrão do ukulele é sol–dó–mi–lá. A tablatura mostra as cordas de cima para baixo na ordem lá, mi, dó, sol. Escolha sol agudo ou sol grave de acordo com seu instrumento; as posições e as alturas seguem a afinação selecionada. Na afinação com sol agudo, a quarta corda soa mais alta que as cordas de dó e mi; a afinação com sol grave abaixa essa quarta corda.",
+    "A transcrição fornece as alturas e o ritmo; o arranjo determina as cordas e as casas que você vai tocar. Ouça uma frase curta, confira as notas e escolha posições confortáveis. Trabalhe a melodia e o acompanhamento antes de juntar a peça. Exporte uma tablatura de texto, um arquivo MIDI ou seu projeto."
+  ],
+  "hub": [
+    "Qual instrumento você toca?",
+    "Comece com uma gravação ou escreva sua própria música.",
+    "Abrir editor",
+    "Instrumentos",
+    "Transcrição e editores de piano, guitarra, baixo, bateria e ukulele",
+    "Escolha seu instrumento para transcrever uma gravação ou começar a escrever em um editor online.",
+    "Transforme uma gravação de guitarra em tablatura e escolha posições confortáveis para tocar.",
+    "Transcreva uma linha de baixo ou escreva um groove com quatro cordas afinadas em mi–lá–ré–sol.",
+    "Transcrever guitarra",
+    "Transcrever baixo"
+  ],
+  "project": "Projeto",
+  "metaTitles": [
+    "Piano: áudio para partitura e MIDI",
+    "Editor de partituras de piano online",
+    "Transcrição de bateria: áudio para partitura e MIDI",
+    "Editor de partituras de bateria online",
+    "Editor de tablaturas de ukulele online",
+    "Transcrição de ukulele: áudio para notas"
+  ],
+  "imageAlts": [
+    "Dois compassos de piano com melodia e acompanhamento no baixo",
+    "Dois compassos de bateria com bumbo, caixa e chimbal",
+    "Dois compassos de tablatura de ukulele nas cordas lá, mi, dó e sol"
+  ],
+  "drumReview": [
+    "Confira os golpes e o ritmo",
+    "Abra a faixa de bateria e compare os golpes com a gravação. Ajuste a posição e escolha o bumbo, a caixa, os tons ou os pratos correspondentes.",
+    "Insira bumbo e caixa, adicione o chimbal e monte uma virada com os tons. Ouça cada compasso para conferir os golpes simultâneos."
+  ],
+  "drumEditor": [
+    "Escreva um ritmo básico e desenvolva uma parte completa. A partitura mostra as peças da bateria; a linha do tempo permite conferir a posição de cada golpe. Ouça o groove antes de repeti-lo no próximo compasso.",
+    "Para trabalhar uma transição, escreva a virada junto com o primeiro compasso seguinte. Confira onde cai o último tom ou ataque de prato. Você pode manter baixo e piano no mesmo projeto para ouvir as partes juntas."
+  ],
+  "questions": [
+    "Posso transformar uma gravação de piano em partitura?",
+    "Posso escrever uma partitura de piano diretamente online?",
+    "Posso transcrever bateria a partir de um arquivo de áudio?",
+    "Posso escrever e ouvir uma partitura de bateria?",
+    "Qual afinação o editor de ukulele usa?",
+    "A transcrição escolhe as cordas e as casas do ukulele?",
+    "Preciso de uma conta para começar a escrever?",
+    "Como posso salvar ou exportar o arranjo?"
+  ],
+  "exports": [
+    "Exporte em MIDI para uma DAW, em MusicXML para um programa de notação ou guarde o projeto Note2Tabs. Entre na sua conta para salvar a música na biblioteca.",
+    "Exporte a parte de bateria em MIDI para seu programa de música ou guarde o projeto Note2Tabs. Entre na sua conta para salvar a música na biblioteca.",
+    "Exporte uma tablatura de texto, um arquivo MIDI ou um projeto Note2Tabs. Entre na sua conta para guardar a música na biblioteca."
+  ],
+  "ukuleleEditor": [
+    "Escreva uma melodia nas quatro cordas, acrescente um acompanhamento dedilhado e ajuste as durações. O número da casa indica onde tocar; os valores rítmicos e as pausas indicam quando tocar.",
+    "Ouça a frase antes de repeti-la no próximo compasso. Você pode mudar de corda ou casa para encontrar uma posição mais confortável sem alterar a altura desejada."
+  ],
+  "recordingLabels": [
+    "Gravação de piano",
+    "Gravação de bateria",
+    "Gravação de ukulele"
+  ],
+  "resultLabels": [
+    "Partitura de piano editável",
+    "Partitura de bateria editável",
+    "Notas editáveis"
+  ],
+  "hubMetaTitle": "Transcrição e editores de música por instrumento"
+}

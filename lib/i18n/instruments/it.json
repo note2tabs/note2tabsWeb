@@ -1,0 +1,138 @@
+{
+  "names": [
+    "Pianoforte",
+    "Chitarra",
+    "Basso",
+    "Batteria",
+    "Ukulele"
+  ],
+  "titles": [
+    "Trasforma una registrazione di pianoforte in spartito",
+    "Scrivi spartiti per pianoforte online",
+    "Trascrivi una registrazione di batteria",
+    "Scrivi spartiti per batteria online",
+    "Scrivi tablature per ukulele online",
+    "Trascrivi una registrazione di ukulele"
+  ],
+  "descriptions": [
+    "Trascrivi un file MP3, WAV o un estratto YouTube di pianoforte in note modificabili. Controlla lo spartito, ascolta il risultato ed esporta in MIDI o MusicXML.",
+    "Crea uno spartito per pianoforte nel browser. Scrivi in chiave di violino e di basso, usa il piano roll, ascolta l’arrangiamento ed esporta in MIDI o MusicXML.",
+    "Trasforma una registrazione di batteria in notazione modificabile. Controlla cassa, rullante e piatti, poi esporta il ritmo in MIDI.",
+    "Crea ritmi e fill di batteria nel browser. Inserisci i colpi, ascolta la battuta e salva o esporta il tuo arrangiamento.",
+    "Crea tablature per ukulele a quattro corde in accordatura sol–do–mi–la. Modifica tasti e ritmo, ascolta il risultato ed esporta il brano.",
+    "Ricava note e ritmo da una registrazione di ukulele, poi lavora all’arrangiamento su una tablatura a quattro corde."
+  ],
+  "actions": [
+    "Trascrivi il pianoforte",
+    "Apri l’editor per pianoforte",
+    "Trascrivi la batteria",
+    "Apri l’editor per batteria",
+    "Apri l’editor per ukulele",
+    "Trascrivi l’ukulele"
+  ],
+  "workflow": [
+    "Scegli una registrazione",
+    "Controlla note e ritmo",
+    "Ascolta ed esporta",
+    "Apri uno spartito vuoto",
+    "Scrivi l’arrangiamento",
+    "Ascolta ed esercitati"
+  ],
+  "workflowBodies": [
+    "Carica un file audio o scegli un passaggio di un video YouTube pubblico. Parti da una breve frase facile da confrontare con l’originale.",
+    "Apri la parte trascritta nell’editor. Confrontala con la registrazione e correggi note, accordi e durate.",
+    "Ascolta il risultato, correggi i passaggi tra le sezioni ed esporta l’arrangiamento per continuare a lavorarci.",
+    "Apri direttamente una traccia per il tuo strumento. Puoi iniziare senza account; accedi per salvare il progetto nella tua libreria.",
+    "Inserisci le note e scegli le durate. Costruisci la melodia o il ritmo e controlla ogni battuta con la riproduzione.",
+    "Ripeti un passaggio in loop a una velocità comoda. Salva il progetto per riprenderlo in seguito."
+  ],
+  "sections": [
+    "Come funziona",
+    "Dalla registrazione all’arrangiamento",
+    "Notazione, riproduzione ed esportazione",
+    "Scrivere ed esercitarsi nel browser",
+    "Scegli da dove iniziare",
+    "Vedi piani e prezzi",
+    "Inizia da una registrazione",
+    "Scrivi tu la parte"
+  ],
+  "piano": [
+    "Trascrivi una cover al pianoforte, un’improvvisazione o una melodia registrata. I file MP3 e WAV seguono lo stesso percorso: scegli un passaggio, avvia la trascrizione e continua nell’editor per pianoforte. Per YouTube, seleziona l’estratto da trascrivere nella modalità link.",
+    "La vista spartito mostra le note sui pentagrammi in chiave di violino e di basso. La vista MIDI rende visibili attacchi, durate e sovrapposizioni. Le due viste modificano lo stesso arrangiamento: puoi passare dall’una all’altra senza ricopiare il lavoro.",
+    "Per scrivere uno spartito per pianoforte, parti da una melodia o da una progressione di accordi, poi aggiungi accompagnamento e basso. Controlla pulsazione, voci e transizioni prima di ampliare il brano. I comandi di riproduzione funzionano anche su mobile.",
+    "Se hai già un file MIDI o MusicXML compatibile, importalo nell’editor invece di trascrivere di nuovo l’audio. Esporta in MIDI per una DAW, in MusicXML per un programma di notazione oppure conserva il progetto Note2Tabs per la prossima sessione."
+  ],
+  "drums": [
+    "Scegli un groove, un fill o una sezione del brano. Ascolta separatamente cassa, rullante e piatti per controllare la trascrizione. Verifica prima la pulsazione e gli accenti principali, poi le suddivisioni e i colpi simultanei.",
+    "Nell’editor per batteria puoi inserire e spostare i colpi, ripetere una battuta e ascoltare insieme i diversi elementi del kit. Controlla le transizioni tra battute e fill prima di sviluppare l’arrangiamento. Esporta in MIDI o salva il progetto per riprenderlo in seguito."
+  ],
+  "ukulele": [
+    "L’accordatura standard dell’ukulele è sol–do–mi–la. La tablatura mostra le corde dall’alto verso il basso nell’ordine la, mi, do, sol. Scegli il sol acuto tradizionale o il sol grave in base al tuo strumento; posizioni e altezze seguono l’accordatura selezionata. Nell’accordatura con sol acuto, la quarta corda suona più in alto delle corde di do e mi; il sol grave abbassa questa quarta corda.",
+    "La trascrizione fornisce altezze e ritmo; l’arrangiamento stabilisce quali corde e tasti suonare. Ascolta una breve frase, controlla le note e scegli posizioni comode. Lavora su melodia e accompagnamento prima di unire il brano. Esporta una tablatura di testo, un file MIDI o il progetto."
+  ],
+  "hub": [
+    "Che strumento suoni?",
+    "Parti da una registrazione oppure scrivi tu la parte.",
+    "Apri l’editor",
+    "Strumenti",
+    "Trascrizione ed editor per pianoforte, chitarra, basso, batteria e ukulele",
+    "Scegli il tuo strumento per trascrivere una registrazione o iniziare a scrivere in un editor online.",
+    "Trasforma una registrazione di chitarra in tablatura e scegli posizioni comode da suonare.",
+    "Trascrivi una linea di basso o scrivi un groove su quattro corde accordate mi–la–re–sol.",
+    "Trascrivi la chitarra",
+    "Trascrivi il basso"
+  ],
+  "project": "Progetto",
+  "metaTitles": [
+    "Trascrizione pianoforte: da audio a spartito e MIDI",
+    "Editor di spartiti per pianoforte online",
+    "Trascrizione batteria: da audio a spartito e MIDI",
+    "Editor di spartiti per batteria online",
+    "Editor di tablature per ukulele online",
+    "Trascrizione ukulele: da audio a note"
+  ],
+  "imageAlts": [
+    "Due battute per pianoforte con melodia e accompagnamento al basso",
+    "Due battute di batteria con cassa, rullante e charleston",
+    "Due battute di tablatura per ukulele sulle corde la, mi, do e sol"
+  ],
+  "drumReview": [
+    "Controlla i colpi e il ritmo",
+    "Apri la traccia di batteria e confronta i colpi con la registrazione. Correggi il posizionamento e scegli cassa, rullante, tom o piatti per ciascun colpo.",
+    "Inserisci cassa e rullante, aggiungi il charleston e costruisci un fill con i tom. Ascolta ogni battuta per controllare i colpi simultanei."
+  ],
+  "drumEditor": [
+    "Scrivi un ritmo di base e sviluppa una parte completa. Lo spartito mostra gli elementi del kit; la timeline permette di controllare il posizionamento di ogni colpo. Ascolta il groove prima di riprenderlo nella battuta successiva.",
+    "Per lavorare su una transizione, scrivi il fill insieme alla prima battuta che lo segue. Controlla dove cade l’ultimo tom o crash. Puoi tenere basso e pianoforte nello stesso progetto per ascoltare le parti insieme."
+  ],
+  "questions": [
+    "Posso convertire una registrazione di pianoforte in spartito?",
+    "Posso scrivere uno spartito per pianoforte direttamente online?",
+    "Posso trascrivere la batteria da un file audio?",
+    "Posso scrivere e ascoltare uno spartito per batteria?",
+    "Quale accordatura usa l’editor per ukulele?",
+    "La trascrizione sceglie le corde e i tasti dell’ukulele?",
+    "Serve un account per iniziare a scrivere?",
+    "Come posso salvare o esportare l’arrangiamento?"
+  ],
+  "exports": [
+    "Esporta in MIDI per una DAW, in MusicXML per un programma di notazione oppure conserva il progetto Note2Tabs. Accedi per salvare il brano nella tua libreria.",
+    "Esporta la parte di batteria in MIDI per il tuo software musicale oppure conserva il progetto Note2Tabs. Accedi per salvare il brano nella tua libreria.",
+    "Esporta una tablatura di testo, un file MIDI o un progetto Note2Tabs. Accedi per conservare il brano nella tua libreria."
+  ],
+  "ukuleleEditor": [
+    "Scrivi una melodia su quattro corde, aggiungi un accompagnamento in fingerpicking e imposta le durate. Il numero del tasto indica dove suonare; i valori ritmici e le pause indicano quando suonare.",
+    "Ascolta la frase prima di ripeterla nella battuta successiva. Puoi cambiare corda o tasto per trovare una posizione più comoda mantenendo l’altezza desiderata."
+  ],
+  "recordingLabels": [
+    "Registrazione di pianoforte",
+    "Registrazione di batteria",
+    "Registrazione di ukulele"
+  ],
+  "resultLabels": [
+    "Spartito per pianoforte modificabile",
+    "Spartito per batteria modificabile",
+    "Note modificabili"
+  ],
+  "hubMetaTitle": "Trascrizione ed editor musicali per strumento"
+}

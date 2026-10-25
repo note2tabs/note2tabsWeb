@@ -1959,5 +1959,17 @@
   "Transcribe ukulele audio": "Trascrivi una registrazione di ukulele",
   "Bass transcription guide": "Guida alla trascrizione per basso",
   "Write a playable bassline": "Scrivi una linea di basso comoda da suonare",
-  "Check the groove, register and fingering.": "Controlla groove, registro e diteggiatura."
+  "Check the groove, register and fingering.": "Controlla groove, registro e diteggiatura.",
+  "For piano and keyboard recordings.": "Per registrazioni di pianoforte e tastiera.",
+  "Editable piano notation": "Notazione per pianoforte modificabile",
+  "Your piano transcription is ready": "La trascrizione per pianoforte è pronta",
+  "Notes ready.": "Note pronte.",
+  "Notes ready. Opening transcription...": "Note pronte. Apertura della trascrizione…",
+  "Notes ready. Select blocks below.": "Note pronte. Seleziona i blocchi qui sotto.",
+  "Notes ready. Import below.": "Note pronte. Importale qui sotto.",
+  "No piano notes available to import.": "Nessuna nota di pianoforte da importare.",
+  "The transcription finished without usable notes. Try a clearer section or switch models.": "La trascrizione non contiene note utilizzabili. Prova un passaggio più chiaro o un altro modello.",
+  "No piano notes available to import into the guest editor.": "Nessuna nota di pianoforte da importare.",
+  "Turn piano recordings into sheet music you can edit, play and export.": "Trascrivi un file MP3, WAV o un estratto YouTube di pianoforte in note modificabili. Controlla lo spartito, ascolta il risultato ed esporta in MIDI o MusicXML.",
+  "Transcribe piano": "Trascrivi il pianoforte"
 }

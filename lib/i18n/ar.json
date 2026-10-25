@@ -1959,5 +1959,17 @@
   "Transcribe ukulele audio": "حوّل تسجيل الأوكوليلي إلى نوتة",
   "Bass transcription guide": "دليل نسخ تسجيل الباس إلى تاب",
   "Write a playable bassline": "اكتب خط باس مريحًا للعزف",
-  "Check the groove, register and fingering.": "راجع الإيقاع والطبقة الصوتية ومواضع الأصابع."
+  "Check the groove, register and fingering.": "راجع الإيقاع والطبقة الصوتية ومواضع الأصابع.",
+  "For piano and keyboard recordings.": "لتسجيلات البيانو ولوحات المفاتيح.",
+  "Editable piano notation": "نوتة بيانو قابلة للتعديل",
+  "Your piano transcription is ready": "نوتة البيانو جاهزة",
+  "Notes ready.": "النوتات جاهزة.",
+  "Notes ready. Opening transcription...": "النوتات جاهزة. جارٍ فتح النتيجة…",
+  "Notes ready. Select blocks below.": "النوتات جاهزة. اختر الكتل أدناه.",
+  "Notes ready. Import below.": "النوتات جاهزة. استوردها أدناه.",
+  "No piano notes available to import.": "لا توجد نوتات بيانو لاستيرادها.",
+  "The transcription finished without usable notes. Try a clearer section or switch models.": "لا تحتوي النتيجة على نوتات قابلة للاستخدام. جرّب مقطعًا أوضح أو نموذجًا آخر.",
+  "No piano notes available to import into the guest editor.": "لا توجد نوتات بيانو لاستيرادها.",
+  "Turn piano recordings into sheet music you can edit, play and export.": "حوّل تسجيل بيانو بصيغة MP3 أو WAV أو مقطعًا من YouTube إلى نوتات قابلة للتعديل. راجع النوتة واستمع إلى النتيجة وصدّرها بصيغة MIDI أو MusicXML.",
+  "Transcribe piano": "تحويل تسجيل البيانو"
 }
