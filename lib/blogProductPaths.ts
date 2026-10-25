@@ -1,3 +1,4 @@
+import { instrumentGuides } from "./instrumentGuideIndex";
 import { transcriptionEntryHref } from "./instrumentTranscriptionEntry";
 import { localeHref, type AppLocale } from "./i18n/locale";
 
@@ -16,13 +17,13 @@ export type BlogProductPath = {
 };
 
 const instrumentProductPaths = (topic: string): BlogProductPath[] | null => {
-  const routes = /piano/.test(topic) ? { name: "Piano", transcribe: "/piano-transcription", editor: "/piano-sheet-music-editor" }
-    : /drum/.test(topic) ? { name: "Drum", transcribe: "/drum-transcription", editor: "/drum-notation-editor" }
-    : /ukulele|ukelele/.test(topic) ? { name: "Ukulele", transcribe: "/ukulele-transcription", editor: "/ukulele-tab-editor" }
-    : /bassline|\bbass\b/.test(topic) ? { name: "Bass", transcribe: "/audio-to-bass-tabs", editor: "/bass-tab-editor" } : null;
+  const routes = /piano/.test(topic) ? { name: "Piano", editorLabel: "Piano music notation editor", transcribe: "/piano-transcription", editor: "/piano-sheet-music-editor" }
+    : /drum/.test(topic) ? { name: "Drum", editorLabel: "Drum notation editor", transcribe: "/drum-transcription", editor: "/drum-notation-editor" }
+    : /ukulele|ukelele/.test(topic) ? { name: "Ukulele", editorLabel: "Ukulele tab editor", transcribe: "/ukulele-transcription", editor: "/ukulele-tab-editor" }
+    : /bassline|\bbass\b/.test(topic) ? { name: "Bass", editorLabel: "Bass tab maker and editor", transcribe: "/audio-to-bass-tabs", editor: "/bass-tab-editor" } : null;
   return routes ? [
     { href: routes.transcribe, label: `${routes.name} transcription`, description: "Start from a recording and review the notes and timing." },
-    { href: routes.editor, label: `${routes.name} editor`, description: "Write, edit and play the part in your browser." },
+    { href: routes.editor, label: routes.editorLabel, description: "Write, edit and play the part in your browser." },
   ] : null;
 };
 
@@ -31,8 +32,9 @@ export function getBlogPrimaryAction(slug: string, title: string) {
   const topic = `${slug} ${title}`.toLowerCase();
   const instrument = /piano/.test(topic) ? "piano" : /drum/.test(topic) ? "drums" : /ukulele|ukelele/.test(topic) ? "ukulele" : /bassline|\bbass\b/.test(topic) ? "bass" : null;
   if (instrument) {
-    const transcribe = /transcri|audio|recording/.test(topic);
-    return { href: transcribe ? transcriptionEntryHref(instrument) : `/gte/new?track=${instrument}`, label: transcribe ? "Transcribe audio" : "Open the editor", cta: transcribe ? "blog_transcribe" : "blog_editor" };
+    const guide = instrumentGuides.find(item => item.slug === slug);
+    const transcribe = guide ? guide.goal === "transcribe" : /transcri|audio|recording/.test(topic);
+    return { href: transcribe ? transcriptionEntryHref(instrument, guide?.mode === "youtube") : `/gte/new?track=${instrument}`, label: transcribe ? "Transcribe audio" : "Open the editor", cta: transcribe ? "blog_transcribe" : "blog_editor" };
   }
   const editorial = /note-to-tab|fingering|practice|how-to-(?:write|edit|read)|import-export|guitar-pro-alternative/.test(slug);
   const transcribe = !editorial && /youtube|\bmp3\b|\bwav\b|audio|recording|transcri|generator|song-to/.test(topic);

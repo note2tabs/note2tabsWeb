@@ -1,3 +1,4 @@
+import { instrumentGuideGroups } from "../lib/instrumentGuideIndex";
 import Link from "../components/LocaleLink";
 import SeoHead, { absoluteUrl } from "../components/SeoHead";
 
@@ -19,6 +20,10 @@ export default function InstrumentsPage() {
       <div className="instrument-hub-list">{instruments.map(instrument => <section key={instrument.name}>
         <h2>{instrument.name}</h2><p>{instrument.description}</p>
         <nav aria-label={`${instrument.name} tools`}><Link href={instrument.transcribe}>Transcribe {instrument.name.toLowerCase()} <span aria-hidden="true">→</span></Link><Link href={instrument.editor}>Open editor <span aria-hidden="true">↗</span></Link></nav>
+        {instrumentGuideGroups.find(group => group.instrument === instrument.name.toLowerCase()) && <details className="instrument-directory-guides">
+          <summary>{instrument.name} guides</summary>
+          <ul>{instrumentGuideGroups.find(group => group.instrument === instrument.name.toLowerCase())!.guides.map(guide => <li key={guide.slug}><Link href={`/blog/${guide.slug}`}>{guide.title}</Link></li>)}</ul>
+        </details>}
       </section>)}</div>
     </main>
   </>;

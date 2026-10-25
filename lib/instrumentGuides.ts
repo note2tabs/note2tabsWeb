@@ -18,6 +18,6 @@ export async function instrumentGuideProps(slug: string) {
       categories: [], tags: [], clusters: [],
     }, readingMinutes: reading.minutes, wordCount: reading.words, toc: compiled.contentToc,
     relatedPosts: instrumentGuides.filter(item => item.slug !== slug && item.instrument === guide.instrument)
-      .map(item => ({ id: `guide-${item.slug}`, title: item.title, slug: item.slug })),
+      .slice(0, 4).map(item => ({ id: `guide-${item.slug}`, title: item.title, slug: item.slug })),
   } };
 }

@@ -45,7 +45,7 @@ describe("instrument SEO and task matching", () => {
     expect(paths[0].label.toLowerCase()).toContain(guide.instrument==='drums'?'drum':guide.instrument);
     expect(paths.every(item=>!item.href.includes('guitar'))).toBe(true);
     const action=getBlogPrimaryAction(guide.slug,guide.title);
-    expect(action.href).toBe(guide.slug.includes('transcribe')?`/transcribe?instrument=${guide.instrument}`:`/gte/new?track=${guide.instrument}`);
+    expect(action.href).toBe(guide.goal === 'transcribe'?`/transcribe?instrument=${guide.instrument}${guide.mode === 'youtube' ? '&mode=youtube' : ''}`:`/gte/new?track=${guide.instrument}`);
     const links=[...result.props.post.contentHtml.matchAll(/href="(\/[^"#?]*)/g)].map(item=>item[1]);
     for(const href of links)expect(existsSync(`pages${href}.tsx`)||existsSync(`pages${href}/index.tsx`)||href==='/gte/new').toBe(true);
   });
@@ -69,4 +69,32 @@ it("keeps instrument entry context allowlisted and separate from audio detection
     expect(transcriptionEntryHref(instrument)).toBe(`/transcribe?instrument=${instrument}`);
   }
   for(const value of ["__proto__","constructor",["piano"],"<script>",null])expect(transcriptionEntryInstrument(value)).toBeUndefined();
+});
+
+import { instrumentGuidesForPath } from "../../lib/instrumentGuideIndex";
+it("covers music notation and sheet music on the same piano task URLs", () => {
+  for (const slug of ['piano-transcription','piano-sheet-music-editor']) {
+    const page=instrumentSeoPages[slug];
+    expect(page.metaTitle.toLowerCase()).toContain('music notation');
+    expect(page.metaTitle.toLowerCase()).toContain('sheet music');
+    expect(page.title.toLowerCase()).toContain('music notation');
+    const html=renderToStaticMarkup(createElement(SeoLandingPage,page));
+    const guides=instrumentGuidesForPath(page.canonicalPath)!;
+    expect(guides.guides).toHaveLength(6);
+    for(const guide of guides.guides)expect(html).toContain(`href="/blog/${guide.slug}"`);
+  }
+  expect(instrumentSeoPages['piano-notation-editor']).toBeUndefined();
+});
+it("links each other instrument to its own writing, practice and transcription guides", () => {
+  for(const path of ['/bass-tab-editor','/audio-to-bass-tabs','/drum-transcription','/drum-notation-editor','/ukulele-tab-editor','/ukulele-transcription']) {
+    const group=instrumentGuidesForPath(path)!;
+    expect(group.guides).toHaveLength(3);
+    expect(group.guides.some(g=>g.goal==='transcribe')).toBe(true);
+    expect(group.guides.some(g=>g.goal==='editor')).toBe(true);
+  }
+});
+it("routes correction articles to editing and YouTube articles to the correct input mode", () => {
+  expect(getBlogPrimaryAction('how-to-fix-a-piano-transcription','How to Fix a Piano Transcription').href).toBe('/gte/new?track=piano');
+  expect(getBlogPrimaryAction('how-to-transcribe-piano-from-youtube','How to Transcribe Piano from YouTube').href).toBe('/transcribe?instrument=piano&mode=youtube');
+  expect(getBlogProductPaths('piano-roll-vs-sheet-music-notation','Piano Roll vs Sheet Music')[1].label).toBe('Piano music notation editor');
 });

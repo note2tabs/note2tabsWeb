@@ -6,9 +6,9 @@ export const INSTRUMENT_SEO_UPDATED = "2026-10-25";
 export const instrumentSeoPages: Record<string, SeoLandingPageProps> = {
   "piano-transcription": {
     canonicalPath: "/piano-transcription", hasTranslation: false,
-    title: "Turn piano audio into sheet music",
-    metaTitle: "Piano Transcription – Audio to Sheet Music & MIDI | Note2Tabs",
-    description: "Transcribe a piano recording into editable notes. Review the sheet music or piano roll, listen back, and export MIDI or MusicXML from your browser.",
+    title: "Turn piano audio into music notation",
+    metaTitle: "Piano Transcription to Sheet Music & Music Notation | Note2Tabs",
+    description: "Convert piano audio to music notation and sheet music. Edit the notes, check the piano roll and export MIDI or MusicXML from your browser.",
     primaryCta: { label: "Transcribe piano audio", href: transcriptionEntryHref("piano") },
     secondaryCta: { label: "Write piano music instead", href: "/piano-sheet-music-editor" },
     preview: { src: "/images/editor-previews/piano-score.svg", exportLabel: "MIDI · MusicXML", width: 790, height: 290, label: "Piano transcription", transcription: true, sourceLabel: "Piano recording", resultLabel: "Audio → editable sheet music", caption: "Notation example · Edit and play back", alt: "Two bars of piano notation on treble and bass staves" },
@@ -22,17 +22,19 @@ export const instrumentSeoPages: Record<string, SeoLandingPageProps> = {
       "Read the piano part on treble and bass staves, or switch to the piano roll to see exactly when each note starts and how long it lasts. Chords appear as simultaneous pitches rather than guitar fret numbers.",
     ] },
     contentSections: [
-      { title: "Piano recordings, MP3 files and YouTube passages", paragraphs: [
+      { title: "Piano and keyboard recordings: MP3, WAV and YouTube", paragraphs: [
         "A clearly recorded piano part gives you an easy reference when checking a transcription. Start with a short phrase, listen to its melody and bass separately, then work through the next section. MP3 and WAV recordings use the same piano workflow, so there is no need to convert your audio just to get started.",
         "For a public YouTube recording, use link mode and select the passage you want to work on. Once the notes are in the editor, the same playback and editing tools apply.",
+        "You can also start from a recorded keyboard performance. If your keyboard already provides a MIDI file, import those note events in the piano editor instead of transcribing the audio again.",
       ], action: { label: "Transcribe a YouTube passage", href: transcriptionEntryHref("piano", true) } },
-      { title: "Sheet music when you play. MIDI when you produce.", paragraphs: [
+      { title: "Edit piano music notation and export MIDI", paragraphs: [
         "Use sheet view to follow the music at the piano. Use MIDI view to inspect overlapping notes, long sustained tones and the timing of a chord. The two views describe the same editable part.",
         "Export MIDI for a DAW or MusicXML for a notation application. Save your project to return to the arrangement, and use practice mode to repeat a passage at a comfortable playback speed.",
       ] },
       { title: "A practical piano-transcription workflow", paragraphs: ["Start with the opening phrase and check the pulse before polishing individual notes. Our piano guide walks through separating melody from accompaniment, reading note lengths and choosing an export for your next step."], action: { label: "Read the piano transcription guide", href: "/blog/how-to-transcribe-piano-audio-to-sheet-music" } },
     ],
     faqs: [
+      { question: "Can I convert piano audio into music notation?", answer: "Yes. Transcribe a piano recording, review the notes on the grand staff and edit the rhythm in sheet or MIDI view. Export MIDI or MusicXML for your next music tool." },
       { question: "Can I turn a piano recording into sheet music?", answer: "Yes. Transcribe the audio, open the piano track in sheet view, and edit the pitches and rhythm in the browser." },
       { question: "Can I convert piano audio to MIDI?", answer: "Yes. Export the editable piano part as MIDI to continue in a DAW or another music tool." },
       { question: "Can I edit both hands of a piano part?", answer: "You can edit pitches across treble and bass staves and inspect overlapping notes in MIDI view. Check the voicing and staff placement as you arrange the piece." },
@@ -46,9 +48,9 @@ export const instrumentSeoPages: Record<string, SeoLandingPageProps> = {
   },
   "piano-sheet-music-editor": {
     canonicalPath: "/piano-sheet-music-editor", hasTranslation: false,
-    title: "Write piano sheet music online",
-    metaTitle: "Free Piano Sheet Music Editor Online with Playback | Note2Tabs",
-    description: "Write and edit piano notation in your browser. Work with treble and bass staves, switch to a piano roll, and hear your arrangement with playback.",
+    title: "Write piano music notation online",
+    metaTitle: "Piano Music Notation & Sheet Music Editor | Note2Tabs",
+    description: "Write piano sheet music in an online music notation editor. Use treble and bass staves, a piano roll and playback, then export MIDI or MusicXML.",
     primaryCta: { label: "Open piano editor", href: "/gte/new?track=piano" },
     secondaryCta: { label: "Start from a piano recording", href: "/piano-transcription" },
     preview: { src: "/images/editor-previews/piano-score.svg", exportLabel: "MIDI · MusicXML", width: 790, height: 290, label: "Piano sheet music editor", alt: "An original two-bar piano phrase with melody and bass accompaniment", caption: "Piano notation · Treble and bass staves" },
@@ -57,8 +59,8 @@ export const instrumentSeoPages: Record<string, SeoLandingPageProps> = {
       { title: "Shape the arrangement", body: "Place notes and chords, choose durations and edit the melody and accompaniment in context." },
       { title: "Hear what you wrote", body: "Play the part back, loop a section for practice and export your music when it is ready." },
     ],
-    detail: { title: "Notation and piano roll, in the same project", paragraphs: [
-      "A piano arrangement needs more than a list of pitches. The duration of a bass note, the spacing between melody notes and the voicing of a chord all change how the piece feels. Edit those decisions in sheet view, with treble and bass staves for the complete part.",
+    detail: { title: "An online music notation editor for piano", paragraphs: [
+      "Use the piano score editor to create sheet music without installing notation software. A piano arrangement needs more than a list of pitches. The duration of a bass note, the spacing between melody notes and the voicing of a chord all change how the piece feels. Edit those decisions in sheet view, with treble and bass staves for the complete part.",
       "Switch to MIDI view when you want to see note lengths and overlaps directly. Changes belong to the same project, so you can move between a readable score and a timing-focused piano roll without maintaining two separate arrangements.",
     ] },
     contentSections: [
@@ -73,6 +75,7 @@ export const instrumentSeoPages: Record<string, SeoLandingPageProps> = {
       { title: "Practise and keep the arrangement", paragraphs: ["Loop a difficult passage and choose a slower practice playback speed. Save the project for your next session, export MIDI for production, or export MusicXML to continue engraving in a notation application."] },
     ],
     faqs: [
+      { question: "Can I write piano sheet music without importing a file?", answer: "Yes. Open a blank piano track and write notes and chords directly in the music notation editor. You can inspect the same part in the piano roll and hear it with playback." },
       { question: "Is the online piano editor free?", answer: "Yes. You can start writing in guest mode without installing software. Sign in to save the project to your library." },
       { question: "Does the piano editor have playback?", answer: "Yes. Play and pause from sheet or practice view on desktop and mobile, and return to the beginning when you want to rehearse again." },
       { question: "Can I switch between notation and piano roll?", answer: "Yes. Sheet and MIDI views work with the same notes in your piano track." },
@@ -102,6 +105,7 @@ export const instrumentSeoPages: Record<string, SeoLandingPageProps> = {
       "Read the pattern in drum notation or inspect its hits on the drum timeline. Kick, snare, toms and cymbals keep their own roles while you build the arrangement around them.",
     ] },
     contentSections: [
+      { title: "Drum music notation and kit voices", paragraphs: ["Drum notation identifies the kit voice and the rhythm of each hit. Read the kick, snare and cymbal parts together when they land on the same subdivision, or inspect the drum lanes separately to check a particular event. Our notation guide uses a simple backbeat to connect the written pattern with what you hear."], action: { label: "Read the drum notation guide", href: "/blog/how-to-read-drum-notation" } },
       { title: "Hear the beat before changing it", paragraphs: [
         "Compare one or two bars with the recording. Listen for the kick pattern first, then the snare backbeat and the subdivision on the hi-hat or ride. Add fills after the basic groove is clear.",
         "A drum-only take or stem makes this comparison straightforward. For a full-band recording, open the generated drum track and work on its rhythm separately from the pitched instruments.",

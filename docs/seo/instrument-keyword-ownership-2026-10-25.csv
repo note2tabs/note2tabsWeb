@@ -1,0 +1,28 @@
+instrument,intent,query_family,canonical_owner,coverage_type
+piano,transcribe,"piano transcription; audio to piano sheet music; audio to music notation; piano audio to MIDI",/piano-transcription,commercial
+piano,edit,"piano music notation editor; piano sheet music editor; online piano notation software; piano score writer",/piano-sheet-music-editor,commercial
+piano,learn,"how to transcribe piano audio to sheet music",/blog/how-to-transcribe-piano-audio-to-sheet-music,guide
+piano,import,"piano MIDI to sheet music; MIDI to music notation",/blog/how-to-edit-piano-midi-as-sheet-music,guide
+piano,write,"how to write piano music notation online",/blog/how-to-write-piano-music-notation-online,guide
+piano,compare,"piano roll vs sheet music; piano roll vs music notation",/blog/piano-roll-vs-sheet-music-notation,guide
+piano,youtube,"how to transcribe piano from YouTube",/blog/how-to-transcribe-piano-from-youtube,guide
+piano,correct,"how to fix a piano transcription",/blog/how-to-fix-a-piano-transcription,guide
+guitar,transcribe,"guitar tab generator; AI guitar tab generator",/,existing_homepage
+guitar,edit,"guitar tab editor; online guitar tab editor",/editor,existing_commercial
+guitar,write,"guitar tab maker; free tab maker",/free-guitar-tab-maker,existing_commercial
+guitar,formats,"MP3 to guitar tabs",/mp3-to-guitar-tabs,existing_commercial
+bass,transcribe,"bass transcription; audio to bass tabs",/audio-to-bass-tabs,existing_commercial
+bass,edit,"bass tab maker; bass tab editor; bass guitar tablature editor",/bass-tab-editor,existing_commercial
+bass,learn,"how to transcribe a bassline",/blog/how-to-transcribe-a-bassline-from-a-recording,guide
+bass,write,"how to write bass tabs online",/blog/how-to-write-bass-tabs-online,guide
+bass,practice,"how to practise a bassline with tabs",/blog/how-to-practise-a-bassline-with-tabs,guide
+drums,transcribe,"drum transcription; drum audio to notation; drum audio to MIDI",/drum-transcription,commercial
+drums,edit,"drum notation editor; drum sheet music editor; drum beat writer",/drum-notation-editor,commercial
+drums,learn,"how to transcribe drums from a recording",/blog/how-to-transcribe-drums-from-a-recording,guide
+drums,read,"how to read drum notation",/blog/how-to-read-drum-notation,guide
+drums,write,"how to write drum beats and fills",/blog/how-to-write-drum-beats-and-fills,guide
+ukulele,transcribe,"ukulele transcription; audio to ukulele notes",/ukulele-transcription,commercial
+ukulele,edit,"ukulele tab maker; ukulele tab editor; ukulele tablature",/ukulele-tab-editor,commercial
+ukulele,write,"how to write ukulele tabs; high G vs low G",/blog/how-to-write-ukulele-tabs-high-g-low-g,guide
+ukulele,learn,"how to transcribe a ukulele melody",/blog/how-to-transcribe-a-ukulele-melody,guide
+ukulele,practice,"how to practise fingerstyle ukulele with tabs",/blog/how-to-practise-fingerstyle-ukulele-with-tabs,guide
