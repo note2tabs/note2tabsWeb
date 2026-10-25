@@ -52,11 +52,11 @@ it("the actual Tools menu action applies only the current selection and uses exi
     { id: 2, midiNum: 64, startTime: 0, length: 120, tab: [0,0], optimals: [], notationVoice: 1 },
     { id: 3, midiNum: 65, startTime: 120, length: 120, tab: [0,0], optimals: [], notationVoice: 1 },
   ], chords: [], cutPositionsWithCoords: [], optimalsByTime: {} };
-  const changed = vi.fn(), saved = vi.fn(), confirm = vi.fn().mockReturnValue(true);
+  const changed = vi.fn(), saved = vi.fn(), confirmation = vi.fn();
   const scope = { React, canvas: { editors: [track] }, canvasRef: { current: { editors: [track] } }, activeLaneId: track.id,
     isDrumLane: (lane: EditorSnapshot) => lane.trackType === "drums", practiceModeEnabled: false, laneSelectionById: { piano: { noteIds: [1], chordIds: [] } },
     assignVoices, handleLaneSnapshotChange: changed, queueDrumSave: saved, setVoiceAssignmentMessage: vi.fn(), t: (text: string) => text,
-    handleCleanActiveTrack: vi.fn(), window: { confirm } };
+    handleCleanActiveTrack: vi.fn(), setVoiceAssignmentConfirm: confirmation };
   const script = ts.transpileModule(`(${expression})()`, { compilerOptions: { target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React } }).outputText;
   const menu = vm.runInNewContext(script, scope), button = menu.props.children[0];
   expect(button.props.children).toBe("Auto Assign Voices");
@@ -64,7 +64,10 @@ it("the actual Tools menu action applies only the current selection and uses exi
   expect(changed).toHaveBeenCalledOnce(); expect(saved).toHaveBeenCalledWith(track.id, changed.mock.calls[0][1]);
   expect(changed.mock.calls[0][1].notes[0].notationVoice).toBe(2);
   expect(changed.mock.calls[0][1].notes.slice(1)).toEqual(track.notes.slice(1));
-  track.notes[0].notationVoice = 1; confirm.mockReturnValue(false); changed.mockClear();
+  track.notes[0].notationVoice = 1; changed.mockClear();
   vm.runInNewContext(script, scope).props.children[0].props.onClick();
-  expect(confirm).toHaveBeenCalledOnce(); expect(changed).not.toHaveBeenCalled();
+  expect(confirmation).toHaveBeenCalledOnce(); expect(changed).not.toHaveBeenCalled();
+  expect(confirmation.mock.calls[0][0].selection).toBe(true);
+  confirmation.mock.calls[0][0].apply();
+  expect(changed).toHaveBeenCalledOnce();
 });

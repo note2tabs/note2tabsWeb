@@ -88,6 +88,7 @@ import GteTrackSoundSelect from "../../components/GteTrackSoundSelect";
 import Note2TabsSelect from "../../components/Note2TabsSelect";
 import { restoreNotationSnapshot } from "../../lib/gteNotationPersistence";
 import { assignVoices } from "../../lib/gteAssignVoices";
+import GteVoiceAssignmentDialog from "../../components/GteVoiceAssignmentDialog";
 import { FIXED_NOTE_VELOCITY, withFixedVelocity } from "../../lib/gteFixedVelocity";
 import {
   getDrumVoiceForNote,
@@ -1381,6 +1382,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const [activeLaneId, setActiveLaneId] = useState<string | null>(null);
   const [trackCleanupResult, setTrackCleanupResult] = useState<{ laneId: string; count: number } | null>(null);
   const [voiceAssignmentMessage, setVoiceAssignmentMessage] = useState<string | null>(null);
+  const [voiceAssignmentConfirm, setVoiceAssignmentConfirm] = useState<{ apply: () => void; selection: boolean } | null>(null);
   useEffect(() => {
     if (!voiceAssignmentMessage) return;
     const timer = window.setTimeout(() => setVoiceAssignmentMessage(null), 6000);
@@ -3550,12 +3552,17 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           const hasSelection = Boolean(selected && (selected.noteIds.length || selected.chordIds.length || selected.eventKeys?.length));
           const legacyChoices = current.notes.some(note => note.notationVoice && !note.notationVoiceSource && !note.notationVoiceLocked && (!hasSelection || selected.noteIds.includes(note.id)))
             || current.chords.some(chord => (chord.notationVoice || chord.notationMemberVoices?.length) && !chord.notationVoiceSource && !chord.notationVoiceLocked && (!hasSelection || selected.chordIds.includes(chord.id) || selected.eventKeys?.some(key => key.startsWith(`c:${chord.id}:`))));
-          if (legacyChoices && !window.confirm(t("Reassign existing voice choices in this passage? Manually locked voices will be preserved."))) return;
-          const result = assignVoices({ track: current, preserveExisting: false,
-            reassignLegacy: legacyChoices,
-            scope: selected ? { noteIds: selected.noteIds, chordIds: selected.eventKeys?.length ? [] : selected.chordIds, eventKeys: selected.eventKeys } : undefined });
-          if (result.changed) { handleLaneSnapshotChange(current.id, result.track); queueDrumSave(current.id, result.track); }
-          setVoiceAssignmentMessage(result.warnings[0] ?? (result.changed ? t("Voice assignments updated. Manual choices preserved.") : t("Existing manual voice choices preserved.")));
+          const apply = () => {
+            const latest = canvasRef.current?.editors.find(candidate => candidate.id === current.id);
+            if (!latest || isDrumLane(latest)) return;
+            const result = assignVoices({ track: latest, preserveExisting: false,
+              reassignLegacy: legacyChoices,
+              scope: selected ? { noteIds: selected.noteIds, chordIds: selected.eventKeys?.length ? [] : selected.chordIds, eventKeys: selected.eventKeys } : undefined });
+            if (result.changed) { handleLaneSnapshotChange(current.id, result.track); queueDrumSave(current.id, result.track); }
+            setVoiceAssignmentMessage(result.warnings[0] ?? (result.changed ? t("Voice assignments updated. Manual choices preserved.") : t("Existing manual voice choices preserved.")));
+          };
+          if (legacyChoices) setVoiceAssignmentConfirm({ apply, selection: hasSelection });
+          else apply();
         }}
         className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
         title={t("Assign voices to selected notes, or the whole track. Manual voice choices are preserved.")}
@@ -7123,6 +7130,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       </div>}
       {voiceAssignmentMessage && <div role="status" aria-live="polite"
         className="fixed bottom-4 right-4 z-[10050] max-w-[min(28rem,calc(100vw-1.5rem))] rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-sm text-slate-700 shadow-lg">{voiceAssignmentMessage}</div>}
+      {voiceAssignmentConfirm && <GteVoiceAssignmentDialog selection={voiceAssignmentConfirm.selection}
+        onCancel={() => setVoiceAssignmentConfirm(null)} onConfirm={() => { voiceAssignmentConfirm.apply(); setVoiceAssignmentConfirm(null); }} />}
       {PRACTICE_RATING_UI_ENABLED && practiceRatingState === "countdown" && (
         <div
           className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center"

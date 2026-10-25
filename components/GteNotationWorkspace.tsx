@@ -225,7 +225,7 @@ export default function GteNotationWorkspace(props: Props) {
     canTie={connected("ties") || selectedEvents.some((from) => selectedEvents.some((to) => validNotationTie(from, to)))}
     canSlur={connected("slurs") || selectedEvents.some((from) => selectedEvents.some((to) => from.start < to.start))}
     onDuration={chooseDuration} onDot={toggleDot} onAccidental={chooseAccidental}
-    onVoice={(value) => { setVoice(value); if (count) { const resolved = resolveScoreSelection(snapshotRef.current, selection); commit(setScoreVoice(resolved.snapshot, resolved.selection, value)); setSelection(resolved.selection); } focus(); }}
+    onVoice={(value) => { setVoice(value); if (count) commit(setScoreVoice(snapshotRef.current, selection, value)); focus(); }}
     onTie={() => { commit(toggleScoreConnection(snapshotRef.current, selection, "ties")); focus(); }}
     onSlur={() => { commit(toggleScoreConnection(snapshotRef.current, selection, "slurs")); focus(); }}
     canSnapToKey={count > 0} onSnapSelectionToKey={() => { apply({ snapKey: { root: props.canvasKeyBase ?? 0, type: props.canvasKeyType ?? 0 } }); focus(); }}

@@ -14049,9 +14049,9 @@ main.page:has([data-gte-practice-piano-roll]) {
   }
 
   [data-midi-key][data-playing="true"] {
-    background: #64cba0 !important;
+    background: var(--midi-playing-background, #64cba0) !important;
     color: #123e2d !important;
-    box-shadow: inset 0 0 0 2px #267451 !important;
+    box-shadow: inset 0 0 0 2px var(--midi-playing-border, #267451) !important;
   }
 
   [data-desktop-track-selector="true"] > div {

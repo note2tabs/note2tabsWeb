@@ -1,5 +1,5 @@
 import type { EditorSnapshot, Note } from "../types/gte";
-import { addScoreNote, scoreEvents, snapScorePitch, validNotationTie, type ScoreEvent } from "./gteNotation";
+import { addScoreNote, scoreEvents, setScoreVoice, snapScorePitch, validNotationTie, type ScoreEvent } from "./gteNotation";
 import { FIXED_NOTE_VELOCITY, withFixedVelocity } from "./gteFixedVelocity";
 
 export type MidiEdit = { shift?: number; transpose?: number; lengthDelta?: number; velocity?: number; velocityScale?: number; voice?: 1 | 2; remove?: boolean; key?: { root: number; type: number } };
@@ -27,6 +27,7 @@ export function midiFitPlan(events: readonly ScoreEvent[], framesPerBar: number,
 /** MIDI edits address individual pitches, including members of imported chords.
  * Only affected chords are expanded; their other members and phrasing survive. */
 export function editMidiEvents(source: EditorSnapshot, keys: readonly string[], change: MidiEdit): EditorSnapshot {
+  if (change.voice && Object.keys(change).every(key => key === "voice")) return setScoreVoice(source, { noteIds: [], chordIds: [], eventKeys: keys }, change.voice);
   const selected = new Set(keys), events = scoreEvents(source), targets = events.filter((event) => selected.has(event.key));
   if (!targets.length || targets.some((event) => event.start + (change.shift ?? 0) < 0 || event.midi + (change.transpose ?? 0) < 0 || event.midi + (change.transpose ?? 0) > 127 || event.length + (change.lengthDelta ?? 0) <= 0)) return source;
   const next = withFixedVelocity(structuredClone(source)), remap = new Map<string, string>();

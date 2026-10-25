@@ -43,7 +43,7 @@ export function assignVoices({ track, scope, preserveExisting = true, respectMan
     if (!members.some(event => editable.has(event.key))) return chord;
     const memberVoices = members.map(event => editable.has(event.key) ? voices.get(event.key)! : event.voice ?? 1);
     const uniform = memberVoices.every(voice => voice === memberVoices[0]);
-    return { ...chord, notationVoice: uniform ? memberVoices[0] : chord.notationVoice, notationMemberVoices: uniform ? undefined : memberVoices, notationVoiceSource: "auto" as const };
+    return { ...chord, notationVoice: uniform ? memberVoices[0] : undefined, notationMemberVoices: uniform ? undefined : memberVoices, notationVoiceSource: "auto" as const };
   });
   const warnings = [...new Set([...(track.notation?.voiceWarnings?.filter(warning => warning.includes("more than two voices")) ?? []), ...result.warnings])];
   return { track: { ...track, notes, chords, notation: { ...track.notation, voiceAssignmentVersion: VOICE_ASSIGNMENT_VERSION, voiceWarnings: warnings } }, warnings, changed: true };

@@ -6,6 +6,7 @@ import { readPitchedViewState, savePitchedViewState } from "../lib/gtePitchedVie
 import GteMidiToolbar from "./GteMidiToolbar";
 import { prepareTrackInstrument, schedulePreparedTrackNote } from "../lib/gteSamplePlayback";
 import { useLocale } from "../lib/i18n/react";
+import { midiVoiceColors, MIDI_VOICE_COLORS } from "../lib/gteMidiVoiceColors";
 
 type Props = ComponentProps<typeof GteWorkspace>;
 const KEY_WIDTH = 76;
@@ -21,7 +22,8 @@ export const MidiPlayhead = memo(function MidiPlayhead({ scale, height, row, fra
   useEffect(() => {
     let raf = 0, last: string | null = null;
     const keyboard = scroll.current?.querySelectorAll<HTMLButtonElement>("[data-midi-key]");
-    const clearKeys = () => keyboard?.forEach(key => key.removeAttribute("data-playing"));
+    const clearKey = (key: HTMLButtonElement) => { key.removeAttribute("data-playing"); key.style.removeProperty("--midi-playing-background"); key.style.removeProperty("--midi-playing-border"); };
+    const clearKeys = () => keyboard?.forEach(clearKey);
     let previousTime: number | undefined, verticalTarget: number | undefined;
     const update = (timestamp = performance.now()) => {
       const elapsed = previousTime === undefined ? 16 : Math.max(8, Math.min(50, timestamp - previousTime));
@@ -34,11 +36,18 @@ export const MidiPlayhead = memo(function MidiPlayhead({ scale, height, row, fra
       const signature = active.map((note) => note.key).join("|");
       if (last !== signature) {
         last = signature;
-        const pitches = new Set(active.map(note => note.midi));
-        keyboard?.forEach(key => { if (pitches.has(Number(key.dataset.midiKey))) key.setAttribute("data-playing", "true"); else key.removeAttribute("data-playing"); });
+        const pitches = new Map<number, number>();
+        active.forEach(note => pitches.set(note.midi, (pitches.get(note.midi) ?? 0) | (note.voice === 2 ? 2 : 1)));
+        keyboard?.forEach(key => {
+          const voices = pitches.get(Number(key.dataset.midiKey));
+          if (!voices) { clearKey(key); return; }
+          key.setAttribute("data-playing", "true");
+          key.style.setProperty("--midi-playing-background", voices === 3 ? `linear-gradient(90deg, ${MIDI_VOICE_COLORS[1].note} 50%, ${MIDI_VOICE_COLORS[2].note} 50%)` : midiVoiceColors(voices).note);
+          key.style.setProperty("--midi-playing-border", midiVoiceColors(voices).selectedBorder);
+        });
         highlights.current?.replaceChildren(...active.map((note) => {
           const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-          for (const [key, value] of Object.entries({ x: note.start * scale, y: (127 - note.midi) * row + 1, width: Math.max(3, note.length * scale), height: row - 2, rx: 2, fill: "#fffbd9", "fill-opacity": 0.4, stroke: "#9b8945", "stroke-width": 1.5 })) rect.setAttribute(key, String(value));
+          for (const [key, value] of Object.entries({ x: note.start * scale, y: (127 - note.midi) * row + 1, width: Math.max(3, note.length * scale), height: row - 2, rx: 2, fill: midiVoiceColors(note.voice).selected, "fill-opacity": 0.65, stroke: midiVoiceColors(note.voice).selectedBorder, "stroke-width": 1.5 })) rect.setAttribute(key, String(value));
           return rect;
         }));
       }
@@ -124,17 +133,17 @@ export default function GteMidiWorkspace(props: Props) {
     focus();
   };
   const dense = visible.length > 1500;
-  // At overview zoom render every note in three batched paths instead of
+  // At overview zoom render every voice/selection state in four batched paths instead of
   // thousands of DOM nodes. Picking and box selection still use real events.
   const densityPaths = useMemo(() => {
     if (!dense) return [];
-    const paths = ["", "", ""];
+    const paths = ["", "", "", ""];
     for (const note of visible) {
       const edit = chosen.has(note.key) ? preview : null;
       const pitch = edit?.key ? snapScorePitch(note.midi + (edit.transpose ?? 0), edit.key.root, edit.key.type) : note.midi + (edit?.transpose ?? 0);
       const x = ((note.start + (edit?.shift ?? 0)) * scale).toFixed(2), y = ((127 - pitch) * ROW + 1).toFixed(2);
       const w = Math.max(1, (note.length + (edit?.lengthDelta ?? 0)) * scale).toFixed(2), h = Math.max(4, ROW - 2);
-      paths[chosen.has(note.key) ? 2 : note.voice === 2 ? 1 : 0] += `M${x} ${y}h${w}v${h}h-${w}z`;
+      paths[(note.voice === 2 ? 1 : 0) + (chosen.has(note.key) ? 2 : 0)] += `M${x} ${y}h${w}v${h}h-${w}z`;
     }
     return paths;
   }, [dense, visible, chosen, preview, scale, ROW]);
@@ -413,7 +422,7 @@ export default function GteMidiWorkspace(props: Props) {
               {hoverPitch !== null && <rect x={0} y={(127 - hoverPitch) * ROW} width={width} height={ROW} fill="#637c6c" fillOpacity={0.05} pointerEvents="none" />}
               <rect width={width} height={PITCH_HEIGHT} fill={`url(#midi-grid-${snapshot.id})`} />
               {Array.from({ length: Math.ceil(viewport.width / zoom * meter / beatStride) + 3 }, (_, offset) => (Math.max(0, Math.floor(viewport.left / zoom * meter / beatStride)) + offset) * beatStride).filter((index) => index < bars * meter).map((index) => <line key={index} x1={index * zoom / meter} x2={index * zoom / meter} y1={0} y2={PITCH_HEIGHT} stroke={index % meter === 0 ? "#82958a" : "#b9c6bd"} strokeWidth={index % meter === 0 ? 1.5 : 0.8} />)}
-              {dense && <g data-midi-density="true">{densityPaths.map((path, index) => <path key={index} d={path} fill={["#34b58b", "#669a91", "#acf0d6"][index]} stroke={index === 2 ? "#174b37" : "none"} strokeWidth={0.7} />)}</g>}
+              {dense && <g data-midi-density="true">{densityPaths.map((path, index) => <path key={index} d={path} fill={[MIDI_VOICE_COLORS[1].note, MIDI_VOICE_COLORS[2].note, MIDI_VOICE_COLORS[1].selected, MIDI_VOICE_COLORS[2].selected][index]} stroke={index >= 2 ? midiVoiceColors(index % 2 + 1).selectedBorder : "none"} strokeWidth={0.7} />)}</g>}
               {(dense ? visible.filter((note) => chosen.has(note.key)).slice(0, 100) : visible).map((note) => {
                 const edit = chosen.has(note.key) ? preview : null;
                 const pitch = edit?.key ? snapScorePitch(note.midi + (edit.transpose ?? 0), edit.key.root, edit.key.type) : note.midi + (edit?.transpose ?? 0);
@@ -426,8 +435,8 @@ export default function GteMidiWorkspace(props: Props) {
                 return <g key={note.key} data-midi-note={note.key} role="button" tabIndex={0} aria-label={midiPitchName(note.midi)} aria-pressed={chosen.has(note.key)}
                   onDoubleClick={(event) => event.stopPropagation()} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); if (!chosen.has(note.key)) setSelection([note.key]); setMenu({ x: event.clientX, y: event.clientY, frame: note.start, midi: note.midi }); }}
                   onKeyDown={(event) => { if (event.key === "Enter") { event.stopPropagation(); setSelection([note.key]); void audition(note.midi); } }}>
-                  <rect x={x} y={y} width={w} height={Math.max(4, ROW - 3)} rx={2} className="cursor-grab hover:brightness-110" fill={chosen.has(note.key) ? "#acf0d6" : note.voice === 2 ? "#669a91" : "#34b58b"} fillOpacity={1} stroke={chosen.has(note.key) ? "#174b37" : "#34856a"} strokeWidth={chosen.has(note.key) ? 1.6 : 0.65} onPointerDown={(event) => begin(event, "move")} />
-                  {showNoteLabels && w > 30 && <text x={x + 5} y={y + 10} fontSize={9} fill="#123d2d" pointerEvents="none">{midiPitchName(note.midi)}</text>}
+                  <rect x={x} y={y} width={w} height={Math.max(4, ROW - 3)} rx={2} className="cursor-grab hover:brightness-110" fill={midiVoiceColors(note.voice)[chosen.has(note.key) ? "selected" : "note"]} fillOpacity={1} stroke={midiVoiceColors(note.voice)[chosen.has(note.key) ? "selectedBorder" : "border"]} strokeWidth={chosen.has(note.key) ? 1.6 : 0.65} onPointerDown={(event) => begin(event, "move")} />
+                  {showNoteLabels && w > 30 && <text x={x + 5} y={y + 10} fontSize={9} fill={midiVoiceColors(note.voice).text} pointerEvents="none">{midiPitchName(note.midi)}</text>}
                   <rect x={x} y={y} width={Math.min(6, w / 3)} height={ROW - 4} fill="transparent" cursor="ew-resize" onPointerDown={(event) => begin(event, "left")} />
                   <rect x={x + w - Math.min(6, w / 3)} y={y} width={Math.min(6, w / 3)} height={ROW - 4} fill="transparent" cursor="ew-resize" onPointerDown={(event) => begin(event, "right")} />
                 </g>;

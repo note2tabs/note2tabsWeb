@@ -52,8 +52,10 @@ on import rather than encoded as a nonstandard MIDI channel convention.
 
 ## Engraving and limitations
 
-Single-voice staves use conventional pitch-dependent stems. Where both voices
-share a staff, Voice 1 stems up and Voice 2 stems down. Each voice retains its
+Sheets maps assigned voices directly to stem directions: Voice 1 stems up and
+Voice 2 stems down, even where the other voice is empty. This deliberately makes
+voice changes visible and consistent with the toolbar, including bulk edits and
+legacy assignments without provenance. Each voice retains its
 independent rests, beams and ties. Empty secondary voices remain hidden.
 
 This is a bounded heuristic, not semantic understanding of a composition.

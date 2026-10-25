@@ -168,9 +168,9 @@ export default function GteEngravedScore({ score, input, restInput = false, disa
           return <g key={hit.token.id + ":" + index}>
             {selected && <ellipse cx={head.x + 5 * scaleX} cy={head.y} rx={10 * scaleX} ry={8} fill="#38bdf8" fillOpacity={0.18} stroke="#0284c7" strokeWidth={0.8} pointerEvents="none" />}
             {moving && <ellipse cx={head.x + 5 * scaleX + preview!.dx} cy={head.y + preview!.dy} rx={6 * scaleX} ry={4} fill="#0284c7" fillOpacity={0.5} pointerEvents="none" />}
-            <rect role="button" tabIndex={0} aria-label={pitch.key + " · " + t("Select note")} aria-pressed={selected}
+            <rect role="button" tabIndex={0} data-notation-voice={source.voice ?? 1} aria-label={pitch.key + " · " + t("Voice") + " " + (source.voice ?? 1) + " · " + t("Select note")} aria-pressed={selected}
               x={head.x - 4 * scaleX} y={top} width={20 * scaleX} height={Math.max(1, bottom - top)} fill="transparent" className="cursor-grab focus:stroke-sky-500 focus:outline-none"
-              onPointerDown={(event) => interaction.current.startDrag(event, hit, source)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); interaction.current.onSelect(source, event.shiftKey); } }} />
+              onPointerDown={(event) => interaction.current.startDrag(event, hit, source)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); interaction.current.onSelect(source, event.shiftKey); } }}><title>{pitch.key + " · " + t("Voice") + " " + (source.voice ?? 1)}</title></rect>
           </g>;
         }))) : null, [layout, headsAtTime, selection, preview, t]);
   return <div ref={container} data-gte-sheet="true" className="min-w-0 w-full max-w-full overflow-x-auto">

@@ -134,9 +134,17 @@ export function toggleScoreConnection(source: EditorSnapshot, selection: Selecti
   return { ...source, notation: { ...source.notation, [kind]: [...existing, ...links] } };
 }
 export function setScoreVoice(source: EditorSnapshot, selection: Selection, voice: 1 | 2) {
-  ({ snapshot: source, selection } = resolveScoreSelection(source, selection));
-  return { ...source, notes: source.notes.map((note) => selection.noteIds.includes(note.id) ? { ...note, notationVoice: voice, notationVoiceSource: "manual" as const, notationVoiceLocked: true } : note),
-    chords: source.chords.map((chord) => selection.chordIds.includes(chord.id) ? { ...chord, notationVoice: voice, notationMemberVoices: undefined, notationVoiceSource: "manual" as const, notationVoiceLocked: true } : chord) };
+  const keys = new Set(scoreEvents(source).filter(event => scoreEventSelected(event, selection)).map(event => event.key));
+  if (!keys.size) return source;
+  return { ...source, notes: source.notes.map(note => keys.has(`n:${note.id}`) ? { ...note, notationVoice: voice, notationVoiceSource: "manual" as const, notationVoiceLocked: true } : note),
+    chords: source.chords.map(chord => {
+      const count = Math.max(chord.originalMidi.length, chord.currentTabs.length);
+      if (!Array.from({ length: count }, (_, member) => keys.has(`c:${chord.id}:${member}`)).some(Boolean)) return chord;
+      const voices = Array.from({ length: count }, (_, member) => keys.has(`c:${chord.id}:${member}`) ? voice : chord.notationMemberVoices?.[member] ?? chord.notationVoice ?? 1);
+      const uniform = voices.every(value => value === voices[0]);
+      return { ...chord, notationVoice: uniform ? voices[0] : undefined, notationMemberVoices: uniform ? undefined : voices,
+        notationVoiceSource: "manual" as const, notationVoiceLocked: true };
+    }) };
 }
 export function addScoreRest(source: EditorSnapshot, rest: NonNullable<NonNullable<EditorSnapshot["notation"]>["rests"]>[number]) {
   const rests = source.notation?.rests ?? [];

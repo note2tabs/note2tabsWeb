@@ -9,8 +9,8 @@ export function practiceKeyActive(start: number, length: number, frame: number, 
   return frame >= start && frame < start + length - gapFrames;
 }
 export const PRACTICE_VOICE_COLORS = {
-  1: { upcoming: "#16bce8", active: "#a0efff", blackActive: "#129bc8", border: "#6fe5ff" },
-  2: { upcoming: "#28d973", active: "#b0ffcb", blackActive: "#15ae58", border: "#79ffa9" },
+  1: { upcoming: "#28d973", active: "#b0ffcb", blackActive: "#15ae58", border: "#79ffa9" },
+  2: { upcoming: "#16bce8", active: "#a0efff", blackActive: "#129bc8", border: "#6fe5ff" },
 } as const;
 export function practiceKeyIllumination(start: number, length: number, frame: number, horizon: number, height: number, fps: number) {
   if (frame < start || frame >= start + length) return 0;
