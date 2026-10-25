@@ -180,7 +180,8 @@ describe("transcriber import chunking", () => {
       new Response(JSON.stringify({ ok: true, snapshot: JSON.parse(String(init?.body || "{}")).snapshot }), { status: 200 })
     ));
     const result = await optimizeImportedTrackFingerings("canvas-1", source, 2, [lane.id]);
-    expect(result).toEqual(before);
+    expect(result.editors[0].notes.map(({ notationVoice, notationVoiceSource, ...note }) => note)).toEqual(before.editors[0].notes);
+    expect(result.editors[0].notes.every(note => note.notationVoice === 1 || note.notationVoice === 2)).toBe(true);
     expect(source).toEqual(before);
   });
 

@@ -41,7 +41,7 @@ export function restorePitchedImport(lane: EditorSnapshot, segments: Transcriber
     return [{ id: index + 1, startTime: value.start + offset, length: value.length, midiNum: segment.pitch_midi!,
       tab: [0, 0] as [number, number], optimals: [],
       velocity: 100 / 127,
-      pitchBend: segment.pitch_bend ?? undefined, notationVoice: 1 as const }];
+      pitchBend: segment.pitch_bend ?? undefined }];
   });
   return { ...lane, notes, chords: [], noteEffects: [], notation: {},
     totalFrames: Math.max(lane.totalFrames, Math.ceil(notes.reduce((end, note) => Math.max(end, note.startTime + note.length), 0) / 480) * 480) };

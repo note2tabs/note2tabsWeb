@@ -1,6 +1,7 @@
 import type { EditorSnapshot, TabCoord } from "../types/gte";
 import { defaultInstrumentSound, getTrackInstrumentType, type InstrumentType } from "./gteInstrumentType";
 import { scoreEvents } from "./gteNotation";
+import { noteVoiceMetadata } from "./gteVoiceMetadata";
 import { getAllTabsForMidi } from "./gteTuning";
 
 /** Conversion never transposes, trims, or discards musical events. */
@@ -57,7 +58,7 @@ function convertTrackInstrumentForced(track: EditorSnapshot, target: "guitar-tab
   for (const row of placed) {
     const event = row.event, noteId = event.noteId ?? id++;
     keys.set(event.key, `n:${noteId}`);
-    const original = event.noteId !== undefined ? track.notes.find(note => note.id === event.noteId) : undefined;
+    const original = event.noteId !== undefined ? track.notes.find(note => note.id === event.noteId) : noteVoiceMetadata(track.chords.find(chord => chord.id === event.chordId)!, event.member);
     notes.push({ ...original, id: noteId, startTime: row.start, length: Math.max(1, row.end - row.start), midiNum: row.midi, tab: row.tab, optimals: row.options,
       velocity: event.velocity, pitchBend: event.pitchBend, notationVoice: event.voice, notationStaff: event.staff } as EditorSnapshot["notes"][number]);
   }
@@ -149,7 +150,7 @@ function convertTrackInstrumentStrict(track: EditorSnapshot, target: InstrumentT
       if (event.chordId === undefined) continue;
       const noteId = id++;
       keys.set(event.key, `n:${noteId}`);
-      next.notes.push({ id: noteId, startTime: event.start, length: event.length, midiNum: event.midi,
+      next.notes.push({ ...noteVoiceMetadata(track.chords.find(chord => chord.id === event.chordId)!, event.member), id: noteId, startTime: event.start, length: event.length, midiNum: event.midi,
         tab: assigned.get(event.key)!, optimals: candidates.get(event.key)!, velocity: event.velocity,
         pitchBend: event.pitchBend, notationVoice: event.voice, notationStaff: event.staff });
     }

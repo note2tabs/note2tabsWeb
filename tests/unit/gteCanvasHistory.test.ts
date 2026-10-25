@@ -10,6 +10,7 @@ import { sameHistoryContent } from "../../lib/gteHistoryEquality";
 import { appendBoundedHistory } from "../../lib/gteEditorPerformance";
 import { RevisionedAutosaveQueue } from "../../lib/gteAutosaveQueue";
 import type { CanvasSnapshot } from "../../types/gte";
+import { assignVoices } from "../../lib/gteAssignVoices";
 
 const source = readFileSync("pages/gte/[editor_id].tsx", "utf8");
 const ast = ts.createSourceFile("editor.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -41,7 +42,7 @@ afterAll(() => { dom.window.close(); vi.unstubAllGlobals(); });
 async function harness() {
   const scope: Record<string, any> = { sameHistoryContent, appendBoundedHistory, MAX_CANVAS_HISTORY: 64,
     canvasUndoRef: { current: [] }, canvasRedoRef: { current: [] }, addingLane: false, deletingLaneId: null,
-    savingCanvas: false, canvasRevisionRef: { current: 0 }, rebaseHistoryLaneSaves: vi.fn(),
+    savingCanvas: false, canvasRevisionRef: { current: 0 }, rebaseHistoryLaneSaves: vi.fn(), router: { query: {} },
     setCanvasUndoCount: vi.fn(), setCanvasRedoCount: vi.fn(),
     setHasPendingCommit: vi.fn(), syncCanvasDraftToBackend: vi.fn().mockResolvedValue(undefined) };
   scope.recordCanvasHistory = callback("recordCanvasHistory", scope);
@@ -61,6 +62,18 @@ async function harness() {
 }
 
 describe("React editor undo/redo transactions", () => {
+  it("undoes and redoes automatic voice assignment through the existing canvas history", async () => {
+    const { scope, edit, undo, redo } = await harness();
+    const before = canvas(2); before.editors[0].instrumentType = "notation";
+    await act(async () => edit(before));
+    const result = assignVoices({ track: before.editors[0] });
+    await act(async () => edit({ ...before, editors: [result.track] }));
+    expect(scope.canvasRef.current.editors[0].notes[0].notationVoice).toBe(1);
+    await act(async () => undo());
+    expect(scope.canvasRef.current.editors[0].notes[0].notationVoice).toBeUndefined();
+    await act(async () => redo());
+    expect(scope.canvasRef.current.editors[0].notes[0].notationVoiceSource).toBe("auto");
+  });
   it("records each batched edit once in StrictMode and persists every rapid undo/redo", async () => {
     const { scope, edit, undo, redo, container } = await harness();
     await act(async () => { edit(canvas(1)); edit(canvas(2)); });

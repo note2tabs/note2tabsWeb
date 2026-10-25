@@ -25,6 +25,7 @@ function buildMeasure(model: ScoreMeasure, score: NotationScore, first: boolean)
   const records: Array<{ token: ScoreToken; note: StemmableNote }> = [], voices: Voice[] = [], beams: Beam[] = [], tuplets: Tuplet[] = [];
   const formatter = new Formatter();
   for (const staff of scoreStaves(score)) {
+    const forcedStems = Boolean(score.percussion) || model.voices[staff].filter(tokens => tokens.some(token => !token.rest && !token.hidden)).length > 1;
     const staffVoices = model.voices[staff].map((tokens, voiceIndex) => {
       const tupletNotes = new Map<string, StemmableNote[]>();
       const notes = tokens.map((token) => {
@@ -33,8 +34,8 @@ function buildMeasure(model: ScoreMeasure, score: NotationScore, first: boolean)
         const note = token.hidden ? new GhostNote(structure) : new StaveNote({
           ...structure, clef: staff, keys: token.rest ? [staff === "bass" ? "d/3" : "b/4"] : token.pitches.map((pitch) => pitch.key),
           alignCenter: token.measureRest,
-          autoStem: false,
-          stemDirection: voiceIndex % 2 === 0 ? Stem.UP : Stem.DOWN,
+          autoStem: !forcedStems,
+          stemDirection: forcedStems ? (voiceIndex % 2 === 0 ? Stem.UP : Stem.DOWN) : undefined,
         });
         note.setStave(staves[staff]);
         if (token.dotted && !token.hidden) Dot.buildAndAttach([note], { all: true });
@@ -46,7 +47,7 @@ function buildMeasure(model: ScoreMeasure, score: NotationScore, first: boolean)
       const voice = new Voice({ numBeats: score.numerator, beatValue: score.denominator }).addTickables(notes);
       beams.push(...Beam.generateBeams(notes, {
         groups: score.groups.map((value) => new Fraction(value, score.denominator)),
-        maintainStemDirections: true,
+        maintainStemDirections: forcedStems,
         beamRests: false,
       }));
       return voice;

@@ -6,6 +6,7 @@ import { JSDOM } from "jsdom";
 import { buildNotationScore } from "../../lib/gteNotationScore";
 import { engravingPoint, engravingXAt, prepareNotationEngraving } from "../../lib/gteNotationEngraving";
 import type { EditorSnapshot, Note } from "../../types/gte";
+import { assignVoices } from "../../lib/gteAssignVoices";
 
 let dom: JSDOM;
 beforeAll(() => {
@@ -24,13 +25,25 @@ const source = (notes: Note[], extra: Partial<EditorSnapshot> = {}): EditorSnaps
   framesPerMessure: 480, totalFrames: 1920, timeSignature: 4, timeSignatureBottom: 4, fps: 240, notes, chords: [], cutPositionsWithCoords: [], optimalsByTime: {}, ...extra });
 
 describe("real-font notation engraving", () => {
-  it.each([1, 2] as const)("keeps Voice %i stems consistent when no other voice is present", voice => {
+  it("engraves automatic independent voices with complete rhythms and correct stems", () => {
+    const input = source([note(1, 0, 480, 64), ...[76,77,79,81].map((pitch, i) => note(i + 2, i * 120, 120, pitch))], { totalFrames: 480 });
+    input.notes.forEach(note => { note.notationStaff = "treble"; });
+    const assigned = assignVoices({ track: input }).track;
+    const prepared = prepareNotationEngraving(buildNotationScore(assigned), 1000);
+    for (const voice of prepared.built[0].voices) expect(voice.isComplete()).toBe(true);
+    for (const record of prepared.built[0].records.filter(record => !record.token.rest)) expect(record.note.getStemDirection()).toBe(record.token.voice === 0 ? Stem.UP : Stem.DOWN);
+    const canvas = createCanvas(prepared.layout.width, prepared.layout.height), context = canvas.getContext("2d");
+    context.fillStyle = "white"; context.fillRect(0, 0, canvas.width, canvas.height);
+    prepared.draw(new CanvasContext(context as unknown as CanvasRenderingContext2D));
+    if (process.env.GTE_NOTATION_RENDER_DIR) { mkdirSync(process.env.GTE_NOTATION_RENDER_DIR, { recursive: true }); writeFileSync(process.env.GTE_NOTATION_RENDER_DIR + "/auto-voices.png", canvas.toBuffer("image/png")); }
+  });
+  it.each([1, 2] as const)("uses natural stems for a single Voice %i passage", voice => {
     const notes = Array.from({ length: 4 }, (_, index) => ({ ...note(index, index * 60, 60, voice === 1 ? 84 : 40), notationVoice: voice }));
     const snapshot = source(notes, { totalFrames: 480 });
     const before = structuredClone(snapshot);
     const prepared = prepareNotationEngraving(buildNotationScore(snapshot), 900);
     for (const record of prepared.built.flatMap(measure => measure.records).filter(record => !record.token.rest)) {
-      expect(record.note.getStemDirection()).toBe(voice === 1 ? Stem.UP : Stem.DOWN);
+      expect(record.note.getStemDirection()).toBe(voice === 1 ? Stem.DOWN : Stem.UP);
     }
     expect(snapshot).toEqual(before);
   });

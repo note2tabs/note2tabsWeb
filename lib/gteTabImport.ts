@@ -55,7 +55,13 @@ const ALPHATAB_EXTENSIONS = new Set(["gp", "gp3", "gp4", "gp5", "gpx", "gtp", "x
 const RECOGNIZED_BINARY_EXTENSIONS = new Set(["gp", "gp3", "gp4", "gp5", "gpx", "gtp", "ptb", "tef", "tg", "mxl"]);
 const TAB_TEXT_LABEL_RE = /^\s*([eEBDGA])\s*[\|:]/;
 
+export type ImportedNotationNote = { start: number; length: number; midi: number; voice?: 1 | 2; staff?: "treble" | "bass"; tieStart?: boolean; tieStop?: boolean };
 type ParsedTabImport = {
+  timeSignature?: number;
+  timeSignatureBottom?: number;
+  notationNotes?: ImportedNotationNote[];
+  notationRests?: Array<{ start: number; length: number; staff: "treble" | "bass"; voice: 1 | 2 }>;
+  instrumentType?: "notation";
   name?: string;
   text: string;
   stamps: Array<[number, [number, number], number]>;
@@ -118,6 +124,9 @@ function quantizeParsedImport(parsed: ParsedTabImport): ParsedTabImport {
     return {
       ...track,
       stamps,
+      // MusicXML already supplies exact musical timing. Do not quantize its
+      // voices independently, or tuplets, ties and chord onsets drift apart.
+      ...(track.notationNotes ? { notationNotes: track.notationNotes } : {}),
       totalFrames: Math.max(
         framesPerMeasure,
         noteEnd,
@@ -142,6 +151,14 @@ function quantizeParsedImport(parsed: ParsedTabImport): ParsedTabImport {
 }
 
 type TabPosition = {
+  unplayable?: boolean;
+  midi?: number;
+  voice?: 1 | 2;
+  staff?: "treble" | "bass";
+  rest?: boolean;
+  tieStart?: boolean;
+  tieStop?: boolean;
+  voiceOverflow?: boolean;
   column: number;
   stringIndex: number;
   fret: number;
@@ -277,21 +294,21 @@ function validateAsciiTabText(text: string) {
 export function parseMusicXmlTabImport(xml: string): ParsedTabImport {
   const tracks = extractMusicXmlTracks(xml);
   if (!tracks.length) {
-    throw new Error("No guitar notes were found in this MusicXML file.");
+    throw new Error("No pitched notes were found in this MusicXML file.");
   }
   const parsedTracks = tracks.map((track, index) =>
-    buildParsedImportFromPositions(track.positions, undefined, {
+    ({ ...buildParsedImportFromPositions(track.positions, undefined, {
       warning: "Imported MusicXML timing is approximated for the editor grid.",
       name: track.name || `MusicXML part ${index + 1}`,
-    })
+    }), instrumentType: "notation" as const, timeSignature: track.timeSignature, timeSignatureBottom: track.timeSignatureBottom })
   );
   const combined = buildParsedImportFromPositions(tracks.flatMap((track) => track.positions), undefined, {
-    warning: "Imported MusicXML timing is approximated for the editor grid.",
+    warning: parsedTracks.some(track => track.warning?.includes("two voices")) ? "This score contains more than two voices per staff. All notes are retained, with a two-voice notation approximation." : "Imported MusicXML timing is approximated for the editor grid.",
   });
   return {
     ...combined,
     tracks: parsedTracks,
-    warning: "Imported MusicXML timing is approximated for the editor grid.",
+    warning: combined.warning,
   };
 }
 
@@ -449,6 +466,14 @@ function midiToTab(midi: number): { stringIndex: number; fret: number } | null {
 
 function extractMusicXmlTrackNotes(partXml: string): TabPosition[] {
   const positions: TabPosition[] = [];
+    const voiceIds = new Map<string, string[]>();
+    for (const token of getTagBlocks(partXml, "note")) {
+      const staff = getTagText(token, "staff") || "1", voice = getTagText(token, "voice");
+      if (!voice) continue;
+      const ids = voiceIds.get(staff) ?? [];
+      if (!ids.includes(voice)) ids.push(voice);
+      voiceIds.set(staff, ids);
+    }
     const state = { divisions: 1, beats: 4, beatType: 4 };
     const measures = getTagBlocks(partXml, "measure");
     const measureSources = measures.length ? measures : [partXml];
@@ -475,6 +500,17 @@ function extractMusicXmlTrackNotes(partXml: string): TabPosition[] {
         const length = getMusicXmlDurationFrames(token, measureDuration);
         const noteStartFrame = isChord ? lastNoteStartFrame : cursorFrame;
         if (!isChord) lastNoteStartFrame = noteStartFrame;
+        const staffId = getTagText(token, "staff") || "1", importedVoice = getTagText(token, "voice");
+        const mappedVoice = importedVoice ? (voiceIds.get(staffId)?.indexOf(importedVoice) ?? -1) + 1 : 0;
+        const midi = pitchToMidi(token);
+        const metadata = {
+          ...(midi !== null ? { midi } : {}),
+          voice: mappedVoice === 1 || mappedVoice === 2 ? mappedVoice as 1 | 2 : undefined,
+          voiceOverflow: (voiceIds.get(staffId)?.length ?? 0) > 2,
+          staff: (staffId === "2" || /<sign>\s*F\s*<\/sign>/i.test(partXml) && !/<sign>\s*G\s*<\/sign>/i.test(partXml) ? "bass" : "treble") as "bass" | "treble",
+          tieStart: /<tie\b[^>]*\btype=["']start["']/i.test(token),
+          tieStop: /<tie\b[^>]*\btype=["']stop["']/i.test(token),
+        };
 
         if (!isRest) {
           const technical = token.match(/<technical\b(?:\s[^>]*)?>([\s\S]*?)<\/technical>/i)?.[1] || "";
@@ -482,18 +518,20 @@ function extractMusicXmlTrackNotes(partXml: string): TabPosition[] {
           const fret = getOptionalTagNumber(technical, "fret");
           if (Number.isFinite(musicXmlString) && Number.isFinite(fret)) {
             positions.push({
+              ...metadata,
               column: noteStartFrame,
               stringIndex: Math.max(0, Math.min(5, Math.round(musicXmlString) - 1)),
               fret: Math.max(0, Math.min(24, Math.round(fret))),
               length,
             });
           } else {
-            const midi = pitchToMidi(token);
             const tab = midi === null ? null : midiToTab(midi);
-            if (tab) {
-              positions.push({ column: noteStartFrame, stringIndex: tab.stringIndex, fret: tab.fret, length });
+            if (midi !== null) {
+              positions.push({ ...metadata, column: noteStartFrame, stringIndex: tab?.stringIndex ?? 0, fret: tab?.fret ?? 0, length });
             }
           }
+        } else {
+          positions.push({ ...metadata, rest: true, column: noteStartFrame, stringIndex: 0, fret: 0, length });
         }
 
         if (!isChord) cursorFrame += length;
@@ -507,7 +545,7 @@ function extractMusicXmlTrackNotes(partXml: string): TabPosition[] {
   );
 }
 
-function extractMusicXmlTracks(xml: string): Array<{ name?: string; positions: TabPosition[] }> {
+function extractMusicXmlTracks(xml: string): Array<{ name?: string; positions: TabPosition[]; timeSignature?: number; timeSignatureBottom?: number }> {
   const namesByPartId = new Map<string, string>();
   getTagBlocks(xml, "score-part").forEach((scorePart) => {
     const id = scorePart.match(/<score-part\b[^>]*\bid=(["'])(.*?)\1/i)?.[2] || "";
@@ -522,6 +560,8 @@ function extractMusicXmlTracks(xml: string): Array<{ name?: string; positions: T
     if (!positions.length) return [];
     return [{
       name: namesByPartId.get(decodeXmlEntities(id)) || `MusicXML part ${index + 1}`,
+      timeSignature: Number(getTagText(partXml, "beats")) || 4,
+      timeSignatureBottom: Number(getTagText(partXml, "beat-type")) || 4,
       positions,
     }];
   });
@@ -631,16 +671,16 @@ function midiNoteEventsToPositions(
               .filter((candidate) => candidate.fret >= 0 && candidate.fret <= 22)
               .sort((left, right) => left.fret - right.fret || left.stringIndex - right.stringIndex)[0] ?? null
           : midiToTab(note.midi);
-        return tab
-          ? [
+        return [
               {
+                midi: note.midi,
+                unplayable: !tab,
                 column: Math.round((note.startTick / ticksPerBar) * FIXED_FRAMES_PER_BAR),
-                stringIndex: tab.stringIndex,
-                fret: tab.fret,
+                stringIndex: tab?.stringIndex ?? 0,
+                fret: tab?.fret ?? 0,
                 length: Math.max(1, Math.round(((note.endTick - note.startTick) / ticksPerBar) * FIXED_FRAMES_PER_BAR)),
               },
-            ]
-          : [];
+            ];
       })
   );
 }
@@ -830,8 +870,11 @@ function buildParsedImportFromPositions(
   options?: { warning?: string; name?: string; trackType?: "tab" | "bass"; program?: number; droppedNoteCount?: number }
 ): ParsedTabImport {
   const safePositions = limitTabPositions(positions);
+  const pitched = safePositions.filter(position => !position.rest && position.midi !== undefined);
+  const notationNotes = pitched.length ? pitched.map(position => ({ start: position.column, length: position.length ?? 30, midi: position.midi!, voice: position.voice, staff: position.staff, tieStart: position.tieStart, tieStop: position.tieStop })) : undefined;
   const stamps = limitStamps(
     safePositions
+      .filter(position => !position.rest)
       .map((position) => {
         const start = Math.max(0, Math.round(position.column));
         const length = Math.max(1, Math.round(position.length ?? Math.round(FIXED_FRAMES_PER_BAR / 16)));
@@ -853,7 +896,11 @@ function buildParsedImportFromPositions(
     framesPerMessure: FIXED_FRAMES_PER_BAR,
     fps: DEFAULT_FPS,
     totalFrames,
-    warning: options?.warning,
+    warning: safePositions.some(position => position.voiceOverflow) ? "This part contains more than two voices per staff. All notes are retained, with a two-voice notation approximation." : options?.warning,
+    notationNotes,
+    notationRests: safePositions.filter(position => position.rest).map(position => ({ start: position.column, length: position.length ?? 30, staff: position.staff ?? "treble", voice: position.voice ?? 1 })),
+    // Out-of-range pitched imports must not be clamped into fictitious guitar notes.
+    ...(pitched.some(position => position.unplayable || !midiToTab(position.midi!)) ? { instrumentType: "notation" as const } : {}),
     name: options?.name,
     trackType: options?.trackType,
     program: options?.program,

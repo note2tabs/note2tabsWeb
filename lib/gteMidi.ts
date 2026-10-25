@@ -35,7 +35,7 @@ export function editMidiEvents(source: EditorSnapshot, keys: readonly string[], 
   for (const chord of source.chords.filter((chord) => affected.has(chord.id))) {
     for (const event of events.filter((event) => event.chordId === chord.id)) {
       const note: Note = { id: ++id, midiNum: event.midi, startTime: event.start, length: event.length, velocity: event.velocity,
-        pitchBend: chord.pitchBends?.[event.member], notationVoice: event.voice ?? 1, notationStaff: event.staff, tab: [0, 0], optimals: [] };
+        pitchBend: chord.pitchBends?.[event.member], notationVoice: event.voice ?? 1, notationVoiceSource: chord.notationVoiceSource, notationVoiceLocked: chord.notationVoiceLocked, notationStaff: event.staff, tab: [0, 0], optimals: [] };
       remap.set(event.key, "n:" + note.id); next.notes.push(note);
     }
   }
@@ -47,6 +47,7 @@ export function editMidiEvents(source: EditorSnapshot, keys: readonly string[], 
     return [{ ...note, startTime: note.startTime + (change.shift ?? 0), length: note.length + (change.lengthDelta ?? 0),
       midiNum: change.key ? snapScorePitch(note.midiNum + (change.transpose ?? 0), change.key.root, change.key.type) : note.midiNum + (change.transpose ?? 0), optimals: change.transpose ? [] : note.optimals,
       notationVoice: change.voice ?? note.notationVoice,
+      ...(change.voice ? { notationVoiceSource: "manual" as const, notationVoiceLocked: true } : {}),
       velocity: FIXED_NOTE_VELOCITY }];
   });
   const current = scoreEvents(next), byKey = new Map(current.map((event) => [event.key, event]));

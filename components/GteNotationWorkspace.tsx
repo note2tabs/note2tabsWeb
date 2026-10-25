@@ -7,6 +7,7 @@ import GteNotationToolbar from "./GteNotationToolbar";
 import GteEngravedScore from "./GteEngravedScore";
 import { buildNotationScore, notationKeyAlteration, notationPitch } from "../lib/gteNotationScore";
 import { readPitchedViewState, savePitchedViewState } from "../lib/gtePitchedViewState";
+import { assignVoices } from "../lib/gteAssignVoices";
 
 type Props = ComponentProps<typeof GteWorkspace>;
 const NOTE_LETTERS: Record<string, number> = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
@@ -36,9 +37,16 @@ export default function GteNotationWorkspace(props: Props) {
   const [cursor, setCursor] = useState<{ frame: number; midi: number; staff?: "treble" | "bass" } | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const snapshotRef = useRef(snapshot);
+  const voiceCheckedSnapshot = useRef<typeof snapshot | null>(null);
   const audioRef = useRef<AudioContext | null>(null);
   const auditionId = useRef(0);
   snapshotRef.current = snapshot;
+  useEffect(() => {
+    if (editMenuDisabled || voiceCheckedSnapshot.current === snapshot) return;
+    voiceCheckedSnapshot.current = snapshot;
+    const result = assignVoices({ track: snapshot });
+    if (result.changed) onSnapshotChange(result.track, { recordHistory: false, markDirty: true });
+  }, [snapshot, editMenuDisabled, practiceMode, onSnapshotChange]);
   const denominator = props.defaultNoteLengthDenominator ?? localDenominator;
   const entryLength = durationFrames(snapshot, denominator) * (dotted ? 1.5 : 1);
   const snapToKey = props.globalSnapToKeyEnabled ?? false;
@@ -64,6 +72,9 @@ export default function GteNotationWorkspace(props: Props) {
   useEffect(() => {
     const outside = (event: PointerEvent) => {
       const target = event.target as Element;
+      // Menus operate on the current selection; opening Tools must not erase it
+      // before the menu action can read the selected notes/chord members.
+      if (target.closest?.('.gte-editor-sticky-banner, details, [data-gte-editor-control="true"], [data-gte-floating-ui="true"]')) return;
       const inside = root.current?.contains(target);
       if (inside && target.closest?.('[data-gte-sheet="true"], [data-gte-notation-toolbar="true"], [data-notation-bar-menu="true"]')) return;
       setWrite(false); setCursor(null);
@@ -261,6 +272,7 @@ export default function GteNotationWorkspace(props: Props) {
       }
       else if (key === " " && props.onGlobalPlaybackToggle) { event.preventDefault(); event.stopPropagation(); props.onGlobalPlaybackToggle(); }
     }}>
+    {!!snapshot.notation?.voiceWarnings?.length && <p role="status" className="col-span-2 m-0 px-2 py-1 text-xs text-slate-500">{t(snapshot.notation.voiceWarnings[0])}</p>}
     {!reading && <div data-gte-notation-toolbar="true"
       className="sticky col-start-2 row-start-1 z-[100] min-w-0 rounded-xl border border-slate-200 bg-[#faf9f5]/95 p-1.5 shadow-sm"
       style={{ top: toolbarTop, boxSizing: "border-box" }}>

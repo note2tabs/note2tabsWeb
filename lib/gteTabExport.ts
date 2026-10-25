@@ -3,6 +3,8 @@ import { buildTabTextFromSnapshot } from "./gteTabText";
 import type { EditorSnapshot, TabCoord, TimingMapV2 } from "../types/gte";
 import { normalizeTimingMap } from "./gteTiming";
 import { getOpenStringMidiFromSnapshot, getTabMidi, isBassSnapshot } from "./gteTuning";
+import { isNotationTrack } from "./gteNotation";
+import { buildNotationMusicXml } from "./gteNotationExport";
 
 export type GteExportFormat = "json" | "txt" | "musicxml" | "midi";
 
@@ -117,6 +119,7 @@ export const buildMusicXmlFromSnapshot = (
   snapshot: EditorSnapshot,
   suppliedTimingMap?: TimingMapV2
 ) => {
+  if (isNotationTrack(snapshot)) return buildNotationMusicXml(snapshot);
   const title = snapshot.name || "Note2Tabs export";
   const framesPerBar = getFramesPerBar(snapshot);
   const events = collectNoteEvents(snapshot);

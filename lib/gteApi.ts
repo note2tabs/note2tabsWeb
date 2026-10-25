@@ -1,4 +1,5 @@
-import { serializeNotationPayload } from "./gteNotationPersistence";
+import { restoreNotationSnapshot, serializeNotationPayload } from "./gteNotationPersistence";
+import { assignVoices } from "./gteAssignVoices";
 import type {
   CanvasShare,
   CanvasSnapshot,
@@ -676,7 +677,7 @@ export async function optimizeImportedTrackFingerings(
   passes: number = 1,
   importedEditorIds?: readonly string[],
   importedTracksOrCleanupOptions?: readonly TranscriberTrack[] | { manual?: boolean },
-  importContext?: { timingMap?: TimingMapV2; quantization?: TranscriberQuantization; rhythmScale?: number; preferredTimingMap?: TimingMapV2 }
+  importContext?: { timingMap?: TimingMapV2; quantization?: TranscriberQuantization; rhythmScale?: number; preferredTimingMap?: TimingMapV2; preserveMusic?: boolean }
 ): Promise<CanvasSnapshot> {
   const importedTracks = Array.isArray(importedTracksOrCleanupOptions) ? importedTracksOrCleanupOptions : undefined;
   // Preserve main's explicit import cleanup and the older options-only callers.
@@ -701,6 +702,7 @@ export async function optimizeImportedTrackFingerings(
     optimizeTrackFingeringInSnapshot,
   } = await import("./gteFingeringOptimization");
   const importedLaneIds = importedEditorIds ? new Set(importedEditorIds) : null;
+  optimized.editors = optimized.editors.map(lane => (!importedLaneIds || importedLaneIds.has(lane.id)) && lane.notation === undefined && lane.chordEditor?.notation ? restoreNotationSnapshot(lane) : lane);
 
   for (const [index, laneId] of (importedEditorIds ?? []).entries()) {
     const source = importedTracks?.[index];
@@ -719,6 +721,7 @@ export async function optimizeImportedTrackFingerings(
 
   optimized.editors.forEach((lane) => {
     if (importedLaneIds && !importedLaneIds.has(lane.id)) return;
+    if (importContext?.preserveMusic) return;
     if (isNotationTrack(lane)) {
       if (importedLaneIds?.has(lane.id)) cleanTinyOverlapsInSnapshot(lane, overlapCleanupOptions);
       return;
@@ -742,6 +745,9 @@ export async function optimizeImportedTrackFingerings(
     if (importedLaneIds?.has(lane.id)) cleanTinyOverlapsInSnapshot(lane, overlapCleanupOptions);
   });
 
+  // Every import format converges here after final timing, cleanup and fingering.
+  optimized.editors = optimized.editors.map(lane => importedLaneIds && !importedLaneIds.has(lane.id) || isDrumLane(lane)
+    ? lane : assignVoices({ track: lane }).track);
   const saved = await requestForEditor<{ ok: true; snapshot?: EditorOrCanvasSnapshot; canvas?: CanvasSnapshot }>(
     canvasId,
     `/editors/${encodeURIComponent(canvasId)}/snapshot`,
@@ -952,16 +958,20 @@ export const gteApi = {
       }
     ),
   importEditorJson: async (canvasId: string, laneId: string, payload: unknown) => {
+    // Native files carry voice provenance/locks. Protect them from the legacy
+    // backend's note-field normalization using the existing JSON metadata adapter.
+    const native = payload as { editor?: EditorSnapshot };
+    const importedPayload = native?.editor ? { ...native, editor: serializeNotationPayload(native.editor) } : payload;
     const response = await requestForEditor<{ ok: true; snapshot: EditorSnapshot; canvas: CanvasSnapshot }>(
       canvasId,
       `/editors/${canvasId}__ed__${laneId}/import_json`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(importedPayload),
       }
     );
-    return { ...response, canvas: await optimizeImportedTrackFingerings(canvasId, undefined, 1, [laneId]) };
+    return { ...response, canvas: await optimizeImportedTrackFingerings(canvasId, undefined, 0, [laneId], undefined, { preserveMusic: true }) };
   },
   saveDrumNote: (
     canvasId: string,

@@ -87,6 +87,7 @@ import GteTrackTypeSetting from "../../components/GteTrackTypeSetting";
 import GteTrackSoundSelect from "../../components/GteTrackSoundSelect";
 import Note2TabsSelect from "../../components/Note2TabsSelect";
 import { restoreNotationSnapshot } from "../../lib/gteNotationPersistence";
+import { assignVoices } from "../../lib/gteAssignVoices";
 import { FIXED_NOTE_VELOCITY, withFixedVelocity } from "../../lib/gteFixedVelocity";
 import {
   getDrumVoiceForNote,
@@ -1379,6 +1380,12 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const [timingSaving, setTimingSaving] = useState(false);
   const [activeLaneId, setActiveLaneId] = useState<string | null>(null);
   const [trackCleanupResult, setTrackCleanupResult] = useState<{ laneId: string; count: number } | null>(null);
+  const [voiceAssignmentMessage, setVoiceAssignmentMessage] = useState<string | null>(null);
+  useEffect(() => {
+    if (!voiceAssignmentMessage) return;
+    const timer = window.setTimeout(() => setVoiceAssignmentMessage(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [voiceAssignmentMessage]);
   useEffect(() => {
     if (!trackCleanupResult) return;
     const timer = window.setTimeout(() => setTrackCleanupResult(null), 5000);
@@ -1614,7 +1621,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   // off on reload or when switching tracks.
   const [local_isolate_bool, setLocalIsolateBool] = useState(false);
   const [laneSelectionById, setLaneSelectionById] = useState<
-    Record<string, { noteCount: number; chordCount: number; noteIds: number[]; chordIds: number[] }>
+    Record<string, { noteCount: number; chordCount: number; noteIds: number[]; chordIds: number[]; eventKeys?: string[] }>
   >({});
   const [selectionClearEpoch, setSelectionClearEpoch] = useState(0);
   const [selectionClearExemptEditorId, setSelectionClearExemptEditorId] = useState<string | null>(
@@ -3535,6 +3542,24 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const renderTrackCleanupTool = () => {
     const lane = canvas?.editors.find((candidate) => candidate.id === activeLaneId);
     return <>
+      <button type="button" disabled={!lane || isDrumLane(lane) || practiceModeEnabled || !lane.notes.length && !lane.chords.length}
+        onClick={() => {
+          const current = canvasRef.current?.editors.find(candidate => candidate.id === activeLaneId);
+          if (!current || isDrumLane(current)) return;
+          const selected = laneSelectionById[current.id];
+          const hasSelection = Boolean(selected && (selected.noteIds.length || selected.chordIds.length || selected.eventKeys?.length));
+          const legacyChoices = current.notes.some(note => note.notationVoice && !note.notationVoiceSource && !note.notationVoiceLocked && (!hasSelection || selected.noteIds.includes(note.id)))
+            || current.chords.some(chord => (chord.notationVoice || chord.notationMemberVoices?.length) && !chord.notationVoiceSource && !chord.notationVoiceLocked && (!hasSelection || selected.chordIds.includes(chord.id) || selected.eventKeys?.some(key => key.startsWith(`c:${chord.id}:`))));
+          if (legacyChoices && !window.confirm(t("Reassign existing voice choices in this passage? Manually locked voices will be preserved."))) return;
+          const result = assignVoices({ track: current, preserveExisting: false,
+            reassignLegacy: legacyChoices,
+            scope: selected ? { noteIds: selected.noteIds, chordIds: selected.eventKeys?.length ? [] : selected.chordIds, eventKeys: selected.eventKeys } : undefined });
+          if (result.changed) { handleLaneSnapshotChange(current.id, result.track); queueDrumSave(current.id, result.track); }
+          setVoiceAssignmentMessage(result.warnings[0] ?? (result.changed ? t("Voice assignments updated. Manual choices preserved.") : t("Existing manual voice choices preserved.")));
+        }}
+        className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+        title={t("Assign voices to selected notes, or the whole track. Manual voice choices are preserved.")}
+      >{t("Auto Assign Voices")}</button>
       <button type="button" onClick={handleCleanActiveTrack}
         disabled={!lane || isDrumLane(lane) || practiceModeEnabled || lane.notes.length + lane.chords.length === 0}
         title={t("Trim tiny same-string overlaps in this track without quantizing or moving notes.")}
@@ -4609,7 +4634,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const handleLaneSelectionStateChange = useCallback(
     (
       laneId: string,
-      selection: { noteCount: number; chordCount: number; noteIds: number[]; chordIds: number[] }
+      selection: { noteCount: number; chordCount: number; noteIds: number[]; chordIds: number[]; eventKeys?: string[] }
     ) => {
       setLaneSelectionById((prev) => {
         const current = prev[laneId] || { noteCount: 0, chordCount: 0, noteIds: [], chordIds: [] };
@@ -4623,7 +4648,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           current.noteCount === selection.noteCount &&
           current.chordCount === selection.chordCount &&
           sameNoteIds &&
-          sameChordIds
+          sameChordIds && (current.eventKeys ?? []).join("|") === (selection.eventKeys ?? []).join("|")
         ) {
           return prev;
         }
@@ -4634,6 +4659,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             chordCount: selection.chordCount,
             noteIds: [...selection.noteIds],
             chordIds: [...selection.chordIds],
+            eventKeys: selection.eventKeys ? [...selection.eventKeys] : undefined,
           },
         };
       });
@@ -7095,6 +7121,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         className="fixed bottom-4 right-4 z-[10050] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-sm text-slate-700 shadow-lg backdrop-blur">
         {trackCleanupResult.count === 0 ? t("No tiny overlaps to trim.") : t("Trimmed {value1} note/chord endings.", { value1: trackCleanupResult.count })}
       </div>}
+      {voiceAssignmentMessage && <div role="status" aria-live="polite"
+        className="fixed bottom-4 right-4 z-[10050] max-w-[min(28rem,calc(100vw-1.5rem))] rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-sm text-slate-700 shadow-lg">{voiceAssignmentMessage}</div>}
       {PRACTICE_RATING_UI_ENABLED && practiceRatingState === "countdown" && (
         <div
           className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center"

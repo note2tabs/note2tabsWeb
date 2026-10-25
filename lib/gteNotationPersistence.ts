@@ -6,7 +6,7 @@ import { FIXED_NOTE_VELOCITY, withFixedVelocity } from "./gteFixedVelocity";
 export function serializeNotationPayload(snapshot: Record<string, any>): Record<string, any> {
   const serialize = (lane: EditorSnapshot) => {
     lane = withFixedVelocity(lane);
-    const next = isNotationTrack(lane) || lane.notation !== undefined ? serializeNotationSnapshot(lane) : lane;
+    const next = isNotationTrack(lane) || lane.notation !== undefined || lane.notes.some(note => note.notationVoice !== undefined) || lane.chords.some(chord => chord.notationVoice !== undefined) ? serializeNotationSnapshot(lane) : lane;
     const type = getTrackInstrumentType(lane);
     // The legacy backend infers bass from sound IDs. Keep its transport sound
     // aligned with representation; the actual independent sound lives in metadata.
@@ -27,9 +27,9 @@ export function serializeNotationPayload(snapshot: Record<string, any>): Record<
 export function serializeNotationSnapshot(snapshot: EditorSnapshot): EditorSnapshot {
   snapshot = withFixedVelocity(snapshot);
   const assignments = Object.fromEntries([
-    ...snapshot.notes.map((note) => ["n:" + note.id, { voice: note.notationVoice ?? 1, staff: note.notationStaff,
+    ...snapshot.notes.map((note) => ["n:" + note.id, { voice: note.notationVoice, source: note.notationVoiceSource, locked: note.notationVoiceLocked, staff: note.notationStaff,
       midi: note.midiNum, velocity: note.velocity, pitchBend: note.pitchBend, start: note.startTime, length: note.length }]),
-    ...snapshot.chords.map((chord) => ["c:" + chord.id, { voice: chord.notationVoice ?? 1, midis: chord.originalMidi }]),
+    ...snapshot.chords.map((chord) => ["c:" + chord.id, { voice: chord.notationVoice, source: chord.notationVoiceSource, locked: chord.notationVoiceLocked, memberVoices: chord.notationMemberVoices, midis: chord.originalMidi }]),
   ]);
   return { ...snapshot, chordEditor: { ...snapshot.chordEditor, notation: { ...snapshot.notation, assignments } } };
 }
@@ -46,13 +46,14 @@ export function restoreNotationSnapshot(snapshot: EditorSnapshot): EditorSnapsho
   if (snapshot.notation !== undefined) return snapshot;
   const stored = snapshot.chordEditor?.notation;
   if (!stored || typeof stored !== "object" || Array.isArray(stored)) return snapshot;
-  const data = stored as NonNullable<EditorSnapshot["notation"]> & { assignments?: Record<string, { voice?: number; staff?: string; velocity?: number; pitchBend?: number[]; start?: number; length?: number; midi?: number; midis?: number[] }> };
+  const data = stored as NonNullable<EditorSnapshot["notation"]> & { assignments?: Record<string, { voice?: number; source?: "auto" | "manual" | "import"; locked?: boolean; memberVoices?: Array<1 | 2>; staff?: string; velocity?: number; pitchBend?: number[]; start?: number; length?: number; midi?: number; midis?: number[] }> };
   const assignments = data.assignments ?? {};
   const pitched = isNotationTrack(snapshot);
-  return { ...snapshot, notation: snapshot.notation ?? { rests: data.rests, ties: data.ties, slurs: data.slurs },
+  return { ...snapshot, notation: snapshot.notation ?? { rests: data.rests, ties: data.ties, slurs: data.slurs, voiceAssignmentVersion: data.voiceAssignmentVersion, voiceWarnings: data.voiceWarnings },
     notes: snapshot.notes.map((note) => {
       const entry = assignments["n:" + note.id];
-      return { ...note, notationVoice: note.notationVoice ?? (entry?.voice === 2 ? 2 : 1),
+      return { ...note, notationVoice: note.notationVoice ?? (entry?.voice === 1 || entry?.voice === 2 ? entry.voice : undefined),
+        notationVoiceSource: note.notationVoiceSource ?? entry?.source, notationVoiceLocked: note.notationVoiceLocked ?? entry?.locked,
         ...(pitched && Number.isFinite(entry?.midi) ? { midiNum: entry!.midi! } : {}),
         velocity: FIXED_NOTE_VELOCITY,
         ...(Array.isArray(entry?.pitchBend) ? { pitchBend: entry.pitchBend } : {}),
@@ -60,6 +61,12 @@ export function restoreNotationSnapshot(snapshot: EditorSnapshot): EditorSnapsho
         ...(pitched && Number.isFinite(entry?.length) && entry!.length! > 0 ? { length: entry!.length! } : {}),
         notationStaff: note.notationStaff ?? (entry?.staff === "treble" || entry?.staff === "bass" ? entry.staff : undefined) };
     }),
-    chords: snapshot.chords.map((chord) => ({ ...chord, originalMidi: pitched ? assignments["c:" + chord.id]?.midis ?? chord.originalMidi : chord.originalMidi, notationVoice: chord.notationVoice ?? (assignments["c:" + chord.id]?.voice === 2 ? 2 : 1) })),
+    chords: snapshot.chords.map((chord) => {
+      const entry = assignments["c:" + chord.id];
+      return { ...chord, originalMidi: pitched ? entry?.midis ?? chord.originalMidi : chord.originalMidi,
+        notationVoice: chord.notationVoice ?? (entry?.voice === 1 || entry?.voice === 2 ? entry.voice : undefined),
+        notationVoiceSource: chord.notationVoiceSource ?? entry?.source, notationVoiceLocked: chord.notationVoiceLocked ?? entry?.locked,
+        notationMemberVoices: chord.notationMemberVoices ?? entry?.memberVoices };
+    }),
   };
 }

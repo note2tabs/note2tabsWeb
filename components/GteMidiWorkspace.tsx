@@ -196,7 +196,7 @@ export default function GteMidiWorkspace(props: Props) {
   useEffect(() => { savePitchedViewState(props.editorId, { selection }); }, [props.editorId, selection]);
   const clearEpoch = useRef(props.selectionClearEpoch);
   useEffect(() => {
-    props.onSelectionStateChange?.({ noteIds: selected.flatMap((event) => event.noteId !== undefined ? [event.noteId] : []),
+    props.onSelectionStateChange?.({ eventKeys: selected.map(event => event.key), noteIds: selected.flatMap((event) => event.noteId !== undefined ? [event.noteId] : []),
       chordIds: [...new Set(selected.flatMap((event) => event.chordId !== undefined ? [event.chordId] : []))],
       noteCount: selected.filter((event) => event.noteId !== undefined).length, chordCount: new Set(selected.flatMap((event) => event.chordId !== undefined ? [event.chordId] : [])).size });
   }, [selected, props.onSelectionStateChange]);

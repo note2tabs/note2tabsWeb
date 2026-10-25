@@ -82,7 +82,7 @@ const BINARY_VALUES = [1, 2, 4, 8, 16, 32, 64, 128].flatMap((denominator) => [
   { denominator, dotted: false, ticks: SCORE_WHOLE / denominator },
 ]).sort((a, b) => b.ticks - a.ticks);
 
-function quantizeEvents(events: ScoreEvent[], factor: number, barTicks: number): Group[] {
+export function quantizeNotationEvents(events: ScoreEvent[], factor: number, barTicks: number): Group[] {
   const regions = detectTriplets(events, factor, barTicks);
   const groups = new Map<string, Group>();
   events.forEach((event) => {
@@ -152,8 +152,11 @@ export function buildNotationScore(snapshot: EditorSnapshot, options: { keyBase?
     beatTicks: SCORE_WHOLE / denominator * (groups.every((value) => value === 3) ? 3 : 1), groups };
   const events = scoreEvents(snapshot), factor = barTicks / framesPerBar;
   score.connections = { ties: snapshot.notation?.ties ?? [], slurs: snapshot.notation?.slurs ?? [] };
-  const assigned = { treble: [1, 2].map((voice) => voiceIntervals(quantizeEvents(events.filter((event) => event.staff === "treble" && (event.voice ?? 1) === voice), factor, barTicks))),
-    bass: [1, 2].map((voice) => voiceIntervals(quantizeEvents(events.filter((event) => event.staff === "bass" && (event.voice ?? 1) === voice), factor, barTicks))) };
+  // Quantize once before partitioning voices: classification must not change the rhythmic lattice.
+  const quantized = quantizeNotationEvents(events, factor, barTicks);
+  const forVoice = (staff: ScoreStaff, voice: number) => voiceIntervals(quantized.filter(group => group.staff === staff)
+    .map(group => ({ ...group, events: group.events.filter(event => (event.voice ?? 1) === voice) })).filter(group => group.events.length));
+  const assigned = { treble: [1, 2].map(voice => forVoice("treble", voice)), bass: [1, 2].map(voice => forVoice("bass", voice)) };
   const timeline = Math.max(framesPerBar, snapshot.totalFrames, options.timelineEnd ?? 0);
   const nearestBar = Math.round(timeline / framesPerBar) * framesPerBar;
   const last = Math.abs(timeline - nearestBar) <= framesPerBar / 128 ? nearestBar : timeline;
@@ -184,7 +187,7 @@ export function buildNotationScore(snapshot: EditorSnapshot, options: { keyBase?
               });
               const measureRest = !group && !active.length;
               const token: ScoreToken = { ...part, id: staff + ":" + voiceIndex + ":" + part.tick, staff, voice: voiceIndex,
-                rest: !group, measureRest, hidden: measureRest && voiceIndex > 0, pitches: [...pitches.values()].sort((a, b) => a.midi - b.midi),
+                rest: !group, measureRest, hidden: measureRest && (voiceIndex > 0 || voiceGroups[1]?.some(group => group.start < end && group.end > start)), pitches: [...pitches.values()].sort((a, b) => a.midi - b.midi),
                 sources: group?.events ?? [], tieIn: Boolean(group && (group.tieIn || part.tick > group.start)), tieOut: Boolean(group && (group.tieOut || part.tick + part.ticks < group.end)),
                 tuplet: region && !measureRest ? staff + ":" + voiceIndex + ":" + region.id : undefined };
               if (!token.rest && token.denominator >= 8) token.beamGroup = staff + ":" + voiceIndex + ":" + Math.floor(part.tick / score.beatTicks);
