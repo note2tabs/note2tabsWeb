@@ -14808,3 +14808,21 @@ html[lang="ar"] [data-editor-locale="ar"] :is(input[type="text"], textarea) {
 .import-export-related a { text-decoration: underline; text-underline-offset: 4px; }
 .blog-post .post-header--reader { padding-block: 40px 18px; }
 @media (max-width: 640px) { .blog-post .post-header--reader { padding-top: 24px; } }
+
+/* Touch editor: instant taps, no iOS focus-zoom on form fields, no sideways rubber-banding. */
+@media (pointer: coarse) {
+  main.page-tight[data-editor-locale] :is(button, summary, select, label, a, [role="button"], [role="option"], [role="tab"]),
+  [data-gte-floating-ui="true"] :is(button, summary, select, label, a, [role="button"], [role="option"]) {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  main.page-tight[data-editor-locale] :is(input:not([type="range"], [type="checkbox"], [type="radio"]), select, textarea),
+  [data-gte-floating-ui="true"] :is(input:not([type="range"], [type="checkbox"], [type="radio"]), select, textarea) {
+    font-size: max(16px, 1em);
+  }
+  main.page-tight[data-editor-locale] {
+    overscroll-behavior-x: none;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+}

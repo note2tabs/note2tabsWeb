@@ -52,6 +52,7 @@ export default function GteNotationWorkspace(props: Props) {
   const snapToKey = props.globalSnapToKeyEnabled ?? false;
   const entryPitch = (midi: number) => accidental === null && snapToKey ? snapScorePitch(midi, props.canvasKeyBase, props.canvasKeyType) : midi;
   const reading = Boolean(practiceMode || props.tabViewEnabled);
+  const compactTools = Boolean(props.mobileViewport);
   const readOnly = editMenuDisabled || reading;
   const [toolbarTop, setToolbarTop] = useState(8);
   useEffect(() => {
@@ -217,7 +218,7 @@ export default function GteNotationWorkspace(props: Props) {
   const selectedEvents = segments.filter((event) => scoreEventSelected(event, selection));
   const selectedKeys = new Set(selectedEvents.map((event) => event.key));
   const connected = (kind: "ties" | "slurs") => (snapshot.notation?.[kind] ?? []).some((link) => selectedKeys.has(link.from) && selectedKeys.has(link.to));
-  const tools = <GteNotationToolbar mode={write ? restMode ? "rest" : "note" : "select"} voice={voice}
+  const tools = <GteNotationToolbar compact={compactTools} mode={write ? restMode ? "rest" : "note" : "select"} voice={voice}
     selectedVoices={selectedEvents.length ? [...new Set(selectedEvents.map(event => event.voice ?? 1))] : undefined}
     onUndo={props.onRequestUndo} onRedo={props.onRequestRedo} undoCount={props.historyUndoCount} redoCount={props.historyRedoCount}
     denominator={denominator} dotted={write ? dotted : selectedRhythm?.dotted ?? dotted} accidental={accidental} disabled={readOnly}
@@ -274,12 +275,12 @@ export default function GteNotationWorkspace(props: Props) {
     }}>
     {!!snapshot.notation?.voiceWarnings?.length && <p role="status" className="col-span-2 m-0 px-2 py-1 text-xs text-slate-500">{t(snapshot.notation.voiceWarnings[0])}</p>}
     {!reading && <div data-gte-notation-toolbar="true"
-      className="sticky col-start-2 row-start-1 z-[100] min-w-0 rounded-xl border border-slate-200 bg-[#faf9f5]/95 p-1.5 shadow-sm"
-      style={{ top: toolbarTop, boxSizing: "border-box" }}>
+      className={`sticky col-start-2 row-start-1 z-[100] min-w-0 rounded-xl border border-slate-200 bg-[#faf9f5]/95 shadow-sm ${compactTools ? "overflow-y-auto overscroll-contain p-1" : "p-1.5"}`}
+      style={{ top: toolbarTop, boxSizing: "border-box", ...(compactTools ? { maxHeight: `calc(100dvh - ${toolbarTop}px - 6rem)` } : {}) }}>
       {tools}
     </div>}
     <div className={reading ? "col-span-2 min-w-0" : "col-start-1 row-start-1 min-w-0"}>
-    <div data-notation-sheet-scale="true" style={{ zoom: 0.75 }}>
+    <div data-notation-sheet-scale="true" style={{ zoom: compactTools ? 1 : 0.75 }}>
     <GteEngravedScore score={score} input={write} restInput={restMode} disabled={readOnly} snapEnabled={true} denominator={denominator} dotted={dotted} length={entryLength}
       editorId={props.editorId} selectedBars={selectedBars}
       onBarSelect={readOnly ? undefined : selectBar}

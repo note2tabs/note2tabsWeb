@@ -7,6 +7,9 @@ import GtePracticeScrubber from "./GtePracticeScrubber";
 
 type Props = ComponentProps<typeof GteWorkspace>;
 
+/** Narrow screens, plus phones held in landscape (wide but short, with a touch pointer). */
+const isPhoneViewport = () => window.innerWidth < 768 || (window.innerHeight < 600 && Boolean(window.matchMedia?.("(pointer: coarse)").matches));
+
 /** Read-only view of the shared score and audio clock; owns no transport state. */
 export default function GtePracticePianoRoll(props: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -21,8 +24,12 @@ export default function GtePracticePianoRoll(props: Props) {
     const host = viewport.current, surface = canvas.current;
     const ctx = surface?.getContext("2d");
     if (!host || !surface || !ctx) return;
-    window.scrollTo?.(0, 0);
-    host.closest?.("main")?.scrollTo?.(0, 0);
+    // Phones scroll the page: bring the roll itself into view instead of jumping to the top.
+    if (isPhoneViewport()) host.scrollIntoView?.({ block: "center" });
+    else {
+      window.scrollTo?.(0, 0);
+      host.closest?.("main")?.scrollTo?.(0, 0);
+    }
     let width = 0, height = 0, animation = 0, pixelRatio = 0;
     let dirty = true, lastFrame = NaN;
     let whiteHeight = 100, blackHeight = 62, line = 1;
@@ -42,7 +49,11 @@ export default function GtePracticePianoRoll(props: Props) {
       // the notation page and relying on scrolling to reach the keyboard.
       const rect = host.getBoundingClientRect?.();
       if (rect && window.innerHeight) {
-        host.style.height = `${Math.max(96, Math.floor(window.innerHeight - 112 - rect.top))}px`;
+        // On phones the roll sits below the controls, so a fit-to-viewport height would
+        // collapse it; give it a fixed share of the screen and let the page scroll.
+        host.style.height = isPhoneViewport()
+          ? `${Math.max(220, Math.floor(window.innerHeight * 0.6))}px`
+          : `${Math.max(96, Math.floor(window.innerHeight - 112 - rect.top))}px`;
       }
       const whiteCount = pianoPitchCenter(range.high) - pianoPitchCenter(range.low) + 1;
       const nextWidth = Math.max(host.clientWidth, whiteCount * 18);
@@ -173,6 +184,8 @@ export default function GtePracticePianoRoll(props: Props) {
     // Keep the bitmap out of layout. ResizeObserver must not repeatedly clear
     // the canvas in response to scrollbars induced by the canvas itself.
     resize(); draw();
+    // The roll's height settles after the first resize, so centre it once that has happened.
+    if (isPhoneViewport()) requestAnimationFrame(() => host.scrollIntoView?.({ block: "center" }));
     const observer = new ResizeObserver(() => { resize(); draw(); }); observer.observe(host);
     const fit = () => { resize(); draw(); };
     window.addEventListener?.("resize", fit);
@@ -189,8 +202,8 @@ export default function GtePracticePianoRoll(props: Props) {
 
   return <>
   {canPan && <div className="mb-2 flex justify-end gap-1" role="group" aria-label="Visible octaves">
-    <button type="button" className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600" aria-label="Show lower octaves" onClick={() => viewport.current?.scrollBy({ left: -viewport.current.clientWidth / 2, behavior: "smooth" })}>← Octaves</button>
-    <button type="button" className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600" aria-label="Show higher octaves" onClick={() => viewport.current?.scrollBy({ left: viewport.current.clientWidth / 2, behavior: "smooth" })}>Octaves →</button>
+    <button type="button" className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 md:px-2 md:py-1 md:text-xs" aria-label="Show lower octaves" onClick={() => viewport.current?.scrollBy({ left: -viewport.current.clientWidth / 2, behavior: "smooth" })}>← Octaves</button>
+    <button type="button" className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 md:px-2 md:py-1 md:text-xs" aria-label="Show higher octaves" onClick={() => viewport.current?.scrollBy({ left: viewport.current.clientWidth / 2, behavior: "smooth" })}>Octaves →</button>
   </div>}
   <div ref={viewport} data-gte-practice-piano-roll="true" className="relative w-full overflow-x-auto overflow-y-hidden rounded-t-lg border border-[#303b49] [&::-webkit-scrollbar]:hidden" style={{ height: "max(96px, calc(100dvh - 376px))", scrollbarWidth: "none", contain: "layout size" }}>
     <canvas ref={canvas} className="absolute left-0 top-0 block" role="img" aria-label="Practice piano roll. Notes fall toward the keyboard. Use octave controls to see other pitches." />

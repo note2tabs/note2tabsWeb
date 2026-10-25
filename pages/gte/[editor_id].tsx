@@ -78,6 +78,7 @@ import {
   warmTrackInstrument,
 } from "../../lib/gteSamplePlayback";
 import { buildDiscreteSlideSteps } from "../../lib/gteSlidePlayback";
+import { TRACK_INSTRUMENT_OPTIONS } from "../../lib/gteInstrumentManifest";
 import { getOpenStringMidiFromSnapshot, getTabMidi as getSnapshotTabMidi } from "../../lib/gteTuning";
 import { isNotationTrack, scorePlaybackEvents } from "../../lib/gteNotation";
 import { selectNotationBars, insertNotationBars, deleteNotationBars } from "../../lib/gteNotationBars";
@@ -1412,6 +1413,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const [lastCommittedAt, setLastCommittedAt] = useState<string | null>(null);
   const [addingLane, setAddingLane] = useState(false);
   const [addTrackMenuOpen, setAddTrackMenuOpen] = useState(false);
+  const [mobileTrackSettingsLaneId, setMobileTrackSettingsLaneId] = useState<string | null>(null);
   const [desktopTrackMenuOpen, setDesktopTrackMenuOpen] = useState(false);
   const [desktopTrackAddMenuOpen, setDesktopTrackAddMenuOpen] = useState(false);
   const [desktopTrackSettingsCollapsed, setDesktopTrackSettingsCollapsed] = useState(true);
@@ -6189,31 +6191,220 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   }, [canvasTimelineEnd, globalPlaybackIsPlaying, synchronizeSharedTimelineScroll]);
 
   const mobileHistoryBusy = Boolean(deletingLaneId || addingLane);
-  const renderMobileHistoryControls = () => (
-    <div className="flex items-center overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <button
-        type="button"
-        onClick={handleCanvasUndo}
-        disabled={canvasUndoCount === 0 || mobileHistoryBusy}
-        className="flex h-11 w-11 items-center justify-center text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
-        title={t("Undo")}
-        aria-label={t("Undo")}
-      >
-        <span className="h-4 w-4 shrink-0 bg-current" aria-hidden="true" style={{ maskImage: "url(/icons/undo-transparent.png)", WebkitMaskImage: "url(/icons/undo-transparent.png)", maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} />
-      </button>
-      <div className="h-6 w-px bg-slate-200" />
-      <button
-        type="button"
-        onClick={handleCanvasRedo}
-        disabled={canvasRedoCount === 0 || mobileHistoryBusy}
-        className="flex h-11 w-11 items-center justify-center text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
-        title={t("Redo")}
-        aria-label={t("Redo")}
-      >
-        <span className="h-4 w-4 shrink-0 bg-current" aria-hidden="true" style={{ maskImage: "url(/icons/redo-transparent.png)", WebkitMaskImage: "url(/icons/redo-transparent.png)", maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} />
-      </button>
+  const renderMobileHistoryDock = () => (
+    <div
+      data-gte-floating-ui="true"
+      data-gte-mobile-history="true"
+      className="pointer-events-none !fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3 z-[9997]"
+      style={{ position: "fixed" }}
+    >
+      <div className="pointer-events-auto flex items-center rounded-2xl border border-slate-200 bg-white/96 px-1 py-1.5 text-slate-700 shadow-lg backdrop-blur" role="toolbar" aria-label={t("History")}>
+        {([["undo", handleCanvasUndo, canvasUndoCount, "Undo"], ["redo", handleCanvasRedo, canvasRedoCount, "Redo"]] as const).map(([kind, action, count, label], index) => (
+          <span key={kind} className="flex items-center">
+            {index === 1 && <span className="h-5 w-px bg-slate-200" aria-hidden="true" />}
+            <button
+              type="button"
+              onClick={action}
+              disabled={count === 0 || mobileHistoryBusy}
+              className="flex h-10 w-11 shrink-0 items-center justify-center rounded-full transition active:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+              title={t(label)}
+              aria-label={t(label)}
+            >
+              <span className="h-[18px] w-[18px] shrink-0 bg-current" aria-hidden="true" style={{ maskImage: `url(/icons/${kind}-transparent.png)`, WebkitMaskImage: `url(/icons/${kind}-transparent.png)`, maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} />
+            </button>
+          </span>
+        ))}
+      </div>
     </div>
   );
+
+  const renderMobileTrackBar = () => {
+    if (!canvas || !mobileActiveLane) return null;
+    const laneTypeName = (lane: (typeof canvas.editors)[number]) =>
+      isNotationTrack(lane) ? t("Sheets") : isDrumLane(lane) ? t("Drums") : isChordLane(lane) ? t("Chords") : t("Tab");
+    const activeId = mobileActiveLane.id || `ed-${mobileActiveLaneIndex + 1}`;
+    return (
+      <div className="relative flex min-w-0 flex-1 items-center gap-2" data-gte-mobile-track-bar="true">
+        <button
+          type="button"
+          onClick={() => { setMobileTrackMenuOpen((open) => !open); setAddTrackMenuOpen(false); }}
+          className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-left shadow-sm active:bg-slate-50"
+          aria-expanded={mobileTrackMenuOpen}
+          aria-haspopup="listbox"
+          aria-label={t("Choose track")}
+        >
+          <GteTrackInstrumentIcon lane={mobileActiveLane} className="h-5 w-5 shrink-0 text-slate-500" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[9px] font-semibold uppercase leading-3 tracking-[0.13em] text-slate-400">{t("Track")} · {laneTypeName(mobileActiveLane)}</span>
+            <span className="block truncate text-sm font-semibold leading-4 text-slate-800">
+              {editorName(mobileActiveLane.name, t) || t("Track {value1}", { value1: mobileActiveLaneIndex + 1 })}
+            </span>
+          </span>
+          <span className={`text-lg leading-none text-slate-500 transition ${mobileTrackMenuOpen ? "rotate-180" : ""}`} aria-hidden="true">⌄</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => { setMobileTrackSettingsLaneId(activeId); setMobileTrackMenuOpen(false); setAddTrackMenuOpen(false); }}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm active:bg-slate-50"
+          title={t("Track settings")}
+          aria-label={t("Track settings")}
+        >
+          <svg viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth="1.8" aria-hidden="true">
+            <path d="M4 7h9M17 7h3M4 17h3M11 17h9" strokeLinecap="round" />
+            <circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onClick={() => { setAddTrackMenuOpen((open) => !open); setMobileTrackMenuOpen(false); }}
+          disabled={addingLane}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-xl text-white shadow-sm active:bg-slate-700 disabled:opacity-50"
+          title={t("Add track")}
+          aria-label={t("Add track")}
+          aria-expanded={addTrackMenuOpen}
+        >+</button>
+        {mobileTrackMenuOpen && (
+          <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-[10020] overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-[0_18px_45px_rgba(15,23,42,0.2)]" role="listbox" aria-label={t("Choose track")}>
+            {canvas.editors.map((lane, index) => {
+              const laneId = lane.id || `ed-${index + 1}`;
+              const active = laneId === activeLaneId;
+              return (
+                <div key={`mobile-track-choice-${laneId}`} className={`flex items-center gap-1 rounded-xl ${active ? "bg-emerald-50" : ""}`}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={active}
+                    onClick={() => { setActiveLaneId(laneId); setOpenMobileBarMenuLaneId(null); setMobileTrackMenuOpen(false); }}
+                    className={`flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl px-3 text-left text-sm ${active ? "font-semibold text-emerald-950" : "text-slate-700 active:bg-slate-50"}`}
+                  >
+                    <GteTrackInstrumentIcon lane={lane} className="h-4 w-4 shrink-0 text-slate-500" />
+                    <span className="min-w-0 flex-1 truncate">{editorName(lane.name, t) || t("Track {value1}", { value1: index + 1 })}</span>
+                    <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400">{laneTypeName(lane)}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setActiveLaneId(laneId); setMobileTrackSettingsLaneId(laneId); setMobileTrackMenuOpen(false); }}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 active:bg-slate-100"
+                    title={t("Edit settings for {value1}", { value1: editorName(lane.name, t) || t("Track {value1}", { value1: index + 1 }) })}
+                    aria-label={t("Edit settings for {value1}", { value1: editorName(lane.name, t) || t("Track {value1}", { value1: index + 1 }) })}
+                  >
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current" strokeWidth="1.8" aria-hidden="true"><path d="m4 20 4.2-1 10.6-10.6a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {addTrackMenuOpen && (
+          <div className="absolute right-0 top-[calc(100%+6px)] z-[10020] w-52 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl" role="menu" aria-label={t("Add track")}>
+            {(["tab", "chords", "drums", "piano", "strings", "instrument"] as const).map((type) => (
+              <button
+                key={`mobile-add-${type}`}
+                type="button"
+                role="menuitem"
+                onClick={() => { setAddTrackMenuOpen(false); void handleAddLane(type); }}
+                disabled={addingLane}
+                className="flex min-h-11 w-full items-center justify-between rounded-xl px-3 text-left text-sm font-medium text-slate-700 active:bg-slate-50 disabled:opacity-50"
+              >
+                <span>{type === "tab" ? t("Tab") : type === "chords" ? t("Chords") : type === "drums" ? t("Drums") : type === "piano" ? t("Piano") : type === "strings" ? t("Strings") : t("Other instrument")}</span>
+                <span className="text-xs text-slate-400">{t("Track")}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderMobileTrackSettings = () => {
+    if (!canvas || mobileTrackSettingsLaneId === null || typeof document === "undefined") return null;
+    const index = canvas.editors.findIndex((lane, i) => (lane.id || `ed-${i + 1}`) === mobileTrackSettingsLaneId);
+    if (index < 0) return null;
+    const lane = canvas.editors[index];
+    const laneId = mobileTrackSettingsLaneId;
+    const drum = isDrumLane(lane), chord = isChordLane(lane), bass = isBassLane(lane);
+    const soundId = normalizeTrackInstrumentId(lane.instrumentId);
+    // Built-in sounds (e.g. the notation piano) aren't sample-backed, so surface the lane's own sound in the menu.
+    const builtInSound = trackInstrumentOptions.some((option) => option.id === soundId) ? undefined : TRACK_INSTRUMENT_OPTIONS.find((option) => option.id === soundId);
+    const soundOptions = builtInSound ? [builtInSound, ...trackInstrumentOptions] : trackInstrumentOptions;
+    const soundValue = builtInSound || trackInstrumentOptions.some((option) => option.id === soundId) ? soundId : DEFAULT_TRACK_INSTRUMENT_ID;
+    const tuning = getSnapshotTuning(lane);
+    const muted = Boolean(trackMuteById[laneId]);
+    const isolated = isolatedTrackIds.has(laneId);
+    const volume = normalizeTrackVolume(trackVolumeById[laneId] ?? 1);
+    const label = editorName(lane.name, t) || t("Track {value1}", { value1: index + 1 });
+    const close = () => setMobileTrackSettingsLaneId(null);
+    const sectionLabel = "block text-[10px] font-semibold uppercase tracking-wide text-slate-500";
+    return createPortal(
+      <div className="fixed inset-0 z-[10030] flex items-end bg-slate-900/35" data-gte-floating-ui="true" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
+        <section role="dialog" aria-modal="true" aria-label={t("Track settings")} className="mx-auto max-h-[88dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-slate-200 bg-white px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-2 shadow-2xl [@media(max-height:500px)]:max-h-[96dvh]">
+          <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-slate-200" aria-hidden="true" />
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{t("Track settings")}</div>
+              <div className="truncate text-base font-semibold text-slate-900">{label}</div>
+            </div>
+            <button type="button" onClick={close} className="h-11 shrink-0 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white active:bg-slate-700">{t("Done")}</button>
+          </div>
+          <div className="grid gap-4 [@media(max-height:500px)]:grid-cols-2">
+            <label className={sectionLabel}>{t("Name")}
+              <input
+                key={`${laneId}:${lane.name || ""}`}
+                defaultValue={lane.name || `Track ${index + 1}`}
+                maxLength={80}
+                aria-label={t("Track {value1} name", { value1: index + 1 })}
+                onBlur={(event) => void handleLaneNameCommit(laneId, event.currentTarget.value)}
+                onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
+                className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-base font-semibold normal-case tracking-normal text-slate-800"
+              />
+            </label>
+            <GteTrackTypeSetting track={lane} onChange={(type) => handleLaneTypeChange(laneId, type)} t={t} issue={trackTypeIssue?.laneId === laneId ? trackTypeIssue.message : undefined} />
+            {!drum && (
+              <label className={sectionLabel}>{t("Sound")}
+                <GteTrackSoundSelect value={soundValue} options={soundOptions} onChange={(value) => handleLaneInstrumentChange(laneId, value)} />
+              </label>
+            )}
+            {!chord && !drum && !isNotationTrack(lane) && (
+              <div className="grid gap-3">
+                <label className={sectionLabel}>{t("Tuning")}
+                  <Note2TabsSelect value={tuning.presetId} options={(bass ? BASS_TUNING_PRESETS : TUNING_PRESETS).map((preset) => ({ value: preset.id, label: preset.label }))} onChange={(value) => handleLaneTuningChange(laneId, value, tuning.capo)} label="Tuning" portal className="gte-track-select" />
+                </label>
+                {!bass && (
+                  <label className="flex min-h-11 items-center justify-between gap-3 text-sm font-medium text-slate-600">{t("Capo")}
+                    <input
+                      type="number" inputMode="numeric" min={0} max={12}
+                      value={trackCapoDraftById[laneId] ?? String(tuning.capo)}
+                      onChange={(event) => handleLaneCapoDraftChange(laneId, event.target.value)}
+                      onBlur={() => commitLaneCapoDraft(laneId, tuning.presetId, tuning.capo)}
+                      className="h-11 w-20 rounded-xl border border-slate-200 px-3 text-base text-slate-700"
+                      aria-label={t("Track capo")}
+                    />
+                  </label>
+                )}
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => toggleTrackMute(laneId)} aria-pressed={muted} className={`h-11 rounded-xl border px-3 text-sm font-semibold ${muted ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-slate-200 text-slate-600 active:bg-slate-50"}`}>{muted ? t("Unmute") : t("Mute")}</button>
+              <button type="button" onClick={() => toggleTrackIsolation(laneId)} aria-pressed={isolated} className={`h-11 rounded-xl border px-3 text-sm font-semibold ${isolated ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-200 text-slate-600 active:bg-slate-50"}`}>{isolated ? t("Solo on") : t("Solo")}</button>
+            </div>
+            <label className={sectionLabel}>{t("Volume")}<span className="float-right normal-case tracking-normal">{Math.round(volume * 100)}%</span>
+              <input type="range" min={0} max={1} step={0.01} value={volume}
+                onChange={(event) => handleTrackVolumePreview(laneId, Number(event.target.value))}
+                onPointerUp={() => commitTrackVolume(laneId)} onPointerCancel={() => commitTrackVolume(laneId)} onBlur={() => commitTrackVolume(laneId)}
+                className="mt-2 h-8 w-full accent-slate-700" aria-label={t("Volume for {value1}", { value1: label })} />
+            </label>
+            <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
+              <button type="button" disabled={index === 0} onClick={() => handleMoveTrackBy(laneId, -1)} className="h-11 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 active:bg-slate-50 disabled:text-slate-300">{t("Move up")}</button>
+              <button type="button" disabled={index === canvas.editors.length - 1} onClick={() => handleMoveTrackBy(laneId, 1)} className="h-11 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 active:bg-slate-50 disabled:text-slate-300">{t("Move down")}</button>
+              <button type="button" onClick={() => { close(); beginTrackOffset(laneId); }} className="h-11 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 active:bg-slate-50">{t("Offset track")}</button>
+              <button type="button" onClick={() => { close(); requestDeleteTrack(laneId); }} disabled={deletingLaneId === laneId} className="h-11 rounded-xl border border-rose-200 text-sm font-medium text-rose-600 active:bg-rose-50 disabled:opacity-50">{deletingLaneId === laneId ? t("Removing...") : t("Remove")}</button>
+            </div>
+          </div>
+        </section>
+      </div>,
+      document.body,
+    );
+  };
 
   const selectEditorMode = (mode: "canvas" | "tab" | "practice") => {
     if (isMobileViewport) setMobileEditLaneId(null);
@@ -6222,24 +6413,26 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     else setEditorMode("practice");
   };
   const renderViewModeSwitch = (compact = false) => {
-    const activeIndex = compact
+    // Phones only offer the middle view (MIDI view) for piano tracks; elsewhere it stays desktop-only.
+    const showMiddleView = !compact || notationTrackActive;
+    const activeIndex = compact && !showMiddleView
       ? practiceModeEnabled ? 1 : 0
       : editorMode === "canvas" ? 0 : editorMode === "tab" ? 1 : 2;
     return (
     <div
       className={`gte-view-mode-switch max-w-full rounded-lg border border-slate-200 bg-slate-100 p-0.5 ${
-        compact ? "w-56" : "w-72"
+        compact && !showMiddleView ? "w-56" : "w-72"
       }`}
     >
       <div
-        className={`relative grid ${compact ? "grid-cols-2" : "grid-cols-3"}`}
+        className={`relative grid ${compact && !showMiddleView ? "grid-cols-2" : "grid-cols-3"}`}
         role="group"
         aria-label={t("Workspace mode")}
       >
         <span
           aria-hidden="true"
           className={`pointer-events-none absolute inset-y-0 left-0 rounded-md bg-white shadow-sm ring-1 ring-slate-200/70 transition-transform duration-200 ease-out ${
-            compact ? "w-1/2" : "w-1/3"
+            compact && !showMiddleView ? "w-1/2" : "w-1/3"
           }`}
           style={{ transform: `translateX(${activeIndex * 100}%)` }}
         />
@@ -6251,7 +6444,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             editorMode === "canvas" ? "text-slate-900" : "text-slate-600 hover:text-slate-800"
           }`}
         >{t(notationTrackActive ? "Sheets" : "Canvas")}</button>
-        {!compact && (
+        {showMiddleView && (
           <button
             type="button"
             onClick={() => selectEditorMode("tab")}
@@ -6839,7 +7032,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           {practiceSoundLaneId && (
             <details className="group relative">
               <summary className="flex h-9 cursor-pointer list-none items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">{t("Sound")}<span className="truncate text-[10px] font-medium text-slate-500">
-                  {editorInstrumentName(trackInstrumentOptions.find((option) => option.id === practiceInstrumentValue)?.label || "",t) || t("Guitar")}
+                  {editorInstrumentName(trackInstrumentOptions.find((option) => option.id === practiceInstrumentValue)?.label || TRACK_INSTRUMENT_OPTIONS.find((option) => option.id === practiceInstrumentValue)?.label || "",t) || t("Guitar")}
                 </span>
               </summary>
               <div className="absolute right-0 top-11 z-50 w-64 space-y-3 rounded-xl border border-slate-200 bg-white p-3 shadow-xl lg:static lg:mt-2 lg:w-full lg:shadow-sm">
@@ -7114,12 +7307,15 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         ref={practiceRootRef}
         dir="ltr"
         data-editor-locale={locale}
-        className={`page page-tight overflow-x-clip ${
+        className={`page page-tight overflow-x-clip ${isMobileViewport ? "px-3" : ""} ${
           isMobileEditMode ? "h-[100dvh] overflow-hidden overscroll-none py-3" : ""
         } ${practiceFullscreen ? "gte-practice-fullscreen overflow-y-auto" : ""}`}
   style={
     !isMobileEditMode
-      ? { paddingTop: isMobileViewport ? (!practiceModeEnabled ? 76 : 12) : 0 }
+      ? {
+          paddingTop: isMobileViewport ? 12 : 0,
+          ...(isMobileViewport ? { paddingBottom: "calc(7.5rem + env(safe-area-inset-bottom))" } : {}),
+        }
       : undefined
         }
         onMouseDownCapture={handleMainMouseDownCapture}
@@ -7150,16 +7346,18 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             : `stack ${isMobileCanvasMode ? "pb-24" : "pb-28"}`
         }`}
       >
-        {isMobileViewport && !practiceFullscreen && (
-          <div className="flex shrink-0 justify-center px-2">
+        {isMobileViewport && (
+        <div className="flex flex-col gap-2 [@media(max-height:500px)]:flex-row [@media(max-height:500px)]:items-start">
+        {!practiceFullscreen && (
+          <div className="flex shrink-0 justify-center px-2 [@media(max-height:500px)]:px-0">
             {renderViewModeSwitch(true)}
           </div>
         )}
         {isMobileCanvasMode && (
-          <div className="space-y-3">
+          <div className="min-w-0 space-y-2 [@media(max-height:500px)]:flex-1">
             <div className="flex items-start">
-              <div className="flex items-center gap-2">
-                <div className="relative" data-mobile-nav="true">
+              <div className="flex w-full min-w-0 items-center gap-2">
+                <div className="relative shrink-0" data-mobile-nav="true">
                   <button
                     type="button"
                     onClick={() => setMobileNavOpen((prev) => !prev)}
@@ -7283,16 +7481,17 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     </div>
                   )}
                 </div>
-                {renderMobileHistoryControls()}
+                {!practiceModeEnabled && renderMobileTrackBar()}
               </div>
             </div>
             <div className={practiceModeEnabled ? "hidden" : "space-y-2"}>
-              <details className="rounded-xl border border-slate-200 bg-white shadow-sm">
-                <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold text-slate-700">
-                  <span>{t("Tools")}</span>
-                  <span aria-hidden="true" className="text-slate-400">⌄</span>
+              <div className="grid grid-cols-3 gap-2">
+              <details className="group relative min-w-0">
+                <summary className="flex h-full min-h-[3.25rem] cursor-pointer list-none flex-col justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-left shadow-sm [@media(max-height:500px)]:min-h-0 group-open:border-emerald-300 group-open:bg-emerald-50">
+                  <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Tools")}</span>
+                  <span aria-hidden="true" className="mt-0.5 block text-xs text-slate-400 group-open:rotate-180 [@media(max-height:500px)]:hidden">⌄</span>
                 </summary>
-                <div className="max-h-[60vh] overflow-y-auto border-t border-slate-200 p-2">
+                <div className="absolute left-0 top-full z-40 mt-1 max-h-[60vh] w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
                   <div ref={setEditMenuPortalTarget} />
                   <div className="mt-1 grid gap-1 border-t border-slate-100 pt-1">
                     {renderTrackCleanupTool()}
@@ -7306,18 +7505,17 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   </div>
                 </div>
               </details>
-              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     setMobileControlsOpen((prev) => !prev);
                     setMobileEditingSettingsOpen(false);
                   }}
-                  className={`min-w-0 rounded-xl border p-3 text-left shadow-sm ${mobileControlsOpen ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-white"}`}
+                  className={`min-w-0 rounded-xl border px-3 py-2 text-left shadow-sm ${mobileControlsOpen ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-white"}`}
                   aria-expanded={mobileControlsOpen}
                 >
                   <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Project settings")}</span>
-                  <span className="mt-1 block truncate text-xs text-slate-700">{t(mobileControlsSummary)}</span>
+                  <span className="mt-0.5 block truncate text-xs text-slate-700 [@media(max-height:500px)]:hidden">{t(mobileControlsSummary)}</span>
                 </button>
                 <button
                   type="button"
@@ -7325,11 +7523,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     setMobileEditingSettingsOpen((prev) => !prev);
                     setMobileControlsOpen(false);
                   }}
-                  className={`min-w-0 rounded-xl border p-3 text-left shadow-sm ${mobileEditingSettingsOpen ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-white"}`}
+                  className={`min-w-0 rounded-xl border px-3 py-2 text-left shadow-sm ${mobileEditingSettingsOpen ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-white"}`}
                   aria-expanded={mobileEditingSettingsOpen}
                 >
                   <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("Editing settings")}</span>
-                  <span className="mt-1 block truncate text-xs text-slate-700">{t("Note 1/")}{chordOnlyDefaultNoteLengthDenominator}{t(" · Cursor 1/")}{chordOnlyCursorSizeDenominator}
+                  <span className="mt-1 block truncate text-xs text-slate-700 [@media(max-height:500px)]:hidden">{t("Note 1/")}{chordOnlyDefaultNoteLengthDenominator}{t(" · Cursor 1/")}{chordOnlyCursorSizeDenominator}
                   </span>
                 </button>
               </div>
@@ -7515,6 +7713,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             </div>
           </div>
         )}
+        </div>
+        )}
         {isMobileEditMode && (
           <div
             className="flex shrink-0 items-center gap-2 overflow-x-auto pb-1"
@@ -7526,7 +7726,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               onClick={exitMobileEditMode}
               className="h-11 shrink-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm"
             >{t("Back")}</button>
-            {renderMobileHistoryControls()}
+            <button
+              type="button"
+              onClick={() => setMobileTrackSettingsLaneId(mobileEditLaneId)}
+              className="h-11 shrink-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm"
+            >{t("Track settings")}</button>
             <details className="relative shrink-0">
               <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm">{t("Tools")}</summary>
               <div className="absolute left-0 top-[calc(100%+4px)] z-[10000] min-w-60 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
@@ -8949,7 +9153,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         </div>
         )}
         {isGuestMode && !isMobileEditMode && !practiceModeEnabled && (
-          <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm sm:flex-wrap sm:gap-4 sm:rounded-xl sm:px-4 sm:py-3">
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1 shadow-sm sm:flex-wrap sm:gap-4 sm:rounded-xl sm:px-4 sm:py-3 [@media(max-height:500px)]:hidden">
             <div className="min-w-0">
               <div className="truncate text-xs font-medium text-slate-600 sm:hidden">
                 {session?.user?.id ? t("Save your draft.") : t("Sign in to save.")}
@@ -8980,7 +9184,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         {practiceModeEnabled && !isMobileEditMode && (
           <>
             {renderPracticeControls()}
-            {renderPracticeHelp()}
+            {!isMobileViewport && renderPracticeHelp()}
           </>
         )}
         {loading && !canvas && (
@@ -9043,14 +9247,20 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 : drumLane
                   ? "Drums"
                   : "Tab";
+              const laneSoundId = normalizeTrackInstrumentId(lane.instrumentId);
+              const laneUsesBuiltInSound = !trackInstrumentOptions.some((option) => option.id === laneSoundId) &&
+                TRACK_INSTRUMENT_OPTIONS.some((option) => option.id === laneSoundId);
               const instrumentValue = trackInstrumentOptions.some(
-                (option) => option.id === normalizeTrackInstrumentId(lane.instrumentId)
+                (option) => option.id === laneSoundId
               )
-                ? normalizeTrackInstrumentId(lane.instrumentId)
+                ? laneSoundId
                 : DEFAULT_TRACK_INSTRUMENT_ID;
               const instrumentLabel = drumLane
                 ? "Drum kit"
-                : trackInstrumentOptions.find((option) => option.id === instrumentValue)?.label ||
+                : laneUsesBuiltInSound
+                  ? TRACK_INSTRUMENT_OPTIONS.find((option) => option.id === laneSoundId)?.label ?? "Built-in synth"
+                  : trackInstrumentOptions.find((option) => option.id === instrumentValue)?.label ||
+                  TRACK_INSTRUMENT_OPTIONS.find((option) => option.id === lane.instrumentId)?.label ||
                   "Built-in synth";
               const tuning = getSnapshotTuning(lane);
               const mobileEditing = isMobileViewport && !practiceModeEnabled && laneId === desktopVisibleLaneId;
@@ -9770,7 +9980,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                   </span>
                                 </summary>
                                 <div
-                                  className="absolute left-0 top-[calc(100%+0.35rem)] z-50 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"
+                                  className="absolute left-0 top-[calc(100%+0.35rem)] z-[10000] w-[min(18rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"
                                   role="group"
                                   aria-label={t("Choose a track to practice")}
                                 >
@@ -9780,11 +9990,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                                         candidate.id || `ed-${candidateIndex + 1}`;
                                       const selected = candidateId === globalControlsLaneId;
                                       const candidateInstrument =
-                                        trackInstrumentOptions.find(
+                                        (trackInstrumentOptions.find(
                                           (option) =>
                                             option.id ===
                                             normalizeTrackInstrumentId(candidate.instrumentId)
-                                        )?.label || "Guitar";
+                                        ) ??
+                                          TRACK_INSTRUMENT_OPTIONS.find(
+                                            (option) => option.id === normalizeTrackInstrumentId(candidate.instrumentId)
+                                          ))?.label || "Guitar";
                                       const candidateIsDrum = isDrumLane(candidate);
                                       const candidateMuted = Boolean(trackMuteById[candidateId]);
                                       const candidateIsolated = isolatedTrackIds.has(candidateId);
@@ -10505,92 +10718,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                   document.body
                 );
               })()}
-            {!practiceModeEnabled && isMobileViewport && !mobileEditLaneId && typeof document !== "undefined" && createPortal(
-              <div className="!fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3 z-[9997] w-[calc(50vw-0.75rem)] max-w-[14rem]" style={{ position: "fixed" }} data-gte-floating-ui="true">
-                {mobileTrackMenuOpen && (
-                  <div className="mb-2 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-[0_18px_45px_rgba(15,23,42,0.2)]" role="listbox" aria-label={t("Choose track")}>
-                    {canvas.editors.map((lane, index) => {
-                      const laneId = lane.id || `ed-${index + 1}`;
-                      const active = laneId === activeLaneId;
-                      return (
-                        <button
-                          key={`mobile-track-choice-${laneId}`}
-                          type="button"
-                          role="option"
-                          aria-selected={active}
-                          onClick={() => {
-                            setActiveLaneId(laneId);
-                            setOpenMobileBarMenuLaneId(null);
-                            setMobileTrackMenuOpen(false);
-                          }}
-                          className={`flex min-h-11 w-full items-center justify-between rounded-xl px-3 text-left text-sm ${active ? "bg-emerald-50 font-semibold text-emerald-950" : "text-slate-700 active:bg-slate-50"}`}
-                        >
-                          <span className="min-w-0 truncate">{editorName(lane.name, t) || t("Track {value1}", {value1: index + 1})}</span>
-                          <span className="ml-3 shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400">
-                            {isNotationTrack(lane) ? t("Sheets") : isDrumLane(lane) ? t("Drums") : isChordLane(lane) ? t("Chords") : t("Tab")}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                {addTrackMenuOpen && (
-                  <div className="mb-2 ml-auto w-44 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl" role="menu" aria-label={t("Add track")}>
-                    {(["tab", "chords", "drums", "piano", "strings", "instrument"] as const).map((type) => (
-                      <button
-                        key={`mobile-add-${type}`}
-                        type="button"
-                        role="menuitem"
-                        onClick={() => {
-                          setAddTrackMenuOpen(false);
-                          void handleAddLane(type);
-                        }}
-                        disabled={addingLane}
-                        className="flex min-h-10 w-full items-center justify-between rounded-xl px-3 text-left text-sm font-medium text-slate-700 active:bg-slate-50 disabled:opacity-50"
-                      >
-                        <span>{type === "tab" ? t("Tab") : type === "chords" ? t("Chords") : type === "drums" ? t("Drums") : type === "piano" ? t("Piano") : type === "strings" ? t("Strings") : t("Other instrument")}</span>
-                        <span className="text-xs text-slate-400">{t("Track")}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div className="flex gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_14px_40px_rgba(15,23,42,0.18)]">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileTrackMenuOpen((open) => !open);
-                      setAddTrackMenuOpen(false);
-                    }}
-                    className="flex min-w-0 flex-1 items-center justify-between rounded-xl px-2.5 py-1.5 text-left"
-                    aria-expanded={mobileTrackMenuOpen}
-                    aria-haspopup="listbox"
-                  >
-                    <span className="min-w-0">
-                      <span className="block text-[9px] font-semibold uppercase tracking-[0.13em] text-slate-400">{t("Track")}</span>
-                      <span className="block truncate text-sm font-semibold text-slate-800">
-                        {editorName(mobileActiveLane?.name, t) || t("Track {value1}", {value1: mobileActiveLaneIndex + 1})}
-                      </span>
-                    </span>
-                    <span className={`ml-3 text-2xl text-slate-500 transition ${mobileTrackMenuOpen ? "rotate-180" : ""}`} aria-hidden="true">⌃</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAddTrackMenuOpen((open) => !open);
-                      setMobileTrackMenuOpen(false);
-                    }}
-                    disabled={addingLane}
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-xl text-white disabled:opacity-50"
-                    title={t("Add track")}
-                    aria-label={t("Add track")}
-                    aria-expanded={addTrackMenuOpen}
-                  >
-                    +
-                  </button>
-                </div>
-              </div>,
-              document.body,
-            )}
+            {!practiceModeEnabled && isMobileViewport && typeof document !== "undefined" && createPortal(renderMobileHistoryDock(), document.body)}
+            {isMobileViewport && renderMobileTrackSettings()}
           </div>
         )}
 
@@ -10811,6 +10940,61 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                       </span>
                     </label>
                     </div>
+        </div>
+      )}
+      {isMobileViewport && canvas && (notationTrackActive || (drumTrackActive && (practiceModeEnabled || tabViewEnabled))) && (
+        <div
+          data-gte-floating-ui="true"
+          data-gte-shared-transport="mobile"
+          className={`pointer-events-none fixed z-[9997] px-2 ${
+            practiceModeEnabled
+              ? "bottom-[max(0.5rem,env(safe-area-inset-bottom))] left-1/2 w-fit -translate-x-1/2"
+              : "bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-3 w-[calc(50vw-0.75rem)] max-w-[14rem]"
+          }`}
+        >
+          <div className="relative flex flex-col items-center gap-3">
+            {displayPreferences.showPlaybackCounter && (
+              <span
+                className="pointer-events-auto absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-slate-200 bg-white/95 px-2 py-1 text-[10px] font-semibold tabular-nums text-slate-600"
+                role="timer"
+                aria-label={t("Playback time")}
+              >
+                {formatPlaybackTime(globalPlaybackCounterFrame / globalPlaybackFps)} / {formatPlaybackTime(canvasTimelineEnd / globalPlaybackFps)}
+              </span>
+            )}
+            <div
+              className="pointer-events-auto flex w-full items-center justify-around gap-0.5 rounded-2xl border border-slate-200 bg-white/96 px-1 py-1.5 text-slate-700 shadow-lg backdrop-blur"
+              role="toolbar"
+              aria-label={t("Playback controls")}
+            >
+              <button type="button" onClick={skipGlobalPlaybackToStart} className={`flex shrink-0 items-center justify-center rounded-full hover:bg-slate-100 ${practiceModeEnabled ? "h-11 w-11 [@media(max-height:500px)]:h-9 [@media(max-height:500px)]:w-9" : "h-9 w-9"}`} title={t("Go to start")} aria-label={t("Go to start")}>
+                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true"><rect x="4" y="5" width="2" height="14" /><polygon points="18,5 8,12 18,19" /></svg>
+              </button>
+              <button type="button" onClick={skipGlobalPlaybackBackwardBar} className={`flex shrink-0 items-center justify-center rounded-full hover:bg-slate-100 ${practiceModeEnabled ? "h-11 w-11 [@media(max-height:500px)]:h-9 [@media(max-height:500px)]:w-9" : "h-9 w-9"}`} title={t("Previous bar")} aria-label={t("Previous bar")}>
+                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true"><polygon points="17,5 7,12 17,19" /></svg>
+              </button>
+              <button
+                type="button"
+                onClick={toggleGlobalPlayback}
+                className={`flex shrink-0 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700 disabled:cursor-wait disabled:bg-slate-700 ${practiceModeEnabled ? "h-12 w-12 [@media(max-height:500px)]:h-10 [@media(max-height:500px)]:w-10" : "h-10 w-10"}`}
+                title={globalPlaybackIsPlaying ? t("Pause") : t("Play")}
+                aria-label={globalPlaybackIsPlaying ? t("Pause") : t("Play")}
+                aria-busy={globalPlaybackIsPreparing}
+                disabled={globalPlaybackIsPreparing}
+              >
+                {globalPlaybackIsPreparing ? (
+                  <span className="animate-pulse text-xs font-bold" aria-hidden="true">•••</span>
+                ) : globalPlaybackIsPlaying ? (
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true"><rect x="6" y="5" width="4" height="14" /><rect x="14" y="5" width="4" height="14" /></svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true"><polygon points="8,5 19,12 8,19" /></svg>
+                )}
+              </button>
+              <button type="button" onClick={skipGlobalPlaybackForwardBar} className={`flex shrink-0 items-center justify-center rounded-full hover:bg-slate-100 ${practiceModeEnabled ? "h-11 w-11 [@media(max-height:500px)]:h-9 [@media(max-height:500px)]:w-9" : "h-9 w-9"}`} title={t("Next bar")} aria-label={t("Next bar")}>
+                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true"><polygon points="7,5 17,12 7,19" /></svg>
+              </button>
+            </div>
+          </div>
         </div>
       )}
       {!isMobileViewport && canvas && (

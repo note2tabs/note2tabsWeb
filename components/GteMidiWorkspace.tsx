@@ -99,6 +99,13 @@ export default function GteMidiWorkspace(props: Props) {
   const [viewport, setViewport] = useState({ left: 0, top: 0, width: 1000, height: 480 });
   const root = useRef<HTMLDivElement>(null), scroller = useRef<HTMLDivElement>(null), surface = useRef<SVGSVGElement>(null);
   const gesture = useRef<Gesture | null>(null), clipboard = useRef<ScoreEvent[]>([]), cursor = useRef(0);
+  // Touch: one finger on empty space pans the roll, two fingers pinch-zoom; notes and the pencil keep their gestures.
+  const touchPan = useRef<{ x: number; y: number; left: number; top: number; moved: boolean; frame: number } | null>(null);
+  const touches = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<{ distance: number; zoom: number } | null>(null);
+  const [coarsePointer, setCoarsePointer] = useState(false);
+  useEffect(() => { setCoarsePointer(Boolean(window.matchMedia?.("(pointer: coarse)").matches)); }, []);
+  const handleWidth = coarsePointer ? 14 : 6;
   const scrollRaf = useRef(0), pointer = useRef<{ clientX: number; clientY: number; altKey: boolean } | null>(null);
   const moveAt = useRef<(event: { clientX: number; clientY: number; altKey: boolean }) => void>(() => undefined);
   const snapshotRef = useRef(snapshot); snapshotRef.current = snapshot;
@@ -408,11 +415,60 @@ export default function GteMidiWorkspace(props: Props) {
             <svg ref={surface} width={width} height={PITCH_HEIGHT} className="absolute select-none" style={{ left: KEY_WIDTH, touchAction: "none", cursor: focusBox || mode === "draw" ? "crosshair" : "default" }} role="group" aria-label={t("MIDI piano roll")}
               onPointerDownCapture={event => { if (focusBox && event.button === 0) { event.stopPropagation(); event.preventDefault(); capture(event, "box", []); } }}
               onPointerDown={(event) => { if (event.button !== 0 || disabled) return;
+                if (event.pointerType === "touch") {
+                  touches.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+                  if (touches.current.size === 2) {
+                    const [a, b] = [...touches.current.values()];
+                    touchPan.current = null; clearGesture();
+                    pinch.current = { distance: Math.hypot(a.x - b.x, a.y - b.y) || 1, zoom };
+                    surface.current?.setPointerCapture(event.pointerId);
+                    return;
+                  }
+                }
                 const p = point(event);
                 const hit = dense ? [...visible].reverse().find((note) => note.midi === p.midi && note.start <= p.frame && note.start + note.length >= p.frame) : undefined;
                 if (hit) { const keys = event.shiftKey ? [...new Set([...selection, hit.key])] : chosen.has(hit.key) ? selection : [hit.key]; setSelection(keys); capture(event, "move", keys); return; }
+                if (event.pointerType === "touch" && mode === "select" && !focusBox && !event.shiftKey) {
+                  event.preventDefault(); surface.current?.setPointerCapture(event.pointerId);
+                  touchPan.current = { x: event.clientX, y: event.clientY, left: scroller.current?.scrollLeft ?? 0, top: scroller.current?.scrollTop ?? 0, moved: false, frame: p.frame };
+                  return;
+                }
                 cursor.current = quantize(p.frame, event.altKey); props.onGlobalPlaybackFrameChange?.(cursor.current); capture(event, mode === "draw" ? "draw" : "box", event.shiftKey ? selection : []); if (mode === "select" && !event.shiftKey) setSelection([]); }}
-              onPointerMove={move} onPointerUp={end} onPointerCancel={clearGesture} onLostPointerCapture={clearGesture}
+              onPointerMove={(event) => {
+                if (event.pointerType === "touch" && touches.current.has(event.pointerId)) {
+                  touches.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+                  if (pinch.current && touches.current.size >= 2) {
+                    const [a, b] = [...touches.current.values()];
+                    zoomAt(pinch.current.zoom * (Math.hypot(a.x - b.x, a.y - b.y) || 1) / pinch.current.distance, (a.x + b.x) / 2);
+                    return;
+                  }
+                }
+                const pan = touchPan.current;
+                if (pan) {
+                  const dx = event.clientX - pan.x, dy = event.clientY - pan.y;
+                  if (!pan.moved && Math.hypot(dx, dy) < 6) return;
+                  pan.moved = true;
+                  const element = scroller.current;
+                  if (element) { element.scrollLeft = pan.left - dx; element.scrollTop = pan.top - dy; }
+                  return;
+                }
+                move(event);
+              }}
+              onPointerUp={(event) => {
+                if (event.pointerType === "touch") {
+                  touches.current.delete(event.pointerId);
+                  if (pinch.current) { if (touches.current.size < 2) pinch.current = null; return; }
+                }
+                const pan = touchPan.current;
+                if (pan) {
+                  touchPan.current = null;
+                  if (!pan.moved) { setSelection([]); cursor.current = quantize(pan.frame); props.onGlobalPlaybackFrameChange?.(cursor.current); }
+                  return;
+                }
+                end(event);
+              }}
+              onPointerCancel={() => { touches.current.clear(); pinch.current = null; touchPan.current = null; clearGesture(); }}
+              onLostPointerCapture={() => { touches.current.clear(); pinch.current = null; touchPan.current = null; clearGesture(); }}
               onPointerLeave={() => { setHoverPitch(null); if (!gesture.current) setDrawing(null); }}
               onContextMenu={(event) => { event.preventDefault(); const p = point(event); setMenu({ x: event.clientX, y: event.clientY, frame: quantize(p.frame), midi: p.midi }); }}
               onDoubleClick={(event) => { if (!focusBox && mode === "select") { const p = point(event); insert(quantize(p.frame, event.altKey), p.midi, step, event.altKey); } }}>
@@ -437,8 +493,8 @@ export default function GteMidiWorkspace(props: Props) {
                   onKeyDown={(event) => { if (event.key === "Enter") { event.stopPropagation(); setSelection([note.key]); void audition(note.midi); } }}>
                   <rect x={x} y={y} width={w} height={Math.max(4, ROW - 3)} rx={2} className="cursor-grab hover:brightness-110" fill={midiVoiceColors(note.voice)[chosen.has(note.key) ? "selected" : "note"]} fillOpacity={1} stroke={midiVoiceColors(note.voice)[chosen.has(note.key) ? "selectedBorder" : "border"]} strokeWidth={chosen.has(note.key) ? 1.6 : 0.65} onPointerDown={(event) => begin(event, "move")} />
                   {showNoteLabels && w > 30 && <text x={x + 5} y={y + 10} fontSize={9} fill={midiVoiceColors(note.voice).text} pointerEvents="none">{midiPitchName(note.midi)}</text>}
-                  <rect x={x} y={y} width={Math.min(6, w / 3)} height={ROW - 4} fill="transparent" cursor="ew-resize" onPointerDown={(event) => begin(event, "left")} />
-                  <rect x={x + w - Math.min(6, w / 3)} y={y} width={Math.min(6, w / 3)} height={ROW - 4} fill="transparent" cursor="ew-resize" onPointerDown={(event) => begin(event, "right")} />
+                  <rect x={x} y={y} width={Math.min(handleWidth, w / 3)} height={ROW - 4} fill="transparent" cursor="ew-resize" onPointerDown={(event) => begin(event, "left")} />
+                  <rect x={x + w - Math.min(handleWidth, w / 3)} y={y} width={Math.min(handleWidth, w / 3)} height={ROW - 4} fill="transparent" cursor="ew-resize" onPointerDown={(event) => begin(event, "right")} />
                 </g>;
               })}
               {drawing && <rect x={drawing.frame * scale} y={(127 - drawing.midi) * ROW + 2} width={drawing.length * scale} height={ROW - 4} rx={2} fill="#86dec0" stroke="#175a43" pointerEvents="none" />}
