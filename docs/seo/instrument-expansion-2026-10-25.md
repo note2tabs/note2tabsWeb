@@ -47,7 +47,7 @@ Browser testing found a stripped `activeLaneId` in the guest API response. Prese
 
 ## Release and measurement
 
-Validated locally: production TypeScript/build, 111 focused SEO/editor/API and existing-localization tests, desktop/mobile browser checks, real-backend metadata persistence, sitemap uniqueness, English RSS inclusion and internal link checks. Results for all 22 URLs are in `instrument-seo-checks-2026-10-25.json`. Keep changes on the branch for review until a merge is authorised.
+Validated locally: production TypeScript/build, 119 focused SEO/editor/API and existing-localization tests, desktop/mobile browser checks, real-backend metadata persistence, sitemap uniqueness, English RSS inclusion and internal link checks. Results for all 22 URLs are in `instrument-seo-checks-2026-10-25.json`. Keep changes on the branch for review until a merge is authorised.
 
 After release: verify HTTP 200, indexable robots, self-canonical and sitemap contents on production. Submit the sitemap and request indexing for piano commercial pages first, followed by the piano guides, other instrument commercial pages and guides. Search Console decides indexing; no promise that every URL will index or rank immediately.
 
@@ -67,9 +67,20 @@ The new scope targets **music notation** explicitly, rather than assuming that m
 Lessons applied across the new audiences:
 - Teach a concrete workflow with original musical examples; do not clone a keyword into a generic article template.
 - Support discovery, writing, correction/import and practice tasks with the appropriate pages, rather than multiplying near-identical commercial URLs.
-- Link each instrument's commercial pages to its own guides, and link guides back to the correct tool. The blog index groups guides by instrument; it no longer labels the English journal solely for guitarists.
+- Link each instrument's commercial pages to its own guides, and link guides back to the correct tool. The blog index groups the new guides by instrument after the established guitar content, preserving the existing guitar-focused introduction.
 - Declare guide CTA intent explicitly. A correction guide opens the editor even if its title contains “transcription”; the YouTube piano guide opens the correct input mode.
 - Retain the existing guitar homepage, format URLs, localized content and rankings-oriented URL ownership. Do not try to equalise article counts mechanically.
 - Keep new long-form English editions distinct from translated UI. Localized editions still require actual translations before publication or hreflang expansion.
 
 Search reconnaissance also checked the current vocabulary on first-party piano/notation, drum, bass and ukulele tools. References include [Lipi's notation workflow](https://lipi.nathanielschool.com/), [Online Drum Notation](https://www.onlinedrumnotation.com/), [Guitar Scribble's bass editor](https://guitarscribble.com/bass-tab-maker) and [SimpleNotation's ukulele editor](https://simplenotation.com/ukulele-tab-editor). These inform vocabulary and intent only; their feature claims are not copied into Note2Tabs copy. [Google Search Essentials](https://developers.google.com/search/docs/essentials) supports using descriptive user vocabulary in titles, headings and crawlable links; [Google's helpful-content guidance](https://developers.google.com/search/docs/fundamentals/creating-helpful-content) explicitly rejects a preferred word count or bulk expansion for its own sake.
+
+## Guitar protection audit
+
+The homepage, editor marketing page, established guitar audio/MP3/YouTube/AI/free-maker pages, feature definitions, shared SEO head, redirects, proxy and locale/translation availability definitions were compared with `origin/main`: all 13 protected source files were byte-for-byte unchanged. Existing guitar text and URL ownership remain intact.
+
+This audit tightened three shared areas:
+- Instrument-specific article routing now requires an exact registered guide slug. Merely mentioning piano, drums or bass in a guitar article title cannot change its existing guitar product links or primary CTA.
+- The blog index retains its existing guitar H1, subtitle and description. New instrument guide groups follow the existing guitar pillar/latest-post sections and pagination.
+- English RSS adds space for the new guides rather than pushing any of the existing 50 fetched article entries out of the feed. Existing sitemap URLs and their released language variants remain present.
+
+Regression coverage includes mixed-instrument guitar article titles, rendered blog ordering, all established guitar product sitemap URLs across ten locales, and preservation of all 50 prior RSS entries. The focused SEO suite passed 65 tests; the combined instrument, localization, editor and guitar-protection run passed all 119 tests across 18 suites. These safeguards address implementation risks; they are not a guarantee of future search rankings. After release, compare the existing guitar query/page cohort with its prior baseline separately from the new instrument pages.

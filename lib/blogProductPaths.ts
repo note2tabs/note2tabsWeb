@@ -30,10 +30,11 @@ const instrumentProductPaths = (topic: string): BlogProductPath[] | null => {
 /** Match the reader's task, rather than incidental words in a long title. */
 export function getBlogPrimaryAction(slug: string, title: string) {
   const topic = `${slug} ${title}`.toLowerCase();
-  const instrument = /piano/.test(topic) ? "piano" : /drum/.test(topic) ? "drums" : /ukulele|ukelele/.test(topic) ? "ukulele" : /bassline|\bbass\b/.test(topic) ? "bass" : null;
+  // Only explicitly owned guides override the established guitar paths.
+  const guide = instrumentGuides.find(item => item.slug === slug);
+  const instrument = guide?.instrument;
   if (instrument) {
-    const guide = instrumentGuides.find(item => item.slug === slug);
-    const transcribe = guide ? guide.goal === "transcribe" : /transcri|audio|recording/.test(topic);
+    const transcribe = guide.goal === "transcribe";
     return { href: transcribe ? transcriptionEntryHref(instrument, guide?.mode === "youtube") : `/gte/new?track=${instrument}`, label: transcribe ? "Transcribe audio" : "Open the editor", cta: transcribe ? "blog_transcribe" : "blog_editor" };
   }
   const editorial = /note-to-tab|fingering|practice|how-to-(?:write|edit|read)|import-export|guitar-pro-alternative/.test(slug);
@@ -54,7 +55,8 @@ const editorPath: BlogProductPath = {
 export function getBlogProductPaths(slug: string, title: string): BlogProductPath[] {
   const topic = `${slug} ${title}`.toLowerCase();
 
-  const instrumentPaths = instrumentProductPaths(topic);
+  const guide = instrumentGuides.find(item => item.slug === slug);
+  const instrumentPaths = guide ? instrumentProductPaths(guide.instrument) : null;
   if (instrumentPaths) return instrumentPaths;
 
   if (/youtube|video/.test(topic)) {

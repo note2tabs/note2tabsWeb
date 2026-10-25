@@ -35,7 +35,7 @@ export const getServerSideProps: GetServerSideProps = async ({ res, resolvedUrl 
   const feedPosts = [...posts, ...(locale === "en" ? instrumentGuides.filter(guide => !knownSlugs.has(guide.slug)).map(guide => ({
     title: guide.title, slug: guide.slug, excerpt: guide.excerpt,
     publishedAt: guideDate, publishAt: null, updatedAt: guideDate,
-  })) : [])].sort((a, b) => (b.publishedAt || b.publishAt || b.updatedAt).getTime() - (a.publishedAt || a.publishAt || a.updatedAt).getTime()).slice(0, 50);
+  })) : [])].sort((a, b) => (b.publishedAt || b.publishAt || b.updatedAt).getTime() - (a.publishedAt || a.publishAt || a.updatedAt).getTime()).slice(0, locale === "en" ? 50 + instrumentGuides.length : 50);
 
   const items = feedPosts
     .map((post) => {

@@ -59,7 +59,7 @@ export default function BlogIndexPage({
     return `/blog?${params.toString()}`;
   };
   const description =
-    locale === "en" ? "Guides to transcribing, writing and practising music for guitar, piano, bass, drums and ukulele." : "Learn how to create, arrange, transcribe, and practice guitar tabs with practical guides from Note2Tabs.";
+    "Learn how to create, arrange, transcribe, and practice guitar tabs with practical guides from Note2Tabs.";
   const blogJsonLd = [
     {
       "@context": "https://schema.org",
@@ -104,20 +104,15 @@ export default function BlogIndexPage({
         <header className="blog-hero">
           <div className="blog-hero-copy">
             <span className="blog-kicker">{t("Note2Tabs journal")}</span>
-            <h1 className="page-title">{locale === "en" ? "Practical music guides for guitar, piano and more" : t("Ideas and practical guides for guitarists")}</h1>
+            <h1 className="page-title">{t("Ideas and practical guides for guitarists")}</h1>
             <p className="page-subtitle">
-              {locale === "en" ? "Transcribe a recording, write an arrangement or learn the part you want to play." : t("Thoughtful guides on hearing, writing, transcribing, and practising music on guitar.")}</p>
+              {t("Thoughtful guides on hearing, writing, transcribing, and practising music on guitar.")}</p>
             <div className="blog-product-links" aria-label={t("Try Note2Tabs")}>
               <BlogProductLink href="/gte/new" cta="blog_editor" placement="blog_index_hero" className="button-primary">{t("Try the tab editor")}</BlogProductLink>
               <BlogProductLink href="/transcribe" cta="blog_transcribe" placement="blog_index_hero" className="button-secondary">{t("Transcribe audio")}</BlogProductLink>
             </div>
           </div>
         </header>
-
-        {locale === "en" && page === 1 && !activeCategory && !activeTag && <section className="instrument-guides-index" aria-labelledby="instrument-guides-title">
-          <h2 id="instrument-guides-title">Piano, bass, drums and ukulele</h2>
-          <div className="instrument-guide-groups">{instrumentGuideGroups.map(group => <details key={group.instrument} open={group.instrument === "piano"}><summary>{group.label} guides</summary><ul>{group.guides.map(guide => <li key={guide.slug}><Link href={`/blog/${guide.slug}`}>{guide.title}</Link></li>)}</ul></details>)}</div>
-        </section>}
 
         {pillars.length > 0 && (
           <section className="blog-section blog-feature">
@@ -184,7 +179,7 @@ export default function BlogIndexPage({
           {posts.length === 0 && (
             <div className="blog-empty stack-tight" role={dataUnavailable ? "status" : undefined}>
               <strong>{t(dataUnavailable ? "The guides are temporarily unavailable." : "No posts found for this filter.")}</strong>
-        {dataUnavailable && (
+              {dataUnavailable && (
                 <span>{t("Try again shortly, or continue with the editor and transcriber while the library reconnects.")}</span>
               )}
               {dataUnavailable && (
@@ -229,6 +224,11 @@ export default function BlogIndexPage({
             </div>
           </nav>
         )}
+        {locale === "en" && page === 1 && !activeCategory && !activeTag && <section className="instrument-guides-index" aria-labelledby="instrument-guides-title">
+          <h2 id="instrument-guides-title">Piano, bass, drums and ukulele</h2>
+          <div className="instrument-guide-groups">{instrumentGuideGroups.map(group => <details key={group.instrument} open={group.instrument === "piano"}><summary>{group.label} guides</summary><ul>{group.guides.map(guide => <li key={guide.slug}><Link href={`/blog/${guide.slug}`}>{guide.title}</Link></li>)}</ul></details>)}</div>
+        </section>}
+
       </div>
     </main>
   );
