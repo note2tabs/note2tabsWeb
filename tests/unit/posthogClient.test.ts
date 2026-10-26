@@ -324,7 +324,7 @@ describe("PostHog client identity lifecycle", () => {
         maskAllInputs: true,
         recordHeaders: false,
         recordBody: false,
-        captureCanvas: expect.objectContaining({ recordCanvas: true }),
+        captureCanvas: expect.objectContaining({ recordCanvas: expect.any(Boolean), canvasFps: 2 }),
       })
     );
     expect(networkRequest).toEqual(
@@ -355,7 +355,8 @@ describe("PostHog client identity lifecycle", () => {
     delete process.env.NEXT_PUBLIC_POSTHOG_SESSION_RECORDING;
   });
   it.each([true, false])("records an eligible country only: %s", async eligible => {
-    installBrowserGlobals();
+    const { sessionStorage } = installBrowserGlobals();
+    sessionStorage.setItem("n2t:replay-sample:v1", "0.01");
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ eligible }) });
     vi.stubGlobal("fetch", fetchMock);
     const posthog = createPostHogMock();
