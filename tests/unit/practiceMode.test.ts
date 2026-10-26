@@ -14,6 +14,8 @@ const globalStyles = fs.readFileSync(
   path.join(process.cwd(), "styles/globals.css"),
   "utf8"
 );
+const practiceTab = fs.readFileSync(path.join(process.cwd(), "components/GtePracticeTab.tsx"), "utf8");
+const practiceLayout = fs.readFileSync(path.join(process.cwd(), "lib/gtePracticeTabLayout.ts"), "utf8");
 
 describe("editor practice mode", () => {
   it("uses the frontend port of the smart backend generator for track-wide fingering tools", () => {
@@ -63,9 +65,9 @@ describe("editor practice mode", () => {
     expect(editorPage).toContain("lg:max-w-[calc(100vw-32rem)]");
     expect(editorPage).toContain("practiceMode={practiceModeEnabled}");
     expect(workspace).toContain('practiceMode ? "rounded-none border-0"');
-    expect(workspace).toContain("data-gte-practice-score");
-    expect(workspace).toContain("practiceScoreWidth > 0");
-    expect(workspace).toContain("scrollIntoView");
+    expect(workspace.includes("<GtePracticeTab")).toBe(true);
+    expect(practiceTab.includes("data-gte-practice-tab")).toBe(true);
+    expect(practiceTab.includes('behavior:window.matchMedia')).toBe(true);
   });
 
   it("shows only the chosen track while practising", () => {
@@ -89,8 +91,8 @@ describe("editor practice mode", () => {
     expect(workspace).toContain("const practiceBarSegments = useMemo");
     expect(workspace).toContain("!practiceOccupiedBarIndexSet.has(endBar)");
     expect(workspace).toContain("handlePracticeBarSegmentSelection");
-    expect(workspace).toContain("segment.startBar + 1");
-    expect(workspace).toContain("data-bar-end-index={segment.endBar - 1}");
+    expect(practiceLayout.includes("!occupied.has(endBar)")).toBe(true);
+    expect(practiceTab.includes("data-bar-end-index={measure.endBar-1}")).toBe(true);
   });
 
   it("keeps playback sound controls available in practice", () => {
@@ -113,21 +115,18 @@ describe("editor practice mode", () => {
     expect(workspace).toContain("gteApi.getChordFingerings(lookup.root, lookup.type)");
     expect(workspace).toContain("practiceChordFingeringsByKey[lookup.key]");
     expect(workspace).toContain("group-hover:visible");
-    expect(workspace).toContain(
-      "top: TIMELINE_BAR_HEADER_HEIGHT + practiceTabHeight - 4"
-    );
-    expect(workspace).toContain("border-slate-300 bg-slate-100");
+    expect(practiceTab.includes("props.overlays")).toBe(true);
+    expect(practiceTab.includes("top:p.y+visibleHeight+12")).toBe(true);
     expect(workspace).not.toContain("border-violet-200 bg-violet-50");
     expect(editorPage).toContain('t("Track {value1} · {value2}", {value1: trackNumber, value2: editorName(chordLane.name');
     expect(editorPage).toContain('t("Track {value1} · Chords", {value1: candidateIndex + 1})');
   });
 
   it("uses compact tab staffs with clearer row and chord spacing", () => {
-    expect(workspace).toContain("const practiceVerticalScale = 0.6");
-    expect(workspace).toContain("const practiceRowGap = 42");
-    expect(workspace).toContain("line.y * practiceVerticalScale");
-    expect(workspace).toContain("y * practiceVerticalScale");
-    expect(workspace).toContain("height: practiceTabHeight");
+    expect(practiceLayout.includes("stringGap = 16")).toBe(true);
+    expect(practiceTab.includes('fontSize="16"')).toBe(true);
+    expect(practiceLayout.includes("LABEL_FONT = 16")).toBe(true);
+    expect(practiceLayout.includes("GAP = 6")).toBe(true);
   });
 
   it("exposes per-tab sound controls inside the practice tab selector", () => {
