@@ -1,3 +1,5 @@
+import { replaySessionSample } from "./replaySampling";
+import { configureFrustrationSignals } from "./frustrationSignals";
 import { resetAnalyticsIdentity } from "./analyticsV2";
 import { localeAnalytics, stripLocale } from "./i18n/locale";
 type PostHogClient = import("posthog-js").PostHog;
@@ -27,11 +29,22 @@ function syncBrowserExceptionListener(enabled: boolean) {
     browserExceptionContext.clear();
     clearBrowserLoadDiagnostics();
     setErrorBreadcrumbsEnabled(false);
+    configureFrustrationSignals();
     forgetChunkRecoveryOutcome();
     return;
   }
   if (removeBrowserExceptionListener) return;
   setErrorBreadcrumbsEnabled(true);
+  configureFrustrationSignals(incident => {
+    capturePostHogEvent("frustration_detected", {
+      ...incident, signal_version: 1,
+      pathname: sanitizeAnalyticsPathname(window.location.pathname),
+      issue_key: `${sanitizeAnalyticsPathname(window.location.pathname)}:${incident.action}`,
+      replay_available: client?.sessionRecordingStarted?.() === true,
+      error_breadcrumbs: getErrorBreadcrumbs(),
+      ...(process.env.NEXT_PUBLIC_APP_VERSION ? {$app_version: process.env.NEXT_PUBLIC_APP_VERSION} : {}),
+    });
+  });
   const removeOutcome = reportChunkRecoveryOutcome(details => capturePostHogEvent("chunk_recovery_outcome", { ...details, $app_version: process.env.NEXT_PUBLIC_APP_VERSION }));
   const removeFetch = installDiagnosticFetch((details) => {
     // One small event per endpoint/method/failure category per minute.
@@ -212,8 +225,8 @@ export async function initPostHog(options: { ignoreDeniedConsent?: boolean } = {
           recordHeaders: false,
           recordBody: false,
           captureCanvas: {
-            recordCanvas: true,
-            canvasFps: 4,
+            recordCanvas: typeof navigator !== "undefined" && navigator.hardwareConcurrency > 2 && !(navigator as Navigator & {connection?: {saveData?: boolean}}).connection?.saveData,
+            canvasFps: 2,
             canvasQuality: "0.4",
           },
           maskCapturedNetworkRequestFn: (request) => ({
@@ -294,6 +307,9 @@ export async function syncPostHogSessionRecording(url: string) {
   const posthog = await initPostHog();
   // Navigation or consent withdrawal may have happened during either await.
   if (generation !== replaySyncGeneration || trackingIsDisabled()) return;
+  let sampled=false;
+  try { sampled=replaySessionSample(window.sessionStorage); } catch { /* Fail closed when storage is blocked. */ }
+  if(!sampled)return stopPostHogSessionRecording();
   posthog?.startSessionRecording();
 }
 

@@ -1,3 +1,4 @@
+import { beginFrustrationAction, resetFrustrationContext } from "./frustrationSignals";
 import { diagnosticEndpoint as templateEndpoint } from "./diagnosticEndpoint";
 import { sanitizeAnalyticsPathname } from "./analyticsPrivacy";
 
@@ -39,6 +40,9 @@ export function installDiagnosticFetch(onFailure: (details: Breadcrumb) => void)
       const candidate = init?.method ?? (typeof Request !== "undefined" && input instanceof Request ? input.method : "GET");
       method = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].includes(candidate.toUpperCase()) ? candidate.toUpperCase() : "OTHER";
     } catch { /* Keep the original fetch behavior for unusual input objects. */ }
+    const finish = endpoint === "/api/transcribe" ? beginFrustrationAction("transcription_submit")
+      : endpoint === "/api/uploads/presign" ? beginFrustrationAction("upload_start")
+      : endpoint === "/api/stripe/create-checkout-session" ? beginFrustrationAction("checkout_open") : undefined;
     const started = Date.now();
     const record = (response?: Response, error?: unknown) => {
       if (!enabled || !endpoint) return;
@@ -56,9 +60,11 @@ export function installDiagnosticFetch(onFailure: (details: Breadcrumb) => void)
     try {
       const response = await original.call(window, input, init);
       record(response);
+      finish?.(response.ok ? "success" : "failed");
       return response;
     } catch (error) {
       record(undefined, error);
+      finish?.(error instanceof Error && error.name === "AbortError" ? "cancelled" : "failed");
       throw error;
     }
   };
@@ -67,6 +73,7 @@ export function installDiagnosticFetch(onFailure: (details: Breadcrumb) => void)
 }
 
 export function recordDiagnosticNavigation(path: string, phase: "start" | "complete" | "error") {
+  if(phase === "start")resetFrustrationContext();
   addErrorBreadcrumb("navigation", { path: sanitizeAnalyticsPathname(path), phase });
 }
 

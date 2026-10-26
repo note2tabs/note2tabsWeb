@@ -1,3 +1,4 @@
+import { monitorEditorEdit, monitorFrustrationPromise } from "../lib/frustrationSignals";
 import { beginTransfer } from "../lib/engagement/transferTracking";
 import { editorCount } from "../lib/i18n/editor/counts";
 import { translatedError } from "../lib/i18n/translate";
@@ -7204,8 +7205,7 @@ export default function GteWorkspace({
       setError(null);
       try {
         const next = cloneSnapshot(current);
-        options.localApply(next);
-        applySnapshot(next);
+        monitorEditorEdit(() => { options.localApply!(next); applySnapshot(next); });
         markLocalSnapshotDirty();
       } catch (err: any) {
       setError(err?.message || "We could not apply that edit. Your existing tab is unchanged; please try again.");
@@ -7217,7 +7217,7 @@ export default function GteWorkspace({
     setError(null);
     try {
       await flushLocalChangesBeforeServerMutation();
-      const data = await fn();
+      const data = await monitorFrustrationPromise("editor_edit", fn);
       if (data.snapshot) {
         applySnapshot(data.snapshot);
         markServerSnapshotSynced(data.snapshot);
@@ -7389,7 +7389,7 @@ export default function GteWorkspace({
       if (!current) return;
       setError(null);
       const before = cloneSnapshot(current);
-      const optimistic = input.apply(cloneSnapshot(before));
+      const optimistic = monitorEditorEdit(() => input.apply(cloneSnapshot(before)), next => !input.createdNotes?.length || next.notes.length > before.notes.length);
       mutationSeqRef.current += 1;
       applySnapshot(optimistic);
       markLocalSnapshotDirty();

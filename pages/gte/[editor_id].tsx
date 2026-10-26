@@ -1,3 +1,4 @@
+import { beginFrustrationAction, monitorFrustrationPromise, noteFrustrationRetry } from "../../lib/frustrationSignals";
 import { focusPianoTranscription } from "../../lib/instrumentTranscriptionEntry";
 import { editorEntryInstrument, ensureInstrumentEditorEntry } from "../../lib/instrumentEditorEntry";
 import { useEngagementExperiment, announceEngagementPlayback, ENGAGEMENT_PLAYBACK_ACTIVE_EVENT, acknowledgeEngagementContact } from "../../lib/engagement/react";
@@ -1694,7 +1695,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const drumSaveStartedCleanRef = useRef(false);
   const drumSaveRetryDelayRef = useRef(1500);
   const canvasDraftSaveQueue = useMemo(() => new RevisionedAutosaveQueue<CanvasSnapshot, unknown>({
-    save: (next) => gteApi.applySnapshot(editorId, next),
+    save: (next) => monitorFrustrationPromise("editor_save", () => gteApi.applySnapshot(editorId, next)),
     debounceMs: 100,
     onError: () => setSaveError("We could not sync your latest changes. They remain on this device and will retry automatically."),
   }), [editorId]);
@@ -2580,7 +2581,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         setSaveError(null);
         try {
           const revisionAtStart = canvasRevisionRef.current;
-          const res = await gteApi.applySnapshot(editorId, cloneCanvas(currentCanvas));
+          const res = await monitorFrustrationPromise("editor_save", () => gteApi.applySnapshot(editorId, cloneCanvas(currentCanvas)));
           if (revisionAtStart !== canvasRevisionRef.current) return;
           const normalized = preserveDrumLoopsAcrossCanvasUpdate(
             normalizeCanvas((res as any).canvas ?? res.snapshot ?? currentCanvas, editorId),
@@ -2601,7 +2602,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       setSaveError(null);
       try {
         const revisionAtStart = canvasRevisionRef.current;
-        const res = await gteApi.commitEditor(editorId, { keepalive: options?.keepalive });
+        const res = await monitorFrustrationPromise("editor_save", () => gteApi.commitEditor(editorId, { keepalive: options?.keepalive }));
         if (revisionAtStart !== canvasRevisionRef.current) return;
         // A commit acknowledges the server draft; it must not replace the
         // optimistic canvas. Lane autosaves can still be in flight, so the
@@ -5450,6 +5451,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       );
     stopGlobalPlaybackAudio();
     const runPlaybackSpeed = normalizePlaybackSpeed(speedOverride ?? normalizedPlaybackSpeed);
+    const finishPlayback = isLoopRestart ? (_result: "success" | "failed" | "cancelled") => {} : beginFrustrationAction("editor_play");
     let scheduled: Awaited<ReturnType<typeof scheduleGlobalPlayback>>;
     let playbackContext: AudioContext | null = null;
     try {
@@ -5471,6 +5473,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         options?.muteOutput
       );
     } catch (error) {
+      finishPlayback("failed");
       if (playbackContext) {
         closeAudioContext(playbackContext);
         if (globalPlaybackAudioRef.current === playbackContext) {
@@ -5489,12 +5492,14 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       }
     }
     if (globalPlaybackStartRequestRef.current !== requestId) {
+      finishPlayback("cancelled");
       if (scheduled?.ctx) {
         closeAudioContext(scheduled.ctx);
       }
       return false;
     }
     if (!scheduled?.ctx) {
+      finishPlayback("cancelled");
       if (playbackContext) {
         closeAudioContext(playbackContext);
         if (globalPlaybackAudioRef.current === playbackContext) {
@@ -5514,6 +5519,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       Math.max(0, (scheduled.startTimeSec ?? scheduled.ctx.currentTime) - scheduled.ctx.currentTime)
     );
     syncGlobalPlaybackFrame(startFrame, { forceReact: true });
+    finishPlayback("success");
     setGlobalPlaybackIsPlaying(true);
 
     const tick = (now: number) => {
@@ -5762,7 +5768,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   }, [speedTrainerEnabled, stopGlobalPlayback]);
 
   const toggleGlobalPlayback = useCallback(() => {
-    if (globalPlaybackStartPendingRef.current) return;
+    if (globalPlaybackStartPendingRef.current) { noteFrustrationRetry("editor_play"); return; }
     if (globalPlaybackIsPlaying) {
       stopGlobalPlayback();
       return;

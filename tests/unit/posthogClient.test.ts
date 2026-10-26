@@ -84,6 +84,28 @@ describe("PostHog client identity lifecycle", () => {
     vi.doUnmock("posthog-js");
   });
 
+  it("delivers one contextual incident through fetch diagnostics and the real privacy hook", async () => {
+    const {windowMock}=installBrowserGlobals();
+    Object.assign(windowMock.location,{origin:"https://note2tabs.com",pathname:"/gte/private-editor"});
+    Object.assign(windowMock,{fetch:vi.fn().mockResolvedValue(new Response("private body",{status:503,headers:{"x-request-id":"request-three"}}))});
+    const posthog=createPostHogMock();vi.doMock("posthog-js",()=>({default:posthog}));
+    const analytics=await import("../../lib/posthogClient");await analytics.initPostHog();
+    for(let i=0;i<3;i++)await window.fetch("/api/transcribe?token=secret",{method:"POST",body:"private body"});
+    const incidents=posthog.capture.mock.calls.filter(call=>call[0]==="frustration_detected");
+    expect(incidents).toHaveLength(1);
+    const payload=incidents[0][1];
+    expect(payload).toMatchObject({action:"transcription_submit",pathname:"/gte/[editor_id]",issue_key:"/gte/[editor_id]:transcription_submit",attempts:3,replay_available:false});
+    expect(payload.error_breadcrumbs.filter((b:any)=>b.kind==="request")).toHaveLength(3);
+    expect(payload.error_breadcrumbs.at(-1)).toMatchObject({http_status:503,request_id:"request-three"});
+    const beforeSend=posthog.init.mock.calls[0][1].before_send;
+    const sanitized=beforeSend({event:"frustration_detected",properties:payload});
+    expect(sanitized).not.toBeNull();expect(JSON.stringify(sanitized)).not.toMatch(/secret|private-editor|private body/);
+    await analytics.setPostHogConsent("denied");
+    const {beginFrustrationAction}=await import("../../lib/frustrationSignals");
+    for(let i=0;i<3;i++)beginFrustrationAction("editor_play")("failed");
+    expect(posthog.capture.mock.calls.filter(call=>call[0]==="frustration_detected")).toHaveLength(1);
+  });
+
   it("resets an identified user before anonymous activity continues", async () => {
     const { localStorage } = installBrowserGlobals();
     const posthog = createPostHogMock();
@@ -324,7 +346,7 @@ describe("PostHog client identity lifecycle", () => {
         maskAllInputs: true,
         recordHeaders: false,
         recordBody: false,
-        captureCanvas: expect.objectContaining({ recordCanvas: true }),
+        captureCanvas: expect.objectContaining({ recordCanvas: expect.any(Boolean), canvasFps: 2 }),
       })
     );
     expect(networkRequest).toEqual(
@@ -335,6 +357,27 @@ describe("PostHog client identity lifecycle", () => {
         responseBody: undefined,
       })
     );
+  });
+
+  it.each([
+    [undefined,false,false], [2,false,false], [8,true,false], [8,false,true],
+  ])("bounds canvas capture for cores=%s saveData=%s", async (cores,saveData,enabled) => {
+    installBrowserGlobals();vi.stubGlobal("navigator",{hardwareConcurrency:cores,connection:{saveData}});
+    const posthog=createPostHogMock();vi.doMock("posthog-js",()=>({default:posthog}));
+    const analytics=await import("../../lib/posthogClient");await analytics.initPostHog();
+    expect(posthog.init.mock.calls[0][1].session_recording.captureCanvas).toMatchObject({recordCanvas:enabled,canvasFps:2});
+    await analytics.setPostHogConsent("denied");
+  });
+
+  it("does not start replay outside the sample even in an eligible country", async () => {
+    const {sessionStorage}=installBrowserGlobals();sessionStorage.setItem("n2t:replay-sample:v1","0.9");
+    vi.stubGlobal("fetch",vi.fn().mockResolvedValue({ok:true,json:async()=>({eligible:true})}));
+    const posthog=createPostHogMock();vi.doMock("posthog-js",()=>({default:posthog}));
+    const analytics=await import("../../lib/posthogClient");
+    await analytics.syncPostHogSessionRecording("/gte/local");
+    await analytics.syncPostHogSessionRecording("/pricing");
+    expect(posthog.startSessionRecording).not.toHaveBeenCalled();
+    await analytics.setPostHogConsent("denied");
   });
 
   it("keeps replay stopped even if a stale deployment setting enables it", async () => {
@@ -355,7 +398,8 @@ describe("PostHog client identity lifecycle", () => {
     delete process.env.NEXT_PUBLIC_POSTHOG_SESSION_RECORDING;
   });
   it.each([true, false])("records an eligible country only: %s", async eligible => {
-    installBrowserGlobals();
+    const { sessionStorage } = installBrowserGlobals();
+    sessionStorage.setItem("n2t:replay-sample:v1", "0.01");
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ eligible }) });
     vi.stubGlobal("fetch", fetchMock);
     const posthog = createPostHogMock();
