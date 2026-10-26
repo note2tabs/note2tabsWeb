@@ -15,6 +15,24 @@ describe('bounded action-outcome frustration detection',()=>{
   const finish=beginFrustrationAction('editor_play',1000);noteFrustrationRetry('editor_play');noteFrustrationRetry('editor_play');
   expect(sink).not.toHaveBeenCalled();vi.advanceTimersByTime(1000);expect(sink).toHaveBeenCalledTimes(1);finish('success');
  });
+ it('does not carry retries from an explicitly failed attempt into a new stall',()=>{
+  const finish=beginFrustrationAction('editor_play',1000);
+  noteFrustrationRetry('editor_play');noteFrustrationRetry('editor_play');finish('failed');
+  beginFrustrationAction('editor_play',1000);vi.advanceTimersByTime(1000);
+  expect(sink).not.toHaveBeenCalled();
+ });
+ it('does not carry background-tab retries into a later foreground attempt',()=>{
+  vi.stubGlobal('document',{visibilityState:'hidden'});
+  beginFrustrationAction('editor_play',1000);noteFrustrationRetry('editor_play');noteFrustrationRetry('editor_play');
+  vi.advanceTimersByTime(1000);vi.stubGlobal('document',{visibilityState:'visible'});
+  beginFrustrationAction('editor_play',1000);vi.advanceTimersByTime(1000);expect(sink).not.toHaveBeenCalled();
+ });
+ it('expires old failures and allows a fresh incident after cooldown',()=>{
+  const fail=()=>beginFrustrationAction('editor_save')('failed');
+  fail();fail();vi.advanceTimersByTime(60001);fail();expect(sink).not.toHaveBeenCalled();
+  fail();fail();expect(sink).toHaveBeenCalledTimes(1);
+  vi.advanceTimersByTime(300001);fail();fail();fail();expect(sink).toHaveBeenCalledTimes(2);
+ });
  it('flags an acknowledged add-note attempt that produced no new note without throwing',()=>{
   for(let i=0;i<3;i++)expect(monitorEditorEdit(()=>({notes:[]}),value=>value.notes.length>0)).toEqual({notes:[]});
   expect(sink).toHaveBeenCalledTimes(1);

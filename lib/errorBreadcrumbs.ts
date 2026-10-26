@@ -59,12 +59,12 @@ export function installDiagnosticFetch(onFailure: (details: Breadcrumb) => void)
     };
     try {
       const response = await original.call(window, input, init);
-      finish?.(response.ok ? "success" : "failed");
       record(response);
+      finish?.(response.ok ? "success" : "failed");
       return response;
     } catch (error) {
-      finish?.(error instanceof Error && error.name === "AbortError" ? "cancelled" : "failed");
       record(undefined, error);
+      finish?.(error instanceof Error && error.name === "AbortError" ? "cancelled" : "failed");
       throw error;
     }
   };

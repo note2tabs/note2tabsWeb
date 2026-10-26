@@ -41,16 +41,17 @@ export function beginFrustrationAction(action:FrustrationAction,timeoutMs=30_000
  const timer=setTimeout(()=>{
   pending.delete(timer);
   if(terminal || epoch!==generation)return;
+  const attempts=1+(retries.get(action)??0);retries.delete(action);
   // Background-tab timer throttling is not evidence of a broken action.
   if(typeof document!=='undefined' && document.visibilityState==='hidden')return;
   timedOut=true;
-  const attempts=1+(retries.get(action)??0);retries.delete(action);
   for(let i=0;i<attempts;i++)outcome(action,'failed',started,true);
  },timeoutMs);
  pending.add(timer);
  return (result:Result)=>{
   if(terminal || epoch!==generation)return;terminal=true;clearTimeout(timer);pending.delete(timer);
-  if(result!=='failed')retries.delete(action);
+  // Retries belong to this attempt, including when it fails before its deadline.
+  retries.delete(action);
   if(!timedOut || result==='success')outcome(action,result,started);
  };
 }

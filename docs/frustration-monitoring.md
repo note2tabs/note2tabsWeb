@@ -28,3 +28,33 @@ Both insights were queried after creation: daily counts zero and route/action ta
 ## Verification
 
 Focused Vitest suites cover detector thresholds, successful rapid editing, unchanged note-add outcomes, stalled retries, cancellation, consent withdrawal, stale completions, navigation, bounded timers, background tabs, telemetry failures, stable sampling, plus existing PostHog, fetch diagnostics and transfer lifecycle behavior. TypeScript and a production webpack build are checked separately. Browser/device performance and production event delivery still require post-release observation; synthetic production incidents were not sent.
+
+## Research review (2026-10-26)
+
+Compared official PostHog, Fullstory, Microsoft Clarity and Sentry guidance:
+
+| Common signal | Treatment here |
+| --- | --- |
+| Rage clicks: clustered rapid clicks | Existing PostHog autocapture with modern defaults; kept distinct from action-outcome incidents. Ordinary rapid note entry is not automatically a custom incident. |
+| Dead clicks: no visible response | PostHog's native heuristic supplements explicit outcome checks. DOM changes alone cannot reliably prove canvas edits, audio playback, or downloads worked. |
+| Error after interaction | Existing browser exceptions and sanitized click/request breadcrumbs, plus repeated monitored operation failures. A single exception is still captured by the existing error system. |
+| Repeated unsuccessful work / slow responses | Explicit action deadlines, outcome checks and stalled Play retries; three failures within 60 seconds is our initial operational rule, not a threshold validated by a published study. |
+| Quick backs, excessive scrolling, cursor thrashing | Useful for qualitative review but not added as standalone email triggers: reading music, navigating pricing and scrolling an editor are legitimate behaviors. No new mousemove/scroll monitoring. |
+| Form or checkout abandonment | Existing funnel analytics remain the appropriate measure. Leaving a form is not proof of a technical problem. This branch does not attempt to observe Stripe's hosted checkout DOM. |
+
+Fullstory explicitly cautions that productive repeat controls can trigger rage heuristics. PostHog similarly recommends confirming against replays. Treat all signals as review candidates. Prioritize route/action clusters affecting multiple people, and inspect the adjacent request status, browser errors and successful recovery before diagnosing a bug. The custom alert/playlist filters only `frustration_detected`; they do not cover every native rage/dead click. Native signals remain available separately in PostHog.
+
+Sources:
+- https://posthog.com/docs/product-analytics/autocapture
+- https://posthog.com/docs/libraries/js/config
+- https://help.fullstory.com/hc/en-us/articles/360020624154-Rage-Clicks-Error-Clicks-Dead-Clicks-and-Thrashed-Cursor-Frustration-Signals
+- https://learn.microsoft.com/en-us/clarity/insights/semantic-metrics
+- https://sentry.io/changelog/2023-8-10-user-frustration-signals-rage-and-dead-clicks-in-session-replay/
+
+### Additional validation
+
+Fixed stale retry attribution after explicit failure or a background timeout, and reordered request breadcrumb collection so the triggering failure appears in the incident. Added regression tests for these cases, window expiry/cooldown, device/data-saver canvas settings, excluded replay samples, and the complete fetch-to-sanitized-event path.
+
+A temporary browser harness bundled the actual application modules and installed PostHog SDK and sent only to a local HTTP collector with a dummy project token. Three unchanged edits, three failed submission requests, and a retried stalled playback produced exactly one incident each. Payloads included a session ID and sanitized request context, without the test query token or request body. Productive edits emitted no custom incidents. Consent withdrawal prevented additional incidents. At 6x CPU slowdown with a mobile viewport, 50 successful synthetic button interactions took 2.5 ms and did not add incidents. This harness does not benchmark the full editor or verify native replay rendering. The local harness explicitly allowed its WebDriver browser through the SDK's bot filter; production bot filtering is unchanged.
+
+Read back the live alert and playlist settings. The first scheduled alert evaluation completed without error at a value of zero, as expected before deployment. Production ingestion, replay linkage/rendering, notification delivery on an actual breach, and false-positive frequency still need observation after release. No synthetic production events or paid AI scans were used.
