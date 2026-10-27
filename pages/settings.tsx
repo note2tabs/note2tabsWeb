@@ -459,10 +459,6 @@ function AccountSettingsPage({ user, stripeReady, credits }: Props) {
         setError(data?.error || "Could not delete account.");
         return;
       }
-      sendEvent(ANALYTICS_EVENTS.accountDeletionConfirmed, {
-        goal: deleteGoal || "unknown",
-        plan: isPaidPremium ? "premium" : "free",
-      });
       await handleSignOut(true);
     } catch {
       setError("Could not delete account. Check your connection and try again.");
