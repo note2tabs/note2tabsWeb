@@ -1971,5 +1971,8 @@
   "The transcription finished without usable notes. Try a clearer section or switch models.": "Transkrypcja nie zawiera użytecznych nut. Wypróbuj wyraźniejszy fragment lub inny model.",
   "No piano notes available to import into the guest editor.": "Brak nut fortepianowych do zaimportowania.",
   "Turn piano recordings into sheet music you can edit, play and export.": "Zamień plik MP3, WAV lub fragment z YouTube z partią fortepianu na edytowalne nuty. Sprawdź zapis, posłuchaj i wyeksportuj MIDI lub MusicXML.",
-  "Transcribe piano": "Transkrybuj fortepian"
+  "Transcribe piano": "Transkrybuj fortepian",
+  "Account deletion confirmation word": "usuń",
+  "Type {word} to confirm": "Wpisz {word}, aby potwierdzić",
+  "This permanently removes your account, saved tabs, transcription history, and active subscription. Type {word} to confirm.": "Spowoduje to trwałe usunięcie konta, zapisanych tabulatur i historii transkrypcji oraz anulowanie aktywnej subskrypcji. Wpisz {word}, aby potwierdzić."
 }

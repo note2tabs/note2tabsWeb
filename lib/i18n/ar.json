@@ -1971,5 +1971,8 @@
   "The transcription finished without usable notes. Try a clearer section or switch models.": "لا تحتوي النتيجة على نوتات قابلة للاستخدام. جرّب مقطعًا أوضح أو نموذجًا آخر.",
   "No piano notes available to import into the guest editor.": "لا توجد نوتات بيانو لاستيرادها.",
   "Turn piano recordings into sheet music you can edit, play and export.": "حوّل تسجيل بيانو بصيغة MP3 أو WAV أو مقطعًا من YouTube إلى نوتات قابلة للتعديل. راجع النوتة واستمع إلى النتيجة وصدّرها بصيغة MIDI أو MusicXML.",
-  "Transcribe piano": "تحويل تسجيل البيانو"
+  "Transcribe piano": "تحويل تسجيل البيانو",
+  "Account deletion confirmation word": "حذف",
+  "Type {word} to confirm": "اكتب {word} للتأكيد",
+  "This permanently removes your account, saved tabs, transcription history, and active subscription. Type {word} to confirm.": "سيؤدي هذا إلى حذف حسابك والنوتات الموسيقية المحفوظة وسجل تحويل الموسيقى نهائيًا وإلغاء اشتراكك النشط. اكتب {word} للتأكيد."
 }

@@ -1,3 +1,4 @@
+import { matchesAccountDeletionConfirmation } from "../lib/accountDeletionConfirmation";
 import LanguagePreference from "../components/LanguagePreference";
 import ReminderEmailPreference from "../components/ReminderEmailPreference";
 import { translatedError } from "../lib/i18n/translate";
@@ -154,7 +155,8 @@ function AccountSettingsPage({ user, stripeReady, credits }: Props) {
   const [checkoutStatus, setCheckoutStatus] = useState<string | null>(null);
   const checkoutReturnHandledRef = useRef(false);
   const verifyHref = `/auth/verify-email?email=${encodeURIComponent(user.email)}`;
-  const canFinalizeDelete = deleteConfirmationText.trim().toLowerCase() === "delete";
+  const deleteConfirmationWord = t("Account deletion confirmation word");
+  const canFinalizeDelete = matchesAccountDeletionConfirmation(deleteConfirmationText, deleteConfirmationWord);
   const isAdminOrMod = user.role === "ADMIN" || user.role === "MODERATOR" || user.role === "MOD";
   const isAdmin = user.role === "ADMIN";
   const isPremium =
@@ -439,7 +441,7 @@ function AccountSettingsPage({ user, stripeReady, credits }: Props) {
 
   const handleDelete = async () => {
     if (!canFinalizeDelete) {
-      setError('Type "delete" to confirm permanent account deletion.');
+      setError(t("Type {word} to confirm", { word: deleteConfirmationWord }));
       return;
     }
     setBusy(true);
@@ -801,15 +803,18 @@ function AccountSettingsPage({ user, stripeReady, credits }: Props) {
           ) : (
             <>
               <p className="muted text-small">
-                {t("This permanently removes your account, saved tabs, transcription history, and active subscription. Type ")}<strong dir="ltr">delete</strong> {t(" to confirm.")}</p>
+                {t("This permanently removes your account, saved tabs, transcription history, and active subscription. Type {word} to confirm.", { word: deleteConfirmationWord })}</p>
               <label className="form-group">
-                <span className="label">{t("Type delete to confirm")}</span>
+                <span className="label">{t("Type {word} to confirm", { word: deleteConfirmationWord })}</span>
                 <input
                   type="text"
                   className="form-input"
                   value={deleteConfirmationText}
                   onChange={(event) => setDeleteConfirmationText(event.target.value)}
-                  placeholder="delete"
+                  placeholder={deleteConfirmationWord}
+                  dir="auto"
+                  autoCapitalize="none"
+                  spellCheck={false}
                   autoComplete="off"
                 />
               </label>

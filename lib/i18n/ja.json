@@ -1971,5 +1971,8 @@
   "The transcription finished without usable notes. Try a clearer section or switch models.": "採譜結果に利用できる音符がありません。より明瞭な区間や別のモデルをお試しください。",
   "No piano notes available to import into the guest editor.": "読み込めるピアノの音符がありません。",
   "Turn piano recordings into sheet music you can edit, play and export.": "ピアノのMP3・WAV音源やYouTubeの一節を、編集できる音符に変換。楽譜を確認・再生し、MIDIやMusicXMLで書き出せます。",
-  "Transcribe piano": "ピアノを採譜"
+  "Transcribe piano": "ピアノを採譜",
+  "Account deletion confirmation word": "削除",
+  "Type {word} to confirm": "確認のため「{word}」と入力してください",
+  "This permanently removes your account, saved tabs, transcription history, and active subscription. Type {word} to confirm.": "アカウント、保存したタブ譜、採譜履歴を完全に削除し、有効なサブスクリプションを解約します。確認のため「{word}」と入力してください。"
 }

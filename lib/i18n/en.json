@@ -1959,5 +1959,8 @@
   "Transcribe ukulele audio": "Transcribe ukulele audio",
   "Bass transcription guide": "Bass transcription guide",
   "Write a playable bassline": "Write a playable bassline",
-  "Check the groove, register and fingering.": "Check the groove, register and fingering."
+  "Check the groove, register and fingering.": "Check the groove, register and fingering.",
+  "Account deletion confirmation word": "delete",
+  "Type {word} to confirm": "Type {word} to confirm",
+  "This permanently removes your account, saved tabs, transcription history, and active subscription. Type {word} to confirm.": "This permanently removes your account, saved tabs, transcription history, and active subscription. Type {word} to confirm."
 }

@@ -1971,5 +1971,8 @@
   "The transcription finished without usable notes. Try a clearer section or switch models.": "채보 결과에 사용할 수 있는 음표가 없습니다. 더 선명한 구간이나 다른 모델을 사용해 보세요.",
   "No piano notes available to import into the guest editor.": "가져올 피아노 음표가 없습니다.",
   "Turn piano recordings into sheet music you can edit, play and export.": "피아노 MP3, WAV 또는 YouTube 구간을 편집 가능한 음표로 변환하세요. 악보를 확인하고 재생한 뒤 MIDI나 MusicXML로 내보낼 수 있습니다.",
-  "Transcribe piano": "피아노 채보하기"
+  "Transcribe piano": "피아노 채보하기",
+  "Account deletion confirmation word": "삭제",
+  "Type {word} to confirm": "확인하려면 {word}를 입력하세요",
+  "This permanently removes your account, saved tabs, transcription history, and active subscription. Type {word} to confirm.": "계정, 저장된 타브 악보, 채보 기록이 영구적으로 삭제되고 현재 구독이 해지됩니다. 확인하려면 {word}를 입력하세요."
 }
