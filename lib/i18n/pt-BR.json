@@ -1971,5 +1971,8 @@
   "The transcription finished without usable notes. Try a clearer section or switch models.": "A transcrição não contém notas utilizáveis. Tente um trecho mais claro ou outro modelo.",
   "No piano notes available to import into the guest editor.": "Não há notas de piano para importar.",
   "Turn piano recordings into sheet music you can edit, play and export.": "Transcreva um arquivo MP3, WAV ou trecho do YouTube de piano em notas editáveis. Revise a partitura, ouça o resultado e exporte em MIDI ou MusicXML.",
-  "Transcribe piano": "Transcrever piano"
+  "Transcribe piano": "Transcrever piano",
+  "Account deletion confirmation word": "excluir",
+  "Type {word} to confirm": "Digite {word} para confirmar",
+  "This permanently removes your account, saved tabs, transcription history, and active subscription. Type {word} to confirm.": "Isso exclui permanentemente sua conta, as tablaturas salvas e o histórico de transcrições, e cancela sua assinatura ativa. Digite {word} para confirmar."
 }

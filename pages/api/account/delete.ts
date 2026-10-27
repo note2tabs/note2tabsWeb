@@ -1,8 +1,9 @@
-import { deletePostHogCapturesForAccount } from "../../../lib/posthogOutbox";
+import { deleteAccountAndRecordCompletion } from "../../../lib/accountDeletion";
+import { retryServerPostHogCaptures } from "../../../lib/posthogServer";
+import { waitUntil } from "@vercel/functions";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
-import { prisma } from "../../../lib/prisma";
 import { stripeClient } from "../../../lib/stripe";
 import {
   getStripePaidPlanConfigs,
@@ -64,12 +65,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    await deletePostHogCapturesForAccount(session.user.id);
-    await prisma.tabJob.deleteMany({ where: { userId: session.user.id } });
-    await prisma.canvases.deleteMany({ where: { user_id: session.user.id } });
-    await prisma.account.deleteMany({ where: { userId: session.user.id } });
-    await prisma.session.deleteMany({ where: { userId: session.user.id } });
-    await prisma.user.delete({ where: { id: session.user.id } });
+    await deleteAccountAndRecordCompletion(session.user.id);
+    // Completion is already durable. Provider failures must not fail deletion;
+    // the existing scheduled outbox retry will deliver the same event UUID.
+    const delivery = retryServerPostHogCaptures().catch(() => {
+      console.warn("account_deletion_analytics_delivery_pending");
+    });
+    try { waitUntil(delivery); } catch { /* standalone/local execution */ }
 
     return res.status(200).json({ ok: true });
   } catch (error) {

@@ -1971,5 +1971,8 @@
   "The transcription finished without usable notes. Try a clearer section or switch models.": "转谱结果中没有可用音符。请尝试更清晰的片段或其他模型。",
   "No piano notes available to import into the guest editor.": "没有可导入的钢琴音符。",
   "Turn piano recordings into sheet music you can edit, play and export.": "将钢琴MP3、WAV或YouTube片段转成可编辑的音符。查看乐谱、试听结果，并导出MIDI或MusicXML。",
-  "Transcribe piano": "钢琴音频转谱"
+  "Transcribe piano": "钢琴音频转谱",
+  "Account deletion confirmation word": "删除",
+  "Type {word} to confirm": "请输入“{word}”以确认",
+  "This permanently removes your account, saved tabs, transcription history, and active subscription. Type {word} to confirm.": "此操作将永久删除您的账户、已保存的乐谱和转录记录，并取消当前订阅。请输入“{word}”以确认。"
 }
