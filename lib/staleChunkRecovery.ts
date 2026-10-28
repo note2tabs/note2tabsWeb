@@ -33,18 +33,20 @@ export function isStaleChunkError(value: unknown) {
 type RecoveryDependencies = {
   now?: () => number;
   reload?: () => void;
+  navigate?: (path: string) => void;
   reportFailure?: () => void;
 };
 
 export function installStaleChunkRecovery(
   routerEvents: {
-    on: (event: "routeChangeError", handler: (error: unknown) => void) => void;
-    off: (event: "routeChangeError", handler: (error: unknown) => void) => void;
+    on: (event: "routeChangeError", handler: (error: unknown, targetPath?: string) => void) => void;
+    off: (event: "routeChangeError", handler: (error: unknown, targetPath?: string) => void) => void;
   },
   dependencies: RecoveryDependencies = {}
 ) {
   const now = dependencies.now ?? Date.now;
   const reload = dependencies.reload ?? (() => window.location.reload());
+  const navigate = dependencies.navigate ?? ((path: string) => window.location.assign(path));
   let reloadStarted = false;
 
   // Booting does not prove the failed route's chunks loaded. Keep the timestamp
@@ -83,9 +85,24 @@ export function installStaleChunkRecovery(
       dependencies.reportFailure?.();
       return;
     }
-    const attemptId = rememberChunkRecovery(error, targetPath);
+    // During routeChangeError the browser may still be on the previous page.
+    // Recover the intended same-origin destination instead of reloading that page.
+    let destination: string | undefined;
+    if (typeof targetPath === "string") {
+      try {
+        const current = new URL(window.location.href);
+        const target = new URL(targetPath, current);
+        if (target.origin === current.origin && target.href !== current.href) {
+          // Keep the absolute URL: a same-origin pathname beginning with //
+          // would become an external URL if assigned as a relative string.
+          destination = target.href;
+        }
+      } catch { /* Invalid/external destinations fall back to a guarded reload. */ }
+    }
+    const attemptId = rememberChunkRecovery(error, destination);
     recordChunkRecoveryDecision("reload_started", attemptId);
-    reload();
+    if (destination) navigate(destination);
+    else reload();
   };
 
   const onWindowError = (event: ErrorEvent) => recover(event.error ?? event.message);

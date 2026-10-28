@@ -116,6 +116,51 @@ describe("stale chunk recovery", () => {
     expect(reportFailure).toHaveBeenCalledOnce();
   });
 
+  it("opens the intended route after its chunk fails before browser history changes", () => {
+    const storage = new Map<string, string>();
+    vi.stubGlobal("window", {
+      location: { href: "https://note2tabs.com/es/" },
+      sessionStorage: { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value) },
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    });
+    const events = routerEvents(), reload = vi.fn(), navigate = vi.fn();
+    installStaleChunkRecovery(events, { now: () => 10000, reload, navigate });
+    const handler = events.on.mock.calls[0][1] as (error: unknown, target: string) => void;
+    handler(new TypeError("Failed to fetch dynamically imported module"), "/es/auth/login?next=%2Fes%2Ftranscribe#signin");
+    expect(navigate).toHaveBeenCalledWith("https://note2tabs.com/es/auth/login?next=%2Fes%2Ftranscribe#signin");
+    expect(reload).not.toHaveBeenCalled();
+    handler(new Error("ChunkLoadError"), "/es/auth/login");
+    expect(navigate).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a same-origin double-slash pathname from becoming an external redirect", () => {
+    vi.stubGlobal("window", {
+      location: { href: "https://note2tabs.com/" },
+      sessionStorage: { getItem: () => null, setItem: vi.fn() },
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    });
+    const events = routerEvents(), reload = vi.fn(), navigate = vi.fn();
+    installStaleChunkRecovery(events, { now: () => 10000, reload, navigate });
+    const handler = events.on.mock.calls[0][1] as (error: unknown, target: string) => void;
+    handler(new Error("ChunkLoadError"), "https://note2tabs.com//external.example/login");
+    expect(navigate).toHaveBeenCalledWith("https://note2tabs.com//external.example/login");
+    expect(new URL(navigate.mock.calls[0][0]).origin).toBe("https://note2tabs.com");
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it.each(["https://external.example/auth/login", "//external.example/login", "javascript:alert(1)", "/auth/login"])("never navigates externally or redundantly: %s", target => {
+    vi.stubGlobal("window", {
+      location: { href: "https://note2tabs.com/auth/login" },
+      sessionStorage: { getItem: () => null, setItem: vi.fn() },
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    });
+    const events = routerEvents(), reload = vi.fn(), navigate = vi.fn();
+    installStaleChunkRecovery(events, { now: () => 10000, reload, navigate });
+    const handler = events.on.mock.calls[0][1] as (error: unknown, target: string) => void;
+    handler(new Error("ChunkLoadError"), target);
+    expect(navigate).not.toHaveBeenCalled();expect(reload).toHaveBeenCalledOnce();
+  });
+
   it("unsubscribes router and browser listeners when unmounted", () => {
     const addEventListener = vi.fn();
     const removeEventListener = vi.fn();
