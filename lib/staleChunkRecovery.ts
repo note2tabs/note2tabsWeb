@@ -93,7 +93,9 @@ export function installStaleChunkRecovery(
         const current = new URL(window.location.href);
         const target = new URL(targetPath, current);
         if (target.origin === current.origin && target.href !== current.href) {
-          destination = target.pathname + target.search + target.hash;
+          // Keep the absolute URL: a same-origin pathname beginning with //
+          // would become an external URL if assigned as a relative string.
+          destination = target.href;
         }
       } catch { /* Invalid/external destinations fall back to a guarded reload. */ }
     }

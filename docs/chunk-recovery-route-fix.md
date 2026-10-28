@@ -8,4 +8,6 @@ Browser reproduction used the real recovery module, a deliberately 404ing dynami
 
 The October 26 Safari incident does not prove this was its cause: its URL was already the login page, and the user recovered, signed up, transcribed and reached the editor. The initial resource failure could still have been network/cache/deployment related; the recorded diagnostics do not establish which.
 
-Validation: 16 focused recovery/outcome tests; TypeScript; production build; controlled browser before/after reproduction. No production test events or customer-account mutations.
+Validation: 17 focused recovery/outcome tests; TypeScript; production build; controlled browser before/after reproduction. No production test events or customer-account mutations.
+
+Self-review caught and fixed URL reinterpretation: a same-origin absolute URL with a pathname beginning `//` must remain absolute when assigned, or a browser can interpret the pathname as an external host. Regression tests and a browser check verify the destination remains on the original origin. The ordinary login recovery browser check was repeated successfully.
