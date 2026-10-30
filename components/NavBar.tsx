@@ -93,6 +93,27 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
   const hasAffiliateDashboard = sessionStatus === "authenticated" &&
     Boolean(userId && affiliateAccess?.userId === userId && affiliateAccess.available);
 
+  const handleSignOut = async () => {
+    if (signOutBusy) return;
+    setSignOutBusy(true);
+    setSignOutError(null);
+    try {
+      await clearPendingTranscription();
+    } catch {
+      setSignOutError(t("Could not securely clear your saved upload. Please try signing out again."));
+      setSignOutBusy(false);
+      return;
+    }
+    try {
+      await resetPostHogIdentity();
+      await signOut({ redirect: false });
+      window.location.href = localePath("/");
+    } catch {
+      setSignOutError(t("Could not sign out. Check your connection and try again."));
+      setSignOutBusy(false);
+    }
+  };
+
   useEffect(() => {
     if (!profileMenuOpen || sessionStatus !== "authenticated" || !userId || affiliateAccess?.userId === userId) return;
     const controller = new AbortController();
@@ -350,26 +371,7 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
                     type="button"
                     role="menuitem"
                     disabled={signOutBusy}
-                    onClick={async () => {
-                      if (signOutBusy) return;
-                      setSignOutBusy(true);
-                      setSignOutError(null);
-                      try {
-                        await clearPendingTranscription();
-                      } catch {
-                        setSignOutError(t("Could not securely clear your saved upload. Please try signing out again."));
-                        setSignOutBusy(false);
-                        return;
-                      }
-                      try {
-                        await resetPostHogIdentity();
-                        await signOut({ redirect: false });
-                        window.location.href = localePath("/");
-                      } catch {
-                        setSignOutError(t("Could not sign out. Check your connection and try again."));
-                        setSignOutBusy(false);
-                      }
-                    }}
+                    onClick={handleSignOut}
                   >
                     {signOutBusy ? t("Signing out…") : t("Sign out")}
                   </button>
@@ -382,6 +384,17 @@ export default function NavBar({ editorRevealMode = false }: NavBarProps) {
               </div>
             )}
           </div>
+          {session && (
+            <div className="nav-mobile-account">
+              <button type="button" className="nav-mobile-sign-out" disabled={signOutBusy} onClick={handleSignOut}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M9 5H5v14h4M14 8l4 4-4 4M9 12h9" />
+                </svg>
+                {signOutBusy ? t("Signing out…") : t("Sign out")}
+              </button>
+              {signOutError && <span className="error" role="alert">{signOutError}</span>}
+            </div>
+          )}
         </nav>
         <div className="nav-actions">
           <LanguageSelector />
