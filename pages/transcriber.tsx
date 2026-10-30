@@ -1,4 +1,5 @@
 import SeoLandingPage, { type SeoLandingPageProps } from "../components/SeoLandingPage";
+import { YOUTUBE_DOWNLOADS_AVAILABLE, YOUTUBE_UNAVAILABLE_MESSAGE } from "../lib/youtubeAvailability";
 import { TRANSCRIPTION_ENTRY_TITLES, transcriptionEntryInstrument } from "../lib/instrumentTranscriptionEntry";
 import dynamic from "next/dynamic";
 const PaywallDesignPreview = process.env.NODE_ENV === "development" ? dynamic(()=>import("../components/PaywallDesignPreview"),{ssr:false}) : ()=>null;
@@ -759,7 +760,7 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
   const canSubmit = useMemo(() => {
     if (sessionStatus === "loading" || (isSignedIn && !canTranscribe)) return false;
     if (mode === "FILE") return Boolean(selectedFile) && fileTimeRangeValid && !loading && !authHandoffBusy;
-    return youtubeValid && youtubeTimeRangeValid && !loading && !authHandoffBusy;
+    return YOUTUBE_DOWNLOADS_AVAILABLE && youtubeValid && youtubeTimeRangeValid && !loading && !authHandoffBusy;
   }, [
     mode,
     selectedFile,
@@ -854,6 +855,10 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
   };
 
   const handleConvert = async () => {
+    if (mode === "YOUTUBE" && !YOUTUBE_DOWNLOADS_AVAILABLE) {
+      setError(YOUTUBE_UNAVAILABLE_MESSAGE);
+      return;
+    }
     if (convertInFlightRef.current || authHandoffInFlightRef.current || loading) {
       reportBlockedSubmission("already_in_progress", "preflight");
       return;
@@ -1651,6 +1656,7 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
                               id="transcriber-youtube-url"
                               name="youtubeUrl"
                               type="url"
+                              disabled={!YOUTUBE_DOWNLOADS_AVAILABLE}
                               value={youtubeUrl}
                               onChange={(event) => setYoutubeUrl(event.target.value)}
                               placeholder="https://www.youtube.com/..."
@@ -1703,7 +1709,10 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
                 </div>
               </div>
 
-              {mode === "YOUTUBE" && (
+              {mode === "YOUTUBE" && !YOUTUBE_DOWNLOADS_AVAILABLE && (
+                <p role="status" className="my-4 rounded-lg border border-slate-200 bg-stone-50 px-4 py-3 text-sm text-slate-700">{YOUTUBE_UNAVAILABLE_MESSAGE}</p>
+              )}
+              {mode === "YOUTUBE" && YOUTUBE_DOWNLOADS_AVAILABLE && (
                 <>
                   <div className="prompt-field prompt-field--compact">
                     <div className="advanced-grid">
