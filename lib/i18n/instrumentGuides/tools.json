@@ -1,0 +1,380 @@
+{
+  "ar": {
+    "piano": {
+      "transcribe": {
+        "label": "تحويل تسجيل البيانو",
+        "description": "حوّل تسجيل بيانو بصيغة MP3 أو WAV أو مقطعًا من YouTube إلى نوتات قابلة للتعديل. راجع النوتة واستمع إلى النتيجة وصدّرها بصيغة MIDI أو MusicXML."
+      },
+      "editor": {
+        "label": "فتح محرر نوتة البيانو",
+        "description": "أنشئ نوتة بيانو في المتصفح باستخدام مفتاحَي صول وفا وعرض البيانو رول. عدّل التوزيع واستمع إليه وصدّره بصيغة MIDI أو MusicXML."
+      }
+    },
+    "bass": {
+      "transcribe": {
+        "label": "تحويل تسجيل الباس",
+        "description": "استخرج خط الباس من تسجيل أو اكتب إيقاعًا على أربعة أوتار بضبط E–A–D–G."
+      },
+      "editor": {
+        "label": "محرّر تابات الباس",
+        "description": "استخرج خط الباس من تسجيل أو اكتب إيقاعًا على أربعة أوتار بضبط E–A–D–G."
+      }
+    },
+    "drums": {
+      "transcribe": {
+        "label": "تحويل تسجيل الدرامز",
+        "description": "حوّل تسجيل الدرامز إلى نوتة قابلة للتعديل. راجع ضربات الباس درام والسنير والصنوج، ثم صدّر الإيقاع بصيغة MIDI."
+      },
+      "editor": {
+        "label": "فتح محرر الدرامز",
+        "description": "أنشئ إيقاعات وفواصل درامز في المتصفح. أضف الضربات واستمع إلى المازورة واحفظ التوزيع أو صدّره."
+      }
+    },
+    "ukulele": {
+      "transcribe": {
+        "label": "تحويل تسجيل اليوكليلي",
+        "description": "استخرج درجات النغمات والإيقاع من تسجيل يوكليلي، ثم تابع التوزيع على تاب للأوتار الأربعة."
+      },
+      "editor": {
+        "label": "فتح محرر اليوكليلي",
+        "description": "أنشئ تابلتشر لليوكليلي ذي الأوتار الأربعة بضبط G–C–E–A. عدّل أرقام الحنق والإيقاع، ثم استمع وصدّر عملك."
+      }
+    }
+  },
+  "es": {
+    "piano": {
+      "transcribe": {
+        "label": "Transcribir piano",
+        "description": "Transcribe un MP3, WAV o fragmento de YouTube de piano en notas editables. Revisa la partitura, escucha el resultado y exporta en MIDI o MusicXML."
+      },
+      "editor": {
+        "label": "Abrir el editor de piano",
+        "description": "Crea partituras de piano en tu navegador. Escribe en claves de sol y fa, usa el piano roll, escucha tu arreglo y exporta en MIDI o MusicXML."
+      }
+    },
+    "bass": {
+      "transcribe": {
+        "label": "Transcribir bajo",
+        "description": "Transcribe una línea de bajo o escribe un ritmo sobre cuatro cuerdas afinadas mi–la–re–sol."
+      },
+      "editor": {
+        "label": "Editor de tablaturas de bajo",
+        "description": "Transcribe una línea de bajo o escribe un ritmo sobre cuatro cuerdas afinadas mi–la–re–sol."
+      }
+    },
+    "drums": {
+      "transcribe": {
+        "label": "Transcribir batería",
+        "description": "Convierte una grabación de batería en notación editable. Revisa el bombo, la caja y los platos y exporta el ritmo en MIDI."
+      },
+      "editor": {
+        "label": "Abrir el editor de batería",
+        "description": "Crea ritmos y fills de batería en tu navegador. Coloca los golpes, escucha el compás y guarda o exporta tu arreglo."
+      }
+    },
+    "ukulele": {
+      "transcribe": {
+        "label": "Transcribir ukelele",
+        "description": "Obtén notas y ritmo de una grabación de ukelele y trabaja el arreglo en una tablatura de cuatro cuerdas."
+      },
+      "editor": {
+        "label": "Abrir el editor de ukelele",
+        "description": "Crea tablaturas de ukelele de cuatro cuerdas en afinación sol–do–mi–la. Edita trastes y ritmo, escucha el resultado y exporta tu música."
+      }
+    }
+  },
+  "fr": {
+    "piano": {
+      "transcribe": {
+        "label": "Transcrire le piano",
+        "description": "Transcrivez un fichier MP3, WAV ou un extrait YouTube de piano en notes modifiables. Relisez la partition, écoutez le résultat et exportez en MIDI ou MusicXML."
+      },
+      "editor": {
+        "label": "Ouvrir l’éditeur de piano",
+        "description": "Créez une partition de piano dans votre navigateur. Écrivez en clés de sol et de fa, utilisez le piano roll, écoutez votre arrangement et exportez en MIDI ou MusicXML."
+      }
+    },
+    "bass": {
+      "transcribe": {
+        "label": "Transcrire la basse",
+        "description": "Transcrivez une ligne de basse ou écrivez un groove sur quatre cordes accordées mi–la–ré–sol."
+      },
+      "editor": {
+        "label": "Éditeur de tablatures de basse",
+        "description": "Transcrivez une ligne de basse ou écrivez un groove sur quatre cordes accordées mi–la–ré–sol."
+      }
+    },
+    "drums": {
+      "transcribe": {
+        "label": "Transcrire la batterie",
+        "description": "Transformez un enregistrement de batterie en notation modifiable. Vérifiez la grosse caisse, la caisse claire et les cymbales, puis exportez le rythme en MIDI."
+      },
+      "editor": {
+        "label": "Ouvrir l’éditeur de batterie",
+        "description": "Créez des rythmes et des breaks de batterie dans votre navigateur. Placez les coups, écoutez la mesure et enregistrez ou exportez votre arrangement."
+      }
+    },
+    "ukulele": {
+      "transcribe": {
+        "label": "Transcrire l’ukulélé",
+        "description": "Relevez les notes et le rythme d’un enregistrement d’ukulélé, puis travaillez votre arrangement sur une tablature à quatre cordes."
+      },
+      "editor": {
+        "label": "Ouvrir l’éditeur d’ukulélé",
+        "description": "Créez des tablatures d’ukulélé à quatre cordes en accordage sol–do–mi–la. Modifiez les cases et le rythme, écoutez le résultat et exportez votre morceau."
+      }
+    }
+  },
+  "it": {
+    "piano": {
+      "transcribe": {
+        "label": "Trascrivi il pianoforte",
+        "description": "Trascrivi un file MP3, WAV o un estratto YouTube di pianoforte in note modificabili. Controlla lo spartito, ascolta il risultato ed esporta in MIDI o MusicXML."
+      },
+      "editor": {
+        "label": "Apri l’editor per pianoforte",
+        "description": "Crea uno spartito per pianoforte nel browser. Scrivi in chiave di violino e di basso, usa il piano roll, ascolta l’arrangiamento ed esporta in MIDI o MusicXML."
+      }
+    },
+    "bass": {
+      "transcribe": {
+        "label": "Trascrivi il basso",
+        "description": "Trascrivi una linea di basso o scrivi un groove su quattro corde accordate mi–la–re–sol."
+      },
+      "editor": {
+        "label": "Editor di tablature per basso",
+        "description": "Trascrivi una linea di basso o scrivi un groove su quattro corde accordate mi–la–re–sol."
+      }
+    },
+    "drums": {
+      "transcribe": {
+        "label": "Trascrivi la batteria",
+        "description": "Trasforma una registrazione di batteria in notazione modificabile. Controlla cassa, rullante e piatti, poi esporta il ritmo in MIDI."
+      },
+      "editor": {
+        "label": "Apri l’editor per batteria",
+        "description": "Crea ritmi e fill di batteria nel browser. Inserisci i colpi, ascolta la battuta e salva o esporta il tuo arrangiamento."
+      }
+    },
+    "ukulele": {
+      "transcribe": {
+        "label": "Trascrivi l’ukulele",
+        "description": "Ricava note e ritmo da una registrazione di ukulele, poi lavora all’arrangiamento su una tablatura a quattro corde."
+      },
+      "editor": {
+        "label": "Apri l’editor per ukulele",
+        "description": "Crea tablature per ukulele a quattro corde in accordatura sol–do–mi–la. Modifica tasti e ritmo, ascolta il risultato ed esporta il brano."
+      }
+    }
+  },
+  "ja": {
+    "piano": {
+      "transcribe": {
+        "label": "ピアノを採譜",
+        "description": "ピアノのMP3・WAV音源やYouTubeの一節を、編集できる音符に変換。楽譜を確認・再生し、MIDIやMusicXMLで書き出せます。"
+      },
+      "editor": {
+        "label": "ピアノ楽譜エディターを開く",
+        "description": "ブラウザでピアノ楽譜を作成。ト音記号・ヘ音記号の大譜表やピアノロールで編集し、再生してMIDI・MusicXMLで書き出せます。"
+      }
+    },
+    "bass": {
+      "transcribe": {
+        "label": "ベースを採譜",
+        "description": "ベースラインを採譜したり、E–A–D–Gの4弦TAB譜でグルーヴを書いたりできます。"
+      },
+      "editor": {
+        "label": "ベースTAB譜エディター",
+        "description": "ベースラインを採譜したり、E–A–D–Gの4弦TAB譜でグルーヴを書いたりできます。"
+      }
+    },
+    "drums": {
+      "transcribe": {
+        "label": "ドラムを採譜",
+        "description": "ドラムの録音を編集可能なドラム譜に変換。バスドラム、スネア、シンバルを確認し、リズムをMIDIで書き出せます。"
+      },
+      "editor": {
+        "label": "ドラム譜エディターを開く",
+        "description": "ブラウザでドラムのビートやフィルを作成。打点を入力して小節を再生し、アレンジを保存・書き出しできます。"
+      }
+    },
+    "ukulele": {
+      "transcribe": {
+        "label": "ウクレレを採譜",
+        "description": "ウクレレの録音から音高とリズムを採譜し、4弦TAB譜でアレンジを進められます。"
+      },
+      "editor": {
+        "label": "ウクレレTABエディターを開く",
+        "description": "G–C–E–Aの4弦ウクレレTAB譜を作成。フレット番号とリズムを編集し、再生・書き出しできます。"
+      }
+    }
+  },
+  "ko": {
+    "piano": {
+      "transcribe": {
+        "label": "피아노 채보하기",
+        "description": "피아노 MP3, WAV 또는 YouTube 구간을 편집 가능한 음표로 변환하세요. 악보를 확인하고 재생한 뒤 MIDI나 MusicXML로 내보낼 수 있습니다."
+      },
+      "editor": {
+        "label": "피아노 악보 편집기 열기",
+        "description": "브라우저에서 피아노 악보를 만드세요. 높은음자리표·낮은음자리표가 있는 악보와 피아노 롤로 편집하고, 재생한 뒤 MIDI나 MusicXML로 내보내세요."
+      }
+    },
+    "bass": {
+      "transcribe": {
+        "label": "베이스 채보하기",
+        "description": "베이스 라인을 채보하거나 E–A–D–G 튜닝의 4현 타브 악보로 그루브를 만드세요."
+      },
+      "editor": {
+        "label": "베이스 타브 악보 편집기",
+        "description": "베이스 라인을 채보하거나 E–A–D–G 튜닝의 4현 타브 악보로 그루브를 만드세요."
+      }
+    },
+    "drums": {
+      "transcribe": {
+        "label": "드럼 채보하기",
+        "description": "드럼 녹음을 편집 가능한 드럼 악보로 변환하세요. 킥, 스네어, 심벌을 확인하고 리듬을 MIDI로 내보낼 수 있습니다."
+      },
+      "editor": {
+        "label": "드럼 악보 편집기 열기",
+        "description": "브라우저에서 드럼 비트와 필인을 만드세요. 타격음을 배치하고 마디를 재생한 뒤 편곡을 저장하거나 내보내세요."
+      }
+    },
+    "ukulele": {
+      "transcribe": {
+        "label": "우쿨렐레 채보하기",
+        "description": "우쿨렐레 녹음에서 음높이와 리듬을 채보하고 4현 타브 악보로 편곡을 이어가세요."
+      },
+      "editor": {
+        "label": "우쿨렐레 편집기 열기",
+        "description": "G–C–E–A 튜닝의 4현 우쿨렐레 타브 악보를 만드세요. 프렛과 리듬을 편집하고 재생하거나 내보낼 수 있습니다."
+      }
+    }
+  },
+  "pl": {
+    "piano": {
+      "transcribe": {
+        "label": "Transkrybuj fortepian",
+        "description": "Zamień plik MP3, WAV lub fragment z YouTube z partią fortepianu na edytowalne nuty. Sprawdź zapis, posłuchaj i wyeksportuj MIDI lub MusicXML."
+      },
+      "editor": {
+        "label": "Otwórz edytor nut fortepianowych",
+        "description": "Twórz zapis nutowy na fortepian i pianino w przeglądarce. Korzystaj z klucza wiolinowego i basowego oraz widoku piano roll, odsłuchuj i eksportuj MIDI lub MusicXML."
+      }
+    },
+    "bass": {
+      "transcribe": {
+        "label": "Transkrybuj bas",
+        "description": "Transkrybuj linię basu lub napisz groove na czterech strunach w stroju E–A–D–G."
+      },
+      "editor": {
+        "label": "Edytor tabulatur basowych",
+        "description": "Transkrybuj linię basu lub napisz groove na czterech strunach w stroju E–A–D–G."
+      }
+    },
+    "drums": {
+      "transcribe": {
+        "label": "Transkrybuj perkusję",
+        "description": "Zamień nagranie perkusji na edytowalny zapis nutowy. Sprawdź stopę, werbel i talerze, a następnie wyeksportuj rytm do MIDI."
+      },
+      "editor": {
+        "label": "Otwórz edytor perkusyjny",
+        "description": "Twórz rytmy i przejścia perkusyjne w przeglądarce. Wstawiaj uderzenia, odsłuchuj takty i zapisuj lub eksportuj aranżację."
+      }
+    },
+    "ukulele": {
+      "transcribe": {
+        "label": "Transkrybuj ukulele",
+        "description": "Odczytaj wysokości dźwięków i rytm z nagrania ukulele, a następnie opracuj aranżację w czterostrunowej tabulaturze."
+      },
+      "editor": {
+        "label": "Otwórz edytor ukulele",
+        "description": "Twórz czterostrunowe tabulatury ukulele w stroju G–C–E–A. Edytuj progi i rytm, odsłuchuj i eksportuj utwór."
+      }
+    }
+  },
+  "pt-BR": {
+    "piano": {
+      "transcribe": {
+        "label": "Transcrever piano",
+        "description": "Transcreva um arquivo MP3, WAV ou trecho do YouTube de piano em notas editáveis. Revise a partitura, ouça o resultado e exporte em MIDI ou MusicXML."
+      },
+      "editor": {
+        "label": "Abrir editor de piano",
+        "description": "Crie partituras de piano no navegador. Escreva nas claves de sol e fá, use o piano roll, ouça seu arranjo e exporte em MIDI ou MusicXML."
+      }
+    },
+    "bass": {
+      "transcribe": {
+        "label": "Transcrever baixo",
+        "description": "Transcreva uma linha de baixo ou escreva um groove com quatro cordas afinadas em mi–lá–ré–sol."
+      },
+      "editor": {
+        "label": "Editor de tablaturas de baixo",
+        "description": "Transcreva uma linha de baixo ou escreva um groove com quatro cordas afinadas em mi–lá–ré–sol."
+      }
+    },
+    "drums": {
+      "transcribe": {
+        "label": "Transcrever bateria",
+        "description": "Transforme uma gravação de bateria em notação editável. Confira bumbo, caixa e pratos e exporte o ritmo em MIDI."
+      },
+      "editor": {
+        "label": "Abrir editor de bateria",
+        "description": "Crie ritmos e viradas de bateria no navegador. Insira os golpes, ouça o compasso e salve ou exporte seu arranjo."
+      }
+    },
+    "ukulele": {
+      "transcribe": {
+        "label": "Transcrever ukulele",
+        "description": "Obtenha notas e ritmo de uma gravação de ukulele e trabalhe o arranjo em uma tablatura de quatro cordas."
+      },
+      "editor": {
+        "label": "Abrir editor de ukulele",
+        "description": "Crie tablaturas de ukulele com quatro cordas na afinação sol–dó–mi–lá. Edite casas e ritmo, ouça o resultado e exporte sua música."
+      }
+    }
+  },
+  "zh-Hans": {
+    "piano": {
+      "transcribe": {
+        "label": "钢琴音频转谱",
+        "description": "将钢琴MP3、WAV或YouTube片段转成可编辑的音符。查看乐谱、试听结果，并导出MIDI或MusicXML。"
+      },
+      "editor": {
+        "label": "打开钢琴乐谱编辑器",
+        "description": "在浏览器中编写钢琴乐谱。使用高低音谱表和钢琴卷帘窗编辑、试听，并导出MIDI或MusicXML。"
+      }
+    },
+    "bass": {
+      "transcribe": {
+        "label": "贝斯扒谱",
+        "description": "为贝斯录音扒谱，或用E–A–D–G定弦的四线谱编写低音律动。"
+      },
+      "editor": {
+        "label": "贝斯指法谱编辑器",
+        "description": "为贝斯录音扒谱，或用E–A–D–G定弦的四线谱编写低音律动。"
+      }
+    },
+    "drums": {
+      "transcribe": {
+        "label": "鼓声转谱",
+        "description": "将架子鼓录音转成可编辑的鼓谱。检查底鼓、军鼓和镲片的节奏，并导出MIDI。"
+      },
+      "editor": {
+        "label": "打开鼓谱编辑器",
+        "description": "在浏览器中编写鼓点和加花。放置打击音符、试听小节，并保存或导出编曲。"
+      }
+    },
+    "ukulele": {
+      "transcribe": {
+        "label": "尤克里里扒谱",
+        "description": "从尤克里里录音中提取音高和节奏，再用四线谱继续编曲。"
+      },
+      "editor": {
+        "label": "打开尤克里里编辑器",
+        "description": "按G–C–E–A定弦制作尤克里里四线谱。编辑品位和节奏，试听并导出作品。"
+      }
+    }
+  }
+}

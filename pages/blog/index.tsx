@@ -1,4 +1,4 @@
-import { instrumentGuideGroups } from "../../lib/instrumentGuideIndex";
+import { localizedInstrumentGuideGroups, instrumentGuideHeading } from "../../lib/i18n/instrumentGuides";
 import { useLocale } from "../../lib/i18n/react";
 import type { GetServerSideProps } from "next";
 import Link from "../../components/LocaleLink";
@@ -224,9 +224,9 @@ export default function BlogIndexPage({
             </div>
           </nav>
         )}
-        {locale === "en" && page === 1 && !activeCategory && !activeTag && <section className="instrument-guides-index" aria-labelledby="instrument-guides-title">
-          <h2 id="instrument-guides-title">Piano, bass, drums and ukulele</h2>
-          <div className="instrument-guide-groups">{instrumentGuideGroups.map(group => <details key={group.instrument} open={group.instrument === "piano"}><summary>{group.label} guides</summary><ul>{group.guides.map(guide => <li key={guide.slug}><Link href={`/blog/${guide.slug}`}>{guide.title}</Link></li>)}</ul></details>)}</div>
+        {page === 1 && !activeCategory && !activeTag && <section className="instrument-guides-index" aria-labelledby="instrument-guides-title">
+          <h2 id="instrument-guides-title">{instrumentGuideHeading(locale)}</h2>
+          <div className="instrument-guide-groups">{localizedInstrumentGuideGroups(locale).map(group => <details key={group.instrument} open={group.instrument === "piano"}><summary>{instrumentGuideHeading(locale, group.instrument)}</summary><ul>{group.guides.map(guide => <li key={guide.slug}><Link href={`/blog/${guide.slug}`}>{guide.title}</Link></li>)}</ul></details>)}</div>
         </section>}
 
       </div>

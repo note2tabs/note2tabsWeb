@@ -1,3 +1,5 @@
+import { instrumentGuideTranslations } from "../instrumentGuides/server";
+import { instrumentGuides } from "../../instrumentGuideIndex";
 import { additionalPosts } from "./additionalPosts";
 import { compilePostContent } from "../../blogContent";
 import { estimateReadingTime } from "../../blog";
@@ -167,7 +169,7 @@ export const japanesePosts = {
 };
 type Translation = typeof post0;
 export function articleTranslation(slug: string, updatedAt?: string, title?: string, locale: AppLocale = "pt-BR"): Translation | null {
- const row = ((locale === "ja" ? japanesePosts : locale === "es" ? spanishPosts : locale === "pt-BR" ? portuguesePosts : locale in additionalPosts ? additionalPosts[locale as keyof typeof additionalPosts] : {}) as Record<string, Translation>)[slug];
+ const row = instrumentGuideTranslations[locale]?.[slug] || ((locale === "ja" ? japanesePosts : locale === "es" ? spanishPosts : locale === "pt-BR" ? portuguesePosts : locale in additionalPosts ? additionalPosts[locale as keyof typeof additionalPosts] : {}) as Record<string, Translation>)[slug];
  if (!row || (updatedAt && row.sourceUpdatedAt !== updatedAt) || (title && row.sourceTitle !== title)) return null;
  return row;
 }
@@ -184,13 +186,18 @@ export async function localizeBlogProps<P extends Record<string, unknown>>(props
   return result;
  };
  const result = visit(props) as P;
+ // Do not recommend an untranslated static guide through a localized URL.
+ if (locale !== "en" && Array.isArray(result.relatedPosts)) {
+  Object.assign(result, {relatedPosts: result.relatedPosts.filter((post: {slug?: string}) =>
+   !instrumentGuides.some(guide => guide.slug === post.slug) || Boolean(articleTranslation(post.slug || "", undefined, undefined, locale)))});
+ }
  const post = props.post as Record<string, unknown> | undefined;
  if (post && typeof post.slug === "string") {
   const row = articleTranslation(post.slug, String(post.updatedAt), String(post.title), locale);
   if (row) {
    const content = row.content.replace(/\]\((\/[^\s)]*)\)/g, (_, path: string) => `](${localeHref(path, locale)})`);
    const compiled = await compilePostContent(content, "PLAIN", {title: row.title});
-   Object.assign(result, {post: {...result.post as object, contentHtml: compiled.contentHtml, canonicalUrl: null, contentLanguage: locale}, toc: compiled.contentToc, readingMinutes: localizedReadingTime(content, locale).minutes, wordCount: localizedReadingTime(content, locale).words});
+   Object.assign(result, {post: {...result.post as object, contentHtml: compiled.contentHtml, canonicalUrl: null, contentLanguage: locale, ...(instrumentGuideTranslations[locale]?.[post.slug] ? {translationUpdatedAt: "2026-10-31T00:00:00.000Z"} : {})}, toc: compiled.contentToc, readingMinutes: localizedReadingTime(content, locale).minutes, wordCount: localizedReadingTime(content, locale).words});
   } else {
    // A changed or new article must never silently serve stale translated text.
    Object.assign(result, {post: {...post, contentLanguage: "en"}});
