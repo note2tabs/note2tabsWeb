@@ -1,3 +1,4 @@
+import { instrumentGuideMetadata } from "../instrumentGuides";
 import french from "./fr-revisions.json";
 import italian from "./it-revisions.json";
 import portuguese from "./revisions.json";
@@ -13,5 +14,5 @@ const revisions: Partial<Record<AppLocale, Record<string, string>>> = {
  ko: korean, pl: polish, ar: arabic, "zh-Hans": chinese,
 };
 export function articleLocales(slug: string, updatedAt: string): AppLocale[] {
- return TRANSLATED_LOCALES.filter(locale => revisions[locale]?.[slug] === updatedAt);
+ return TRANSLATED_LOCALES.filter(locale => (revisions[locale]?.[slug] === updatedAt || instrumentGuideMetadata[locale]?.[slug]?.sourceUpdatedAt === updatedAt));
 }

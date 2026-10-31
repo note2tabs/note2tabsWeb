@@ -1,3 +1,6 @@
+import { localizedGuideTools } from "../../lib/i18n/instrumentGuides/tools";
+import { instrumentGuides } from "../../lib/instrumentGuideIndex";
+import { instrumentGuideProps } from "../../lib/instrumentGuides";
 import type { AppLocale } from "../../lib/i18n/locale";
 import {articleLocales} from "../../lib/i18n/blog/availability";
 import { localeHref } from "../../lib/i18n/locale";
@@ -28,6 +31,7 @@ type PostPageProps = {
     publishedAt: string | null;
     publishAt: string | null;
     updatedAt: string;
+    translationUpdatedAt?: string;
     authorName: string;
     seoTitle: string | null;
     seoDescription: string | null;
@@ -53,17 +57,21 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
   const displayDate = formatBlogDate(post.publishedAt ?? post.publishAt, locale);
   const hasTaxonomy = post.categories.length > 0 || post.tags.length > 0 || post.clusters.length > 0;
   const pageTitle = /\bNote2Tabs\b/i.test(title) ? title : `${title} | Note2Tabs`;
+  const guideTools = localizedGuideTools(post.slug, locale);
   const primaryAction = getBlogPrimaryAction(post.slug, post.title);
-  const productPaths = getBlogProductPaths(post.slug, post.title);
+  if (guideTools) primaryAction.label = guideTools[guideTools.goal].label;
+  const productPaths = getBlogProductPaths(post.slug, post.title).map((path, index) =>
+    guideTools ? {...path, ...guideTools[index === 0 ? "transcribe" : "editor"]} : path);
 
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Article",
     "@id": `${canonical}#article`,
     headline: post.title,
+    inLanguage: articleLocale,
     description,
     datePublished: published,
-    dateModified: new Date(post.updatedAt).toISOString(),
+    dateModified: new Date(post.translationUpdatedAt || post.updatedAt).toISOString(),
     author: {
       "@type": post.authorName === "Note2Tabs" ? "Organization" : "Person",
       name: post.authorName,
@@ -117,7 +125,7 @@ export default function BlogPostPage({ post, readingMinutes, wordCount, toc, rel
         hasTranslation={articleLocales(post.slug, post.updatedAt).length > 0}
         noindex={locale !== "en" && post.contentLanguage === "en"}
         articlePublishedTime={published}
-        articleModifiedTime={new Date(post.updatedAt).toISOString()}
+        articleModifiedTime={new Date(post.translationUpdatedAt || post.updatedAt).toISOString()}
         jsonLd={[jsonLd, breadcrumbJsonLd]}
       />
 
@@ -273,6 +281,8 @@ export const getStaticProps: GetStaticProps<PostPageProps> = async (ctx) => {
   if (!slug) {
     return { notFound: true };
   }
+
+  if (instrumentGuides.some(guide => guide.slug === slug)) return instrumentGuideProps(slug);
 
   const postSelect = {
       id: true,

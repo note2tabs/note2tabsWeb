@@ -1,4 +1,4 @@
-import { instrumentGuidesForPath } from "../lib/instrumentGuideIndex";
+import { localizedInstrumentGuidesForPath, instrumentGuideHeading } from "../lib/i18n/instrumentGuides";
 import { useLocale } from "../lib/i18n/react";
 import Link from "./LocaleLink";
 import Image from "next/image";
@@ -62,7 +62,7 @@ export default function SeoLandingPage({
   relatedLinks = [],
 }: SeoLandingPageProps) {
   const { t, locale } = useLocale();
-  const guides = locale === "en" ? instrumentGuidesForPath(canonicalPath) : undefined;
+  const guides = localizedInstrumentGuidesForPath(canonicalPath, locale);
   const jsonLd = [
     {
       "@context": "https://schema.org",
@@ -162,7 +162,7 @@ export default function SeoLandingPage({
           </div>
 
           {guides && <section className="search-instrument-guides" aria-labelledby="instrument-guides-heading">
-            <h2 id="instrument-guides-heading">{guides.label} guides</h2>
+            <h2 id="instrument-guides-heading">{instrumentGuideHeading(locale, guides.instrument)}</h2>
             <ul>{guides.guides.map(guide => <li key={guide.slug}>
               <Link href={`/blog/${guide.slug}`}>{guide.title} <span aria-hidden="true">↗</span></Link>
               <p>{guide.excerpt}</p>

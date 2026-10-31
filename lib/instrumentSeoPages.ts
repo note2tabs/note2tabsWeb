@@ -6,8 +6,8 @@ export const INSTRUMENT_SEO_UPDATED = "2026-10-25";
 export const instrumentSeoPages: Record<string, SeoLandingPageProps> = {
   "piano-transcription": {
     canonicalPath: "/piano-transcription", hasTranslation: false,
-    title: "Turn piano audio into music notation",
-    metaTitle: "Piano Transcription to Sheet Music & Music Notation | Note2Tabs",
+    title: "Turn piano audio into sheet music and music notation",
+    metaTitle: "Piano Audio to Sheet Music & Music Notation | Note2Tabs",
     description: "Convert piano audio to music notation and sheet music. Edit the notes, check the piano roll and export MIDI or MusicXML from your browser.",
     primaryCta: { label: "Transcribe piano audio", href: transcriptionEntryHref("piano") },
     secondaryCta: { label: "Write piano music instead", href: "/piano-sheet-music-editor" },
@@ -196,7 +196,7 @@ export const instrumentSeoPages: Record<string, SeoLandingPageProps> = {
   "ukulele-transcription": {
     canonicalPath: "/ukulele-transcription", hasTranslation: false,
     title: "Transcribe a ukulele recording",
-    metaTitle: "Ukulele Transcription – Audio to Editable Notes | Note2Tabs",
+    metaTitle: "Ukulele Transcription – Audio, Notes & Tablature | Note2Tabs",
     description: "Turn a ukulele recording into editable notes and timing. Review the melody, build the arrangement and continue writing on a four-string ukulele track.",
     primaryCta: { label: "Transcribe ukulele audio", href: transcriptionEntryHref("ukulele") },
     secondaryCta: { label: "Write a ukulele tab instead", href: "/ukulele-tab-editor" },
