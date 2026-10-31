@@ -248,6 +248,7 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
   const heavyPreviewAcknowledgedRef = useRef(false);
   const [authHandoffBusy, setAuthHandoffBusy] = useState(false);
   const [showHeavyUpgrade, setShowHeavyUpgrade] = useState(false);
+  const [youtubeUpgradeAttempt, setYoutubeUpgradeAttempt] = useState(0);
   const [blockedCredits, setBlockedCredits] = useState(false);
   const [limitAttempt, setLimitAttempt] = useState(0);
   const [blockedRequiredCredits, setBlockedRequiredCredits] = useState<number|undefined>(undefined);
@@ -858,6 +859,7 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
 
   const handleConvert = async () => {
     if (mode === "YOUTUBE" && !youtubeDownloadsAvailable) {
+      setYoutubeUpgradeAttempt(attempt => attempt + 1);
       setError(YOUTUBE_UNAVAILABLE_MESSAGE);
       return;
     }
@@ -1690,7 +1692,7 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
                       type="button"
                       className={mode === "YOUTUBE" ? "active" : ""}
                       aria-pressed={mode === "YOUTUBE"}
-                      onClick={() => { setMode("YOUTUBE"); }}
+                      onClick={() => { setMode("YOUTUBE"); if (!youtubeDownloadsAvailable && sessionStatus !== "loading") setYoutubeUpgradeAttempt(attempt => attempt + 1); }}
                     >{t(" YouTube link ")}</button>
                   </div>
                   <div className="transcription-auth-cta transcription-auth-cta--toolbar">
@@ -1712,7 +1714,10 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
               </div>
 
               {mode === "YOUTUBE" && !youtubeDownloadsAvailable && (
-                <p role="status" className="my-4 rounded-lg border border-slate-200 bg-stone-50 px-4 py-3 text-sm text-slate-700">{YOUTUBE_UNAVAILABLE_MESSAGE}</p>
+                <div role="status" className="my-4 rounded-lg border border-slate-200 bg-stone-50 px-4 py-3 text-sm text-slate-700">
+                  <p>{YOUTUBE_UNAVAILABLE_MESSAGE}</p>
+                  <button type="button" className="mt-2 font-medium text-emerald-800 underline underline-offset-4" onClick={() => setYoutubeUpgradeAttempt(attempt => attempt + 1)}>{t("Upgrade to use YouTube")}</button>
+                </div>
               )}
               {mode === "YOUTUBE" && youtubeDownloadsAvailable && (
                 <>
@@ -1750,6 +1755,7 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
               {needsPremiumForSelectedFile && !showHeavyUpgrade && <LimitUpgradePrompt presentation="classic" context={limitContext} tracking={{source:"large_upload_gate",reason:needsProForSelectedFile?"pro_file_size_limit":"file_size_limit",surface:"file_size_limit_dialog",trigger:"oversized_file_selected"}}/>}
               {!needsPremiumForSelectedFile && needsPremiumForFileDuration && !showHeavyUpgrade && <LimitUpgradePrompt presentation="classic" context={limitContext} tracking={{source:"premium_prompt",reason:"file_duration_limit",surface:"file_duration_limit_dialog",trigger:"long_clip_selected"}}/>}
               {showHeavyUpgrade && !isPremiumUser && <LimitUpgradePrompt presentation="classic" context={limitContext} tracking={{source:"heavy_model",reason:"heavy_model_locked",surface:"heavy_model_locked_dialog",trigger:"locked_model_selected"}}/>}
+              {mode === "YOUTUBE" && !youtubeDownloadsAvailable && sessionStatus !== "loading" && youtubeUpgradeAttempt > 0 && <LimitUpgradePrompt key={youtubeUpgradeAttempt} context={{...limitContext, fileBytes: undefined, required: undefined}} tracking={{source:"premium_prompt",reason:"youtube_paid_access",surface:"youtube_access_dialog",trigger:"youtube_selected"}}/>}
               {isSignedIn && !isEmailVerified && (
                 <div className="notice">
                   {unverifiedTranscriptionUsed

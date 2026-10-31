@@ -157,10 +157,13 @@ export default function LimitUpgradePrompt({
   }
   const isFile = reason.includes("file_size"),
     isYoutube = reason === "youtube_duration_limit",
+    isYoutubeAccess = reason === "youtube_paid_access",
     isDuration = reason === "file_duration_limit",
     isHeavy = reason === "heavy_model_locked";
-  const isCredits = !isFile && !isYoutube && !isDuration && !isHeavy;
-  const title = isFile
+  const isCredits = !isFile && !isYoutube && !isYoutubeAccess && !isDuration && !isHeavy;
+  const title = isYoutubeAccess
+    ? t("Unlock YouTube downloads")
+    : isFile
     ? t("Your file is too large")
     : isYoutube
       ? t("Your YouTube section is too long")
@@ -173,7 +176,9 @@ export default function LimitUpgradePrompt({
             : context.required && context.required > (context.remaining || 0)
               ? t("Not enough credits for this transcription")
               : t("You’re running low on credits");
-  const description = isFile
+  const description = isYoutubeAccess
+    ? t("Upgrade to Premium or Pro to transcribe songs directly from YouTube. File uploads are still available on your current plan.")
+    : isFile
     ? t("Your file is {size} MB. Your plan’s upload limit is {limit} MB.", {
         size: Math.ceil((context.fileBytes || 0) / 1024 / 1024),
         limit: PLAN_CATALOG[context.plan].maxUploadBytes / 1024 / 1024,
