@@ -1,8 +1,23 @@
+import { sanitizeAnalyticsPathname } from "./analyticsPrivacy";
 import { rememberChunkRecovery } from "./chunkRecoveryOutcome";
 import { recordChunkRecoveryDecision } from "./browserLoadDiagnostics";
 
 const RECOVERY_KEY = "note2tabs:stale-chunk-recovery";
 const RECOVERY_WINDOW_MS = 5 * 60 * 1000;
+const RECOVERY_HISTORY_KEY = "note2tabs:chunk-recovery-destinations";
+const MAX_RECOVERY_DESTINATIONS = 3;
+type RecoveryAttempt = {path: string; at: number};
+
+function recentAttempts(raw: string | null, now: number): RecoveryAttempt[] {
+  try {
+    const parsed: unknown = JSON.parse(raw || "[]");
+    if (!Array.isArray(parsed) || parsed.length > MAX_RECOVERY_DESTINATIONS) return [];
+    return parsed.filter((entry): entry is RecoveryAttempt => Boolean(entry &&
+      typeof entry.path === "string" && entry.path.startsWith("/") && entry.path.length <= 160 &&
+      !/[?#]/.test(entry.path) && Number.isFinite(entry.at) && entry.at > 0 &&
+      now - entry.at >= 0 && now - entry.at < RECOVERY_WINDOW_MS));
+  } catch { return []; }
+}
 
 const STALE_CHUNK_PATTERNS = [
   /chunkloaderror/i,
@@ -56,21 +71,38 @@ export function installStaleChunkRecovery(
   const recover = (error: unknown, targetPath?: string) => {
     if (!isStaleChunkError(error) || reloadStarted) return;
 
+    // Resolve the intended route before consulting the guard. A successful
+    // reload of login must not disable recovery of a later signup navigation.
+    let destination: string | undefined;
+    let recoveryPath = "/";
+    try {
+      const current = new URL(window.location.href);
+      let target = current;
+      if (typeof targetPath === "string") {
+        const candidate = new URL(targetPath, current);
+        if (candidate.origin === current.origin) target = candidate;
+      }
+      recoveryPath = sanitizeAnalyticsPathname(target.pathname.replace(/\/$/, "") || "/");
+      if (target.href !== current.href) destination = target.href;
+    } catch { /* Invalid/external destinations fall back to a guarded reload. */ }
+
+    const timestamp = now();
     let lastAttempt = 0;
+    let attempts: RecoveryAttempt[];
     try {
       lastAttempt = Number(window.sessionStorage.getItem(RECOVERY_KEY)) || 0;
+      attempts = recentAttempts(window.sessionStorage.getItem(RECOVERY_HISTORY_KEY), timestamp);
     } catch {
-      // Without persistent storage, each new page would lose the retry guard.
-      // Report the failure instead of risking an unbounded hard-reload loop.
       reloadStarted = true;
       recordChunkRecoveryDecision("storage_unavailable");
       dependencies.reportFailure?.();
       return;
     }
 
-    if (lastAttempt > 0 && now() - lastAttempt < RECOVERY_WINDOW_MS) {
-      // A failed page can reject several chunk promises at once. Report that
-      // recovery failure once instead of turning one incident into many alerts.
+    // Keep compatibility with attempts made before destination history existed.
+    // Scope new attempts per route, and cap the total to prevent redirect loops.
+    const legacyGuard = lastAttempt > 0 && timestamp - lastAttempt < RECOVERY_WINDOW_MS && !attempts.length;
+    if (legacyGuard || attempts.some(attempt => attempt.path === recoveryPath) || attempts.length >= MAX_RECOVERY_DESTINATIONS) {
       reloadStarted = true;
       recordChunkRecoveryDecision("retry_guard_blocked");
       dependencies.reportFailure?.();
@@ -79,25 +111,12 @@ export function installStaleChunkRecovery(
 
     reloadStarted = true;
     try {
-      window.sessionStorage.setItem(RECOVERY_KEY, String(now()));
+      window.sessionStorage.setItem(RECOVERY_HISTORY_KEY, JSON.stringify([...attempts, {path: recoveryPath, at: timestamp}]));
+      window.sessionStorage.setItem(RECOVERY_KEY, String(timestamp));
     } catch {
       recordChunkRecoveryDecision("storage_write_failed");
       dependencies.reportFailure?.();
       return;
-    }
-    // During routeChangeError the browser may still be on the previous page.
-    // Recover the intended same-origin destination instead of reloading that page.
-    let destination: string | undefined;
-    if (typeof targetPath === "string") {
-      try {
-        const current = new URL(window.location.href);
-        const target = new URL(targetPath, current);
-        if (target.origin === current.origin && target.href !== current.href) {
-          // Keep the absolute URL: a same-origin pathname beginning with //
-          // would become an external URL if assigned as a relative string.
-          destination = target.href;
-        }
-      } catch { /* Invalid/external destinations fall back to a guarded reload. */ }
     }
     const attemptId = rememberChunkRecovery(error, destination);
     recordChunkRecoveryDecision("reload_started", attemptId);

@@ -116,6 +116,61 @@ describe("stale chunk recovery", () => {
     expect(reportFailure).toHaveBeenCalledOnce();
   });
 
+  it("recovers signup after a previous login recovery, without retrying either destination twice", () => {
+    const storage = new Map<string, string>();
+    const location = { href: "https://note2tabs.com/zh-hans/auth/login" };
+    vi.stubGlobal("window", {
+      location,
+      sessionStorage: { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value) },
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    });
+    const reload = vi.fn(), navigate = vi.fn(), reportFailure = vi.fn();
+    const attempt = (at: number, target?: string) => {
+      const events = routerEvents();
+      const cleanup = installStaleChunkRecovery(events, {now: () => at, reload, navigate, reportFailure});
+      (events.on.mock.calls[0][1] as (error: unknown, target?: string) => void)(new Error("ChunkLoadError"), target);
+      cleanup();
+    };
+    attempt(10_000);
+    expect(reload).toHaveBeenCalledOnce();
+    attempt(30_000, "/zh-hans/auth/signup?next=%2Fzh-hans%2Ftranscribe");
+    expect(navigate).toHaveBeenCalledWith("https://note2tabs.com/zh-hans/auth/signup?next=%2Fzh-hans%2Ftranscribe");
+    location.href = "https://note2tabs.com/zh-hans/auth/signup";
+    attempt(31_000);
+    expect(navigate).toHaveBeenCalledOnce();
+    expect(reload).toHaveBeenCalledOnce();
+    expect(reportFailure).toHaveBeenCalledOnce();
+    attempt(32_000, "/zh-hans/auth/login?next=%2Fother");
+    expect(navigate).toHaveBeenCalledOnce();
+    expect(reportFailure).toHaveBeenCalledTimes(2);
+    expect([...storage.values()].join(" ")).not.toContain("next=");
+  });
+
+  it("caps distinct-route recovery and expires the complete history after five minutes", () => {
+    const storage = new Map<string, string>();
+    vi.stubGlobal("window", {
+      location: {href: "https://note2tabs.com/"},
+      sessionStorage: {getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value)},
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    });
+    const navigate = vi.fn(), reportFailure = vi.fn();
+    const attempt = (at: number, target: string) => {
+      const events = routerEvents();
+      const cleanup = installStaleChunkRecovery(events, {now: () => at, navigate, reportFailure});
+      (events.on.mock.calls[0][1] as (error: unknown, target: string) => void)(new Error("ChunkLoadError"), target);
+      cleanup();
+    };
+    attempt(10_000, "/auth/login");
+    attempt(11_000, "/auth/signup");
+    attempt(12_000, "/transcribe");
+    attempt(13_000, "/pricing");
+    expect(navigate).toHaveBeenCalledTimes(3);
+    expect(reportFailure).toHaveBeenCalledOnce();
+    attempt(313_000, "/auth/signup");
+    expect(navigate).toHaveBeenCalledTimes(4);
+    expect(reportFailure).toHaveBeenCalledOnce();
+  });
+
   it("opens the intended route after its chunk fails before browser history changes", () => {
     const storage = new Map<string, string>();
     vi.stubGlobal("window", {
