@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { YOUTUBE_DOWNLOADS_AVAILABLE, YOUTUBE_UNAVAILABLE_MESSAGE } from "../../lib/youtubeAvailability";
+import { canDownloadYouTube, YOUTUBE_UNAVAILABLE_MESSAGE } from "../../lib/youtubeAvailability";
 import { attachFunctionTiming } from "../../lib/functionTiming";
 import { publicTranscriptionError } from "../../lib/backendError";
 import { getServerSession } from "next-auth/next";
@@ -687,8 +687,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       skipAutoEditorSync = parseBooleanLike((body as { skipAutoEditorSync?: unknown })?.skipAutoEditorSync);
     }
-    if (mode === "YOUTUBE" && !YOUTUBE_DOWNLOADS_AVAILABLE) {
-      return res.status(503).json({ error: YOUTUBE_UNAVAILABLE_MESSAGE, code: "youtube_downloads_unavailable" });
+    if (mode === "YOUTUBE" && !canDownloadYouTube(subscriptionPlan)) {
+      return res.status(403).json({ error: YOUTUBE_UNAVAILABLE_MESSAGE, code: "youtube_downloads_unavailable" });
     }
     const requestedTranscriptionModel =
       mode === "YOUTUBE"

@@ -1,3 +1,3 @@
-// Temporary outage switch. Keep both the UI and submission API closed.
-export const YOUTUBE_DOWNLOADS_AVAILABLE = false;
-export const YOUTUBE_UNAVAILABLE_MESSAGE = "YouTube downloads are currently unavailable, we are working to restore them as fast as possible.";
+// Temporary restriction shared by the UI and the authenticated submission API.
+export const canDownloadYouTube = (plan: unknown) => plan === "PREMIUM" || plan === "PRO";
+export const YOUTUBE_UNAVAILABLE_MESSAGE = "YouTube downloads are currently only available for premius/pro users, we are working on restoring functionality for all users.";

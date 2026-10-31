@@ -1,5 +1,5 @@
 import SeoLandingPage, { type SeoLandingPageProps } from "../components/SeoLandingPage";
-import { YOUTUBE_DOWNLOADS_AVAILABLE, YOUTUBE_UNAVAILABLE_MESSAGE } from "../lib/youtubeAvailability";
+import { canDownloadYouTube, YOUTUBE_UNAVAILABLE_MESSAGE } from "../lib/youtubeAvailability";
 import { TRANSCRIPTION_ENTRY_TITLES, transcriptionEntryInstrument } from "../lib/instrumentTranscriptionEntry";
 import dynamic from "next/dynamic";
 const PaywallDesignPreview = process.env.NODE_ENV === "development" ? dynamic(()=>import("../components/PaywallDesignPreview"),{ssr:false}) : ()=>null;
@@ -266,6 +266,7 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
     ? "PRO"
     : effectiveSubscriptionPlan(transcriberSession?.user?.role, transcriberSession?.user?.subscriptionPlan);
   const maxUploadBytes = PLAN_CATALOG[entitlementPlan].maxUploadBytes;
+  const youtubeDownloadsAvailable = canDownloadYouTube(entitlementPlan);
   const youtubeWindowSeconds = PLAN_CATALOG[entitlementPlan].youtubePositionLimitSeconds;
   const selectTranscriptionModel = (model: TranscriptionModelChoice) => {
     transcriptionModelTouchedRef.current = true;
@@ -760,12 +761,13 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
   const canSubmit = useMemo(() => {
     if (sessionStatus === "loading" || (isSignedIn && !canTranscribe)) return false;
     if (mode === "FILE") return Boolean(selectedFile) && fileTimeRangeValid && !loading && !authHandoffBusy;
-    return YOUTUBE_DOWNLOADS_AVAILABLE && youtubeValid && youtubeTimeRangeValid && !loading && !authHandoffBusy;
+    return youtubeDownloadsAvailable && youtubeValid && youtubeTimeRangeValid && !loading && !authHandoffBusy;
   }, [
     mode,
     selectedFile,
     fileTimeRangeValid,
     youtubeValid,
+    youtubeDownloadsAvailable,
     youtubeTimeRangeValid,
     loading,
     authHandoffBusy,
@@ -855,7 +857,7 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
   };
 
   const handleConvert = async () => {
-    if (mode === "YOUTUBE" && !YOUTUBE_DOWNLOADS_AVAILABLE) {
+    if (mode === "YOUTUBE" && !youtubeDownloadsAvailable) {
       setError(YOUTUBE_UNAVAILABLE_MESSAGE);
       return;
     }
@@ -1656,7 +1658,7 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
                               id="transcriber-youtube-url"
                               name="youtubeUrl"
                               type="url"
-                              disabled={!YOUTUBE_DOWNLOADS_AVAILABLE}
+                              disabled={!youtubeDownloadsAvailable}
                               value={youtubeUrl}
                               onChange={(event) => setYoutubeUrl(event.target.value)}
                               placeholder="https://www.youtube.com/..."
@@ -1709,10 +1711,10 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
                 </div>
               </div>
 
-              {mode === "YOUTUBE" && !YOUTUBE_DOWNLOADS_AVAILABLE && (
+              {mode === "YOUTUBE" && !youtubeDownloadsAvailable && (
                 <p role="status" className="my-4 rounded-lg border border-slate-200 bg-stone-50 px-4 py-3 text-sm text-slate-700">{YOUTUBE_UNAVAILABLE_MESSAGE}</p>
               )}
-              {mode === "YOUTUBE" && YOUTUBE_DOWNLOADS_AVAILABLE && (
+              {mode === "YOUTUBE" && youtubeDownloadsAvailable && (
                 <>
                   <div className="prompt-field prompt-field--compact">
                     <div className="advanced-grid">
