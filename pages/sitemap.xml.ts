@@ -1,3 +1,4 @@
+import { instrumentGuideMetadata } from "../lib/i18n/instrumentGuides";
 import { translatedInstrumentPaths } from "../lib/i18n/instruments";
 import { instrumentSeoPages, INSTRUMENT_SEO_UPDATED } from "../lib/instrumentSeoPages";
 import { instrumentGuides } from "../lib/instrumentGuideIndex";
@@ -95,7 +96,7 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   const entries: SitemapEntry[] = paths.map((path) => ({
     loc: buildUrl(baseUrl, path),
     ...(["/bass-tab-editor", "/audio-to-bass-tabs"].includes(stripLocale(path))
-      ? { lastmod: "2026-10-22T00:00:00.000Z" }
+      ? { lastmod: "2026-10-31T00:00:00.000Z" }
       : localeFromPath(path) !== "en"
       ? { lastmod: "2026-10-16T00:00:00.000Z" }
       : recentlyUpdatedSeoPaths.has(path)
@@ -107,27 +108,40 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
       : {}),
   }));
 
-  // English-only editions must not advertise nonexistent localized alternates.
+  // Static guides have their own translation availability, independent of DB posts.
+  const translatedArticles = new Map<string, typeof releasedLocales>();
   const instrumentPaths = ["/instruments", ...Object.values(instrumentSeoPages).map(page => page.canonicalPath), ...instrumentGuides.map(guide => `/blog/${guide.slug}`)];
   const knownUrls = new Set(entries.map(entry => entry.loc));
   for (const path of instrumentPaths) {
     const loc = buildUrl(baseUrl, path);
-    if (!knownUrls.has(loc)) entries.push({ loc, lastmod: `${INSTRUMENT_SEO_UPDATED}T00:00:00.000Z` });
+    if (!knownUrls.has(loc)) { entries.push({ loc, lastmod: `${path.startsWith("/blog/") ? INSTRUMENT_SEO_UPDATED : "2026-10-31"}T00:00:00.000Z` }); knownUrls.add(loc); }
   }
 
   for (const path of translatedInstrumentPaths) {
     for (const locale of releasedLocales) {
       const loc = buildUrl(baseUrl, localeHref(path, locale));
-      if (!knownUrls.has(loc)) { entries.push({loc, lastmod: `${INSTRUMENT_SEO_UPDATED}T00:00:00.000Z`}); knownUrls.add(loc); }
+      if (!knownUrls.has(loc)) { entries.push({loc, lastmod: "2026-10-31T00:00:00.000Z"}); knownUrls.add(loc); }
     }
   }
 
-  const translatedArticles = new Map<string, typeof releasedLocales>();
+  for (const guide of instrumentGuides) {
+    const path = `/blog/${guide.slug}`;
+    const locales = releasedLocales.filter(locale => instrumentGuideMetadata[locale]?.[guide.slug]);
+    if (locales.length) translatedArticles.set(path, locales);
+    for (const locale of locales) {
+      const loc = buildUrl(baseUrl, localeHref(path, locale));
+      if (!knownUrls.has(loc)) {
+        entries.push({loc, lastmod: "2026-10-31T00:00:00.000Z"});
+        knownUrls.add(loc);
+      }
+    }
+  }
+
   posts.forEach((post) => {
-    entries.push({
-      loc: buildUrl(baseUrl, `/blog/${post.slug}`),
-      lastmod: post.updatedAt.toISOString(),
-    });
+    const loc = buildUrl(baseUrl, `/blog/${post.slug}`);
+    if (knownUrls.has(loc)) return;
+    entries.push({loc, lastmod: post.updatedAt.toISOString()});
+    knownUrls.add(loc);
     const locales = releasedLocales.filter(locale => articleLocales(post.slug, post.updatedAt.toISOString()).includes(locale));
     if (locales.length) {
       translatedArticles.set(`/blog/${post.slug}`, locales);

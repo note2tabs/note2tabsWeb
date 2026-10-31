@@ -1,0 +1,200 @@
+{
+  "ar": {
+    "how-to-transcribe-piano-audio-to-sheet-music": {
+      "title": "تحويل تسجيل البيانو إلى نوتة موسيقية",
+      "excerpt": "حوّل تسجيل البيانو إلى نغمات قابلة للتعديل، وراجع اللحن والمصاحبة والإيقاع، ثم صدّر MIDI أو MusicXML لمتابعة العمل.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-a-bassline-from-a-recording": {
+      "title": "استخراج خط الباص من تسجيل صوتي",
+      "excerpt": "راجع نغمات الباص والسكتات والأطوال والطبقة، واختر أوتارًا وخانات مناسبة للعزف، ثم تدرب على الخط مع الدرامز.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-drums-from-a-recording": {
+      "title": "تدوين الدرامز من تسجيل صوتي",
+      "excerpt": "راجع طبلة الباص والسنير والصنوج والتقسيمات والزخارف، ونظّم ضربات الدرامز في مسار قابل للتعديل ثم صدّره بصيغة MIDI.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-a-ukulele-melody": {
+      "title": "استخراج لحن اليوكليلي من تسجيل صوتي",
+      "excerpt": "راجع درجات لحن اليوكليلي وإيقاعه، ثم وزعه على تاب بأربعة أوتار يناسب ضبط G المرتفعة أو G المنخفضة.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    }
+  },
+  "es": {
+    "how-to-transcribe-piano-audio-to-sheet-music": {
+      "title": "Cómo transcribir audio de piano a partituras",
+      "excerpt": "Convierte una grabación de piano en notas editables. Revisa melodía, acompañamiento y ritmo, y elige MIDI o MusicXML para continuar.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-a-bassline-from-a-recording": {
+      "title": "Cómo transcribir una línea de bajo desde una grabación",
+      "excerpt": "Saca una línea de bajo de una grabación: comprueba notas, silencios, registro y digitación antes de practicar el groove.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-drums-from-a-recording": {
+      "title": "Cómo transcribir una batería desde una grabación",
+      "excerpt": "Pasa de una grabación de batería a un patrón editable: comprueba bombo, caja, platos, subdivisiones y fills, y exporta MIDI.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-a-ukulele-melody": {
+      "title": "Cómo transcribir una melodía de ukelele",
+      "excerpt": "Revisa las notas y el ritmo de una grabación de ukelele y adapta la melodía a una tablatura de cuatro cuerdas con sol agudo o grave.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    }
+  },
+  "fr": {
+    "how-to-transcribe-piano-audio-to-sheet-music": {
+      "title": "Transcrire un enregistrement de piano en partition",
+      "excerpt": "Passez d’un enregistrement de piano à des notes modifiables : vérifiez mélodie, accompagnement et rythme, puis exportez en MIDI ou MusicXML.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-a-bassline-from-a-recording": {
+      "title": "Transcrire une ligne de basse depuis un enregistrement",
+      "excerpt": "Relevez une ligne de basse : vérifiez notes, silences, registre et positions, puis travaillez le groove avec la batterie.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-drums-from-a-recording": {
+      "title": "Transcrire la batterie depuis un enregistrement",
+      "excerpt": "Relevez grosse caisse, caisse claire, cymbales et fills, vérifiez les subdivisions et exportez votre partie de batterie en MIDI.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-a-ukulele-melody": {
+      "title": "Transcrire une mélodie de ukulélé",
+      "excerpt": "Relevez les notes et le rythme d’un ukulélé, puis arrangez la mélodie en tablature quatre cordes avec un sol aigu ou grave.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    }
+  },
+  "it": {
+    "how-to-transcribe-piano-audio-to-sheet-music": {
+      "title": "Trascrivere una registrazione di pianoforte in spartito",
+      "excerpt": "Trasforma l’audio del pianoforte in note modificabili: controlla melodia, accompagnamento e ritmo, poi esporta MIDI o MusicXML.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-a-bassline-from-a-recording": {
+      "title": "Trascrivere una linea di basso da una registrazione",
+      "excerpt": "Ricava una linea di basso dall’audio: controlla note, pause, registro e posizioni, poi esercitati sul groove con la batteria.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-drums-from-a-recording": {
+      "title": "Trascrivere la batteria da una registrazione",
+      "excerpt": "Ricava dall’audio una parte di batteria modificabile: controlla cassa, rullante, piatti, suddivisioni e fill ed esporta MIDI.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-a-ukulele-melody": {
+      "title": "Trascrivere una melodia di ukulele",
+      "excerpt": "Controlla note e ritmo di una registrazione di ukulele e arrangia la melodia su quattro corde con sol acuto o sol grave.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    }
+  },
+  "ja": {
+    "how-to-transcribe-piano-audio-to-sheet-music": {
+      "title": "ピアノ音源を楽譜にする方法：採譜から編集・書き出しまで",
+      "excerpt": "ピアノの録音を採譜し、旋律・伴奏・音の長さを確認。五線譜とピアノロールで編集し、MIDIやMusicXMLで書き出す手順。",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-a-bassline-from-a-recording": {
+      "title": "録音からベースラインを採譜してTAB譜にする方法",
+      "excerpt": "ベースの音源から音・休符・長さ・音域を確認し、弾きやすい弦とフレットを選んでグルーヴを練習する手順。",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-drums-from-a-recording": {
+      "title": "ドラムの録音を採譜する方法：ビートからフィルまで",
+      "excerpt": "キック・スネア・シンバルを順に確認し、同時打ちと細かなリズムをドラム譜に整理。MIDIで書き出すまでの手順。",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-a-ukulele-melody": {
+      "title": "ウクレレの録音からメロディーを採譜する方法",
+      "excerpt": "ウクレレ音源の音高とリズムを確認し、High-G・Low-Gに合わせて4弦のTAB譜にアレンジする手順。",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    }
+  },
+  "ko": {
+    "how-to-transcribe-piano-audio-to-sheet-music": {
+      "title": "피아노 음원을 악보로 만드는 방법",
+      "excerpt": "피아노 녹음을 채보하고 멜로디·반주·리듬을 확인하세요. 오선보와 피아노 롤로 수정한 뒤 MIDI나 MusicXML로 내보내는 과정입니다.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-a-bassline-from-a-recording": {
+      "title": "녹음에서 베이스 라인을 채보하는 방법",
+      "excerpt": "베이스 녹음의 음·쉼표·길이·음역을 확인하고 연주하기 편한 줄과 프렛을 골라 그루브를 연습하는 방법입니다.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-drums-from-a-recording": {
+      "title": "드럼 녹음을 채보하는 방법",
+      "excerpt": "킥·스네어·심벌을 차례로 확인하고 동시 타격, 세분박과 필인을 드럼 악보로 정리한 뒤 MIDI로 내보내세요.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-a-ukulele-melody": {
+      "title": "우쿨렐레 녹음에서 멜로디를 채보하는 방법",
+      "excerpt": "우쿨렐레 음원의 음높이와 리듬을 확인하고 하이 G·로우 G 튜닝에 맞게 4현 타브로 편곡하는 방법입니다.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    }
+  },
+  "pl": {
+    "how-to-transcribe-piano-audio-to-sheet-music": {
+      "title": "Jak zamienić nagranie fortepianu na nuty",
+      "excerpt": "Przepisz nagranie fortepianu na edytowalne nuty. Sprawdź melodię, akompaniament i rytm, a następnie wyeksportuj MIDI lub MusicXML.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-a-bassline-from-a-recording": {
+      "title": "Jak rozpisać linię basu z nagrania",
+      "excerpt": "Sprawdź dźwięki, pauzy, długości i rejestr linii basu, dobierz wygodne struny oraz progi i ćwicz groove z perkusją.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-drums-from-a-recording": {
+      "title": "Jak rozpisać partię perkusji z nagrania",
+      "excerpt": "Sprawdź stopę, werbel, talerze, podziały rytmiczne i przejścia. Uporządkuj partię w edytorze perkusji i wyeksportuj MIDI.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-a-ukulele-melody": {
+      "title": "Jak rozpisać melodię ukulele z nagrania",
+      "excerpt": "Sprawdź wysokości i rytm nagrania ukulele, a następnie ułóż melodię w tabulaturę czterech strun ze strojem high G lub low G.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    }
+  },
+  "pt-BR": {
+    "how-to-transcribe-piano-audio-to-sheet-music": {
+      "title": "Como transformar áudio de piano em partitura",
+      "excerpt": "Transcreva uma gravação de piano, confira melodia, acompanhamento e ritmo e exporte as notas em MIDI ou a partitura em MusicXML.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-a-bassline-from-a-recording": {
+      "title": "Como transcrever uma linha de baixo de uma gravação",
+      "excerpt": "Tire uma linha de baixo de ouvido com apoio da transcrição: confira notas, pausas, registro e posições antes de praticar o groove.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-drums-from-a-recording": {
+      "title": "Como transcrever bateria de uma gravação",
+      "excerpt": "Transforme uma gravação de bateria em um padrão editável: confira bumbo, caixa, pratos, subdivisões e viradas e exporte MIDI.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-a-ukulele-melody": {
+      "title": "Como transcrever uma melodia de ukulele",
+      "excerpt": "Confira notas e ritmo de uma gravação de ukulele e transforme a melodia em uma tablatura de quatro cordas com sol agudo ou grave.",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    }
+  },
+  "zh-Hans": {
+    "how-to-transcribe-piano-audio-to-sheet-music": {
+      "title": "钢琴音频转乐谱：从自动扒谱到编辑与导出",
+      "excerpt": "将钢琴录音转成可编辑音符，核对旋律、伴奏和节奏，再用五线谱与钢琴卷帘编辑，导出 MIDI 或 MusicXML。",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-a-bassline-from-a-recording": {
+      "title": "如何从录音扒出贝斯线并制作 TAB 谱",
+      "excerpt": "从贝斯录音检查音符、休止、时值和音区，选择顺手的弦位与品位，再结合鼓组练习律动。",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-drums-from-a-recording": {
+      "title": "如何从录音扒鼓谱：节拍、鼓点与加花",
+      "excerpt": "逐层核对底鼓、军鼓、镲片和加花，整理同时敲击与节奏细分，再把可编辑鼓轨导出为 MIDI。",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    },
+    "how-to-transcribe-a-ukulele-melody": {
+      "title": "如何从尤克里里录音扒出旋律并编成 TAB 谱",
+      "excerpt": "核对尤克里里音源的音高与节奏，按高音 G 或低音 G 定弦，把旋律编配成四弦 TAB 谱。",
+      "sourceUpdatedAt": "2026-10-25T00:00:00.000Z"
+    }
+  }
+}
