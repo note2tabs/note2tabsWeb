@@ -816,7 +816,7 @@ export const gteApi = {
   ) =>
     requestForEditor<{ ok: true; snapshot: any; canvas?: CanvasSnapshot; conflicts?: unknown[] }>(
       editorId,
-      `/editors/${editorId}/snapshot`,
+      `/editors/${editorId}/snapshot${editorId.includes(LANE_DELIMITER) && getBaseForEditor(editorId) === AUTH_BASE && concurrency?.baseSnapshot ? "?lane_only=true" : ""}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

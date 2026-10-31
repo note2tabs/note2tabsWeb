@@ -354,7 +354,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   const isSnapshotSave = isSnapshotSaveRequest(method, path);
   const isTranscriberImport = method === "POST" && path === "transcriber/import";
-  const cacheKey = `${session.user.id}:${path}`;
+  const cacheKey = `${session.user.id}:${buildUrl(req)}`;
   let body: string | undefined;
   if (!["GET", "HEAD"].includes(method)) {
     headers["Content-Type"] = "application/json";
