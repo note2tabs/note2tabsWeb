@@ -4307,6 +4307,7 @@ main.page:has([data-gte-practice-piano-roll]) {
 }
 
 .nav-links .nav-mobile-settings { display: none; }
+.nav-mobile-account { display: none; }
 
 .nav-auth-slot {
   display: inline-flex;
@@ -14526,6 +14527,10 @@ main.page:has([data-gte-practice-piano-roll]) {
   }
   .nav-links.open { display: flex; }
   .nav-links .nav-mobile-settings { display: inline-flex; }
+  .nav-mobile-account { display: block; border-top: 1px solid var(--border); padding-top: 8px; }
+  .nav-links .nav-mobile-sign-out { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 44px; text-align: left; }
+  .nav-links .nav-mobile-sign-out:disabled { opacity: 0.6; cursor: wait; }
+  .nav-mobile-account .error { display: block; max-width: 220px; font-size: 0.8rem; }
   .nav-auth-slot { min-width: 0; min-height: 0; display: contents; }
   .menu-toggle { display: inline-flex; align-items: center; gap: 8px; }
 }
