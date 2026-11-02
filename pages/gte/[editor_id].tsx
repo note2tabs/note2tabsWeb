@@ -3389,6 +3389,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         setError("Cannot remove the final track.");
         return;
       }
+      setDesktopTrackSettingsCollapsed(true);
+      setDesktopTrackMenuOpen(false);
+      setDesktopTrackAddMenuOpen(false);
+      setMobileTrackSettingsLaneId(null);
+      setMobileTrackMenuOpen(false);
       setConfirmDeleteTrackId(laneId);
     },
     [canvas, deletingLaneId]
