@@ -37,27 +37,29 @@ export function buildPracticeTabEffects(snapshot: EditorSnapshot, layout: Practi
       if (right <= left) continue;
       const y = row * layout.rowHeight + layout.stringTop + a.string * layout.stringGap;
       const middle = (left + right) / 2, span = right - left;
-      const item: PracticeTabEffect = {key: `${effect.id}:${row}`, kind, row, path: "", labelX: middle, labelY: y - 12};
+      const item: PracticeTabEffect = {key: `${effect.id}:${row}`, kind, row, path: "", labelX: middle, labelY: y - 16};
       // A bend's destination is a sustained target pitch, not another fretted attack.
       if (kind === "bend") item.hiddenTargetKey = b.key;
       if (kind === "hammer" || kind === "pull") {
-        item.path = `M${left} ${y - 3} Q${middle} ${y - 15} ${right} ${y - 3}`;
+        // A balanced slur with near-vertical ends reads cleanly at short and
+        // long spacings, unlike a shallow quadratic hump.
+        item.path = `M${left} ${y - 4} C${left + span * 0.2} ${y - 15} ${right - span * 0.2} ${y - 15} ${right} ${y - 4}`;
         item.label = kind === "hammer" ? "H" : "P";
       } else if (kind === "slide") {
-        const rise = delta > 0 ? 3 : -3;
+        const rise = delta > 0 ? 4 : -4;
         item.path = `M${left} ${y + rise} L${right} ${y - rise}`;
       } else {
-        const release = kind === "release", endY = y - (release ? 1 : 11);
+        const release = kind === "release", endY = y - (release ? 1 : 14);
         const transition = release ? row === b.row : row === a.row;
         item.held = !transition;
-        item.path = transition ? `M${left} ${y - (release ? 11 : 1)} C${left + span * 0.65} ${y - (release ? 11 : 1)} ${right} ${y - (release ? 11 : 1)} ${right} ${endY}`
-          : `M${left} ${y - 11} H${right}`;
+        item.path = transition ? `M${left} ${y - (release ? 14 : 1)} C${left + span * 0.5} ${y - (release ? 14 : 1)} ${right} ${y - (release ? 12 : 3)} ${right} ${endY}`
+          : `M${left} ${y - 14} H${right}`;
         if (transition) item.arrow = release
-          ? `M${right - 2.5} ${endY - 4} L${right} ${endY} L${right + 2.5} ${endY - 4}`
-          : `M${right - 2.5} ${endY + 4} L${right} ${endY} L${right + 2.5} ${endY + 4}`;
+          ? `M${right - 3} ${endY - 5} L${right} ${endY} L${right + 3} ${endY - 5} Z`
+          : `M${right - 3} ${endY + 5} L${right} ${endY} L${right + 3} ${endY + 5} Z`;
         if (transition) item.label = bendAmount(Math.abs(delta));
         item.labelX = right;
-        item.labelY = y - 15;
+        item.labelY = Math.max(row * layout.rowHeight + 10, y - 19);
       }
       result.push(item);
     }

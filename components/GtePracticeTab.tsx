@@ -137,10 +137,10 @@ export default memo(function GtePracticeTab(props: Props) {
           </g>)}
         </g>;
       })}
-      {effects.map(effect => <g key={effect.key} data-practice-effect={effect.kind} pointerEvents="none" fill="none" stroke="#334155" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round">
-        <path d={effect.path} strokeDasharray={effect.held ? "3 2" : undefined} />
-        {effect.arrow && <path d={effect.arrow} />}
-        {effect.label && <text x={effect.labelX} y={effect.labelY} textAnchor="middle" fontSize="8" fontWeight="500" fill="#334155" stroke="#ffffff" strokeWidth="3" paintOrder="stroke">{effect.label === "full" ? t("full") : effect.label}</text>}
+      {effects.map(effect => <g key={effect.key} data-practice-effect={effect.kind} pointerEvents="none" fill="none" stroke="#1e293b" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d={effect.path} strokeDasharray={effect.held ? "4 3" : undefined} />
+        {effect.arrow && <path d={effect.arrow} fill="#1e293b" strokeWidth="0.6" />}
+        {effect.label && <text x={effect.labelX} y={effect.labelY} textAnchor="middle" fontSize="10" fontWeight="700" fill="#1e293b" stroke="none">{effect.label === "full" ? t("full") : effect.label}</text>}
       </g>)}
       {fretLayer}
       {(props.rating?.falseNotes ?? []).map((note,i) => { const p = practiceTabPosition(layout,note.frame); return <text key={i} x={p.x} y={p.y+layout.stringTop-13} fill="#c53e54" fontSize="12">?</text>; })}
