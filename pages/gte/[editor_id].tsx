@@ -10685,7 +10685,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
 
                       <div className="relative border-t border-slate-100 p-2">
                         {desktopTrackAddMenuOpen && (
-                          <div className="mb-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+                          <div className="absolute inset-x-2 bottom-full z-20 mb-1 max-h-[calc(100dvh-12rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
                             {(["tab", "bass", "chords", "drums", "piano", "strings", "instrument"] as const).map((type) => (
                               <button key={type} type="button" onClick={() => { setDesktopTrackAddMenuOpen(false); void handleAddLane(type); }} disabled={addingLane} className="block w-full rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50">
                                 {type === "tab" ? t("Tab") : type === "bass" ? t("Bass") : type === "chords" ? t("Chords") : type === "drums" ? t("Drums") : type === "piano" ? t("Piano") : type === "strings" ? t("Strings") : t("Other instrument")}
