@@ -50,9 +50,12 @@ export function buildPracticeTabEffects(snapshot: EditorSnapshot, layout: Practi
         item.path = `M${left} ${y + rise} L${right} ${y - rise}`;
       } else {
         const release = kind === "release", endY = y - (release ? 1 : 14);
+        // End the centered shaft inside the arrowhead, never at its tip.
+        // Its final control point shares the same x for a vertical tangent.
+        const shaftEndY = endY + (release ? -3 : 3);
         const transition = release ? row === b.row : row === a.row;
         item.held = !transition;
-        item.path = transition ? `M${left} ${y - (release ? 14 : 1)} C${left + span * 0.5} ${y - (release ? 14 : 1)} ${right} ${y - (release ? 12 : 3)} ${right} ${endY}`
+        item.path = transition ? `M${left} ${y - (release ? 14 : 1)} C${left + span * 0.5} ${y - (release ? 14 : 1)} ${right} ${shaftEndY + (release ? -4 : 4)} ${right} ${shaftEndY}`
           : `M${left} ${y - 14} H${right}`;
         if (transition) item.arrow = release
           ? `M${right - 3} ${endY - 5} L${right} ${endY} L${right + 3} ${endY - 5} Z`

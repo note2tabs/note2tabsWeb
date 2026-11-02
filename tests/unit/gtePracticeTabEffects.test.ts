@@ -24,6 +24,13 @@ it.each([
   expect(effects[0].path).not.toMatch(/NaN|Infinity/);
   expect(Boolean(effects[0].arrow)).toBe(kind === "bend" || kind === "release");
   expect(effects[0].hiddenTargetKey).toBe(kind === "bend" ? "n:2" : undefined);
+  if (effects[0].arrow) {
+    const shaft = effects[0].path.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+    const arrow = effects[0].arrow.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+    expect(shaft.at(-2)).toBe(arrow[2]); // Shaft centered on the triangle.
+    expect(shaft.at(-1)! - arrow[3]).toBe(kind === "bend" ? 3 : -3);
+    expect(shaft.at(-4)).toBe(arrow[2]); // Final tangent stays vertical.
+  }
   expect(snapshot).toEqual(original); expect(layout).toEqual(geometry);
 });
 

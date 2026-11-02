@@ -139,7 +139,7 @@ export default memo(function GtePracticeTab(props: Props) {
       })}
       {effects.map(effect => <g key={effect.key} data-practice-effect={effect.kind} pointerEvents="none" fill="none" stroke="#1e293b" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
         <path d={effect.path} strokeDasharray={effect.held ? "4 3" : undefined} />
-        {effect.arrow && <path d={effect.arrow} fill="#1e293b" strokeWidth="0.6" />}
+        {effect.arrow && <path d={effect.arrow} fill="#1e293b" stroke="none" />}
         {effect.label && <text x={effect.labelX} y={effect.labelY} textAnchor="middle" fontSize="10" fontWeight="700" fill="#1e293b" stroke="none">{effect.label === "full" ? t("full") : effect.label}</text>}
       </g>)}
       {fretLayer}
