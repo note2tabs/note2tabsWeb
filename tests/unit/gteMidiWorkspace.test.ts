@@ -171,6 +171,23 @@ it("renders thousands of overlapping notes as bounded overview paths without cha
   } finally { await act(async () => root.unmount()); host.remove(); }
 });
 
+it("snaps selected existing notes to key without changing timing, voices or other notes", async () => {
+  const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+  let snapshot: EditorSnapshot = { id: "snap-existing", instrumentId: "gm:piano", framesPerMessure: 480, fps: 240, totalFrames: 480, timeSignature: 4, timeSignatureBottom: 4,
+    notes: [61, 63].map((midiNum, index) => ({ id: index + 1, midiNum, startTime: 30, length: 90, velocity: 100 / 127, tab: [0, 0], optimals: [] })), chords: [], optimalsByTime: {}, cutPositionsWithCoords: [] };
+  const originalOther = structuredClone(snapshot.notes[1]);
+  try {
+    await act(async () => root.render(React.createElement(GteMidiWorkspace, { editorId: snapshot.id, snapshot, isActive: true, globalSnapToKeyEnabled: false, canvasKeyBase: 0, canvasKeyType: 0, onSnapshotChange: next => { snapshot = next; } })));
+    await act(async () => host.querySelector('[data-midi-note="n:1"]')!.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true, clientX: 100, clientY: 100 })));
+    const action = [...host.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find(button => button.textContent === "Snap to key")!;
+    expect(action.disabled).toBe(false);
+    await act(async () => action.click());
+    expect([60, 62]).toContain(snapshot.notes[0].midiNum);
+    expect(snapshot.notes[0].startTime).toBe(30); expect(snapshot.notes[0].length).toBe(90);
+    expect(snapshot.notes[1]).toEqual(originalOther);
+  } finally { await act(async () => root.unmount()); host.remove(); }
+});
+
 it.each([120, 480])("keeps group movement, key snapping and always-snapped resizing correct at %i px/bar", async (zoom) => {
   const host = document.createElement("div"); document.body.append(host); const root = createRoot(host), editorId = "zoom-edit-" + zoom;
   savePitchedViewState(editorId, { zoom, row: 18, left: 0, top: 1100, snap: true, grid: 16 });
