@@ -11319,9 +11319,7 @@ export default function GteWorkspace({
       } else {
         const alignment = alignEffectNotesToFirstString(nextSnapshot, resolvedNoteIds);
         if (!alignment.ok) {
-          const stringLabel =
-            alignment.targetString === null ? "the first note's string" : `string ${alignment.targetString + 1}`;
-          setError(`Could not keep every selected pitch on ${stringLabel} within the available fret range.`);
+          setError("These pitches cannot all be played on one string within the available fret range.");
           return;
         }
         addNoteEffectToSnapshot(nextSnapshot, alignment.noteIds, type);

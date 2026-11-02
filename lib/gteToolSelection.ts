@@ -42,7 +42,7 @@ export function toolSelectionRule(tool: PendingSelectionTool, snapshot: EditorSn
     // Applying an effect owns pitch-preserving string alignment and reports any
     // unavailable fret atomically. Do not turn an existing selection into a new
     // selection prompt before that operation gets a chance to run.
-    return result(true, "Notes will use the first note's string.");
+    return result(true, "Notes will move to a shared playable string, preserving their pitches.");
   }
   return result(count > 0, "Select one or more notes or chords.");
 }

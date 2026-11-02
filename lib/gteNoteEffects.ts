@@ -131,8 +131,8 @@ export const getEffectAwareFingeringUpdates = (
 };
 
 /**
- * Mutates the supplied snapshot only after every later note can be represented on
- * the earliest selected note's string without changing its MIDI pitch.
+ * Prefers the earliest note's string, then tries other common playable strings.
+ * Commits all fingerings together only after every pitch can be preserved.
  */
 export const alignEffectNotesToFirstString = (
   snapshot: EditorSnapshot,
@@ -149,31 +149,34 @@ export const alignEffectNotesToFirstString = (
     };
   }
 
-  const targetString = notes[0].tab[0];
-  const plannedTabs = new Map<number, { tab: TabCoord; midi: number }>();
-  for (const note of notes.slice(1)) {
-    const midi = getNoteMidi(snapshot, note);
-    const tab = findEquivalentTabOnString(snapshot, targetString, midi);
-    if (!tab) {
-      return {
-        ok: false,
-        noteIds: orderedNoteIds,
-        targetString,
-        failedNoteId: note.id,
-      };
-    }
-    plannedTabs.set(note.id, { tab, midi });
-  }
+  const firstString = notes[0].tab[0];
+  const pitches = notes.map(note => getNoteMidi(snapshot, note));
+  const candidates = getOpenStringMidiFromSnapshot(snapshot).flatMap((_, string) => {
+    const tabs = pitches.map(midi => findEquivalentTabOnString(snapshot, string, midi));
+    if (tabs.some(tab => tab === null)) return [];
+    const playable = tabs as TabCoord[];
+    return [{string, tabs: playable,
+      moved: notes.filter(note => note.tab[0] !== string).length,
+      distance: notes.reduce((sum, note) => sum + Math.abs(note.tab[0] - string), 0),
+    }];
+  }).sort((a, b) => Number(b.string === firstString) - Number(a.string === firstString)
+    || a.moved - b.moved || a.distance - b.distance
+    || Math.abs(a.string - firstString) - Math.abs(b.string - firstString) || a.string - b.string);
+  const best = candidates[0];
+  if (!best) return {
+    ok: false, noteIds: orderedNoteIds, targetString: null,
+    failedNoteId: notes.find((_, index) => !findEquivalentTabOnString(snapshot, firstString, pitches[index]))?.id ?? null,
+  };
+  const targetString = best.string;
 
   const changedNoteIds: number[] = [];
-  notes.slice(1).forEach((note) => {
-    const planned = plannedTabs.get(note.id);
-    if (!planned) return;
-    if (note.tab[0] !== planned.tab[0] || note.tab[1] !== planned.tab[1]) {
+  notes.forEach((note, index) => {
+    const tab = best.tabs[index];
+    if (note.tab[0] !== tab[0] || note.tab[1] !== tab[1]) {
       changedNoteIds.push(note.id);
     }
-    note.tab = [planned.tab[0], planned.tab[1]];
-    note.midiNum = planned.midi;
+    note.tab = [tab[0], tab[1]];
+    note.midiNum = pitches[index];
   });
 
   return { ok: true, noteIds: orderedNoteIds, targetString, changedNoteIds };
