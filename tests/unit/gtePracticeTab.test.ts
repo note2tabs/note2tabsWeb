@@ -55,7 +55,9 @@ it("updates SVG playback without rerendering notes; follows systems, seeks, loop
       {id: 6, type: 2, startNoteId: 6, endNoteId: 7, noteEffectLabel: "\\"},
     ]});
     expect([...document.querySelectorAll('[data-practice-effect]')].map(node => node.getAttribute('data-practice-effect'))).toEqual(['bend', 'release', 'hammer', 'pull', 'slide', 'slide']);
-    expect([...document.querySelectorAll('[data-practice-fret] text')].map(text => text.getAttribute("x"))).toEqual(fretPositions);
+    expect(document.querySelector('[data-practice-fret="n:2"]')).toBeNull();
+    expect(document.querySelector('[data-practice-fret="n:1"]')).not.toBeNull();
+    expect([...document.querySelectorAll('[data-practice-fret] text')].map(text => text.getAttribute("x"))).toEqual(fretPositions.filter((_, index) => index !== 1));
     if (process.env.PRACTICE_TAB_PREVIEW_DIR) {
       GlobalFonts.registerFromPath("C:/Windows/Fonts/arial.ttf","Arial");
       for (const previewWidth of [375,1000]) {

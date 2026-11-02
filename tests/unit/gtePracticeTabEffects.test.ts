@@ -23,6 +23,7 @@ it.each([
   expect(effects[0].kind).toBe(kind); expect(effects[0].label).toBe(label);
   expect(effects[0].path).not.toMatch(/NaN|Infinity/);
   expect(Boolean(effects[0].arrow)).toBe(kind === "bend" || kind === "release");
+  expect(effects[0].hiddenTargetKey).toBe(kind === "bend" ? "n:2" : undefined);
   expect(snapshot).toEqual(original); expect(layout).toEqual(geometry);
 });
 

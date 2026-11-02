@@ -5,6 +5,7 @@ export type PracticeTabEffect = {
   key: string; kind: "hammer" | "pull" | "slide" | "bend" | "release";
   row: number; path: string; arrow?: string;
   held?: boolean;
+  hiddenTargetKey?: string;
   label?: string; labelX: number; labelY: number;
 };
 
@@ -37,6 +38,8 @@ export function buildPracticeTabEffects(snapshot: EditorSnapshot, layout: Practi
       const y = row * layout.rowHeight + layout.stringTop + a.string * layout.stringGap;
       const middle = (left + right) / 2, span = right - left;
       const item: PracticeTabEffect = {key: `${effect.id}:${row}`, kind, row, path: "", labelX: middle, labelY: y - 12};
+      // A bend's destination is a sustained target pitch, not another fretted attack.
+      if (kind === "bend") item.hiddenTargetKey = b.key;
       if (kind === "hammer" || kind === "pull") {
         item.path = `M${left} ${y - 3} Q${middle} ${y - 15} ${right} ${y - 3}`;
         item.label = kind === "hammer" ? "H" : "P";

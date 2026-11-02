@@ -84,7 +84,8 @@ export default memo(function GtePracticeTab(props: Props) {
     draw(); return () => cancelAnimationFrame(raf);
   },[layout]);
 
-  const fretLayer = useMemo(() => layout.frets.map(note => {
+  const hiddenBendTargets = useMemo(() => new Set(effects.flatMap(effect => effect.hiddenTargetKey ? [effect.hiddenTargetKey] : [])), [effects]);
+  const fretLayer = useMemo(() => layout.frets.filter(note => !hiddenBendTargets.has(note.key)).map(note => {
         const oldKey = note.key.startsWith("n:") ? `note-${note.key.slice(2)}` : `chord-${note.key.slice(2).replace(":","-")}`;
         const rating = ratings.get(oldKey), color = rating?.status === "missed" ? "#c53e54" : rating?.status === "timing" ? "#8c6414" : rating?.status === "correct" ? "#008558" : undefined;
         return <g key={note.key} data-practice-fret={note.key} style={{"--fret-color":color} as CSSProperties}
@@ -92,7 +93,7 @@ export default memo(function GtePracticeTab(props: Props) {
           <rect x={note.x-(note.label.length*7+4)/2} y={note.y-6} width={note.label.length*7+4} height="12" fill="#ffffff" />
           <text x={note.x} y={note.y} dominantBaseline="central" textAnchor="middle" fontSize="11" fontWeight="700">{note.label}</text>
         </g>;
-      }), [layout, ratings, t]);
+      }), [layout, hiddenBendTargets, ratings, t]);
   const visibleHeight = layout.stringTop+(layout.labels.length-1)*layout.stringGap;
   return <div ref={host} className="relative min-w-0 bg-white" data-gte-practice-tab="true" data-gte-tab-view="true">
     <svg ref={svg} width="100%" height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`} style={{display:"block",fontFamily:"inherit",fontVariantNumeric:"tabular-nums"}} aria-label={t("Tablature")}>
