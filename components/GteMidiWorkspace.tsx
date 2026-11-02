@@ -382,6 +382,7 @@ export default function GteMidiWorkspace(props: Props) {
       grid={grid} triplet={triplet} onGrid={(value, isTriplet) => { setGrid(value); setTriplet(isTriplet); }}
       keyBase={props.canvasKeyBase ?? 0} keyType={props.canvasKeyType ?? 0} onKeyChange={props.onCanvasKeyChange}
       snapToKey={Boolean(props.globalSnapToKeyEnabled)} onSnapToKey={props.onGlobalSnapToKeyEnabledChange}
+      onSnapSelectionToKey={() => applyEdit(selection, { key: { root: props.canvasKeyBase ?? 0, type: props.canvasKeyType ?? 0 } })}
       voice={selected[0]?.voice ?? voice} onVoice={value => { setVoice(value); if (selection.length) applyEdit(selection, { voice: value }); }}
       hasSelection={selected.length > 0} allSelected={allSelected} onSelectAll={toggleSelectAll} onFitAll={() => { setFocusBox(false); fit(); }} onFitSelection={focusView}
       zoom={zoom} row={row} onZoom={value => zoomAt(value)} onRow={next => { if (scroller.current) restoreScroll.current = { left: scroller.current.scrollLeft, top: scroller.current.scrollTop * next / row }; setRow(next); }}
@@ -527,6 +528,7 @@ export default function GteMidiWorkspace(props: Props) {
         ["Paste", "Ctrl+V", () => paste(menu.frame), disabled || !clipboard.current.length],
         ["Duplicate", "Ctrl+D", () => { clipboardAction(); paste(Math.max(...selected.map((note) => note.start + note.length))); }, disabled || !selected.length],
         ["Delete", "Delete", () => applyEdit(selection, { remove: true }), disabled || !selected.length],
+        ["Snap to key", "", () => applyEdit(selection, { key: { root: props.canvasKeyBase ?? 0, type: props.canvasKeyType ?? 0 } }), disabled || !selected.length],
         ["Focus selection", "Shift+F", focusView, false],
         ["Fit all", "F", () => fit(), false],
         ["Zoom in", "", () => zoomAt(zoom * 1.25, menu.x), zoom >= 1920],

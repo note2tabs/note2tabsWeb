@@ -18,6 +18,7 @@ type Props = {
   grid: number; triplet: boolean; onGrid: (grid: number, triplet: boolean) => void;
   keyBase: number; keyType: number; onKeyChange?: (base: number, type: number) => void;
   snapToKey: boolean; onSnapToKey?: (enabled: boolean) => void;
+  onSnapSelectionToKey?: () => void;
   voice: 1 | 2; onVoice: (voice: 1 | 2) => void;
   hasSelection: boolean; allSelected?: boolean; onSelectAll: () => void; onFitAll: () => void; onFitSelection: () => void;
   zoom: number; row: number; onZoom: (zoom: number) => void; onRow: (row: number) => void; onResetScale: () => void;
@@ -42,7 +43,7 @@ export default function GteMidiToolbar(props: Props) {
     document.addEventListener("pointerdown", outside, true);
     return () => document.removeEventListener("pointerdown", outside, true);
   }, [open]);
-  const showHistory = width >= 550, showKey = width >= 850, showVoice = width >= 1050, showFits = width >= 650;
+  const showHistory = width >= 550, showKey = width >= 950, showVoice = width >= 1150, showFits = width >= 650;
   const iconButton = (label: string, icon: Parameters<typeof MidiToolIcon>[0]["kind"], action: () => void, disabled = false, pressed?: boolean) =>
     <button type="button" aria-label={t(label.split(" · ")[0])} title={t(label)} disabled={disabled} aria-pressed={pressed} className={control + " w-8 !px-0" + (pressed ? active : "")} onClick={action}><MidiToolIcon kind={icon} /></button>;
   const history = <div role="group" aria-label={t("History")} className="flex gap-1">{iconButton("Undo · Ctrl+Z", "undo", () => props.onUndo?.(), props.disabled || !props.onUndo || props.undoCount === 0)}{iconButton("Redo · Ctrl+Shift+Z", "redo", () => props.onRedo?.(), props.disabled || !props.onRedo || props.redoCount === 0)}</div>;
@@ -51,7 +52,15 @@ export default function GteMidiToolbar(props: Props) {
       onChange={event => { const [base, type] = event.target.value.split(":").map(Number); props.onKeyChange?.(base, type); }}>
       {SCALES.map((scale, type) => <optgroup key={scale} label={t(scale)}>{ROOTS.map((root, base) => <option key={base} value={`${base}:${type}`}>{root} {t(scale)}</option>)}</optgroup>)}
     </select>
-    {iconButton("Snap to key · Alt for chromatic notes", "key", () => props.onSnapToKey?.(!props.snapToKey), props.disabled || !props.onSnapToKey, props.snapToKey)}
+    <button type="button" aria-label={t("Snap to key")} title={t("Snap to key · Alt for chromatic notes")}
+      aria-pressed={props.snapToKey} disabled={props.disabled || !props.onSnapToKey} onClick={() => props.onSnapToKey?.(!props.snapToKey)}
+      className={`flex h-7 w-14 shrink-0 items-center justify-center gap-1 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-40 ${props.snapToKey ? "border-sky-600 bg-sky-600 text-white hover:bg-sky-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>
+      <span className="text-sm font-semibold" aria-hidden="true">{ROOTS[props.keyBase] ?? "C"}</span>
+      <svg viewBox="0 0 16 20" className="h-5 w-4 fill-current" aria-hidden="true">
+        <path d="M11 2h1.75v12.5c0 1.8-1.9 3.25-4.25 3.25S4.25 16.7 4.25 15 6.15 11.75 8.5 11.75c.92 0 1.78.22 2.5.59V2Z" />
+      </svg>
+    </button>
+    <button type="button" className={control} title={t("Snap selected notes to key")} disabled={props.disabled || !props.hasSelection || !props.onSnapSelectionToKey} onClick={props.onSnapSelectionToKey}>{t("Snap selected")}</button>
   </div>;
   const voiceControl = <select aria-label={t("MIDI voice")} title={t("Voice")} className={control} value={props.voice} disabled={props.disabled} onChange={event => props.onVoice(Number(event.target.value) as 1 | 2)}><option value={1}>{t("Voice")} 1</option><option value={2}>{t("Voice")} 2</option></select>;
   const fitButton = (selection: boolean) => <button type="button" className={control} title={t(selection ? "Focus selection · Shift+F" : "Fit all notes · F")} onClick={() => { setOpen(null); if (selection) props.onFitSelection(); else props.onFitAll(); }}><MidiToolIcon kind={selection ? "selection" : "fit"} />{t(selection ? "Focus selection" : "Fit all")}</button>;

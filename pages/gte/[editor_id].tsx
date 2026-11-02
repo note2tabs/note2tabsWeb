@@ -12,6 +12,7 @@ import { localeSwitchHref } from "../../lib/i18n/locale";
 import { GetServerSideProps } from "next";
 import Link from "../../components/LocaleLink";
 import GteTrackInstrumentIcon from "../../components/GteTrackInstrumentIcon";
+import GteAddTrackOptions from "../../components/GteAddTrackOptions";
 import useGteMenuMouseIntent from "../../components/useGteMenuMouseIntent";
 import {
   useCallback,
@@ -3389,6 +3390,11 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         setError("Cannot remove the final track.");
         return;
       }
+      setDesktopTrackSettingsCollapsed(true);
+      setDesktopTrackMenuOpen(false);
+      setDesktopTrackAddMenuOpen(false);
+      setMobileTrackSettingsLaneId(null);
+      setMobileTrackMenuOpen(false);
       setConfirmDeleteTrackId(laneId);
     },
     [canvas, deletingLaneId]
@@ -6321,20 +6327,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           </div>
         )}
         {addTrackMenuOpen && (
-          <div className="absolute right-0 top-[calc(100%+6px)] z-[10020] w-52 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl" role="menu" aria-label={t("Add track")}>
-            {(["tab", "chords", "drums", "piano", "strings", "instrument"] as const).map((type) => (
-              <button
-                key={`mobile-add-${type}`}
-                type="button"
-                role="menuitem"
-                onClick={() => { setAddTrackMenuOpen(false); void handleAddLane(type); }}
-                disabled={addingLane}
-                className="flex min-h-11 w-full items-center justify-between rounded-xl px-3 text-left text-sm font-medium text-slate-700 active:bg-slate-50 disabled:opacity-50"
-              >
-                <span>{type === "tab" ? t("Tab") : type === "chords" ? t("Chords") : type === "drums" ? t("Drums") : type === "piano" ? t("Piano") : type === "strings" ? t("Strings") : t("Other instrument")}</span>
-                <span className="text-xs text-slate-400">{t("Track")}</span>
-              </button>
-            ))}
+          <div className="absolute right-0 top-[calc(100%+6px)] z-[10020] max-h-[calc(100dvh-12rem)] w-52 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl" role="menu" aria-label={t("Add track")}>
+            <GteAddTrackOptions mobile disabled={addingLane} onSelect={type => { setAddTrackMenuOpen(false); void handleAddLane(type); }} />
           </div>
         )}
       </div>
@@ -10680,12 +10674,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
 
                       <div className="relative border-t border-slate-100 p-2">
                         {desktopTrackAddMenuOpen && (
-                          <div className="mb-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-                            {(["tab", "bass", "chords", "drums", "piano", "strings", "instrument"] as const).map((type) => (
-                              <button key={type} type="button" onClick={() => { setDesktopTrackAddMenuOpen(false); void handleAddLane(type); }} disabled={addingLane} className="block w-full rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50">
-                                {type === "tab" ? t("Tab") : type === "bass" ? t("Bass") : type === "chords" ? t("Chords") : type === "drums" ? t("Drums") : type === "piano" ? t("Piano") : type === "strings" ? t("Strings") : t("Other instrument")}
-                              </button>
-                            ))}
+                          <div role="menu" aria-label={t("Add track")} className="absolute inset-x-2 bottom-full z-20 mb-1 max-h-[calc(100dvh-12rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+                            <GteAddTrackOptions disabled={addingLane} onSelect={type => { setDesktopTrackAddMenuOpen(false); void handleAddLane(type); }} />
                           </div>
                         )}
                         <button type="button" onClick={() => setDesktopTrackAddMenuOpen((open) => !open)} disabled={addingLane} className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><span className="text-base leading-none">+</span>{addingLane ? t("Adding...") : t("Add track")}</button>
