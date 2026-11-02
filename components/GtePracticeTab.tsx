@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState, type MouseEvent, type React
 import type { EditorSnapshot } from "../types/gte";
 import type { PracticeRatingReplay } from "../lib/gtePracticeRating";
 import { buildPracticeTabLayout, practiceTabPosition } from "../lib/gtePracticeTabLayout";
+import { buildPracticeTabEffects } from "../lib/gtePracticeTabEffects";
 import { useLocale } from "../lib/i18n/react";
 
 type Props = {
@@ -29,16 +30,7 @@ export default memo(function GtePracticeTab(props: Props) {
   const hasChordOverlays = Boolean(props.overlays?.length);
   const layout = useMemo(() => buildPracticeTabLayout(props.snapshot,width,props.focusRange,hasChordOverlays),[props.snapshot.notes,props.snapshot.chords,props.snapshot.totalFrames,props.snapshot.framesPerMessure,props.snapshot.tuning,props.snapshot.trackType,props.snapshot.editorType,props.snapshot.type,props.focusRange?.startBar,props.focusRange?.endBar,hasChordOverlays,width]);
   const ratings = useMemo(() => new Map(props.rating?.notes.map(note => [note.placementKey,note]) ?? []),[props.rating]);
-  const effects = useMemo(() => {
-    const byKey = new Map(layout.frets.map(note => [note.key,note]));
-    return (props.snapshot.noteEffects ?? []).flatMap(effect => {
-      const first = byKey.get(`n:${effect.startNoteId}`), second = byKey.get(`n:${effect.endNoteId}`);
-      if (!first || !second || first.string !== second.string) return [];
-      const [a,b] = first.start <= second.start ? [first,second] : [second,first];
-      const label = effect.noteEffectLabel || (effect.type === 0 ? "b" : effect.type === 1 ? Number(b.label) >= Number(a.label) ? "h" : "p" : Number(b.label) >= Number(a.label) ? "/" : "\\");
-      return [{key:`${a.key}:${b.key}`,x:a.row === b.row ? (a.x+b.x)/2 : a.x+a.width/2+9,y:a.y-7,label:label[0]}];
-    });
-  },[layout,props.snapshot.noteEffects]);
+  const effects = useMemo(() => buildPracticeTabEffects(props.snapshot, layout),[layout,props.snapshot.noteEffects]);
 
   useEffect(() => {
     const element = svg.current; if (!element) return;
@@ -119,7 +111,11 @@ export default memo(function GtePracticeTab(props: Props) {
           </g>)}
         </g>;
       })}
-      {effects.map(effect => <text key={effect.key} x={effect.x} y={effect.y} textAnchor="middle" fontSize="11" fill="#58685f">{effect.label}</text>)}
+      {effects.map(effect => <g key={effect.key} data-practice-effect={effect.kind} pointerEvents="none" fill="none" stroke="#334155" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round">
+        <path d={effect.path} strokeDasharray={effect.held ? "3 2" : undefined} />
+        {effect.arrow && <path d={effect.arrow} />}
+        {effect.label && <text x={effect.labelX} y={effect.labelY} textAnchor="middle" fontSize="8" fontWeight="500" fill="#334155" stroke="#ffffff" strokeWidth="3" paintOrder="stroke">{effect.label === "full" ? t("full") : effect.label}</text>}
+      </g>)}
       {fretLayer}
       {(props.rating?.falseNotes ?? []).map((note,i) => { const p = practiceTabPosition(layout,note.frame); return <text key={i} x={p.x} y={p.y+layout.stringTop-13} fill="#c53e54" fontSize="12">?</text>; })}
       <g ref={cursor} pointerEvents="none"><line y1={layout.stringTop-12} y2={visibleHeight+12} stroke="#dd5369" strokeWidth="1.7" /><circle cy={layout.stringTop-13} r="2.5" fill="#dd5369" /></g>

@@ -45,6 +45,17 @@ it("updates SVG playback without rerendering notes; follows systems, seeks, loop
     width = 1000; await act(async () => observer?.());
     expect(document.querySelector("svg")?.getAttribute("viewBox")).toContain("1000");
     expect(document.querySelectorAll("[data-practice-fret]")).toHaveLength(24);
+    const fretPositions = [...document.querySelectorAll('[data-practice-fret] text')].map(text => text.getAttribute("x"));
+    await render({...source, noteEffects: [
+      {id: 1, type: 0, startNoteId: 1, endNoteId: 2, noteEffectLabel: "b"},
+      {id: 2, type: 0, startNoteId: 2, endNoteId: 3, noteEffectLabel: "b"},
+      {id: 3, type: 1, startNoteId: 3, endNoteId: 4, noteEffectLabel: "h"},
+      {id: 4, type: 1, startNoteId: 4, endNoteId: 5, noteEffectLabel: "p"},
+      {id: 5, type: 2, startNoteId: 5, endNoteId: 6, noteEffectLabel: "/"},
+      {id: 6, type: 2, startNoteId: 6, endNoteId: 7, noteEffectLabel: "\\"},
+    ]});
+    expect([...document.querySelectorAll('[data-practice-effect]')].map(node => node.getAttribute('data-practice-effect'))).toEqual(['bend', 'release', 'hammer', 'pull', 'slide', 'slide']);
+    expect([...document.querySelectorAll('[data-practice-fret] text')].map(text => text.getAttribute("x"))).toEqual(fretPositions);
     if (process.env.PRACTICE_TAB_PREVIEW_DIR) {
       GlobalFonts.registerFromPath("C:/Windows/Fonts/arial.ttf","Arial");
       for (const previewWidth of [375,1000]) {
