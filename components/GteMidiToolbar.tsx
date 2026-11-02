@@ -52,7 +52,14 @@ export default function GteMidiToolbar(props: Props) {
       onChange={event => { const [base, type] = event.target.value.split(":").map(Number); props.onKeyChange?.(base, type); }}>
       {SCALES.map((scale, type) => <optgroup key={scale} label={t(scale)}>{ROOTS.map((root, base) => <option key={base} value={`${base}:${type}`}>{root} {t(scale)}</option>)}</optgroup>)}
     </select>
-    {iconButton("Snap to key · Alt for chromatic notes", "key", () => props.onSnapToKey?.(!props.snapToKey), props.disabled || !props.onSnapToKey, props.snapToKey)}
+    <button type="button" aria-label={t("Snap to key")} title={t("Snap to key · Alt for chromatic notes")}
+      aria-pressed={props.snapToKey} disabled={props.disabled || !props.onSnapToKey} onClick={() => props.onSnapToKey?.(!props.snapToKey)}
+      className={`flex h-7 w-14 shrink-0 items-center justify-center gap-1 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-40 ${props.snapToKey ? "border-sky-600 bg-sky-600 text-white hover:bg-sky-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>
+      <span className="text-sm font-semibold" aria-hidden="true">{ROOTS[props.keyBase] ?? "C"}</span>
+      <svg viewBox="0 0 16 20" className="h-5 w-4 fill-current" aria-hidden="true">
+        <path d="M11 2h1.75v12.5c0 1.8-1.9 3.25-4.25 3.25S4.25 16.7 4.25 15 6.15 11.75 8.5 11.75c.92 0 1.78.22 2.5.59V2Z" />
+      </svg>
+    </button>
     <button type="button" className={control} title={t("Snap selected notes to key")} disabled={props.disabled || !props.hasSelection || !props.onSnapSelectionToKey} onClick={props.onSnapSelectionToKey}>{t("Snap selected")}</button>
   </div>;
   const voiceControl = <select aria-label={t("MIDI voice")} title={t("Voice")} className={control} value={props.voice} disabled={props.disabled} onChange={event => props.onVoice(Number(event.target.value) as 1 | 2)}><option value={1}>{t("Voice")} 1</option><option value={2}>{t("Voice")} 2</option></select>;

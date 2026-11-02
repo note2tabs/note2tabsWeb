@@ -31,6 +31,9 @@ it("uses the requested control order, active modes, shared undo/redo and real gr
     expect(toolbar.className).toContain("flex-nowrap"); expect(toolbar.className).not.toContain("flex-wrap");
     expect([...toolbar.querySelectorAll("button")].map(button => button.getAttribute("aria-label") ?? button.textContent)).toEqual(["Select", "Draw", "Select all", "Undo", "Redo", "Snap to key", "Snap selected", "Focus selection", "Zoom out", "Zoom in", "Fit all", "View⌄"]);
     expect(button("Select").getAttribute("aria-pressed")).toBe("true"); expect(button("Snap to key").getAttribute("aria-pressed")).toBe("true");
+    expect(button("Snap to key").textContent).toBe("E");
+    expect(button("Snap to key").className).toContain("bg-sky-600");
+    expect(button("Snap to key").querySelector("svg")?.getAttribute("viewBox")).toBe("0 0 16 20");
     await act(async () => button("Select all").click());
     expect(p.onSelectAll).toHaveBeenCalledOnce();
     await act(async () => button("Snap selected").click());
