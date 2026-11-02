@@ -54,19 +54,19 @@ it("updates SVG playback without rerendering notes; follows systems, seeks, loop
         const barLabels = [...document.querySelectorAll<HTMLButtonElement>("[data-bar-index]")].map(button => `<text x="${parseFloat(button.style.left)+6}" y="${parseFloat(button.style.top)+16}" font-size="11" fill="#65766b">${button.textContent}</text>`).join("");
         markup = markup.replace("</svg>",barLabels+"</svg>").replace("font-family:inherit","font-family:Arial").replaceAll("<text ",'<text font-family="Arial" ');
         const canvas = createCanvas(width,Number(element.getAttribute("height"))), context = canvas.getContext("2d");
-        context.fillStyle = "#fffefa"; context.fillRect(0,0,canvas.width,canvas.height);
+        context.fillStyle = "#ffffff"; context.fillRect(0,0,canvas.width,canvas.height);
         context.drawImage(await loadImage(convertSVGTextToPath(markup.replace(/<text\b[^>]*>[\s\S]*?<\/text>/g,""))),0,0);
         // Native SVG rasterizers on Windows can omit inherited-font text.
         // Paint the actual DOM text coordinates with the same size/anchor.
         for (const text of element.querySelectorAll("text")) {
-          context.font = `${text.getAttribute("font-size") || 16}px Arial`;
-          context.fillStyle = text.getAttribute("fill") || "#243a32";
+          context.font = `${text.getAttribute("font-weight") || 400} ${text.getAttribute("font-size") || 11}px Arial`;
+          context.fillStyle = text.getAttribute("fill") || "#0f172a";
           context.textAlign = text.getAttribute("text-anchor") === "middle" ? "center" : text.getAttribute("text-anchor") === "end" ? "right" : "left";
           context.textBaseline = text.hasAttribute("dominant-baseline") ? "middle" : "alphabetic";
           context.fillText(text.textContent || "",Number(text.getAttribute("x")),Number(text.getAttribute("y")));
         }
         for (const button of document.querySelectorAll<HTMLButtonElement>("[data-bar-index]")) {
-          context.font = "11px Arial"; context.textAlign = "left"; context.textBaseline = "alphabetic"; context.fillStyle = "#65766b";
+          context.font = "9px Arial"; context.textAlign = "left"; context.textBaseline = "alphabetic"; context.fillStyle = "#64748b";
           context.fillText(button.textContent || "",parseFloat(button.style.left)+6,parseFloat(button.style.top)+16);
         }
         writeFileSync(join(process.env.PRACTICE_TAB_PREVIEW_DIR,`practice-tab-${width}.png`),canvas.toBuffer("image/png"));

@@ -97,25 +97,25 @@ export default memo(function GtePracticeTab(props: Props) {
         const rating = ratings.get(oldKey), color = rating?.status === "missed" ? "#c53e54" : rating?.status === "timing" ? "#8c6414" : rating?.status === "correct" ? "#008558" : undefined;
         return <g key={note.key} data-practice-fret={note.key} style={{"--fret-color":color} as CSSProperties}
           role="button" tabIndex={0} aria-label={t("Play from fret {value1}",{value1:note.label})} onClick={() => live.current.onPlayFrom?.(note.start)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); live.current.onPlayFrom?.(note.start); } }}>
-          <rect x={note.x-note.width/2} y={note.y-8} width={note.width} height="16" fill="#fffefa" />
-          <text x={note.x} y={note.y} dominantBaseline="central" textAnchor="middle" fontSize="16" fontWeight="500">{note.label}</text>
+          <rect x={note.x-(note.label.length*7+4)/2} y={note.y-6} width={note.label.length*7+4} height="12" fill="#ffffff" />
+          <text x={note.x} y={note.y} dominantBaseline="central" textAnchor="middle" fontSize="11" fontWeight="700">{note.label}</text>
         </g>;
       }), [layout, ratings, t]);
   const visibleHeight = layout.stringTop+(layout.labels.length-1)*layout.stringGap;
-  return <div ref={host} className="relative min-w-0 bg-[#fffefa]" data-gte-practice-tab="true" data-gte-tab-view="true">
+  return <div ref={host} className="relative min-w-0 bg-white" data-gte-practice-tab="true" data-gte-tab-view="true">
     <svg ref={svg} width="100%" height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`} style={{display:"block",fontFamily:"inherit",fontVariantNumeric:"tabular-nums"}} aria-label={t("Tablature")}>
-      <style>{`[data-practice-fret] text { fill: var(--fret-color, #1d3028); } [data-practice-fret][data-sounding="true"] text { fill: #008558; font-weight: 700; }`}</style>
+      <style>{`[data-practice-fret] text { fill: var(--fret-color, #0f172a); } [data-practice-fret][data-sounding="true"] text { fill: #008558; font-weight: 700; }`}</style>
       {layout.measures.map((measure,i) => <rect key={i} data-practice-measure={i} x={measure.x} y={measure.row*layout.rowHeight+layout.stringTop-9} width={measure.width} height={visibleHeight-layout.stringTop+18} fill="#07966b" fillOpacity="0" pointerEvents="none" />)}
       {Array.from({length:layout.rowCount},(_,row) => {
         const items = layout.measures.filter(measure => measure.row === row), last = items.at(-1)!;
         return <g key={row} data-practice-system={row}>
           {layout.labels.map((label,string) => {
             const y = row*layout.rowHeight+layout.stringTop+string*layout.stringGap;
-            return <g key={string}><text x="21" y={y} dominantBaseline="central" textAnchor="end" fontSize="10" fill="#87928b">{label}</text><line x1="32" x2={last.x+last.width} y1={y} y2={y} stroke="#bdc5bf" strokeWidth="0.65" /></g>;
+            return <g key={string}><text x="21" y={y} dominantBaseline="central" textAnchor="end" fontSize="10" fontWeight="600" fill="#64748b">{label}</text><line x1="32" x2={last.x+last.width} y1={y} y2={y} stroke="#64748b" strokeWidth="1" /></g>;
           })}
           {items.map((measure,i) => <g key={i} opacity={props.focusRange && (measure.bar < props.focusRange.startBar || measure.bar > props.focusRange.endBar) ? 0.3 : 1}>
-            <line x1={measure.x} x2={measure.x} y1={row*layout.rowHeight+layout.stringTop} y2={row*layout.rowHeight+visibleHeight} stroke="#7b8980" strokeWidth="1.15" strokeDasharray={measure.continuation ? "2 3" : undefined} />
-            {i === items.length-1 ? <line x1={measure.x+measure.width} x2={measure.x+measure.width} y1={row*layout.rowHeight+layout.stringTop} y2={row*layout.rowHeight+visibleHeight} stroke="#7b8980" strokeWidth="1.15" /> : null}
+            <line x1={measure.x} x2={measure.x} y1={row*layout.rowHeight+layout.stringTop} y2={row*layout.rowHeight+visibleHeight} stroke="#94a3b8" strokeWidth="1" strokeDasharray={measure.continuation ? "2 3" : undefined} />
+            {i === items.length-1 ? <line x1={measure.x+measure.width} x2={measure.x+measure.width} y1={row*layout.rowHeight+layout.stringTop} y2={row*layout.rowHeight+visibleHeight} stroke="#94a3b8" strokeWidth="1" /> : null}
           </g>)}
         </g>;
       })}
@@ -131,7 +131,7 @@ export default memo(function GtePracticeTab(props: Props) {
       const selected = Array.from({length:count},(_,offset) => props.selectedBars.has(measure.bar+offset));
       return <button key={i} type="button" data-bar-select="true" data-bar-select-editor={props.editorId} data-bar-index={measure.bar} data-bar-end-index={measure.endBar-1}
       onClick={event => props.onBarRangeSelect ? props.onBarRangeSelect(measure.bar,measure.endBar,event) : props.onBarSelect(measure.bar,event)} aria-label={t("Select {value1}",{value1:collapsed ? `${label} (${range})` : `${t("Bar")} ${range}`})} title={collapsed ? `${t("Bars")} ${range}` : undefined} aria-pressed={selected.every(Boolean) ? true : selected.some(Boolean) ? "mixed" : false}
-      className={`absolute h-6 overflow-hidden text-ellipsis whitespace-nowrap rounded-sm text-left text-[11px] hover:bg-emerald-50 focus-visible:outline-emerald-600 ${selected.some(Boolean) ? "bg-emerald-50 text-emerald-800" : "text-slate-500"}`}
+      className={`absolute h-6 overflow-hidden text-ellipsis whitespace-nowrap rounded-sm text-left text-[9px] hover:bg-emerald-50 focus-visible:outline-emerald-600 ${selected.some(Boolean) ? "bg-emerald-50 text-emerald-800" : "text-slate-500"}`}
       style={{left:measure.x,top:measure.row*layout.rowHeight,width:measure.width,paddingLeft:6}}>{collapsed || props.showBarNumbers !== false ? label : measure.continuation ? "↪" : ""}</button>;
     })}
     {props.overlays?.filter(overlay => overlay.frame >= layout.measures[0].start && overlay.frame < layout.measures.at(-1)!.end).map(overlay => { const p = practiceTabPosition(layout,overlay.frame); return <div key={overlay.key} className="absolute -translate-x-1/2" style={{left:p.x,top:p.y+visibleHeight+12}}>{overlay.content}</div>; })}

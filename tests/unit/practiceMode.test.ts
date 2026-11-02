@@ -124,7 +124,7 @@ describe("editor practice mode", () => {
 
   it("uses compact tab staffs with clearer row and chord spacing", () => {
     expect(practiceLayout.includes("stringGap = 16")).toBe(true);
-    expect(practiceTab.includes('fontSize="16"')).toBe(true);
+    expect(practiceTab.includes('fontSize="11" fontWeight="700"')).toBe(true);
     expect(practiceLayout.includes("LABEL_FONT = 16")).toBe(true);
     expect(practiceLayout.includes("GAP = 6")).toBe(true);
   });
