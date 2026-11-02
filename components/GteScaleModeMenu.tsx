@@ -18,13 +18,19 @@ export default function GteScaleModeMenu({ value, onChange, disabled, label, opt
       if (!menuRef.current?.contains(target) && !triggerRef.current?.contains(target)) setPosition(null);
     };
     const dismiss = () => setPosition(null);
+    const dismissForArrow = (event: KeyboardEvent) => {
+      if (!event.key.startsWith("Arrow")) return;
+      setPosition(null);
+    };
     document.addEventListener("pointerdown", outside, true);
     window.addEventListener("resize", dismiss);
     window.addEventListener("scroll", dismiss, true);
+    window.addEventListener("keydown", dismissForArrow, true);
     return () => {
       document.removeEventListener("pointerdown", outside, true);
       window.removeEventListener("resize", dismiss);
       window.removeEventListener("scroll", dismiss, true);
+      window.removeEventListener("keydown", dismissForArrow, true);
     };
   }, [position]);
   useEffect(() => { if (disabled) setPosition(null); }, [disabled]);
@@ -38,21 +44,25 @@ export default function GteScaleModeMenu({ value, onChange, disabled, label, opt
       className="flex h-8 w-3 items-center justify-center rounded hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-30"
       onMouseDown={(event) => event.stopPropagation()}
       onClick={() => position ? close() : open()}
-      onKeyDown={(event) => { if (["ArrowDown", "ArrowUp"].includes(event.key)) { event.preventDefault(); event.stopPropagation(); open(); } }}>
+      onKeyDown={(event) => { if (event.key.startsWith("Arrow")) { event.preventDefault(); event.currentTarget.blur(); } }}>
       <svg viewBox="0 0 12 12" className="h-3 w-3 fill-none stroke-current" strokeWidth={1.5} aria-hidden="true"><path d="m3 4.5 3 3 3-3" /></svg>
     </button>
     {position && createPortal(<div ref={menuRef} role="menu" aria-label={label} data-gte-floating-ui="true" data-gte-toolbar-ui="true" data-gte-scale-mode-menu="true"
       className="fixed z-[10005] w-40 rounded-lg border border-slate-200 bg-white p-1 text-xs text-slate-700 shadow-lg" style={position}
       onMouseDown={(event) => event.stopPropagation()}
       onKeyDown={(event) => {
+        if (event.key.startsWith("Arrow")) {
+          event.preventDefault(); setPosition(null);
+          (event.target as HTMLElement).blur();
+          return;
+        }
         event.stopPropagation();
         if (event.key === "Escape") { event.preventDefault(); close(); }
         if (event.key === "Tab") { setPosition(null); triggerRef.current?.focus(); }
         const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>("button") ?? []);
-        const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
-        if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+        if (["Home", "End"].includes(event.key)) {
           event.preventDefault();
-          const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + (event.key === "ArrowUp" ? -1 : 1) + buttons.length) % buttons.length;
+          const next = event.key === "Home" ? 0 : buttons.length - 1;
           buttons[next]?.focus();
         }
       }}>

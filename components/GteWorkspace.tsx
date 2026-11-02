@@ -13538,11 +13538,18 @@ export default function GteWorkspace({
     }
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      const isTyping = isShortcutTextEntryTarget(target);
+      const arrowFromLengthenControl = event.key.startsWith("Arrow") && Boolean(
+        target?.closest("[data-gte-scale-mode-menu='true'], [data-scale-mode-select='true'], [data-scale-hud='true']")
+      );
+      const isTyping = !arrowFromLengthenControl && isShortcutTextEntryTarget(target);
+      if (arrowFromLengthenControl) {
+        event.preventDefault();
+        target?.blur();
+      }
       // This listener runs in capture phase. Inspector controls own their keys,
       // including Tab; editor undo/redo remains available outside text fields.
       const insidePropertiesInspector = Boolean(target?.closest("[data-gte-properties-inspector='true']"));
-      if (target?.closest("[data-gte-scale-mode-menu='true']")) return;
+      if (target?.closest("[data-gte-scale-mode-menu='true']") && !arrowFromLengthenControl) return;
       if (target?.closest("[data-gte-optimization-dialog='true']")) return;
       if (insidePropertiesInspector && (isTyping || !((event.ctrlKey || event.metaKey) && /^[zy]$/i.test(event.key)))) return;
       if (pendingSelectionTool && !isTyping) {
