@@ -1,6 +1,17 @@
 import type { EditorSnapshot, Note } from "../types/gte";
 
 export const DEFAULT_VIBRATO = { cover: 2, bend: 0.5, cyclesPerBeat: 6 };
+export const VIBRATO_COVER_OPTIONS = Array.from({length:32}, (_, index) => ({value:String(index + 1),label:index === 0 ? "1" : `1/${index + 1}`}));
+export function vibratoBendOptions(current: number) {
+  const values = [0.125,0.25,0.5,0.75,1,1.5,2];
+  if (!values.includes(current)) values.push(current);
+  return values.sort((a,b)=>a-b).map(value => {
+    let numerator = Math.round(value * 10000), denominator = 10000;
+    const gcd = (a:number,b:number):number => b ? gcd(b,a%b) : a;
+    const divisor = gcd(numerator,denominator); numerator /= divisor; denominator /= divisor;
+    return {value:String(value),label:denominator === 1 ? String(numerator) : `${numerator}/${denominator}`};
+  });
+}
 export function vibratoSettings(note: Pick<Note, "vibratoSettings">) {
   const value = note.vibratoSettings;
   const safe = (n: unknown, fallback: number, min: number, max: number) => typeof n === "number" && Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;

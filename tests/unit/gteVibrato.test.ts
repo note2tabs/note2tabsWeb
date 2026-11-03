@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {setNoteVibrato, playbackVibrato, vibratoSettings} from '../../lib/gteVibrato';
+import {setNoteVibrato, playbackVibrato, vibratoSettings, VIBRATO_COVER_OPTIONS, vibratoBendOptions} from '../../lib/gteVibrato';
 import {serializeNotationPayload,restoreNotationSnapshot} from '../../lib/gteNotationPersistence';
 import {normalizeGuestSnapshot} from '../../lib/gteGuestDraft';
 import {toolSelectionRule,toolAllowsSelection} from '../../lib/gteToolSelection';
@@ -14,6 +14,12 @@ function track(): EditorSnapshot {
     {id:2,midiNum:66,tab:[0,2],startTime:120,length:120,optimals:[]},
   ],chords:[],noteEffects:[{id:1,type:0,startNoteId:1,endNoteId:2,noteEffectLabel:'b'}],cutPositionsWithCoords:[],optimalsByTime:{}};
 }
+it('shows fractional dropdown choices while preserving stored numeric values and custom depths',()=>{
+  expect(VIBRATO_COVER_OPTIONS.find(option=>option.value==='2')?.label).toBe('1/2');
+  expect(VIBRATO_COVER_OPTIONS.find(option=>option.value==='32')?.label).toBe('1/32');
+  expect(vibratoBendOptions(0.5).find(option=>option.value==='0.5')?.label).toBe('1/2');
+  expect(vibratoBendOptions(0.4).find(option=>option.value==='0.4')?.label).toBe('2/5');
+});
 it('adds and removes independent vibrato without replacing a bend or changing pitches, fingerings or timing',()=>{
   const source=track(), before=structuredClone(source);
   setNoteVibrato(source,[1],true);

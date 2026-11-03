@@ -40,7 +40,8 @@ import {
   warmTrackInstrument,
 } from "../lib/gteSamplePlayback";
 import { buildDiscreteSlideSteps } from "../lib/gteSlidePlayback";
-import { setNoteVibrato, vibratoSettings, playbackVibrato, type PlaybackVibrato } from "../lib/gteVibrato";
+import { setNoteVibrato, vibratoSettings, playbackVibrato, VIBRATO_COVER_OPTIONS, vibratoBendOptions, type PlaybackVibrato } from "../lib/gteVibrato";
+import Note2TabsSelect from "./Note2TabsSelect";
 import GteCanvasNoteEffect from "./GteCanvasNoteEffect";
 import { buildChordPlaybackWindows } from "../lib/gteChordPlayback";
 import {
@@ -13582,6 +13583,7 @@ export default function GteWorkspace({
       // This listener runs in capture phase. Inspector controls own their keys,
       // including Tab; editor undo/redo remains available outside text fields.
       const insidePropertiesInspector = Boolean(target?.closest("[data-gte-properties-inspector='true']"));
+      if (target?.closest(".note2tabs-select__menu")) return;
       if (target?.closest("[data-gte-scale-mode-menu='true']") && !arrowFromLengthenControl) return;
       if (target?.closest("[data-gte-optimization-dialog='true']")) return;
       if (insidePropertiesInspector && (isTyping || !((event.ctrlKey || event.metaKey) && /^[zy]$/i.test(event.key)))) return;
@@ -15654,13 +15656,14 @@ export default function GteWorkspace({
               <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="transition-transform group-open/vibrato:rotate-180"><path d="m6 9 6 6 6-6" /></svg>
             </summary>
             <div className="mt-2 space-y-2 [&_input]:h-8 [&_input]:text-xs [&_label>div]:mt-1">
-            <PropertyNumberField label={t("Vibrato cover")} prefix="1 /" unit={t("of note")} value={String(vibratoSettings(selectedNote).cover)} min={1} max={32} integer onCommit={value => updateVibratoSetting(selectedNote.id, "cover", value)} />
-            <div role="group" aria-label={t("Vibrato bend")}>
-              <div className="mb-1.5 text-xs font-medium text-slate-600">{t("Vibrato bend")} · {t("semitones")}</div>
-              <div className="grid grid-cols-7 gap-1">
-                {([{value:0.125,label:"⅛"},{value:0.25,label:"¼"},{value:0.5,label:"½"},{value:0.75,label:"¾"},{value:1,label:"1"},{value:1.5,label:"1½"},{value:2,label:"2"}]).map(option => <button key={option.value} type="button" aria-pressed={vibratoSettings(selectedNote).bend === option.value}
-                  className={`h-7 rounded-md border text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${vibratoSettings(selectedNote).bend === option.value ? "border-emerald-300 bg-emerald-100 text-emerald-900" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}
-                  onClick={() => updateVibratoSetting(selectedNote.id, "bend", String(option.value))}>{option.label}</button>)}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="min-w-0 text-xs font-medium text-slate-600">
+                {t("Vibrato cover")}
+                <Note2TabsSelect portal className="gte-track-select" label="Vibrato cover" value={String(vibratoSettings(selectedNote).cover)} options={VIBRATO_COVER_OPTIONS} onChange={value => updateVibratoSetting(selectedNote.id, "cover", value)} />
+              </div>
+              <div className="min-w-0 text-xs font-medium text-slate-600">
+                {t("Vibrato bend")}
+                <Note2TabsSelect portal className="gte-track-select" label="Vibrato bend" value={String(vibratoSettings(selectedNote).bend)} options={vibratoBendOptions(vibratoSettings(selectedNote).bend)} onChange={value => updateVibratoSetting(selectedNote.id, "bend", value)} />
               </div>
             </div>
             <PropertyNumberField label={t("Vibrato frequency")} unit="Hz" value={String(Math.round(vibratoSettings(selectedNote).cyclesPerBeat * getTimingBarBpm(timingMap, Math.floor(selectedNote.startTime / framesPerMeasure), fallbackBarBpm) / 60 * 100) / 100)} min={0.1} max={30} onCommit={value => {
