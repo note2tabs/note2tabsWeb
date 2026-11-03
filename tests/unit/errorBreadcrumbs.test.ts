@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { configureFrustrationSignals } from "../../lib/frustrationSignals";
 import { addErrorBreadcrumb, diagnosticEndpoint, getErrorBreadcrumbs, installDiagnosticFetch, observeDiagnosticAction, recordDiagnosticNavigation, recordDiagnosticProductEvent, setErrorBreadcrumbsEnabled } from "../../lib/errorBreadcrumbs";
 beforeEach(() => { vi.stubGlobal("window", {location: {origin: "https://note2tabs.com"}, fetch: vi.fn()}); setErrorBreadcrumbsEnabled(true); });
-afterEach(() => { setErrorBreadcrumbsEnabled(false); vi.unstubAllGlobals(); vi.useRealTimers(); });
+afterEach(() => { configureFrustrationSignals(); setErrorBreadcrumbsEnabled(false); vi.unstubAllGlobals(); vi.useRealTimers(); });
 describe("error breadcrumbs", () => {
   it("bounds and expires breadcrumbs, scrubs navigation, and clears on opt-out", () => {
     vi.useFakeTimers();
@@ -63,4 +64,43 @@ it("records only known product actions and excludes their payloads", () => {
   recordDiagnosticProductEvent("cta_clicked", { cta:"private-title" });
   expect(getErrorBreadcrumbs()).toHaveLength(2);
   expect(JSON.stringify(getErrorBreadcrumbs())).not.toMatch(/secret|private/);
+});
+
+
+describe("caught transcription delivery outcomes", () => {
+  it("detects repeated opening failures without requiring uncaught exceptions", () => {
+    vi.useFakeTimers();
+    const sink = vi.fn(); configureFrustrationSignals(sink);
+    recordDiagnosticProductEvent("transcription_editor_import_failed");
+    recordDiagnosticProductEvent("transcription_editor_navigation_failed");
+    expect(sink).not.toHaveBeenCalled();
+    recordDiagnosticProductEvent("transcription_editor_import_failed");
+    expect(sink).toHaveBeenCalledOnce();
+    expect(sink.mock.calls[0][0]).toMatchObject({action:"editor_import",attempts:3});
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it("breaks the streak on successful import and honors disabled diagnostics", () => {
+    const sink = vi.fn(); configureFrustrationSignals(sink);
+    recordDiagnosticProductEvent("transcription_editor_import_failed");
+    recordDiagnosticProductEvent("transcription_editor_import_failed");
+    recordDiagnosticProductEvent("transcription_imported_to_editor");
+    recordDiagnosticProductEvent("transcription_editor_import_failed");
+    expect(sink).not.toHaveBeenCalled();
+    setErrorBreadcrumbsEnabled(false);
+    for(let i=0;i<5;i++)recordDiagnosticProductEvent("transcription_editor_import_failed");
+    expect(sink).not.toHaveBeenCalled();
+  });
+});
+
+it("reports editor import 413s without turning ordinary upload limits into request incidents", async () => {
+  window.fetch = vi.fn().mockResolvedValue(new Response("private body", {status:413}));
+  const fail=vi.fn(); const stop=installDiagnosticFetch(fail);
+  await window.fetch("/api/gte/transcriber/import");
+  await window.fetch("/api/gte-guest/transcriber/import");
+  expect(fail).toHaveBeenCalledTimes(2);
+  expect(fail.mock.calls[0][0]).toMatchObject({endpoint:"/api/gte/transcriber/import",http_status:413});
+  await window.fetch("/api/transcribe");
+  expect(fail).toHaveBeenCalledTimes(2);
+  expect(JSON.stringify(getErrorBreadcrumbs())).not.toContain("private body");
+  stop();
 });

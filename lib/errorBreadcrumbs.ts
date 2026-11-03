@@ -54,7 +54,8 @@ export function installDiagnosticFetch(onFailure: (details: Breadcrumb) => void)
         }
         addErrorBreadcrumb("request", details);
         // HTTP 4xx and cancellations are context, not automatically new exceptions.
-        if ((response && response.status >= 500) || (!response && details.failure_type !== "aborted")) onFailure(details);
+        const importPayloadRejected = response?.status === 413 && /^\/api\/gte(?:-guest)?\/transcriber\/import$/.test(endpoint);
+        if ((response && response.status >= 500) || importPayloadRejected || (!response && details.failure_type !== "aborted")) onFailure(details);
       } catch { /* Neither telemetry nor callback errors may alter fetch semantics. */ }
     };
     try {
@@ -79,7 +80,15 @@ export function recordDiagnosticNavigation(path: string, phase: "start" | "compl
 
 /** Fixed product vocabulary only; payloads may contain private user content. */
 export function recordDiagnosticProductEvent(event: string, payload?: Record<string, unknown>) {
-  const events = new Set(["transcription_started", "transcription_queued", "transcription_succeeded", "transcription_failed", "transcription_editor_import_started", "transcription_imported_to_editor", "transcription_editor_import_failed", "checkout_started", "checkout_failed"]);
+  // Caught delivery failures are not window exceptions. Feed their actual
+  // outcomes into the existing consent-gated detector, without duplicate events
+  // or long-running timers. A single failure is alerted by the operational insight.
+  if (enabled && (event === "transcription_editor_import_failed" || event === "transcription_editor_navigation_failed")) {
+    beginFrustrationAction("editor_import")("failed");
+  } else if (enabled && event === "transcription_imported_to_editor") {
+    beginFrustrationAction("editor_import")("success");
+  }
+  const events = new Set(["transcription_editor_navigation_failed", "transcription_started", "transcription_queued", "transcription_succeeded", "transcription_failed", "transcription_editor_import_started", "transcription_imported_to_editor", "transcription_editor_import_failed", "checkout_started", "checkout_failed"]);
   const actions = new Set(["choose_audio_file", "convert_to_tabs", "use_free_heavy_preview", "mode_file", "mode_youtube"]);
   if (events.has(event)) addErrorBreadcrumb("product_event", { event });
   if (event === "cta_clicked" && typeof payload?.cta === "string" && actions.has(payload.cta)) addErrorBreadcrumb("product_action", { action: payload.cta });
