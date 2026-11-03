@@ -60,7 +60,7 @@ async function buildUserCredits(user: {
   });
 
   let credits: CreditsSummary = isPremium
-    ? reconcileCreditsWithStoredBalance(computedCredits, user.tokensRemaining, PLAN_CATALOG[subscriptionPlan].rolloverCap)
+    ? reconcileCreditsWithStoredBalance(computedCredits, user.tokensRemaining, PLAN_CATALOG[subscriptionPlan === "PRO" ? "PRO" : "PREMIUM"].rolloverCap)
     : computedCredits;
   let source: "computed" | "stored" | "backend" = isPremium ? "stored" : "computed";
 
@@ -70,10 +70,10 @@ async function buildUserCredits(user: {
         user.id,
         credits.remaining,
         buildBackendCreditHeaders(user.id),
-        PLAN_CATALOG[subscriptionPlan].rolloverCap
+        PLAN_CATALOG[subscriptionPlan === "PRO" ? "PRO" : "PREMIUM"].rolloverCap
       );
       if (typeof backendRemaining === "number") {
-        credits = withBackendRemainingCredits(credits, backendRemaining, PLAN_CATALOG[subscriptionPlan].rolloverCap);
+        credits = withBackendRemainingCredits(credits, backendRemaining, PLAN_CATALOG[subscriptionPlan === "PRO" ? "PRO" : "PREMIUM"].rolloverCap);
         source = "backend";
       }
     } catch (error) {

@@ -986,7 +986,7 @@ export const getServerSideProps: GetServerSideProps<Props|GuestSettingsProps> = 
     userCreatedAt: user?.createdAt,
   });
   let credits = isPremium
-    ? reconcileCreditsWithStoredBalance(computedCredits, user?.tokensRemaining, PLAN_CATALOG[subscriptionPlan].rolloverCap)
+    ? reconcileCreditsWithStoredBalance(computedCredits, user?.tokensRemaining, PLAN_CATALOG[subscriptionPlan === "PRO" ? "PRO" : "PREMIUM"].rolloverCap)
     : computedCredits;
   if (isPremium && user?.id) {
     try {
@@ -994,10 +994,10 @@ export const getServerSideProps: GetServerSideProps<Props|GuestSettingsProps> = 
         user.id,
         credits.remaining,
         buildBackendCreditHeaders(user.id),
-        PLAN_CATALOG[subscriptionPlan].rolloverCap
+        PLAN_CATALOG[subscriptionPlan === "PRO" ? "PRO" : "PREMIUM"].rolloverCap
       );
       if (typeof backendRemaining === "number") {
-        credits = withBackendRemainingCredits(credits, backendRemaining, PLAN_CATALOG[subscriptionPlan].rolloverCap);
+        credits = withBackendRemainingCredits(credits, backendRemaining, PLAN_CATALOG[subscriptionPlan === "PRO" ? "PRO" : "PREMIUM"].rolloverCap);
       }
     } catch (error) {
       console.warn("settings backend credits read failed", error);

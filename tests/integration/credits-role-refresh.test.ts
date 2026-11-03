@@ -66,13 +66,13 @@ function makeRes() {
   return res as unknown as NextApiResponse & typeof res;
 }
 
-async function callCredits(role: string, storedRemaining: number, backendRemaining: number) {
+async function callCredits(role: string, storedRemaining: number, backendRemaining: number, plan?: string) {
   const handler = (await import("../../pages/api/credits")).default;
   mocks.session.mockResolvedValue({ user: { id: "user_1" } });
   mocks.prisma.user.findUnique.mockResolvedValue({
     id: "user_1",
     role,
-    subscriptionPlan: role === "PREMIUM" ? "PREMIUM" : "FREE",
+    subscriptionPlan: plan ?? (role === "PREMIUM" ? "PREMIUM" : "FREE"),
     tokensRemaining: storedRemaining,
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
   });
@@ -93,6 +93,22 @@ describe("credits role refresh", () => {
     mocks.prisma.user.update.mockReset();
     mocks.prisma.user.updateMany.mockReset();
     mocks.prisma.tabJob.groupBy.mockReset();
+  });
+
+  it.each(["ADMIN", "MODERATOR", "MOD"])("preserves the existing staff cap for %s", async (role) => {
+    const res = await callCredits(role, 150, 150);
+    expect(res.statusCode).toBe(200);
+    expect((res.body as { credits: { remaining: number } }).credits.remaining).toBe(150);
+    expect(mocks.raiseBackendCreditsToFloor.mock.calls[0][3]).toBe(200);
+    expect(mocks.prisma.user.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("preserves a Pro rollover balance above the old cap", async () => {
+    const res = await callCredits("PREMIUM", 750, 750, "PRO");
+    expect(res.statusCode).toBe(200);
+    expect((res.body as { credits: { remaining: number } }).credits.remaining).toBe(750);
+    expect(mocks.raiseBackendCreditsToFloor.mock.calls[0][3]).toBe(1000);
+    expect(mocks.prisma.user.updateMany).not.toHaveBeenCalled();
   });
 
   it("does not ask backend credits for free users", async () => {
