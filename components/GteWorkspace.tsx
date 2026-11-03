@@ -40,7 +40,8 @@ import {
   warmTrackInstrument,
 } from "../lib/gteSamplePlayback";
 import { buildDiscreteSlideSteps } from "../lib/gteSlidePlayback";
-import { setNoteVibrato } from "../lib/gteVibrato";
+import { setNoteVibrato, vibratoSettings, playbackVibrato, VIBRATO_COVER_OPTIONS, vibratoBendOptions, type PlaybackVibrato } from "../lib/gteVibrato";
+import Note2TabsSelect from "./Note2TabsSelect";
 import GteCanvasNoteEffect from "./GteCanvasNoteEffect";
 import { buildChordPlaybackWindows } from "../lib/gteChordPlayback";
 import {
@@ -11300,6 +11301,17 @@ export default function GteWorkspace({
     ]
   );
 
+  const updateVibratoSetting = (noteId: number, field: "cover" | "bend" | "cyclesPerBeat", value: string) => {
+    if (!value.trim() || !Number.isFinite(Number(value))) return;
+    const id = resolveNoteId(noteId);
+    const apply = (draft: EditorSnapshot) => {
+      draft.notes = draft.notes.map(note => note.id === id ? {...note, vibratoSettings: vibratoSettings({vibratoSettings: {...vibratoSettings(note), [field]: Number(value)}})} : note);
+      return draft;
+    };
+    const next = apply(cloneSnapshot(snapshotRef.current));
+    enqueueOptimisticMutation({label: "vibrato-settings", apply, commit: () => gteApi.applySnapshot(editorId, next)});
+  };
+
   const handleToggleVibrato = useCallback(() => {
     if (guardSingleTrackSelectionAction("Vibrato") || activeChordIds.length || !selectedNoteIds.length) return;
     const ids = selectedNoteIds.map(resolveNoteId);
@@ -12593,6 +12605,7 @@ export default function GteWorkspace({
       midi: number;
       gain: number;
       stringIndex?: number;
+      vibrato?: PlaybackVibrato[];
       bendSegments?: Array<{
         holdSec: number;
         bendSec: number;
@@ -12610,7 +12623,8 @@ export default function GteWorkspace({
         holdFrames: number;
         bendFrames: number;
         targetCents: number;
-      }>
+      }>,
+      vibratoNotes: Note[] = []
     ) => {
       const eventStart = Math.round(startTime);
       const eventEnd = Math.round(startTime + length);
@@ -12626,6 +12640,7 @@ export default function GteWorkspace({
         midi,
         gain,
         stringIndex,
+        vibrato: playbackVibrato(vibratoNotes, trimmedStart, trimmedEnd, (a, b) => frameDeltaToSeconds(b - a, playbackFps, runPlaybackSpeed), framesPerMeasure / timeSignature * (timeSignatureBottom / 4)),
         bendSegments:
           Array.isArray(bendSegments) && bendSegments.length > 0
             ? bendSegments
@@ -12674,7 +12689,7 @@ export default function GteWorkspace({
       const baseMidi =
         Number.isFinite(note.midiNum) && note.midiNum > 0 ? note.midiNum : getMidiFromTab(note.tab);
       if (!outgoingTransitions.has(note.id)) {
-        pushEvent(note.startTime, note.length, baseMidi, gain, note.tab[0]);
+        pushEvent(note.startTime, note.length, baseMidi, gain, note.tab[0], undefined, [note]);
         return;
       }
 
@@ -12733,7 +12748,8 @@ export default function GteWorkspace({
         baseMidi,
         gain,
         note.tab[0],
-        bendSegments.length > 0 ? bendSegments : undefined
+        bendSegments.length > 0 ? bendSegments : undefined,
+        chain
       );
     });
     discreteSlideEffects.forEach((effect) => {
@@ -12760,7 +12776,7 @@ export default function GteWorkspace({
         slideStartFrame: slideStart,
         targetStartFrame: targetStart,
       }).forEach((step) => {
-        pushEvent(step.startFrame, step.durationFrames, step.midi, gain, source.tab[0]);
+        pushEvent(step.startFrame, step.durationFrames, step.midi, gain, source.tab[0], undefined, [source]);
       });
     });
     snapshot.chords.forEach((chord) => {
@@ -12836,6 +12852,7 @@ export default function GteWorkspace({
       midi: number;
       gain: number;
       stringIndex?: number;
+      vibrato?: PlaybackVibrato[];
       bendSegments?: Array<{
         holdSec: number;
         bendSec: number;
@@ -12852,6 +12869,7 @@ export default function GteWorkspace({
         startTime: playBase + evt.start,
         duration: Math.max(0.05, evt.duration),
         bendSegments: evt.bendSegments,
+        vibrato: evt.vibrato,
       });
     };
 
@@ -13565,6 +13583,7 @@ export default function GteWorkspace({
       // This listener runs in capture phase. Inspector controls own their keys,
       // including Tab; editor undo/redo remains available outside text fields.
       const insidePropertiesInspector = Boolean(target?.closest("[data-gte-properties-inspector='true']"));
+      if (target?.closest(".note2tabs-select__menu")) return;
       if (target?.closest("[data-gte-scale-mode-menu='true']") && !arrowFromLengthenControl) return;
       if (target?.closest("[data-gte-optimization-dialog='true']")) return;
       if (insidePropertiesInspector && (isTyping || !((event.ctrlKey || event.metaKey) && /^[zy]$/i.test(event.key)))) return;
@@ -15631,6 +15650,29 @@ export default function GteWorkspace({
           </div>
           <MusicalDurationField value={getNearestNoteFractionDenominator(selectedNote.length)} options={NOTE_LENGTH_FRACTION_DENOMINATORS.map((value) => ({ value, label: formatNoteLengthOption(value) }))} onChange={commitNoteMenuFractionLength} />
           <NoteFingerings tabs={noteAlternates?.possibleTabs ?? []} blockedTabs={noteAlternates?.blockedTabs ?? []} orderedTabs={noteAlternates?.orderedTabs} current={selectedNote.tab} labels={stringLabels} onSelect={handleAssignAlt} />
+          {selectedNote.vibrato && <details className="group/vibrato border-t border-slate-100 pt-2">
+            <summary className="flex cursor-pointer list-none items-center justify-between py-1 text-xs font-medium text-slate-700 [&::-webkit-details-marker]:hidden">
+              {t("Vibrato settings")}
+              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="transition-transform group-open/vibrato:rotate-180"><path d="m6 9 6 6 6-6" /></svg>
+            </summary>
+            <div className="mt-2 space-y-2 [&_input]:h-8 [&_input]:text-xs [&_label>div]:mt-1">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="min-w-0 text-xs font-medium text-slate-600">
+                {t("Vibrato cover")}
+                <Note2TabsSelect portal className="gte-track-select" label="Vibrato cover" value={String(vibratoSettings(selectedNote).cover)} options={VIBRATO_COVER_OPTIONS} onChange={value => updateVibratoSetting(selectedNote.id, "cover", value)} />
+              </div>
+              <div className="min-w-0 text-xs font-medium text-slate-600">
+                {t("Vibrato bend")}
+                <Note2TabsSelect portal className="gte-track-select" label="Vibrato bend" value={String(vibratoSettings(selectedNote).bend)} options={vibratoBendOptions(vibratoSettings(selectedNote).bend)} onChange={value => updateVibratoSetting(selectedNote.id, "bend", value)} />
+              </div>
+            </div>
+            <PropertyNumberField label={t("Vibrato frequency")} unit="Hz" value={String(Math.round(vibratoSettings(selectedNote).cyclesPerBeat * getTimingBarBpm(timingMap, Math.floor(selectedNote.startTime / framesPerMeasure), fallbackBarBpm) / 60 * 100) / 100)} min={0.1} max={30} onCommit={value => {
+              if (!value.trim() || !Number.isFinite(Number(value))) return;
+              const bpm = getTimingBarBpm(timingMap, Math.floor(selectedNote.startTime / framesPerMeasure), fallbackBarBpm);
+              updateVibratoSetting(selectedNote.id, "cyclesPerBeat", String(Math.max(0.1, Math.min(30, Number(value))) * 60 / bpm));
+            }} />
+            </div>
+          </details>}
           {isMobileEditMode && <section className="space-y-2" aria-label={t("Move selected note")}>
             <div className="grid grid-cols-4 gap-2">{(["left", "up", "down", "right"] as const).map((direction) => <InspectorAction key={direction} title={t("Move note {value1}", { value1: direction })} onClick={() => moveSelectedMobileNote(direction)}>{direction === "left" ? "←" : direction === "right" ? "→" : direction === "up" ? "↑" : "↓"}</InspectorAction>)}</div>
             <div className="grid grid-cols-2 gap-2"><InspectorAction onClick={() => scaleSelectedMobileNote(0.5)}>{t("Scale ½×")}</InspectorAction><InspectorAction onClick={() => scaleSelectedMobileNote(2)}>{t("Scale 2×")}</InspectorAction></div>
@@ -17751,6 +17793,7 @@ export default function GteWorkspace({
                       <GteCanvasNoteEffect
                         key={`note-effect-${effect.id}-seg-${segment.rowIndex}-${idx}`}
                         left={left} top={top} width={width} height={height}
+                        labelLeft={left + segment.length * scale / 2}
                         label={t(effect.noteEffectLabel)} title={t(getNoteEffectTypeName(effect.type))}
                         showLabel={idx === 0} selected={selectedNoteEffectId === effect.id}
                         onSelect={(event) => {

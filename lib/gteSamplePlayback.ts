@@ -6,6 +6,24 @@ import {
   type TrackInstrumentOption,
   type TrackSampleDefinition,
 } from "./gteInstrumentManifest";
+import type { PlaybackVibrato } from "./gteVibrato";
+
+export function applyVibratoAutomation(param: AudioParam, start: number, duration: number, windows?: PlaybackVibrato[]) {
+  if (!windows?.length || duration <= 0) return;
+  // Separate detune automation adds vibrato on top of the existing bend curve.
+  const curve = new Float32Array(Math.max(2, Math.min(32768, Math.ceil(duration * 240) + 1)));
+  for (let i = 0; i < curve.length; i++) {
+    const time = i * duration / (curve.length - 1);
+    for (const window of windows) {
+      if (time < window.start || time >= window.end) continue;
+      const elapsed = time - window.start + window.phase;
+      const fade = Math.min(1, elapsed / 0.04, (window.end - time) / 0.02);
+      curve[i] += window.cents * (1 - Math.cos(2 * Math.PI * window.frequency * elapsed)) / 2 * Math.max(0, fade);
+    }
+  }
+  param.setValueCurveAtTime(curve, start, duration);
+  param.setValueAtTime(0, start + duration);
+}
 
 export {
   DEFAULT_TRACK_INSTRUMENT_ID,
@@ -32,6 +50,7 @@ export type ScheduledTrackNote = {
   gain: number;
   startTime: number;
   duration: number;
+  vibrato?: PlaybackVibrato[];
   bendSegments?: Array<{
     holdSec: number;
     bendSec: number;
@@ -165,6 +184,7 @@ export const schedulePreparedTrackNote = ({
   startTime,
   duration,
   bendSegments,
+  vibrato,
 }: ScheduledTrackNote) => {
   if (!Number.isFinite(midi) || midi <= 0) return;
   if (instrument.kind === "synth") {
@@ -172,6 +192,8 @@ export const schedulePreparedTrackNote = ({
     const amp = ctx.createGain();
     const frequency = 440 * Math.pow(2, (midi - 69) / 12);
     oscillator.frequency.setValueAtTime(frequency, startTime);
+    applyBendAutomationToRate(oscillator.frequency, frequency, startTime, duration, bendSegments);
+    applyVibratoAutomation(oscillator.detune, startTime, duration, vibrato);
     oscillator.type = instrument.option.id === "gm:synth-lead" ? "square" :
       instrument.option.id === "gm:bass" ? "triangle" : "sine";
     const peak = Math.max(0, gain * instrument.option.gain);
@@ -199,9 +221,10 @@ export const schedulePreparedTrackNote = ({
   const source = ctx.createBufferSource();
   source.buffer = sample.buffer;
   applyBendAutomationToRate(source.playbackRate, baseRate, startTime, noteDuration, bendSegments);
+  applyVibratoAutomation(source.detune, startTime, noteDuration, vibrato);
 
   const needsSustainLoop =
-    Boolean(bendSegments?.length) && sample.buffer.duration > 0.12;
+    Boolean(bendSegments?.length || vibrato?.length) && sample.buffer.duration > 0.12;
   if (needsSustainLoop) {
     const loopEnd = Math.max(0.08, sample.buffer.duration - 0.02);
     const loopStart = Math.max(0.02, Math.min(loopEnd - 0.04, sample.buffer.duration * 0.35));
