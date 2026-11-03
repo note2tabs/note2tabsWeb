@@ -57,3 +57,46 @@ it("ignores missing notes, cross-string links and equal pitches", () => {
   snapshot.notes.pop();
   expect(buildPracticeTabEffects(snapshot, buildPracticeTabLayout(snapshot, 800))).toEqual([]);
 });
+
+it.each([2, 16, 48, 300].flatMap(span => [false,true].map(release => ({span,release}))))
+  ('keeps a compact turn and straight arrow shaft at span $span (release=$release)', ({span,release}) => {
+    const snapshot = fixture(0,release ? 14 : 12,release ? 12 : 14);
+    const layout = buildPracticeTabLayout(snapshot,800);
+    layout.frets[0].x=60; layout.frets[1].x=60+span;
+    const effect=buildPracticeTabEffects(snapshot,layout)[0];
+    expect(effect).toBeDefined();
+    const coordinates=effect.path.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+    const turnStart=Number(effect.path.match(/H(-?[\d.]+)/)![1]);
+    const x=coordinates.at(-2)!, shaftEnd=coordinates.at(-1)!, curveX=coordinates.at(-4)!, curveEnd=coordinates.at(-3)!;
+    expect(x).toBe(curveX);
+    expect(shaftEnd-curveEnd).toBe(release ? 4 : -4);
+    expect(x-turnStart).toBeLessThanOrEqual(18);
+    expect(x-turnStart).toBeGreaterThan(0);
+    expect(effect.arrow).toBeDefined(); expect(effect.label).toBe('full');
+  });
+
+it('joins a bend/release chain at the hidden pitch instead of leaving a fret-width hole',()=>{
+  const snapshot=fixture(0,12,14);
+  snapshot.notes.push({...snapshot.notes[0],id:3,startTime:240});
+  snapshot.noteEffects!.push({id:2,type:0,startNoteId:2,endNoteId:3,noteEffectLabel:'b'});
+  const layout=buildPracticeTabLayout(snapshot,800), effects=buildPracticeTabEffects(snapshot,layout);
+  const raised=layout.frets.find(note=>note.key==='n:2')!;
+  expect(effects.map(effect=>effect.kind)).toEqual(['bend','release']);
+  expect(effects.every(effect=>effect.hiddenFretKey==='n:2')).toBe(true);
+  const bendEnd=effects[0].path.match(/-?\d+(?:\.\d+)?/g)!.map(Number).at(-2);
+  const releaseStart=Number(effects[1].path.match(/^M(-?[\d.]+)/)![1]);
+  expect(bendEnd).toBeCloseTo(raised.x);
+  expect(releaseStart).toBeCloseTo(raised.x);
+});
+
+it.each([false,true])('keeps a bend visible when it crosses bars and wraps at narrow widths (release=%s)', release=>{
+  const snapshot=fixture(0,release ? 14 : 12,release ? 12 : 14);
+  snapshot.totalFrames=960;
+  snapshot.notes[0].startTime=450; snapshot.notes[1].startTime=480;
+  const layout=buildPracticeTabLayout(snapshot,180), effects=buildPracticeTabEffects(snapshot,layout);
+  expect(layout.frets[0].row).not.toBe(layout.frets[1].row);
+  expect(effects).toHaveLength(2);
+  expect(effects.filter(effect=>effect.arrow)).toHaveLength(1);
+  expect(effects.some(effect=>effect.label==='full')).toBe(true);
+  expect(effects.every(effect=>!effect.path.match(/NaN|Infinity/))).toBe(true);
+});

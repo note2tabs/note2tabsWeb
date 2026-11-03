@@ -27,6 +27,7 @@ export function buildPracticeTabLayout(snapshot: EditorSnapshot, availableWidth:
   frets.sort((a,b) => a.start-b.start || a.string-b.string || a.key.localeCompare(b.key));
   const notesByKey = new Map(frets.map(note => [note.key, note]));
   const effectSources = new Map<string, PracticeFret[]>();
+  const effectStarts = new Set<string>();
   for (const effect of snapshot.noteEffects ?? []) {
     if (![0, 1, 2].includes(effect.type)) continue;
     const a = notesByKey.get(`n:${effect.startNoteId}`), b = notesByKey.get(`n:${effect.endNoteId}`);
@@ -34,7 +35,9 @@ export function buildPracticeTabLayout(snapshot: EditorSnapshot, availableWidth:
     const [source, target] = a.start < b.start ? [a,b] : [b,a];
     const sources = effectSources.get(target.key) ?? [];
     sources.push(source); effectSources.set(target.key, sources);
+    effectStarts.add(source.key);
   }
+  const tailPadding = (group: PracticeFret[]) => PAD + (group.some(note => effectStarts.has(note.key)) ? 12 : 0);
   // One spacing vocabulary for the entire track: the same rhythm should not
   // change width just because a passage switches between fret 2 and fret 12.
   const columnWidth = Math.max(labelWidth("0"),...frets.map(note => note.width));
@@ -66,7 +69,8 @@ export function buildPracticeTabLayout(snapshot: EditorSnapshot, availableWidth:
         const group = groups[offset+selected.length], half = Math.max(...group.map(note => note.width))/2;
         const previous = selected.at(-1), previousHalf = previous ? Math.max(...previous.map(note => note.width))/2 : 0;
         const distance = previous ? Math.max(previousHalf+half+GAP,rhythmicAdvance(group[0].start-previous[0].start)) : 0;
-        let center = previous ? centers.at(-1)! + distance : PAD+columnWidth/2;
+        const incoming = !previous && group.some(note => (effectSources.get(note.key) ?? []).length > 0);
+        let center = previous ? centers.at(-1)! + distance : PAD+columnWidth/2+(incoming ? 12 : 0);
         // Reserve a small, readable connection between effect-linked glyphs.
         // Shift whole onset columns so simultaneous notes remain aligned and
         // the playback anchors follow exactly the same visual positions.
@@ -74,8 +78,8 @@ export function buildPracticeTabLayout(snapshot: EditorSnapshot, availableWidth:
           const sourceIndex = selected.findIndex(items => items[0].start === source.start);
           if (sourceIndex >= 0) center = Math.max(center, centers[sourceIndex] + (source.label.length+target.label.length)*3.5 + 8 + 16);
         }
-        if (selected.length && center+columnWidth/2+PAD > usable) break;
-        centers.push(center); selected.push(group); required = center+columnWidth/2+PAD;
+        if (selected.length && center+columnWidth/2+tailPadding(group) > usable) break;
+        centers.push(center); selected.push(group); required = center+columnWidth/2+tailPadding(group);
       }
       if (offset+selected.length < groups.length) {
         // Balance continuations rather than filling one system and stranding
@@ -83,7 +87,7 @@ export function buildPracticeTabLayout(snapshot: EditorSnapshot, availableWidth:
         const remaining = groups.length-offset, chunks = Math.ceil(remaining/selected.length);
         const count = Math.ceil(remaining/chunks);
         selected.length = count; centers.length = count;
-        required = centers.at(-1)!+columnWidth/2+PAD;
+        required = centers.at(-1)!+columnWidth/2+tailPadding(selected.at(-1)!);
       }
       const start = offset ? selected[0][0].start : bar*barFrames;
       offset += selected.length;
