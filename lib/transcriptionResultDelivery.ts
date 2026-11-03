@@ -11,7 +11,7 @@ async function backendResult(job: PendingResult) {
   const url=`${API_BASE}/api/v1/jobs/${encodeURIComponent(job.id)}`;
   const read=async()=>{
     const response=await fetch(`${url}?include_output=true`,{headers,signal:AbortSignal.timeout(12_000)});
-    if(!response.ok)throw new Error("Result backend unavailable");
+    if(!response.ok)throw Object.assign(new Error("Result backend unavailable"),{httpStatus:response.status});
     return await response.json() as Record<string,unknown>;
   };
   let payload=await read();
@@ -19,7 +19,7 @@ async function backendResult(job: PendingResult) {
   // prediction, deduct credits, or change the customer's selected instruments.
   if(payload.workflowState==='review_ready' || (payload.workflowState==='processing' && payload.status==='done')){
     const response=await fetch(`${url}/finalize`,{method:'POST',headers,body:'{}',signal:AbortSignal.timeout(20_000)});
-    if(!response.ok)throw new Error("Result finalization unavailable");
+    if(!response.ok)throw Object.assign(new Error("Result finalization unavailable"),{httpStatus:response.status});
     payload=await read();
   }
   if(!['done','completed','succeeded','success'].includes(String(payload.status)) || (payload.workflowState && payload.workflowState!=='finalized')){
@@ -35,8 +35,12 @@ export async function deliverCompletedTranscriptions() {
     JOIN "User" u ON u.id=j."userId"
     WHERE j.type='transcription_flow' AND j.status='succeeded'
       AND COALESCE(j.input->'resultDelivery'->>'completed','false')!='true'
+      AND (j."finishedAt">NOW()-INTERVAL '24 hours' OR NOT EXISTS (
+        SELECT 1 FROM "TabJob" t WHERE t."backendJobId"=j.id AND t."userId"=j."userId"
+      ))
       AND COALESCE(j.input->'resultDelivery'->>'retryAfter','') < NOW()::text
-    ORDER BY COALESCE(j.input->'resultDelivery'->>'retryAfter','') ASC, j."createdAt" ASC LIMIT 5
+    ORDER BY CASE WHEN j."finishedAt">NOW()-INTERVAL '24 hours' THEN 0 ELSE 1 END,
+      COALESCE(j.input->'resultDelivery'->>'retryAfter','') ASC, j."createdAt" ASC LIMIT 5
   `;
   let delivered=0,failed=0;const deadline=Date.now()+120_000;
   for(const job of jobs){
@@ -50,22 +54,27 @@ export async function deliverCompletedTranscriptions() {
         AND COALESCE(input->'resultDelivery'->>'retryAfter','') < NOW()::text
     `;
     if(!claimed)continue;
+    let stage="result_fetch";
     try {
       const payload=await backendResult(job);
+      stage="result_persist";
       const tabJobId=await persistCompletedJob(job.id,job.userId,payload);
       if(!tabJobId)throw new Error("Completed result has no importable content");
+      stage="durability_ack";
       await markBackendJobPersisted(job.id,job.userId,tabJobId);
       // Don't send a backlog of old completion notices during recovery.
       if(job.finishedAt && Date.now()-job.finishedAt.getTime()<24*60*60_000){
+        stage="completion_email";
         await sendTranscriptionCompleteEmailOnce({userId:job.userId,jobId:job.id,tabJobId});
       }
+      stage="delivery_marker";
       await prisma.$executeRaw`
         UPDATE jobs SET input=jsonb_set(COALESCE(input,'{}'::jsonb),'{resultDelivery}',
-          jsonb_build_object('completed',true,'tabJobId',${tabJobId}))
+          jsonb_build_object('completed',true,'tabJobId',${tabJobId}::text))
         WHERE id=${job.id} AND "userId"=${job.userId}
       `;
       delivered++;
-    }catch{
+    }catch(error){
       failed++;
       await prisma.$executeRaw`
         UPDATE jobs SET input=jsonb_set(COALESCE(input,'{}'::jsonb),'{resultDelivery}',
@@ -74,7 +83,7 @@ export async function deliverCompletedTranscriptions() {
       `;
       const client=createPostHogServerClient();
       if(client){
-        client.capture({distinctId:job.userId,event:'transcription_result_delivery_failed',properties:{job_id:job.id,failure_stage:'durable_result_delivery',error_code:'result_delivery_retry_pending',$insert_id:`result-delivery:${job.id}:${Math.floor(Date.now()/300000)}`}});
+        client.capture({distinctId:job.userId,event:'transcription_result_delivery_failed',properties:{job_id:job.id,failure_stage:stage,error_code:'result_delivery_retry_pending',...(error && typeof error==='object' && 'httpStatus' in error && typeof error.httpStatus==='number'?{http_status:error.httpStatus}:{}),$insert_id:`result-delivery:${job.id}:${Math.floor(Date.now()/300000)}`}});
         await client.flush();
       }
     }
