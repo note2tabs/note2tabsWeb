@@ -9,7 +9,7 @@ it.each(['b','h','p','/'])('keeps %s visible and selectable when its connector i
   vi.stubGlobal('window',dom.window); vi.stubGlobal('document',dom.window.document);
   vi.stubGlobal('React',React); vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
   const host=document.getElementById('root')!,root=createRoot(host),onSelect=vi.fn();
-  const props={left:100,top:29,width:8,height:17,label,title:'Effect',selected:false,showLabel:true,onSelect};
+  const props={left:100,top:29,width:8,height:17,labelLeft:100.5,label,title:'Effect',selected:false,showLabel:true,onSelect};
   try {
     await act(async()=>root.render(React.createElement(Effect,props)));
     const connector=host.querySelector<HTMLButtonElement>('[data-canvas-effect-connector]')!;
@@ -20,7 +20,8 @@ it.each(['b','h','p','/'])('keeps %s visible and selectable when its connector i
     expect(Number.parseFloat(badge.style.top)).toBe(props.top + props.height / 2);
     expect(badge.className).toContain('-translate-y-1/2');
     expect(badge.className).not.toContain('-translate-y-full');
-    expect(badge.style.left).toBe('104px');
+    // The enlarged connector hit area must not push the label into the next fret.
+    expect(badge.style.left).toBe('100.5px');
     await act(async()=>badge.dispatchEvent(new dom.window.MouseEvent('mousedown',{bubbles:true})));
     expect(onSelect).toHaveBeenCalledOnce();
     await act(async()=>root.render(React.createElement(Effect,{...props,selected:true})));

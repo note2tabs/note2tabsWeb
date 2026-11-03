@@ -17778,6 +17778,7 @@ export default function GteWorkspace({
                       <GteCanvasNoteEffect
                         key={`note-effect-${effect.id}-seg-${segment.rowIndex}-${idx}`}
                         left={left} top={top} width={width} height={height}
+                        labelLeft={left + segment.length * scale / 2}
                         label={t(effect.noteEffectLabel)} title={t(getNoteEffectTypeName(effect.type))}
                         showLabel={idx === 0} selected={selectedNoteEffectId === effect.id}
                         onSelect={(event) => {
