@@ -29,6 +29,23 @@ it("updates SVG playback without rerendering notes; follows systems, seeks, loop
   try {
     await render();
     const first = document.querySelector('[data-practice-fret="n:1"]')!;
+    // A focused clicked fret must not restart playback after the transport pauses it.
+    let transportPlaying = false;
+    const transport = (event: KeyboardEvent) => {
+      if (event.code === "Space") { event.preventDefault(); transportPlaying = !transportPlaying; }
+    };
+    window.addEventListener("keydown", transport, true);
+    try {
+      await act(async () => first.dispatchEvent(new dom.window.MouseEvent("click", {bubbles:true})));
+      expect(play).toHaveBeenLastCalledWith(0);
+      transportPlaying = true; play.mockClear();
+      (first as SVGElement).focus();
+      await act(async () => first.dispatchEvent(new dom.window.KeyboardEvent("keydown", {key:" ",code:"Space",bubbles:true,cancelable:true})));
+      expect(transportPlaying).toBe(false);
+      expect(play).not.toHaveBeenCalled();
+      await act(async () => first.dispatchEvent(new dom.window.KeyboardEvent("keydown", {key:"Enter",code:"Enter",bubbles:true,cancelable:true})));
+      expect(play).toHaveBeenLastCalledWith(0);
+    } finally { window.removeEventListener("keydown", transport, true); }
     expect(first.getAttribute("data-sounding")).toBe("true");
     frame = 60; tick();
     expect(first.getAttribute("data-sounding")).toBe("false");
