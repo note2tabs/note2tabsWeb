@@ -15,12 +15,17 @@ export const serverPublicCatalogs: Record<AppLocale, Record<string, string>> = {
   en, "pt-BR": ptBR, es, ja, ko, pl, ar, "zh-Hans": zhHans, fr, it,
 };
 
+const serializedCatalogs = new Map<AppLocale,string>();
 export function publicMessagesForDocument(locale: AppLocale) {
+  const cached = serializedCatalogs.get(locale);
+  if (cached !== undefined) return cached;
   const catalog = serverPublicCatalogs[locale];
   // English source strings already serve as their own fallback. Keep its few overrides.
   const messages = locale === "en"
     ? Object.fromEntries(Object.entries(catalog).filter(([key, value]) => key !== value))
     : catalog;
   // A translated message must never be able to close the JSON script element.
-  return JSON.stringify({locale, messages}).replace(/</g, "\\u003c");
+  const serialized = JSON.stringify({locale, messages}).replace(/</g, "\\u003c");
+  serializedCatalogs.set(locale, serialized);
+  return serialized;
 }

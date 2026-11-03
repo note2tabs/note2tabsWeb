@@ -1,4 +1,5 @@
 import rawManifest from "../public/sound_samples/manifest.json";
+import { versionedSampleUrl } from "./gteSampleUrl";
 
 export type TrackSampleDefinition = {
   midi: number;
@@ -49,7 +50,7 @@ const parseManifest = (value: unknown): TrackInstrumentOption[] => {
         const midi = Number(midiValue);
         const file = typeof fileValue === "string" ? fileValue.trim() : "";
         if (!Number.isFinite(midi) || !file || file.toLowerCase().startsWith("mute_")) return [];
-        return [{ midi, url: `/sound_samples/${folder.split("/").map(encodeURIComponent).join("/")}/${encodeURIComponent(file)}` }];
+        return [{ midi, url: versionedSampleUrl(`/sound_samples/${folder.split("/").map(encodeURIComponent).join("/")}/${encodeURIComponent(file)}`) }];
       })
       .sort((left, right) => left.midi - right.midi);
     if (!samples.length) return [];

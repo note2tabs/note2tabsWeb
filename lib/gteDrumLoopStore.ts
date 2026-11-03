@@ -162,6 +162,7 @@ export const persistDrumLoopsFromSnapshot = async (
              ${loopsJson}::jsonb, NOW(), NOW())
           ON CONFLICT ("editorId", "laneId")
           DO UPDATE SET "loops" = EXCLUDED."loops", "updatedAt" = NOW()
+          WHERE ${TABLE}."loops" IS DISTINCT FROM EXCLUDED."loops"
         `);
       }
     });

@@ -14,7 +14,7 @@ describe("drum tracks", () => {
   it("maps every drum voice to its Drum 1 Opus playback sample", () => {
     expect(Object.keys(DRUM1_SAMPLE_URLS)).toHaveLength(DRUM_VOICES.length);
     DRUM_VOICES.forEach((voice) => {
-      expect(DRUM1_SAMPLE_URLS[voice.id]).toBe(
+      expect(DRUM1_SAMPLE_URLS[voice.id].split("?")[0]).toBe(
         `/sound_samples/drum1/${voice.sampleStem}.opus`
       );
     });

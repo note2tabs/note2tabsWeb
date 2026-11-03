@@ -163,6 +163,8 @@ export const persistTrackPlaybackFromSnapshot = async (
             "muted" = EXCLUDED."muted",
             "isolated" = EXCLUDED."isolated",
             "updatedAt" = NOW()
+          WHERE (${TABLE}."volume", ${TABLE}."muted", ${TABLE}."isolated")
+            IS DISTINCT FROM (EXCLUDED."volume", EXCLUDED."muted", EXCLUDED."isolated")
         `);
       }
     });

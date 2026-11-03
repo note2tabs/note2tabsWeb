@@ -2,6 +2,7 @@ import { requestPricingMarket } from "../pricingMarket";
 import { isLocalizedPublicPath, localeSwitchHref, stripLocale, localeReleaseSwitch, type AppLocale } from "./locale";
 import { displayCurrencyForCountry, readDisplayCurrencyCookie } from "../localizedPricing";
 import type { GetServerSideProps, GetServerSidePropsContext, GetStaticProps } from "next";
+import { cacheLocalizedPublicPage } from "./publicPageCache";
 
 /** Completed editions ship by default; setting a locale release switch to false disables it. */
 export function localizedPilotAvailable(locale: AppLocale) {
@@ -15,7 +16,7 @@ export function localizedPilotIndexable(locale: AppLocale) {
   return process.env.NODE_ENV === "production" && !preview && localeReleaseSwitch(locale) !== "false";
 }
 export function withLocalizedPilot<P extends Record<string, unknown>>(
-  locale: AppLocale, loader?: GetServerSideProps<P>
+  locale: AppLocale, loader?: GetServerSideProps<P>, publicStaticLoader = false
 ): GetServerSideProps<P> {
   return async (context: GetServerSidePropsContext) => {
     if (!localizedPilotAvailable(locale)) return { notFound: true };
@@ -24,6 +25,7 @@ export function withLocalizedPilot<P extends Record<string, unknown>>(
     const result = loader ? await loader(context) : { props: {} as P };
     if ("redirect" in result) return {...result, redirect: {...result.redirect, destination: localeSwitchHref(result.redirect.destination, locale)}};
     if (!("props" in result)) return result;
+    if (isLocalizedPublicPath(publicPath) && (!loader || publicStaticLoader)) cacheLocalizedPublicPage(context);
     const country = context.req.headers["x-vercel-ip-country"];
     const initialDisplayCurrency = typeof country === "string" ? displayCurrencyForCountry(country) : readDisplayCurrencyCookie(context.req.headers.cookie || "");
     return {...result, props: {...await result.props, initialDisplayCurrency, initialPricingMarket: requestPricingMarket(country)}};
@@ -37,7 +39,7 @@ export function withLocalizedStaticPage<P extends Record<string, unknown>>(local
     if ("notFound" in result) return {notFound: true};
     if ("redirect" in result) return {redirect: result.redirect};
     return {props: await result.props};
-  });
+  }, true);
 }
 
 export const portuguesePilotAvailable = () => localizedPilotAvailable("pt-BR");

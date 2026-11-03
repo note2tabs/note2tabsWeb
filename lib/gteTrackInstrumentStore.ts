@@ -185,6 +185,7 @@ const saveTrackInstrumentSelections = async (
           DO UPDATE SET
             "instrumentId" = EXCLUDED."instrumentId",
             "updatedAt" = NOW()
+          WHERE ${GTE_TRACK_INSTRUMENT_TABLE}."instrumentId" IS DISTINCT FROM EXCLUDED."instrumentId"
         `);
       }
     });

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMocks } from "node-mocks-http";
+import {hydrateTrackInstrumentsFromStore,persistTrackInstrumentsFromSnapshot} from '../../lib/gteTrackInstrumentStore';
+import {hydrateTrackPlaybackFromStore,persistTrackPlaybackFromSnapshot} from '../../lib/gteTrackPlaybackStore';
 
 const sessionMock = vi.fn();
 const logMock = vi.fn();
@@ -40,17 +42,25 @@ vi.mock("../../lib/gteTrackInstrumentStore", () => ({
     const match = path.match(/^editors\/([^/]+)/);
     return match ? match[1] : null;
   },
-  hydrateTrackInstrumentsFromStore: async (_editorRef: string, payload: unknown) => payload,
+  hydrateTrackInstrumentsFromStore: vi.fn(async (_editorRef: string, payload: unknown) => payload),
   persistTrackInstrumentsFromSnapshot: vi.fn(),
 }));
 
 vi.mock("../../lib/gteTrackPlaybackStore", () => ({
-  hydrateTrackPlaybackFromStore: async (_userId: string, _editorRef: string, payload: unknown) => payload,
+  hydrateTrackPlaybackFromStore: vi.fn(async (_userId: string, _editorRef: string, payload: unknown) => payload),
   persistTrackPlaybackFromSnapshot: vi.fn(),
+}));
+vi.mock('../../lib/gteDrumLoopStore',()=>({
+  hydrateDrumLoopsFromStore:vi.fn(async(_editorRef:string,payload:unknown)=>payload),
+  persistDrumLoopsFromSnapshot:vi.fn(),
 }));
 
 describe("gte proxy analytics", () => {
   beforeEach(() => {
+    vi.mocked(hydrateTrackInstrumentsFromStore).mockClear();
+    vi.mocked(hydrateTrackPlaybackFromStore).mockClear();
+    vi.mocked(persistTrackInstrumentsFromSnapshot).mockClear();
+    vi.mocked(persistTrackPlaybackFromSnapshot).mockClear();
     sessionMock.mockReset();
     logMock.mockReset();
     updateTabJobMock.mockReset();
@@ -68,6 +78,28 @@ describe("gte proxy analytics", () => {
       "fetch",
       vi.fn(async () => new Response(JSON.stringify({ ok: true, snapshot: { id: "ed_1" } }), { status: 200 }))
     );
+  });
+
+  it('avoids preference queries for acknowledgements and preserves their response',async()=>{
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ok:true,version:2}),{status:200}));
+    const handler=(await import('../../pages/api/gte/[[...path]]')).default;
+    const {req,res}=createMocks({method:'POST',query:{path:['editors','ack','notes','add']},body:{}});
+    await handler(req as any,res as any);
+    expect(JSON.parse(res._getData())).toEqual({ok:true,version:2});
+    expect(hydrateTrackInstrumentsFromStore).not.toHaveBeenCalled();
+    expect(hydrateTrackPlaybackFromStore).not.toHaveBeenCalled();
+  });
+  it('does not rewrite unchanged settings on note saves and retains canonical server notes',async()=>{
+    const snapshot={id:'lane',notes:[],chords:[],instrumentId:'jazz',playbackVolume:0.8,drumLoops:[]};
+    const canonical={...snapshot,notes:[{id:99,midiNum:60,vibrato:true}],version:4};
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ok:true,snapshot:canonical,conflicts:[]}),{status:200}));
+    const handler=(await import('../../pages/api/gte/[[...path]]')).default;
+    const {req,res}=createMocks({method:'POST',query:{path:['editors','canonical__ed__lane','snapshot']},body:{snapshot,baseSnapshot:snapshot}});
+    await handler(req as any,res as any);
+    expect(persistTrackInstrumentsFromSnapshot).not.toHaveBeenCalled();
+    expect(persistTrackPlaybackFromSnapshot).not.toHaveBeenCalled();
+    expect(JSON.parse(res._getData())).toEqual({ok:true,snapshot:canonical,conflicts:[]});
+    expect(hydrateTrackInstrumentsFromStore).toHaveBeenCalledOnce();
   });
 
   it("emails a collaborator only after the editor service creates the share", async () => {

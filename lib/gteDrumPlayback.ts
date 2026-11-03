@@ -3,6 +3,7 @@ import {
   type DrumVoice,
   type DrumVoiceId,
 } from "./gteDrums";
+import { versionedSampleUrl } from "./gteSampleUrl";
 
 export type PreparedDrumKit = Map<DrumVoiceId, AudioBuffer>;
 
@@ -26,7 +27,7 @@ let previewContext: AudioContext | null = null;
 export const DRUM1_SAMPLE_URLS = Object.fromEntries(
   DRUM_VOICES.map((voice) => [
     voice.id,
-    `/sound_samples/drum1/${voice.sampleStem}.opus`,
+    versionedSampleUrl(`/sound_samples/drum1/${voice.sampleStem}.opus`),
   ])
 ) as Record<DrumVoiceId, string>;
 

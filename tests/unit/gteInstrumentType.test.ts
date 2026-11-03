@@ -27,7 +27,7 @@ describe("independent track type and sound", () => {
     expect(piano.kind).toBe("opus");
     expect(piano.samples.find(sample => sample.midi === 60)?.url).toContain("c4_");
     expect(piano.samples.find(sample => sample.midi === 21)?.url).toContain("a0_");
-    expect(piano.samples.every(sample => existsSync("public" + sample.url))).toBe(true);
+    expect(piano.samples.every(sample => existsSync("public" + sample.url.split("?")[0]))).toBe(true);
   });
   it("converts playable notation without changing timing, pitch or the source", () => {
     const source = track(), before = structuredClone(source);

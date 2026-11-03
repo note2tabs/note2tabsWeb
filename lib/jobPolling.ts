@@ -13,6 +13,38 @@ export type JobStatusPollResult<T> = {
 };
 
 const inFlightPolls = new Map<string, Promise<JobStatusPollResult<unknown>>>();
+const SHARED_POLL_PREFIX = "n2t:job-poll:v1:";
+
+async function sharedBrowserPoll<T>(key: string, load: () => Promise<JobStatusPollResult<T>>) {
+  if (typeof navigator === "undefined" || !navigator.locks || typeof window === "undefined") return load();
+  let entered = false;
+  try {
+    return await navigator.locks.request(key, async () => {
+      entered = true;
+      try {
+        const stored = JSON.parse(window.localStorage.getItem(key) || "null");
+        if (stored && Date.now() - stored.at >= 0 && Date.now() - stored.at < 1000) return stored.result as JobStatusPollResult<T>;
+        window.localStorage.removeItem(key);
+      } catch { /* Storage is optional. */ }
+      const result = await load();
+      try {
+        // Only lightweight status responses; full results always authenticate afresh.
+        const encoded = JSON.stringify({at:Date.now(),result});
+        if (encoded.length < 8192) window.localStorage.setItem(key,encoded);
+        // Bound temporary storage left by completed jobs and older sessions.
+        const keys = Object.keys(window.localStorage).filter(value=>value.startsWith(SHARED_POLL_PREFIX));
+        for (const candidate of keys) {
+          const at = JSON.parse(window.localStorage.getItem(candidate) || "null")?.at;
+          if (!at || Date.now() - at > 1000) window.localStorage.removeItem(candidate);
+        }
+      } catch { /* Retain the network result when storage is disabled or full. */ }
+      return result;
+    });
+  } catch (error) {
+    if (entered) throw error; // Do not retry a failed network request here.
+    return load(); // Browser denied the optional lock API.
+  }
+}
 
 export function parseRetryAfterMs(
   value: string | null,
@@ -77,15 +109,18 @@ export function requestJobStatus<T>(
     includeOutput?: boolean;
     etag?: string | null;
     fetcher?: typeof fetch;
+    accountId?: string;
   } = {}
 ): Promise<JobStatusPollResult<T>> {
   // A custom fetcher is normally a test or isolated caller and must retain its
   // exact invocation semantics. Browser callers share identical concurrent polls.
   if (options.fetcher) return requestJobStatusUncached<T>(jobId, options);
-  const key = `${jobId}:${Boolean(options.includeOutput)}:${options.etag || ""}`;
+  const key = `${options.accountId || ""}:${jobId}:${Boolean(options.includeOutput)}:${options.etag || ""}`;
   const existing = inFlightPolls.get(key);
   if (existing) return existing as Promise<JobStatusPollResult<T>>;
-  const request = requestJobStatusUncached<T>(jobId, options).finally(() => {
+  const load = () => requestJobStatusUncached<T>(jobId, options);
+  const request = (options.accountId && !options.includeOutput
+    ? sharedBrowserPoll<T>(SHARED_POLL_PREFIX + key, load) : load()).finally(() => {
     if (inFlightPolls.get(key) === request) inFlightPolls.delete(key);
   });
   inFlightPolls.set(key, request as Promise<JobStatusPollResult<unknown>>);
