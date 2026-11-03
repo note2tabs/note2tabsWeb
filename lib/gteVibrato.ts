@@ -1,6 +1,6 @@
 import type { EditorSnapshot, Note } from "../types/gte";
 
-export const DEFAULT_VIBRATO = { cover: 2, bend: 0.25, cyclesPerBeat: 3 };
+export const DEFAULT_VIBRATO = { cover: 2, bend: 0.5, cyclesPerBeat: 6 };
 export function vibratoSettings(note: Pick<Note, "vibratoSettings">) {
   const value = note.vibratoSettings;
   const safe = (n: unknown, fallback: number, min: number, max: number) => typeof n === "number" && Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;

@@ -61,18 +61,18 @@ it.each([0,12])('anchors vibrato above fret %s rather than after its number',fre
   expect(start).toBeLessThan(placement.x);
 });
 
-it('defaults to the final half, quarter-semitone depth and three cycles per beat, following tempo and speed', () => {
+it('defaults to the final half, half-semitone depth and six cycles per beat, following tempo and speed', () => {
   const note = {...track().notes[0], startTime: 0, length: 480, vibrato: true};
-  expect(vibratoSettings(note)).toEqual({cover:2,bend:0.25,cyclesPerBeat:3});
+  expect(vibratoSettings(note)).toEqual({cover:2,bend:0.5,cyclesPerBeat:6});
   const normal = playbackVibrato([note],0,480,(a,b)=>(b-a)/240,120)[0];
-  expect(normal).toEqual({start:1,end:2,phase:0,frequency:6,cents:25});
+  expect(normal).toEqual({start:1,end:2,phase:0,frequency:12,cents:50});
   const fast = playbackVibrato([note],0,480,(a,b)=>(b-a)/480,120)[0];
-  expect(fast.frequency).toBe(12); expect(fast.start).toBe(0.5);
+  expect(fast.frequency).toBe(24); expect(fast.start).toBe(0.5);
 });
 
 it('clips at seeks and loop ends while retaining phase, and leaves unmarked notes unchanged', () => {
   const note = {...track().notes[0],startTime:0,length:480,vibrato:true};
-  expect(playbackVibrato([note],300,420,(a,b)=>(b-a)/240,120)[0]).toEqual({start:0,end:0.5,phase:0.25,frequency:6,cents:25});
+  expect(playbackVibrato([note],300,420,(a,b)=>(b-a)/240,120)[0]).toEqual({start:0,end:0.5,phase:0.25,frequency:12,cents:50});
   expect(playbackVibrato([{...note,vibrato:false}],0,480,(a,b)=>(b-a)/240,120)).toEqual([]);
   expect(playbackVibrato([note],0,200,(a,b)=>(b-a)/240,120)).toEqual([]);
 });

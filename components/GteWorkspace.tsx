@@ -15651,7 +15651,14 @@ export default function GteWorkspace({
           {selectedNote.vibrato && <section className="space-y-2 border-t border-slate-100 pt-3" aria-label={t("Vibrato")}>
             <div className="text-xs font-medium text-slate-700">{t("Vibrato")}</div>
             <PropertyNumberField label={t("Vibrato cover")} prefix="1 /" unit={t("of note")} value={String(vibratoSettings(selectedNote).cover)} min={1} max={32} integer onCommit={value => updateVibratoSetting(selectedNote.id, "cover", value)} />
-            <PropertyNumberField label={t("Vibrato bend")} unit={t("semitones")} value={String(vibratoSettings(selectedNote).bend)} min={0.01} max={2} onCommit={value => updateVibratoSetting(selectedNote.id, "bend", value)} />
+            <div role="group" aria-label={t("Vibrato bend")}>
+              <div className="mb-1.5 text-xs font-medium text-slate-600">{t("Vibrato bend")} · {t("semitones")}</div>
+              <div className="grid grid-cols-4 gap-1">
+                {([{value:0.125,label:"⅛"},{value:0.25,label:"¼"},{value:0.5,label:"½"},{value:0.75,label:"¾"},{value:1,label:"1"},{value:1.5,label:"1½"},{value:2,label:"2"}]).map(option => <button key={option.value} type="button" aria-pressed={vibratoSettings(selectedNote).bend === option.value}
+                  className={`h-8 rounded-md border text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${vibratoSettings(selectedNote).bend === option.value ? "border-emerald-300 bg-emerald-100 text-emerald-900" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}
+                  onClick={() => updateVibratoSetting(selectedNote.id, "bend", String(option.value))}>{option.label}</button>)}
+              </div>
+            </div>
             <PropertyNumberField label={t("Vibrato frequency")} unit="Hz" value={String(Math.round(vibratoSettings(selectedNote).cyclesPerBeat * getTimingBarBpm(timingMap, Math.floor(selectedNote.startTime / framesPerMeasure), fallbackBarBpm) / 60 * 100) / 100)} min={0.1} max={30} onCommit={value => {
               if (!value.trim() || !Number.isFinite(Number(value))) return;
               const bpm = getTimingBarBpm(timingMap, Math.floor(selectedNote.startTime / framesPerMeasure), fallbackBarBpm);
