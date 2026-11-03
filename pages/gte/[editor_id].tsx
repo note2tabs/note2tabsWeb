@@ -1,3 +1,4 @@
+import { playbackVibrato, type PlaybackVibrato } from "../../lib/gteVibrato";
 import { beginFrustrationAction, monitorFrustrationPromise, noteFrustrationRetry } from "../../lib/frustrationSignals";
 import { focusPianoTranscription } from "../../lib/instrumentTranscriptionEntry";
 import { editorEntryInstrument, ensureInstrumentEditorEntry } from "../../lib/instrumentEditorEntry";
@@ -4928,6 +4929,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         gain: number;
         instrumentId: string;
         pan: number;
+        vibrato?: PlaybackVibrato[];
         drumVoiceId?: DrumVoiceId;
         bendSegments?: Array<{
           holdSec: number;
@@ -4936,6 +4938,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
         }>;
       }> = [];
 
+      const quarterFramesByTrack = new Map(canvas.editors.map((lane, index) => [lane.id || `ed-${index + 1}`, FIXED_FRAMES_PER_BAR / Math.max(1, lane.timeSignature ?? 4) * ((lane.timeSignatureBottom ?? 4) / 4)]));
       const pushEvent = (
         eventStart: number,
         eventLength: number,
@@ -4948,7 +4951,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           holdFrames: number;
           bendFrames: number;
           targetCents: number;
-        }>
+        }>,
+        vibratoNotes: EditorSnapshot["notes"] = []
       ) => {
         const roundedStart = Math.round(eventStart);
         const roundedEnd = Math.round(eventStart + eventLength);
@@ -4966,6 +4970,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           gain,
           instrumentId,
           pan,
+          vibrato: playbackVibrato(vibratoNotes, trimmedStart, trimmedEnd, playbackSecondsBetween, quarterFramesByTrack.get(trackId) ?? 120),
           bendSegments:
             Array.isArray(bendSegments) && bendSegments.length > 0
               ? bendSegments
@@ -5086,7 +5091,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             Number.isFinite(note.midiNum) && note.midiNum > 0 ? note.midiNum : getMidiFromTab(lane, note.tab);
           const noteGain = 0.55 * FIXED_NOTE_VELOCITY;
           if (!outgoingTransitions.has(note.id)) {
-            pushEvent(note.startTime, note.length, baseMidi, noteGain, instrumentId, lanePan, laneId);
+            pushEvent(note.startTime, note.length, baseMidi, noteGain, instrumentId, lanePan, laneId, undefined, [note]);
             return;
           }
 
@@ -5150,7 +5155,8 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             instrumentId,
             lanePan,
             laneId,
-            bendSegments.length > 0 ? bendSegments : undefined
+            bendSegments.length > 0 ? bendSegments : undefined,
+            chain
           );
         });
 
@@ -5183,7 +5189,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               0.55,
               instrumentId,
               lanePan,
-              laneId
+              laneId, undefined, [source]
             );
           });
         });
@@ -5386,6 +5392,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
             startTime: playBase + evt.start,
             duration: Math.max(0.05, evt.duration),
             bendSegments: evt.bendSegments,
+            vibrato: evt.vibrato,
           });
         },
         GLOBAL_PLAYBACK_LOOKAHEAD_SECONDS

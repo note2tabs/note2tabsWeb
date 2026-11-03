@@ -10,6 +10,7 @@ export type Note = {
   velocity?: number;
   pitchBend?: number[];
   vibrato?: boolean;
+  vibratoSettings?: { cover: number; bend: number; cyclesPerBeat: number };
   notationStaff?: "treble" | "bass";
   notationVoice?: 1 | 2;
   notationVoiceSource?: "auto" | "manual" | "import";

@@ -122,8 +122,8 @@ export const PropertiesInspectorShell = forwardRef<HTMLDivElement, ShellProps>(f
   </div>, document.body);
 });
 
-export function PropertyNumberField({ label, value, onCommit, min, max, unit, integer = false, onStep, inlineStepper = false }: {
-  label: string; value: string; onCommit: (value: string) => void; min?: number; max?: number; unit?: string; integer?: boolean; onStep?: (delta: number, value: string) => void; inlineStepper?: boolean;
+export function PropertyNumberField({ label, value, onCommit, min, max, unit, prefix, integer = false, onStep, inlineStepper = false }: {
+  label: string; value: string; onCommit: (value: string) => void; min?: number; max?: number; unit?: string; prefix?: string; integer?: boolean; onStep?: (delta: number, value: string) => void; inlineStepper?: boolean;
 }) {
   const { t } = useLocale();
   const [draft, setDraft] = useState(value);
@@ -147,6 +147,7 @@ export function PropertyNumberField({ label, value, onCommit, min, max, unit, in
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => { const current = Number(draft); const base = Number.isFinite(current) ? current : Number(value); setDraft(String(Math.max(min ?? -Infinity, Math.min(max ?? Infinity, base + delta)))); onStep(delta, draft); }}
       >{inlineStepper ? delta > 0 ? "+" : "−" : delta > 0 ? "↑" : "↓"}</button>)}</div> : null}
+      {prefix && <span className="order-first flex shrink-0 items-center pr-1 text-sm font-normal text-slate-600">{prefix}</span>}
     </div>
   </label>;
 }

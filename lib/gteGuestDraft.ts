@@ -1,6 +1,7 @@
 import type { CutWithCoord, EditorSnapshot, TabCoord } from "../types/gte";
 import { hydrateChordFingering } from "./gteChordFingerings";
 import { restoreNotationSnapshot } from "./gteNotationPersistence";
+import { vibratoSettings } from "./gteVibrato";
 import { isNotationTrack } from "./gteNotation";
 import {
   DEFAULT_TRACK_INSTRUMENT_ID,
@@ -261,6 +262,7 @@ export const normalizeGuestSnapshot = (
             ...(typeof note.velocity === "number" && Number.isFinite(note.velocity) ? { velocity: Math.max(0, Math.min(1, Number(note.velocity))) } : {}),
             ...(Array.isArray(note.pitchBend) ? { pitchBend: note.pitchBend.filter((value): value is number => typeof value === "number" && Number.isFinite(value)) } : {}),
             ...(typeof note.vibrato === "boolean" ? { vibrato: note.vibrato } : {}),
+            ...(note.vibratoSettings && typeof note.vibratoSettings === "object" ? { vibratoSettings: vibratoSettings({vibratoSettings: note.vibratoSettings as Parameters<typeof vibratoSettings>[0]["vibratoSettings"]}) } : {}),
             ...(note.notationStaff === "treble" || note.notationStaff === "bass" ? { notationStaff: note.notationStaff } : {}),
             ...(note.notationVoice === 1 || note.notationVoice === 2 ? { notationVoice: note.notationVoice } : {}),
             ...(["auto", "manual", "import"].includes(String(note.notationVoiceSource)) ? { notationVoiceSource: note.notationVoiceSource as "auto" | "manual" | "import" } : {}),

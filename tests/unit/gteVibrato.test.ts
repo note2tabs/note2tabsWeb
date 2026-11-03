@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {setNoteVibrato} from '../../lib/gteVibrato';
+import {setNoteVibrato, playbackVibrato, vibratoSettings} from '../../lib/gteVibrato';
 import {serializeNotationPayload,restoreNotationSnapshot} from '../../lib/gteNotationPersistence';
 import {normalizeGuestSnapshot} from '../../lib/gteGuestDraft';
 import {toolSelectionRule,toolAllowsSelection} from '../../lib/gteToolSelection';
@@ -59,4 +59,31 @@ it.each([0,12])('anchors vibrato above fret %s rather than after its number',fre
   const start=Number(wave.path.match(/^M(-?[\d.]+)/)![1]);
   expect(start).toBeCloseTo(placement.x-String(fret).length*3.5);
   expect(start).toBeLessThan(placement.x);
+});
+
+it('defaults to the final half, quarter-semitone depth and three cycles per beat, following tempo and speed', () => {
+  const note = {...track().notes[0], startTime: 0, length: 480, vibrato: true};
+  expect(vibratoSettings(note)).toEqual({cover:2,bend:0.25,cyclesPerBeat:3});
+  const normal = playbackVibrato([note],0,480,(a,b)=>(b-a)/240,120)[0];
+  expect(normal).toEqual({start:1,end:2,phase:0,frequency:6,cents:25});
+  const fast = playbackVibrato([note],0,480,(a,b)=>(b-a)/480,120)[0];
+  expect(fast.frequency).toBe(12); expect(fast.start).toBe(0.5);
+});
+
+it('clips at seeks and loop ends while retaining phase, and leaves unmarked notes unchanged', () => {
+  const note = {...track().notes[0],startTime:0,length:480,vibrato:true};
+  expect(playbackVibrato([note],300,420,(a,b)=>(b-a)/240,120)[0]).toEqual({start:0,end:0.5,phase:0.25,frequency:6,cents:25});
+  expect(playbackVibrato([{...note,vibrato:false}],0,480,(a,b)=>(b-a)/240,120)).toEqual([]);
+  expect(playbackVibrato([note],0,200,(a,b)=>(b-a)/240,120)).toEqual([]);
+});
+
+it('persists custom settings through a server that strips new note fields and guest normalization', () => {
+  const source=track(); source.notes[0].vibrato=true;
+  source.notes[0].vibratoSettings={cover:4,bend:0.4,cyclesPerBeat:2.5};
+  const wire=serializeNotationPayload(source) as EditorSnapshot;
+  const server={...wire,notes:wire.notes.map(({vibrato:_,vibratoSettings:__,...note})=>note)};
+  expect(restoreNotationSnapshot(server).notes[0].vibratoSettings).toEqual(source.notes[0].vibratoSettings);
+  expect(normalizeGuestSnapshot(source,'tab').notes[0].vibratoSettings).toEqual(source.notes[0].vibratoSettings);
+  const result=playbackVibrato(restoreNotationSnapshot(server).notes,0,600,(a,b)=>(b-a)/240,120)[0];
+  expect(result.start).toBe(450/240); expect(result.frequency).toBe(5); expect(result.cents).toBe(40);
 });
