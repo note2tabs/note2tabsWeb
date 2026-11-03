@@ -39,3 +39,12 @@ describe('browser-independent result delivery',()=>{
   expect(await deliverCompletedTranscriptions()).toEqual({delivered:0,failed:1});expect(m.persist).toHaveBeenCalledOnce();expect(m.capture).toHaveBeenCalledOnce();
  });
 });
+
+it('records backend status and delivery stage without the private response body',async()=>{
+ m.query.mockResolvedValue([{id:'job',userId:'owner',finishedAt:new Date()}]);m.update.mockResolvedValue(1);m.capture.mockClear();m.flush.mockResolvedValue(undefined);
+ vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('private backend content',{status:503})));
+ expect(await deliverCompletedTranscriptions()).toEqual({delivered:0,failed:1});
+ expect(m.capture).toHaveBeenCalledWith(expect.objectContaining({properties:expect.objectContaining({http_status:503,failure_stage:'result_fetch'})}));
+ expect(JSON.stringify(m.capture.mock.calls)).not.toContain('private backend content');
+ vi.unstubAllGlobals();
+});
