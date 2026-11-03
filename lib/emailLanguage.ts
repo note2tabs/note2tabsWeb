@@ -43,7 +43,7 @@ export function emailLanguageProblems(content:Content, language:Exclude<EmailLan
   case "tab_return":subjects=[c.saved[0]];htmlPhrases=[expected==="en" ? "Return whenever you want to play it, make changes, or keep practicing." : c.saved[1]];textPhrases=[expected==="en" ? "When you are ready, you can return to play it, make adjustments, or continue practicing." : c.saved[1]];break;
   case "trial_started":subjects=[c.trialStarted[0]];htmlPhrases=[c.trialStarted[1]];textPhrases=htmlPhrases;break;
   case "trial_ending":subjects=[c.trialEnding[0]];htmlPhrases=[expected==="en" ? "After the trial, Premium renews at the price and billing interval confirmed at checkout unless you cancel before then." : c.trialEnding[1]];textPhrases=[expected==="en" ? "After the trial, Premium renews at the price and billing interval confirmed at checkout unless you cancel before then." : c.trialEnding[1]];break;
-  case "pro_started":subjects=[c.pro[0]];htmlPhrases=[c.pro[1]];textPhrases=[expected==="en" ? "You now have 250 monthly credits, rollover up to 500, uploads up to 500 MB, and priority email support." : c.pro[1]];break;
+  case "pro_started":subjects=[c.pro[0]];htmlPhrases=[c.pro[1]];textPhrases=[expected==="en" ? "You now have 500 monthly credits, rollover up to 1000, uploads up to 500 MB, and priority email support." : c.pro[1]];break;
   case "payment_failed":subjects=[c.payment[0]];htmlPhrases=[expected==="en" ? "We could not process your latest payment." : c.payment[1]];textPhrases=[expected==="en" ? "We couldn't process your latest Note2Tabs" : c.payment[1]];break;
   case "tab_share":subjects=[c.share[0]];
    if(expected==="en") {

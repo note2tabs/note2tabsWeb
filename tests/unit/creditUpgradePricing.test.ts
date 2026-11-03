@@ -11,9 +11,9 @@ describe("credit-based Pro upgrade", () => {
   });
   it.each([-1,NaN,Infinity,0.5])("rejects invalid balances %s", credits => expect(()=>creditUpgradePrice(599,1499,credits)).toThrow());
   it("exchanges the old balance and adjusts for credits spent awaiting payment", () => {
-    expect(exchangedCreditBalance(200,200)).toBe(250);
-    expect(exchangedCreditBalance(170,200)).toBe(220);
-    expect(exchangedCreditBalance(0,0)).toBe(250);
+    expect(exchangedCreditBalance(200,200)).toBe(500);
+    expect(exchangedCreditBalance(170,200)).toBe(470);
+    expect(exchangedCreditBalance(0,0)).toBe(500);
   });
 });
 

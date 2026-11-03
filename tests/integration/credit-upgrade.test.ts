@@ -77,7 +77,7 @@ describe.skipIf(!url)("credit upgrade with real isolated PostgreSQL", () => {
     expect((await db.user.findUniqueOrThrow({ where: { id: user.id } })).subscriptionPlan).toBe("PREMIUM");
     m.stripe.subscriptions.retrieve.mockResolvedValue(upgraded());
     await deliver("invoice.paid", { ...invoice, subscription: "sub_upgrade" });
-    expect(await balance()).toBe(250);
+    expect(await balance()).toBe(500);
     await db.$executeRaw`UPDATE user_credits SET credits=240 WHERE "userId"=${user.id}`;
     await db.user.update({where:{id:user.id},data:{tokensRemaining:240}});
     await deliver("invoice.paid", { ...invoice, subscription: "sub_upgrade" });
@@ -92,7 +92,7 @@ describe.skipIf(!url)("credit upgrade with real isolated PostgreSQL", () => {
     vi.stubEnv("CREDIT_UPGRADE_ENABLED", "false"); vi.stubEnv("CREDIT_UPGRADE_WEBHOOKS_ENABLED", "true");
     m.stripe.subscriptions.retrieve.mockResolvedValue(upgraded());
     await deliver("invoice.paid", { ...invoice, subscription: "sub_upgrade" });
-    expect(await balance()).toBe(250);
+    expect(await balance()).toBe(500);
   });
   it("round trips the actual authenticated API from quote to confirmed upgrade", async () => {
     const first = createMocks({ method: "POST", body: { plan: "pro", billingInterval: "monthly" } });
@@ -103,7 +103,7 @@ describe.skipIf(!url)("credit upgrade with real isolated PostgreSQL", () => {
     const second = createMocks({ method: "POST", body: { plan: "pro", billingInterval: "monthly", action: "confirm", quoteId: first.res._getJSONData().quote.id } });
     await changePlan(second.req as any, second.res as any);
     expect(second.res._getJSONData()).toMatchObject({ changed: true, plan: "pro" });
-    expect(await balance()).toBe(250);
+    expect(await balance()).toBe(500);
   });
   it("leaves the annual upgrade path unchanged", async () => {
     vi.stubEnv("STRIPE_PRICE_PRO_YEARLY", "price_pro_year");
@@ -156,7 +156,7 @@ describe.skipIf(!url)("credit upgrade with real isolated PostgreSQL", () => {
     expect(await payCreditUpgrade(quote, quote.id)).toMatchObject({ changed: true });
     expect(m.stripe.coupons.create).toHaveBeenCalledWith(expect.objectContaining({ amount_off: 1200, duration: "once" }), expect.anything());
     expect(m.stripe.subscriptions.update).toHaveBeenCalledWith("sub_upgrade", expect.objectContaining({ billing_cycle_anchor: "now", proration_behavior: "none", payment_behavior: "pending_if_incomplete" }), expect.anything());
-    expect(await balance()).toBe(250);
+    expect(await balance()).toBe(500);
   });
   it("does not grant Pro while payment is pending, and returns Stripe authentication page", async () => {
     const quote = await prepareCreditUpgrade(user.id, subscription(), "price_pro");
@@ -175,7 +175,7 @@ describe.skipIf(!url)("credit upgrade with real isolated PostgreSQL", () => {
     const record = await db.creditUpgrade.findUniqueOrThrow({where:{id:quote.id}});
     expect(record).toMatchObject({attempt:1,lastVoidedInvoiceId:"in_expired"});
     expect(m.stripe.subscriptions.update.mock.calls.map(call=>call[2].idempotencyKey)).toEqual([`credit-upgrade-payment-${quote.id}-1`,`credit-upgrade-payment-${quote.id}-1`]);
-    expect(await balance()).toBe(250);
+    expect(await balance()).toBe(500);
   });
   it("adjusts spending while payment is pending, grants once under concurrent webhooks", async () => {
     const quote = await prepareCreditUpgrade(user.id, subscription(), "price_pro");
@@ -268,7 +268,7 @@ describe.skipIf(!url)("credit upgrade with real isolated PostgreSQL", () => {
       expect(paid.amount_paid).toBe(due);
       const liveShape = cli(`/v1/invoices/${paid.id}`,{},"get",{apiVersion:"2025-11-17.clover"});
       await deliver("invoice.payment_succeeded",liveShape,"2025-11-17.clover");
-      expect(await balance()).toBe(250);
+      expect(await balance()).toBe(500);
       await db.$executeRaw`UPDATE user_credits SET credits=230 WHERE "userId"=${user.id}`;
       await db.user.update({where:{id:user.id},data:{tokensRemaining:230}});
       await deliver("invoice.paid",paid);

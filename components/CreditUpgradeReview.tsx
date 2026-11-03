@@ -20,7 +20,7 @@ export default function CreditUpgradeReview({ quote, busy, onCancel, onConfirm }
         <div className="flex justify-between gap-4"><dt>{t("Credit exchange ({credits} credits)", { credits: quote.credits })}</dt><dd>−{money(quote.discount)}</dd></div>
         <div className="flex justify-between gap-4 border-t pt-4 text-lg font-semibold"><dt>{t("Due today")}</dt><dd>{money(quote.dueNow)}</dd></div>
       </dl>
-      <p className="mb-6 text-sm leading-relaxed text-slate-600">{t("Your remaining credits are exchanged for this discount. You start a new month with 250 Pro credits. Then {amount} per month, starting one month after the upgrade.", { amount: money(quote.regularAmount) })}</p>
+      <p className="mb-6 text-sm leading-relaxed text-slate-600">{t("Your remaining credits are exchanged for this discount. You start a new month with 500 Pro credits. Then {amount} per month, starting one month after the upgrade.", { amount: money(quote.regularAmount) })}</p>
       <button type="button" disabled={busy} className="w-full rounded-lg bg-slate-950 px-4 py-3 font-medium text-white disabled:opacity-50" onClick={onConfirm}>{busy ? t("Processing…") : t("Confirm upgrade")}</button>
       <button type="button" disabled={busy} className="mt-2 w-full rounded-lg px-4 py-3 text-sm" onClick={onCancel}>{t("Cancel")}</button>
     </>}

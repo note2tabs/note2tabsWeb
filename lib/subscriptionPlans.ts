@@ -1,3 +1,5 @@
+import { PRO_MONTHLY_CREDITS, PRO_ROLLOVER_CREDIT_CAP } from "./credits";
+
 export const SUBSCRIPTION_PLANS = ["FREE", "PREMIUM", "PRO"] as const;
 export type SubscriptionPlan = (typeof SUBSCRIPTION_PLANS)[number];
 export type PaidSubscriptionPlan = Exclude<SubscriptionPlan, "FREE">;
@@ -33,7 +35,7 @@ export const PLAN_CATALOG: Record<SubscriptionPlan, SubscriptionPlanDefinition> 
   },
   PRO: {
     id: "PRO", name: "Pro", analyticsId: "pro_monthly", monthlyPriceUsd: 14.99,
-    monthlyCredits: 250, rolloverCap: 500, trialDays: 0,
+    monthlyCredits: PRO_MONTHLY_CREDITS, rolloverCap: PRO_ROLLOVER_CREDIT_CAP, trialDays: 0,
     maxUploadBytes: 500 * MB, youtubePositionLimitSeconds: 20 * 60,
     prioritySupport: true, earlyAccessEligible: true,
   },

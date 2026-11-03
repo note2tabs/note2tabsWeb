@@ -1,3 +1,4 @@
+import { PLAN_CATALOG } from "../../lib/subscriptionPlans";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "./auth/[...nextauth]";
@@ -59,7 +60,7 @@ async function buildUserCredits(user: {
   });
 
   let credits: CreditsSummary = isPremium
-    ? reconcileCreditsWithStoredBalance(computedCredits, user.tokensRemaining, subscriptionPlan === "PRO" ? 500 : 200)
+    ? reconcileCreditsWithStoredBalance(computedCredits, user.tokensRemaining, PLAN_CATALOG[subscriptionPlan].rolloverCap)
     : computedCredits;
   let source: "computed" | "stored" | "backend" = isPremium ? "stored" : "computed";
 
@@ -69,10 +70,10 @@ async function buildUserCredits(user: {
         user.id,
         credits.remaining,
         buildBackendCreditHeaders(user.id),
-        subscriptionPlan === "PRO" ? 500 : 200
+        PLAN_CATALOG[subscriptionPlan].rolloverCap
       );
       if (typeof backendRemaining === "number") {
-        credits = withBackendRemainingCredits(credits, backendRemaining, subscriptionPlan === "PRO" ? 500 : 200);
+        credits = withBackendRemainingCredits(credits, backendRemaining, PLAN_CATALOG[subscriptionPlan].rolloverCap);
         source = "backend";
       }
     } catch (error) {

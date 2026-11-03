@@ -1,3 +1,5 @@
+import { PRO_MONTHLY_CREDITS } from "./credits";
+
 /** Stripe charge units for the currencies supported by this application.
  * Display precision from Intl is locale-dependent and must never determine units. */
 export const stripeCurrencyScale = (currency: string) => ["JPY", "KRW"].includes(currency.toUpperCase()) ? 1 : 100;
@@ -21,5 +23,5 @@ export function creditUpgradePrice(premiumAmount: number, proAmount: number, cre
 
 /** Spending while a payment awaits authentication reduces the new allocation too. */
 export function exchangedCreditBalance(current: number, exchanged: number) {
-  return Math.max(0, current + 250 - exchanged);
+  return Math.max(0, current + PRO_MONTHLY_CREDITS - exchanged);
 }
