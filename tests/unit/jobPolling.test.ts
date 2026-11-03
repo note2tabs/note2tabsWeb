@@ -126,7 +126,7 @@ describe("job polling", () => {
     vi.stubGlobal('navigator',{locks:{request:(_key:string,callback:()=>unknown)=>callback()}});
     await requestJobStatus('blocked',{accountId:'one'});expect(fetcher).toHaveBeenCalledTimes(1);
     fetcher.mockRejectedValueOnce(new Error('offline'));
-    await expect(requestJobStatus('failed',{accountId:'one'})).rejects.toThrow('offline');
+    await expect(requestJobStatus('failed',{accountId:'one'})).rejects.toBeInstanceOf(JobStatusRequestError);
     expect(fetcher).toHaveBeenCalledTimes(2);
     vi.stubGlobal('navigator',{locks:{request:()=>Promise.reject(new Error('denied'))}});
     await requestJobStatus('denied',{accountId:'one'});expect(fetcher).toHaveBeenCalledTimes(3);
