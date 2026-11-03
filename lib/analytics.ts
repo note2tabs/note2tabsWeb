@@ -1,4 +1,4 @@
-import { recordDiagnosticProductEvent } from "./errorBreadcrumbs";
+import { getErrorBreadcrumbs, recordDiagnosticProductEvent } from "./errorBreadcrumbs";
 import { localeAnalytics, normalizeLocale, isEditorPath } from "./i18n/locale";
 import { publishTranscriptionCompletedForPremiumPrompt } from "./premiumPromptSignals";
 import { track as trackAnalyticsV2 } from "./analyticsV2";
@@ -158,6 +158,8 @@ export function sendEvent(event: string, payload?: EventPayload) {
     ...(isEditorPath(window.location.pathname) ? {content_locale: normalizeLocale(document.documentElement.lang), locale_source: "preference"} : {}),
     preferred_locale: (() => { try { const value = window.localStorage.getItem("n2t:preferred-locale"); return value ? normalizeLocale(value) : undefined; } catch { return undefined; } })(),
     ...(payload || {}),
+    ...(["transcription_editor_import_failed", "transcription_editor_navigation_failed", "transcription_post_acceptance_failed"].includes(normalizedEvent)
+      ? { error_breadcrumbs: getErrorBreadcrumbs() } : {}),
   };
   const sanitizedProperties = sanitizeAnalyticsProperties(properties);
 

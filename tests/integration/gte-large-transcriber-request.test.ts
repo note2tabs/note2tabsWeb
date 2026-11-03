@@ -14,6 +14,7 @@ describe("large transcription API request parsing", () => {
     const route = kind === "saved" ? await import("../../pages/api/gte/[[...path]]") : await import("../../pages/api/gte-guest/[[...path]]");
     const config = (route as { config?: { api?: { bodyParser?: { sizeLimit?: string } } } }).config;
     const limit = config?.api?.bodyParser?.sizeLimit ?? "1mb";
+    if (limit !== "4mb") throw new Error("Expected bounded 4mb parser configuration");
     const segments = Array.from({ length: 5334 }, (_, i) => ({
       start_time_s: i * 0.0712345, end_time_s: i * 0.0712345 + 0.125639,
       pitch_midi: 40 + i % 35, amplitude: 0.75231456789, pitch_bend: [0, 0, 1, 0],
@@ -46,6 +47,7 @@ describe("large transcription API request parsing", () => {
   it.each(["saved", "guest"] as const)("retains a bounded request limit for %s editors", async (kind) => {
     const route = kind === "saved" ? await import("../../pages/api/gte/[[...path]]") : await import("../../pages/api/gte-guest/[[...path]]");
     const limit = route.config.api.bodyParser.sizeLimit;
+    if (limit !== "4mb") throw new Error("Expected bounded 4mb parser configuration");
     const body = JSON.stringify({ oversized: "x".repeat(4 * 1024 * 1024) });
     const request = Readable.from([body]) as any;
     request.headers = { "content-type": "application/json", "content-length": String(Buffer.byteLength(body)) };

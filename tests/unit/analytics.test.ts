@@ -66,3 +66,17 @@ describe("persisted import versus navigation",()=>{
   const {getEditorImportFailureEvent}=await import("../../lib/analytics");expect(getEditorImportFailureEvent(false)).toBe("transcription_editor_import_failed");expect(getEditorImportFailureEvent(true)).toBe("transcription_editor_navigation_failed");
  });
 });
+
+it("attaches sanitized request context to a caught editor failure without another event", async () => {
+  const {sendEvent}=await import("../../lib/analytics");
+  const {setErrorBreadcrumbsEnabled,addErrorBreadcrumb}=await import("../../lib/errorBreadcrumbs");
+  vi.stubEnv("NODE_ENV","production");
+  vi.stubGlobal("window",{location:{search:"",pathname:"/job/private-id"},localStorage:{getItem:()=>null}});
+  setErrorBreadcrumbsEnabled(true);
+  addErrorBreadcrumb("request",{endpoint:"/api/gte/transcriber/import",http_status:413,request_id:"req-123"});
+  sendEvent("transcription_editor_import_failed",{job_id:"job-123",error_code:"file_too_large",error_message:"secret file"});
+  expect(capture).toHaveBeenCalledOnce();
+  expect(capture.mock.calls[0][1]).toMatchObject({job_id:"job-123",error_breadcrumbs:expect.arrayContaining([expect.objectContaining({http_status:413,request_id:"req-123"})])});
+  expect(JSON.stringify(capture.mock.calls)).not.toContain("secret file");
+  setErrorBreadcrumbsEnabled(false);
+});
