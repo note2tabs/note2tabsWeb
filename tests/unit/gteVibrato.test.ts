@@ -19,6 +19,9 @@ it('shows fractional dropdown choices while preserving stored numeric values and
   expect(VIBRATO_COVER_OPTIONS.find(option=>option.value==='32')?.label).toBe('1/32');
   expect(vibratoBendOptions(0.5).find(option=>option.value==='0.5')?.label).toBe('1/2');
   expect(vibratoBendOptions(0.4).find(option=>option.value==='0.4')?.label).toBe('2/5');
+  expect(vibratoBendOptions(0.01).every(option=>Number(option.value)>=0.25)).toBe(true);
+  expect(vibratoSettings({vibratoSettings:{cover:2,bend:0.01,cyclesPerBeat:6}}).bend).toBe(0.25);
+  expect(vibratoSettings({}).bend).toBe(0.5);
 });
 it('adds and removes independent vibrato without replacing a bend or changing pitches, fingerings or timing',()=>{
   const source=track(), before=structuredClone(source);
