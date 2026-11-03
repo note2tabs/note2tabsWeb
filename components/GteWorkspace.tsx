@@ -15648,14 +15648,18 @@ export default function GteWorkspace({
           </div>
           <MusicalDurationField value={getNearestNoteFractionDenominator(selectedNote.length)} options={NOTE_LENGTH_FRACTION_DENOMINATORS.map((value) => ({ value, label: formatNoteLengthOption(value) }))} onChange={commitNoteMenuFractionLength} />
           <NoteFingerings tabs={noteAlternates?.possibleTabs ?? []} blockedTabs={noteAlternates?.blockedTabs ?? []} orderedTabs={noteAlternates?.orderedTabs} current={selectedNote.tab} labels={stringLabels} onSelect={handleAssignAlt} />
-          {selectedNote.vibrato && <section className="space-y-2 border-t border-slate-100 pt-3" aria-label={t("Vibrato")}>
-            <div className="text-xs font-medium text-slate-700">{t("Vibrato")}</div>
+          {selectedNote.vibrato && <details className="group/vibrato border-t border-slate-100 pt-2">
+            <summary className="flex cursor-pointer list-none items-center justify-between py-1 text-xs font-medium text-slate-700 [&::-webkit-details-marker]:hidden">
+              {t("Vibrato settings")}
+              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="transition-transform group-open/vibrato:rotate-180"><path d="m6 9 6 6 6-6" /></svg>
+            </summary>
+            <div className="mt-2 space-y-2 [&_input]:h-8 [&_input]:text-xs [&_label>div]:mt-1">
             <PropertyNumberField label={t("Vibrato cover")} prefix="1 /" unit={t("of note")} value={String(vibratoSettings(selectedNote).cover)} min={1} max={32} integer onCommit={value => updateVibratoSetting(selectedNote.id, "cover", value)} />
             <div role="group" aria-label={t("Vibrato bend")}>
               <div className="mb-1.5 text-xs font-medium text-slate-600">{t("Vibrato bend")} · {t("semitones")}</div>
-              <div className="grid grid-cols-4 gap-1">
+              <div className="grid grid-cols-7 gap-1">
                 {([{value:0.125,label:"⅛"},{value:0.25,label:"¼"},{value:0.5,label:"½"},{value:0.75,label:"¾"},{value:1,label:"1"},{value:1.5,label:"1½"},{value:2,label:"2"}]).map(option => <button key={option.value} type="button" aria-pressed={vibratoSettings(selectedNote).bend === option.value}
-                  className={`h-8 rounded-md border text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${vibratoSettings(selectedNote).bend === option.value ? "border-emerald-300 bg-emerald-100 text-emerald-900" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}
+                  className={`h-7 rounded-md border text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${vibratoSettings(selectedNote).bend === option.value ? "border-emerald-300 bg-emerald-100 text-emerald-900" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}
                   onClick={() => updateVibratoSetting(selectedNote.id, "bend", String(option.value))}>{option.label}</button>)}
               </div>
             </div>
@@ -15664,7 +15668,8 @@ export default function GteWorkspace({
               const bpm = getTimingBarBpm(timingMap, Math.floor(selectedNote.startTime / framesPerMeasure), fallbackBarBpm);
               updateVibratoSetting(selectedNote.id, "cyclesPerBeat", String(Math.max(0.1, Math.min(30, Number(value))) * 60 / bpm));
             }} />
-          </section>}
+            </div>
+          </details>}
           {isMobileEditMode && <section className="space-y-2" aria-label={t("Move selected note")}>
             <div className="grid grid-cols-4 gap-2">{(["left", "up", "down", "right"] as const).map((direction) => <InspectorAction key={direction} title={t("Move note {value1}", { value1: direction })} onClick={() => moveSelectedMobileNote(direction)}>{direction === "left" ? "←" : direction === "right" ? "→" : direction === "up" ? "↑" : "↓"}</InspectorAction>)}</div>
             <div className="grid grid-cols-2 gap-2"><InspectorAction onClick={() => scaleSelectedMobileNote(0.5)}>{t("Scale ½×")}</InspectorAction><InspectorAction onClick={() => scaleSelectedMobileNote(2)}>{t("Scale 2×")}</InspectorAction></div>
