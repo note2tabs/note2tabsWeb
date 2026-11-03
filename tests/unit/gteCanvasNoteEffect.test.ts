@@ -17,7 +17,9 @@ it.each(['b','h','p','/'])('keeps %s visible and selectable when its connector i
     expect(badge.parentElement).toBe(connector.parentElement); // Not trapped under notes in the connector's stacking context.
     expect(badge.textContent).toBe(label);
     expect(badge.className).toContain('z-20');
-    expect(Number.parseFloat(badge.style.top)).toBeLessThan(props.top);
+    expect(Number.parseFloat(badge.style.top)).toBe(props.top + props.height / 2);
+    expect(badge.className).toContain('-translate-y-1/2');
+    expect(badge.className).not.toContain('-translate-y-full');
     expect(badge.style.left).toBe('104px');
     await act(async()=>badge.dispatchEvent(new dom.window.MouseEvent('mousedown',{bubbles:true})));
     expect(onSelect).toHaveBeenCalledOnce();
