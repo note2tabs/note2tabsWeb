@@ -14,6 +14,21 @@ export type JobStatusPollResult<T> = {
 
 const inFlightPolls = new Map<string, Promise<JobStatusPollResult<unknown>>>();
 
+export class JobStatusRequestError extends Error {
+  constructor(
+    public readonly status: number | null,
+    public readonly retryAfterMs = DEFAULT_JOB_POLL_DELAY_MS,
+  ) {
+    super(status === null ? "Could not fetch job status." : `Failed to fetch job status (${status}).`);
+    this.name = "JobStatusRequestError";
+  }
+
+  get retryable() {
+    return this.status === null || this.status === 408 || this.status === 429 ||
+      (this.status >= 500 && this.status <= 599);
+  }
+}
+
 export function parseRetryAfterMs(
   value: string | null,
   fallbackMs = DEFAULT_JOB_POLL_DELAY_MS,
@@ -46,10 +61,15 @@ async function requestJobStatusUncached<T>(
   if (!includeOutput && options.etag) headers["If-None-Match"] = options.etag;
 
   const query = includeOutput ? "?include_output=1" : "";
-  const response = await (options.fetcher || fetch)(`/api/jobs/${encodeURIComponent(jobId)}${query}`, {
-    cache: "no-store",
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await (options.fetcher || fetch)(`/api/jobs/${encodeURIComponent(jobId)}${query}`, {
+      cache: "no-store",
+      headers,
+    });
+  } catch {
+    throw new JobStatusRequestError(null);
+  }
   const retryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
   const responseEtag = response.headers.get("etag");
 
@@ -61,10 +81,18 @@ async function requestJobStatusUncached<T>(
       retryAfterMs,
     };
   }
-  if (!response.ok) throw new Error(`Failed to fetch job status (${response.status}).`);
+  if (!response.ok) throw new JobStatusRequestError(response.status, retryAfterMs);
+
+  let job: T;
+  try {
+    job = await response.json() as T;
+  } catch {
+    // An interrupted response body is not a failed transcription either.
+    throw new JobStatusRequestError(null, retryAfterMs);
+  }
 
   return {
-    job: (await response.json()) as T,
+    job,
     notModified: false,
     etag: responseEtag,
     retryAfterMs,
