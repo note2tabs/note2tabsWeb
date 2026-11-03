@@ -113,7 +113,7 @@ export default memo(function GtePracticeTab(props: Props) {
   const fretLayer = useMemo(() => layout.frets.filter(note => !hiddenBendTargets.has(note.key)).map(note => {
         const oldKey = note.key.startsWith("n:") ? `note-${note.key.slice(2)}` : `chord-${note.key.slice(2).replace(":","-")}`;
         const rating = ratings.get(oldKey), color = rating?.status === "missed" ? "#c53e54" : rating?.status === "timing" ? "#8c6414" : rating?.status === "correct" ? "#008558" : undefined;
-        return <g key={note.key} data-practice-fret={note.key} style={{"--fret-color":color} as CSSProperties}
+        return <g key={note.key} data-practice-fret={note.key} pointerEvents="all" style={{"--fret-color":color} as CSSProperties}
           role="button" tabIndex={0} aria-label={t("Play from fret {value1}",{value1:note.label})} onClick={() => live.current.onPlayFrom?.(note.start)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); live.current.onPlayFrom?.(note.start); } }}>
           <rect x={note.x-(note.label.length*7+4)/2} y={note.y-6} width={note.label.length*7+4} height="12" fill="none" pointerEvents="all" />
           <text x={note.x} y={note.y} dominantBaseline="central" textAnchor="middle" fontSize="11" fontWeight="700">{note.label}</text>
@@ -121,7 +121,7 @@ export default memo(function GtePracticeTab(props: Props) {
       }), [layout, hiddenBendTargets, ratings, t]);
   const visibleHeight = layout.stringTop+(layout.labels.length-1)*layout.stringGap;
   return <div ref={host} className="relative min-w-0 bg-white" data-gte-practice-tab="true" data-gte-tab-view="true">
-    <svg ref={svg} width="100%" height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`} style={{display:"block",fontFamily:"inherit",fontVariantNumeric:"tabular-nums"}} aria-label={t("Tablature")}>
+    <svg ref={svg} width="100%" height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`} style={{display:"block",position:"relative",zIndex:1,pointerEvents:"none",fontFamily:"inherit",fontVariantNumeric:"tabular-nums"}} aria-label={t("Tablature")}>
       <style>{`[data-practice-fret] text { fill: var(--fret-color, #0f172a); } [data-practice-fret][data-sounding="true"] text { fill: #008558; font-weight: 700; }`}</style>
       {layout.measures.map((measure,i) => <rect key={i} data-practice-measure={i} x={measure.x} y={measure.row*layout.rowHeight+layout.stringTop-9} width={measure.width} height={visibleHeight-layout.stringTop+18} fill="#07966b" fillOpacity="0" pointerEvents="none" />)}
       {Array.from({length:layout.rowCount},(_,row) => {
@@ -153,8 +153,8 @@ export default memo(function GtePracticeTab(props: Props) {
       const selected = Array.from({length:count},(_,offset) => props.selectedBars.has(measure.bar+offset));
       return <button key={i} type="button" data-bar-select="true" data-bar-select-editor={props.editorId} data-bar-index={measure.bar} data-bar-end-index={measure.endBar-1}
       onClick={event => props.onBarRangeSelect ? props.onBarRangeSelect(measure.bar,measure.endBar,event) : props.onBarSelect(measure.bar,event)} aria-label={t("Select {value1}",{value1:collapsed ? `${label} (${range})` : `${t("Bar")} ${range}`})} title={collapsed ? `${t("Bars")} ${range}` : undefined} aria-pressed={selected.every(Boolean) ? true : selected.some(Boolean) ? "mixed" : false}
-      className={`absolute h-6 overflow-hidden text-ellipsis whitespace-nowrap rounded-sm text-left text-[9px] hover:bg-emerald-50 focus-visible:outline-emerald-600 ${selected.some(Boolean) ? "bg-emerald-50 text-emerald-800" : "text-slate-500"}`}
-      style={{left:measure.x,top:measure.row*layout.rowHeight,width:measure.width,paddingLeft:6}}>{collapsed || props.showBarNumbers !== false ? label : measure.continuation ? "↪" : ""}</button>;
+      className={`absolute overflow-hidden text-ellipsis whitespace-nowrap rounded-sm text-left text-[9px] hover:bg-emerald-50 focus-visible:outline-emerald-600 ${selected.some(Boolean) ? "bg-emerald-50 text-emerald-800" : "text-slate-500"}`}
+      style={{left:measure.x,top:measure.row*layout.rowHeight,width:measure.width,height:layout.stringTop-8,paddingLeft:6}}>{collapsed || props.showBarNumbers !== false ? label : measure.continuation ? "↪" : ""}</button>;
     })}
     {props.overlays?.filter(overlay => overlay.frame >= layout.measures[0].start && overlay.frame < layout.measures.at(-1)!.end).map(overlay => { const p = practiceTabPosition(layout,overlay.frame); return <div key={overlay.key} className="absolute -translate-x-1/2" style={{left:p.x,top:p.y+visibleHeight+12}}>{overlay.content}</div>; })}
   </div>;
