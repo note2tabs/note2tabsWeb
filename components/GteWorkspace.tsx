@@ -40,6 +40,7 @@ import {
 } from "../lib/gteSamplePlayback";
 import { buildDiscreteSlideSteps } from "../lib/gteSlidePlayback";
 import { setNoteVibrato } from "../lib/gteVibrato";
+import GteCanvasNoteEffect from "./GteCanvasNoteEffect";
 import { buildChordPlaybackWindows } from "../lib/gteChordPlayback";
 import {
   getAllTabsForMidi as getSnapshotTabsForMidi,
@@ -18380,8 +18381,6 @@ export default function GteWorkspace({
                 )}
 
                 {renderableNoteEffects.flatMap(({ effect, startNote, connectorSegments }) => {
-                  const effectColorClass =
-                    selectedNoteEffectId === effect.id ? "bg-[#8AECC8]" : "bg-[#34D399]";
                   return connectorSegments.map((segment, idx) => {
                     const left = segment.inRowStart * scale;
                     const top =
@@ -18389,10 +18388,12 @@ export default function GteWorkspace({
                     const width = Math.max(8, segment.length * scale);
                     const height = mobileViewport ? ROW_HEIGHT - 2 : ROW_HEIGHT - 8;
                     return (
-                      <button
+                      <GteCanvasNoteEffect
                         key={`note-effect-${effect.id}-seg-${segment.rowIndex}-${idx}`}
-                        type="button"
-                        onMouseDown={(event) => {
+                        left={left} top={top} width={width} height={height}
+                        label={t(effect.noteEffectLabel)} title={t(getNoteEffectTypeName(effect.type))}
+                        showLabel={idx === 0} selected={selectedNoteEffectId === effect.id}
+                        onSelect={(event) => {
                           event.preventDefault();
                           event.stopPropagation();
                           setSelectedNoteEffectId(effect.id);
@@ -18405,24 +18406,7 @@ export default function GteWorkspace({
                           setNoteMenuNoteId(null);
                           setNoteMenuDraft(null);
                         }}
-                        className={`absolute z-[1] ${effectColorClass} ${selectedNoteEffectId === effect.id ? "shadow-sm" : ""}`}
-                        style={{
-                          left,
-                          top,
-                          width,
-                          height,
-                          borderRadius: 0,
-                        }}
-                        title={
-                          effect.noteEffectLabel || getNoteEffectTypeName(effect.type).toLowerCase()
-                        }
-                      >
-                        {idx === 0 ? (
-                          <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[11px] font-semibold text-slate-900">
-                            {t(effect.noteEffectLabel)}
-                          </span>
-                        ) : null}
-                      </button>
+                      />
                     );
                   });
                 })}
