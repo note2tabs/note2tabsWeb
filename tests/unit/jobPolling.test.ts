@@ -1,12 +1,31 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_JOB_POLL_DELAY_MS,
+  JobStatusRequestError,
   parseRetryAfterMs,
   requestJobStatus,
 } from "../../lib/jobPolling";
 afterEach(()=>{vi.unstubAllGlobals();vi.useRealTimers();});
 
 describe("job polling", () => {
+  it.each([408, 429, 500, 502, 503, 504])("marks HTTP %s status-fetch failures as retryable", async (status) => {
+    const fetcher = vi.fn().mockResolvedValue(new Response("{}", { status, headers: { "Retry-After": "20" } }));
+    await expect(requestJobStatus("job_test", { fetcher })).rejects.toMatchObject({
+      status, retryable: true, retryAfterMs: 20_000,
+    });
+  });
+
+  it.each([400, 401, 403, 404])("does not retry HTTP %s as a connection failure", async (status) => {
+    const fetcher = vi.fn().mockResolvedValue(new Response("{}", { status }));
+    await expect(requestJobStatus("job_test", { fetcher })).rejects.toMatchObject({ status, retryable: false });
+  });
+
+  it("treats an interrupted JSON body as an unknown status, not a failed job", async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response('{"job_id":', { status: 200 }));
+    await expect(requestJobStatus("job_test", { fetcher })).rejects.toBeInstanceOf(JobStatusRequestError);
+    await expect(requestJobStatus("job_test", { fetcher })).rejects.toMatchObject({ status: null, retryable: true });
+  });
+
   it("uses integer and HTTP-date Retry-After values with safe bounds", () => {
     const now = Date.parse("2026-08-12T12:00:00.000Z");
     expect(parseRetryAfterMs("5", DEFAULT_JOB_POLL_DELAY_MS, now)).toBe(7500);

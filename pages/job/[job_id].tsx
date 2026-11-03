@@ -24,6 +24,7 @@ import { categorizeAnalyticsError } from "../../lib/analyticsErrors";
 import { getRecordedTranscriptionModelAnalyticsProperties } from "../../lib/transcriptionModels";
 import {
   DEFAULT_JOB_POLL_DELAY_MS,
+  JobStatusRequestError,
   requestJobStatus,
 } from "../../lib/jobPolling";
 
@@ -794,6 +795,14 @@ export default function JobPage() {
       return data;
     } catch (err) {
       console.error(err);
+      if (err instanceof JobStatusRequestError && err.retryable) {
+        // Keep the last known result and let the poll loop reconnect. A status
+        // request failure says nothing about whether the worker failed. Drop
+        // the validator so the next successful poll returns the complete state.
+        jobEtagRef.current = null;
+        pollDelayRef.current = err.retryAfterMs;
+        return null;
+      }
       const fallback: JobResponse = {
         job_id: id,
         status: "error",
@@ -1166,6 +1175,8 @@ export default function JobPage() {
     setReviewBusy(true);
     setReviewError(null);
     let importedSuccessfully = false;
+    let importAttempted = false;
+    const openingStartedAt = Date.now();
     const targetEditorChoice = appendEditorId ?? "new";
     try {
       if (displayJob?.gte_editor_id) {
@@ -1178,6 +1189,7 @@ export default function JobPage() {
         if (!importableJob) {
           throw new Error(t("Tabs are still getting ready for the editor. Please try again in a moment."));
         }
+        importAttempted = true;
         importedSuccessfully = await importJobToEditor(importableJob, targetEditorChoice, true);
         return;
       }
@@ -1229,8 +1241,20 @@ export default function JobPage() {
         throw new Error("Tabs are still finalizing. Please try again in a moment.");
       }
 
+      importAttempted = true;
       importedSuccessfully = await importJobToEditor(finalizedJobForImport, targetEditorChoice, true);
     } catch (err: any) {
+      // Import itself already reports failures. Preparation can fail before we
+      // reach it; record that separately without counting the same failure twice.
+      if (!importAttempted) {
+        sendEvent(getEditorImportFailureEvent(Boolean(displayJob?.gte_editor_id)), {
+          jobId: job_id,
+          ...modelAnalyticsProperties,
+          error_code: categorizeAnalyticsError(err, "editor_preparation_failed"),
+          failure_stage: displayJob?.gte_editor_id ? "navigation" : isFinalizedStatus ? "result_readiness" : "finalize",
+          import_elapsed_sec: (Date.now() - openingStartedAt) / 1000,
+        });
+      }
       const message =
         err?.message === "No importable tab groups are available for this transcription."
           ? t("Tabs are still getting ready for the editor. Please try again in a moment.")

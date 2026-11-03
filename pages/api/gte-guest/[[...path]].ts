@@ -8,6 +8,9 @@ import {
 } from "../../../lib/gteGuestDraft";
 import type { CanvasSnapshot, CutWithCoord, EditorSnapshot, NoteEffect, TabCoord } from "../../../types/gte";
 
+// Match saved-editor imports; dense single-track JSON can exceed 1 MB.
+export const config = { api: { bodyParser: { sizeLimit: "4mb" } } };
+
 const COOKIE_NAME = "note2tabs_gte_guest_session";
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =

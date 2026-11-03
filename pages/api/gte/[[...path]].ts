@@ -35,6 +35,10 @@ import {
 import { attachFunctionTiming } from "../../../lib/functionTiming";
 import { hasGteSnapshotPayload, snapshotPreferencesChanged } from "../../../lib/gteSnapshotPayload";
 
+// A single instrument track can exceed the default 1 MB even when imports
+// are chunked by track. Keep a bounded limit below Vercel's 4.5 MB ceiling.
+export const config = { api: { bodyParser: { sizeLimit: "4mb" } } };
+
 const API_BASE = process.env.BACKEND_API_BASE_URL || "http://127.0.0.1:8000";
 const BACKEND_SECRET =
   process.env.BACKEND_SHARED_SECRET || process.env.NOTE2TABS_BACKEND_SECRET;
