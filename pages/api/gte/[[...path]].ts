@@ -621,7 +621,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         typeof (req.body as { sourceJobId?: unknown } | undefined)?.sourceJobId === "string"
           ? String((req.body as { sourceJobId?: string }).sourceJobId).trim()
           : "";
-      if (editorId && sourceJobId) {
+      if (editorId && sourceJobId && (req.body as {deferJobLink?:unknown})?.deferJobLink !== true) {
         await prisma.tabJob.updateMany({
           where: { userId: session.user.id, backendJobId: sourceJobId },
           data: { gteEditorId: editorId },

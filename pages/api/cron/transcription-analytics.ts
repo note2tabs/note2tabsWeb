@@ -1,8 +1,9 @@
+import { deliverCompletedTranscriptions } from "../../../lib/transcriptionResultDelivery";
 import { retryServerPostHogCaptures } from "../../../lib/posthogServer";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { deliverTranscriptionAnalytics } from "../../../lib/transcriptionAnalytics";
 
-export const config = { maxDuration: 60 };
+export const config = { maxDuration: 300 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET" && req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -11,9 +12,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(401).json({ error: "Unauthorized" });
   }
   try {
+    const results = await deliverCompletedTranscriptions();
     const result = await deliverTranscriptionAnalytics();
     const businessEventsRetried = await retryServerPostHogCaptures();
-    return res.status(200).json({...result, businessEventsRetried});
+    return res.status(200).json({...result, businessEventsRetried, results});
   } catch {
     // Delivery stays pending in the root job and retries on the next run.
     return res.status(503).json({ error: "Analytics delivery will be retried" });

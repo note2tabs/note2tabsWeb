@@ -32,7 +32,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       AND COALESCE(input->'transcriptionAnalytics'->>'terminalDelivered', 'false') != 'true'
       AND status IN ('succeeded', 'failed')
   `;
-  const deliveredOrUntracked = { notIn: pendingAnalytics.map(job => job.id) };
+  // A successful prediction is not yet a delivered product. Retain every root
+  // result until its saved history exists, even when analytics was opted out.
+  const pendingResults = await prisma.$queryRaw<Array<{id:string}>>`
+    SELECT j.id FROM jobs j WHERE j.type='transcription_flow' AND j.status='succeeded'
+      AND NOT EXISTS (SELECT 1 FROM "TabJob" t WHERE t."backendJobId"=j.id AND t."userId"=j."userId")
+  `;
+  const deliveredOrUntracked = { notIn: [...pendingAnalytics, ...pendingResults].map(job => job.id) };
 
   const [succeededDeleted, failedDeleted, runningDeleted, activeLaneDeleted, inputSettingDeleted, trackPlaybackDeleted] =
     await Promise.all([

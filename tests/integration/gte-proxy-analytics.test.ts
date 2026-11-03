@@ -220,7 +220,7 @@ describe("gte proxy analytics", () => {
     }));
   });
 
-  it("links a completed transcription to the editor created by its import", async () => {
+  it.each([false,true])("defers linking multi-part imports until complete (deferred=%s)", async (deferJobLink) => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(new Response(JSON.stringify({ editors: [] }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, editorId: "ed_imported" }), { status: 200 }));
@@ -229,13 +229,14 @@ describe("gte proxy analytics", () => {
     const { req, res } = createMocks({
       method: "POST",
       query: { path: ["transcriber", "import"] },
-      body: { target: "new", sourceJobId: "job_123" },
+      body: { target: "new", sourceJobId: "job_123", deferJobLink },
     });
 
     await handler(req as any, res as any);
 
     expect(res._getStatusCode()).toBe(200);
-    expect(updateTabJobMock).toHaveBeenCalledWith({
+    if(deferJobLink)expect(updateTabJobMock).not.toHaveBeenCalled();
+    else expect(updateTabJobMock).toHaveBeenCalledWith({
       where: { userId: "user_1", backendJobId: "job_123" },
       data: { gteEditorId: "ed_imported" },
     });
