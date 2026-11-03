@@ -28,7 +28,7 @@ export default memo(function GtePracticeTab(props: Props) {
     return () => observer.disconnect();
   },[]);
   const hasChordOverlays = Boolean(props.overlays?.length);
-  const layout = useMemo(() => buildPracticeTabLayout(props.snapshot,width,props.focusRange,hasChordOverlays),[props.snapshot.notes,props.snapshot.chords,props.snapshot.totalFrames,props.snapshot.framesPerMessure,props.snapshot.tuning,props.snapshot.trackType,props.snapshot.editorType,props.snapshot.type,props.focusRange?.startBar,props.focusRange?.endBar,hasChordOverlays,width]);
+  const layout = useMemo(() => buildPracticeTabLayout(props.snapshot,width,props.focusRange,hasChordOverlays),[props.snapshot.notes,props.snapshot.chords,props.snapshot.totalFrames,props.snapshot.framesPerMessure,props.snapshot.tuning,props.snapshot.trackType,props.snapshot.editorType,props.snapshot.type,props.focusRange?.startBar,props.focusRange?.endBar,hasChordOverlays,width,props.snapshot.noteEffects]);
   const ratings = useMemo(() => new Map(props.rating?.notes.map(note => [note.placementKey,note]) ?? []),[props.rating]);
   const effects = useMemo(() => buildPracticeTabEffects(props.snapshot, layout),[layout,props.snapshot.noteEffects]);
 
@@ -137,12 +137,12 @@ export default memo(function GtePracticeTab(props: Props) {
           </g>)}
         </g>;
       })}
+      {fretLayer}
       {effects.map(effect => <g key={effect.key} data-practice-effect={effect.kind} pointerEvents="none" fill="none" stroke="#1e293b" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
         <path d={effect.path} strokeDasharray={effect.held ? "4 3" : undefined} />
         {effect.arrow && <path d={effect.arrow} fill="#1e293b" stroke="none" />}
         {effect.label && <text x={effect.labelX} y={effect.labelY} textAnchor="middle" fontSize="10" fontWeight="700" fill="#1e293b" stroke="none">{effect.label === "full" ? t("full") : effect.label}</text>}
       </g>)}
-      {fretLayer}
       {(props.rating?.falseNotes ?? []).map((note,i) => { const p = practiceTabPosition(layout,note.frame); return <text key={i} x={p.x} y={p.y+layout.stringTop-13} fill="#c53e54" fontSize="12">?</text>; })}
       <g ref={cursor} pointerEvents="none"><line y1={layout.stringTop-12} y2={visibleHeight+12} stroke="#dd5369" strokeWidth="1.7" /><circle cy={layout.stringTop-13} r="2.5" fill="#dd5369" /></g>
     </svg>

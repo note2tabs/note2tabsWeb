@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildPracticeTabLayout, practiceTabPosition } from "../../lib/gtePracticeTabLayout";
 import type { EditorSnapshot } from "../../types/gte";
+import { buildPracticeTabEffects } from "../../lib/gtePracticeTabEffects";
 const track = (): EditorSnapshot => ({id:"practice",instrumentId:"acoustic",framesPerMessure:480,totalFrames:1920,fps:240,notes:[],chords:[],cutPositionsWithCoords:[],optimalsByTime:{}});
 const dense = () => {
   const source = track();
@@ -9,6 +10,20 @@ const dense = () => {
   return source;
 };
 describe("read-only Practice tablature layout", () => {
+  it.each([0,1,2])("reserves connection room for tightly spaced effect %s without changing timing", type => {
+    const source = track(); source.totalFrames = 480;
+    source.notes = [12,14,16].map((fret,i) => ({id:i+1,startTime:i,length:1,midiNum:64+fret,tab:[0,fret] as [number,number],optimals:[]}));
+    const original = structuredClone(source);
+    const plain = buildPracticeTabLayout(source,800);
+    source.noteEffects = [{id:1,type,startNoteId:1,endNoteId:2,noteEffectLabel:""}];
+    const layout = buildPracticeTabLayout(source,800), effect = buildPracticeTabEffects(source,layout)[0];
+    expect(layout.frets[1].x-layout.frets[0].x).toBeGreaterThan(plain.frets[1].x-plain.frets[0].x);
+    const span = layout.frets[1].x-layout.frets[0].x-22;
+    expect(span).toBeGreaterThanOrEqual(16);
+    expect(effect).toBeDefined(); expect(effect.path).not.toMatch(/NaN|Infinity/);
+    expect(practiceTabPosition(layout,1).x).toBe(layout.frets[1].x);
+    expect(source.notes).toEqual(original.notes);
+  });
   it("gives repeated rhythms matching distances regardless of fret digit count", () => {
     const source = track(); source.totalFrames = 960;
     source.notes = [2,4,2,4,12,14,12,14].map((fret,i) => ({id:i+1,startTime:Math.floor(i/4)*480+(i%4)*60,length:60,midiNum:64,tab:[0,fret] as [number,number],optimals:[]}));

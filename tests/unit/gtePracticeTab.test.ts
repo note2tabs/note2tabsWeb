@@ -45,7 +45,6 @@ it("updates SVG playback without rerendering notes; follows systems, seeks, loop
     width = 1000; await act(async () => observer?.());
     expect(document.querySelector("svg")?.getAttribute("viewBox")).toContain("1000");
     expect(document.querySelectorAll("[data-practice-fret]")).toHaveLength(24);
-    const fretPositions = [...document.querySelectorAll('[data-practice-fret] text')].map(text => text.getAttribute("x"));
     await render({...source, noteEffects: [
       {id: 1, type: 0, startNoteId: 1, endNoteId: 2, noteEffectLabel: "b"},
       {id: 2, type: 0, startNoteId: 2, endNoteId: 3, noteEffectLabel: "b"},
@@ -57,7 +56,9 @@ it("updates SVG playback without rerendering notes; follows systems, seeks, loop
     expect([...document.querySelectorAll('[data-practice-effect]')].map(node => node.getAttribute('data-practice-effect'))).toEqual(['bend', 'release', 'hammer', 'pull', 'slide', 'slide']);
     expect(document.querySelector('[data-practice-fret="n:2"]')).toBeNull();
     expect(document.querySelector('[data-practice-fret="n:1"]')).not.toBeNull();
-    expect([...document.querySelectorAll('[data-practice-fret] text')].map(text => text.getAttribute("x"))).toEqual(fretPositions.filter((_, index) => index !== 1));
+    expect(document.querySelectorAll('[data-practice-fret]')).toHaveLength(23);
+    const svgChildren = [...document.querySelector('svg')!.children];
+    expect(svgChildren.indexOf(document.querySelector('[data-practice-effect]')!)).toBeGreaterThan(svgChildren.indexOf(document.querySelector('[data-practice-fret]')!));
     if (process.env.PRACTICE_TAB_PREVIEW_DIR) {
       GlobalFonts.registerFromPath("C:/Windows/Fonts/arial.ttf","Arial");
       for (const previewWidth of [375,1000]) {

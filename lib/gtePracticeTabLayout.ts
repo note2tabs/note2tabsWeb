@@ -25,6 +25,16 @@ export function buildPracticeTabLayout(snapshot: EditorSnapshot, availableWidth:
   snapshot.notes.forEach(note => add(`n:${note.id}`,note.startTime,note.length,note.tab));
   snapshot.chords.forEach(chord => chord.currentTabs.forEach((tab,i) => add(`c:${chord.id}:${i}`,chord.startTime,chord.length,tab)));
   frets.sort((a,b) => a.start-b.start || a.string-b.string || a.key.localeCompare(b.key));
+  const notesByKey = new Map(frets.map(note => [note.key, note]));
+  const effectSources = new Map<string, PracticeFret[]>();
+  for (const effect of snapshot.noteEffects ?? []) {
+    if (![0, 1, 2].includes(effect.type)) continue;
+    const a = notesByKey.get(`n:${effect.startNoteId}`), b = notesByKey.get(`n:${effect.endNoteId}`);
+    if (!a || !b || a.string !== b.string || a.start === b.start || a.label === b.label) continue;
+    const [source, target] = a.start < b.start ? [a,b] : [b,a];
+    const sources = effectSources.get(target.key) ?? [];
+    sources.push(source); effectSources.set(target.key, sources);
+  }
   // One spacing vocabulary for the entire track: the same rhythm should not
   // change width just because a passage switches between fret 2 and fret 12.
   const columnWidth = Math.max(labelWidth("0"),...frets.map(note => note.width));
@@ -56,7 +66,14 @@ export function buildPracticeTabLayout(snapshot: EditorSnapshot, availableWidth:
         const group = groups[offset+selected.length], half = Math.max(...group.map(note => note.width))/2;
         const previous = selected.at(-1), previousHalf = previous ? Math.max(...previous.map(note => note.width))/2 : 0;
         const distance = previous ? Math.max(previousHalf+half+GAP,rhythmicAdvance(group[0].start-previous[0].start)) : 0;
-        const center = previous ? centers.at(-1)! + distance : PAD+columnWidth/2;
+        let center = previous ? centers.at(-1)! + distance : PAD+columnWidth/2;
+        // Reserve a small, readable connection between effect-linked glyphs.
+        // Shift whole onset columns so simultaneous notes remain aligned and
+        // the playback anchors follow exactly the same visual positions.
+        for (const target of group) for (const source of effectSources.get(target.key) ?? []) {
+          const sourceIndex = selected.findIndex(items => items[0].start === source.start);
+          if (sourceIndex >= 0) center = Math.max(center, centers[sourceIndex] + (source.label.length+target.label.length)*3.5 + 8 + 16);
+        }
         if (selected.length && center+columnWidth/2+PAD > usable) break;
         centers.push(center); selected.push(group); required = center+columnWidth/2+PAD;
       }
