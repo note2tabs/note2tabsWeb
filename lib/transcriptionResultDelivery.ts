@@ -61,7 +61,7 @@ export async function deliverCompletedTranscriptions() {
       }
       await prisma.$executeRaw`
         UPDATE jobs SET input=jsonb_set(COALESCE(input,'{}'::jsonb),'{resultDelivery}',
-          jsonb_build_object('completed',true,'tabJobId',${tabJobId}))
+          jsonb_build_object('completed',true,'tabJobId',${tabJobId}::text))
         WHERE id=${job.id} AND "userId"=${job.userId}
       `;
       delivered++;
