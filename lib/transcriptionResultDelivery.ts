@@ -35,8 +35,12 @@ export async function deliverCompletedTranscriptions() {
     JOIN "User" u ON u.id=j."userId"
     WHERE j.type='transcription_flow' AND j.status='succeeded'
       AND COALESCE(j.input->'resultDelivery'->>'completed','false')!='true'
+      AND (j."finishedAt">NOW()-INTERVAL '24 hours' OR NOT EXISTS (
+        SELECT 1 FROM "TabJob" t WHERE t."backendJobId"=j.id AND t."userId"=j."userId"
+      ))
       AND COALESCE(j.input->'resultDelivery'->>'retryAfter','') < NOW()::text
-    ORDER BY COALESCE(j.input->'resultDelivery'->>'retryAfter','') ASC, j."createdAt" ASC LIMIT 5
+    ORDER BY CASE WHEN j."finishedAt">NOW()-INTERVAL '24 hours' THEN 0 ELSE 1 END,
+      COALESCE(j.input->'resultDelivery'->>'retryAfter','') ASC, j."createdAt" ASC LIMIT 5
   `;
   let delivered=0,failed=0;const deadline=Date.now()+120_000;
   for(const job of jobs){
