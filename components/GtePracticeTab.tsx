@@ -114,7 +114,7 @@ export default memo(function GtePracticeTab(props: Props) {
         const oldKey = note.key.startsWith("n:") ? `note-${note.key.slice(2)}` : `chord-${note.key.slice(2).replace(":","-")}`;
         const rating = ratings.get(oldKey), color = rating?.status === "missed" ? "#c53e54" : rating?.status === "timing" ? "#8c6414" : rating?.status === "correct" ? "#008558" : undefined;
         return <g key={note.key} data-practice-fret={note.key} pointerEvents="all" style={{"--fret-color":color} as CSSProperties}
-          role="button" tabIndex={0} aria-label={t("Play from fret {value1}",{value1:note.label})} onClick={() => live.current.onPlayFrom?.(note.start)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); live.current.onPlayFrom?.(note.start); } }}>
+          role="button" tabIndex={0} aria-label={t("Play from fret {value1}",{value1:note.label})} onClick={() => live.current.onPlayFrom?.(note.start)} onKeyDown={event => { if (event.key === "Enter" && !event.defaultPrevented) { event.preventDefault(); live.current.onPlayFrom?.(note.start); } }}>
           <rect x={note.x-(note.label.length*7+4)/2} y={note.y-6} width={note.label.length*7+4} height="12" fill="none" pointerEvents="all" />
           <text x={note.x} y={note.y} dominantBaseline="central" textAnchor="middle" fontSize="11" fontWeight="700">{note.label}</text>
         </g>;
