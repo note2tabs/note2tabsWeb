@@ -52,3 +52,11 @@ it('uses a per-note marker in Tab view and a wave alongside bend notation in Pra
   expect(waves.every(effect=>effect.path.includes('q')&&!/NaN|Infinity/.test(effect.path))).toBe(true);
   expect(effects.find(effect=>effect.kind==='bend')?.hiddenFretKey).toBe('n:2');
 });
+it.each([0,12])('anchors vibrato above fret %s rather than after its number',fret=>{
+  const source=track(); source.notes[0].tab=[0,fret]; source.notes[0].vibrato=true;
+  const layout=buildPracticeTabLayout(source,800), placement=layout.frets.find(note=>note.key==='n:1')!;
+  const wave=buildPracticeTabEffects(source,layout).find(effect=>effect.kind==='vibrato')!;
+  const start=Number(wave.path.match(/^M(-?[\d.]+)/)![1]);
+  expect(start).toBeCloseTo(placement.x-String(fret).length*3.5);
+  expect(start).toBeLessThan(placement.x);
+});

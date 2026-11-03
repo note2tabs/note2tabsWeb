@@ -80,7 +80,7 @@ export function buildPracticeTabEffects(snapshot: EditorSnapshot, layout: Practi
       const edges = bounds.get(row); if (!edges) continue;
       const {start,end} = edges;
       if (note.startTime + note.length <= start) break;
-      let left = row === fret.row ? fret.x + fret.label.length * 3.5 + 4 : edges.left + 4;
+      let left = row === fret.row ? Math.max(edges.left + 4, fret.x - fret.label.length * 3.5) : edges.left + 4;
       const sustain = practiceTabPosition(layout, Math.min(note.startTime + note.length, end - 0.001));
       const right = Math.min(edges.right - 4, Math.max(left + 18, sustain.x));
       left = Math.min(left, right - 12);
