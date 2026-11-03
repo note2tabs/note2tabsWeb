@@ -2235,8 +2235,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 <div className="pricing-plan__divider" />
                 <ul className="pricing-plan__features">
                   <li>{t("Everything in Premium")}</li>
-                  <li><MonthlyCredits count={250} /></li>
-                  <li>{t("Unused credits roll over, up to 500")}</li>
+                  <li><MonthlyCredits count={PLAN_CATALOG.PRO.monthlyCredits} /></li>
+                  <li>{t("Unused credits roll over, up to 1000")}</li>
                   <li>{t("Uploads up to 500 MB")}</li>
                   <li>{t("YouTube selections within the first 20 minutes")}</li>
                   <li>{t("Priority email support and future early-access eligibility")}</li>

@@ -994,10 +994,10 @@ export const getServerSideProps: GetServerSideProps<Props|GuestSettingsProps> = 
         user.id,
         credits.remaining,
         buildBackendCreditHeaders(user.id),
-        subscriptionPlan === "PRO" ? 500 : 200
+        PLAN_CATALOG[subscriptionPlan].rolloverCap
       );
       if (typeof backendRemaining === "number") {
-        credits = withBackendRemainingCredits(credits, backendRemaining, subscriptionPlan === "PRO" ? 500 : 200);
+        credits = withBackendRemainingCredits(credits, backendRemaining, PLAN_CATALOG[subscriptionPlan].rolloverCap);
       }
     } catch (error) {
       console.warn("settings backend credits read failed", error);

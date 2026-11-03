@@ -5,8 +5,8 @@ describe("subscription plan catalogue", () => {
   it("defines the approved Pro economics and limits", () => {
     expect(PLAN_CATALOG.PRO).toMatchObject({
       monthlyPriceUsd: 14.99,
-      monthlyCredits: 250,
-      rolloverCap: 500,
+      monthlyCredits: 500,
+      rolloverCap: 1000,
       trialDays: 0,
       maxUploadBytes: 500 * 1024 * 1024,
       youtubePositionLimitSeconds: 1200,

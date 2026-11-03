@@ -88,7 +88,7 @@ export default function WorkspaceSidebar({
           onClick={() => track(`${analyticsSurface}_sidebar_${canUpgradeToPro ? "pro" : "premium"}`)}
         >
           <strong>{t(canUpgradeToPro ? "Pro" : "Premium")}</strong>
-          <span>{canUpgradeToPro ? t("250 monthly credits and larger uploads") : t("More credits and full-song uploads")}</span>
+          <span>{canUpgradeToPro ? t("500 monthly credits and larger uploads") : t("More credits and full-song uploads")}</span>
           <i>{t(canUpgradeToPro ? "Upgrade subscription →" : "Explore →")}</i>
         </Link>
       )}

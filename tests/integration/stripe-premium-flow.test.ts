@@ -121,6 +121,7 @@ vi.mock("../../lib/posthogServer", () => ({
   createPostHogServerClient: vi.fn(() => posthogMock),
   createPostHogIngestClient: vi.fn(() => posthogMock),
   flushPostHogServerClientInBackground: vi.fn(),
+  retryServerPostHogCaptures: vi.fn(async () => 0),
   stablePostHogEventUuid: vi.fn((identifier: string) => `uuid:${identifier}`),
 }));
 
@@ -1283,7 +1284,7 @@ describe("stripe premium flow", () => {
   });
 
   describe("confirm-checkout-session", () => {
-    it("confirms Pro without a trial and grants 250 credits", async () => {
+    it("confirms Pro without a trial and grants 500 credits", async () => {
       process.env.STRIPE_PRICE_PRO_MONTHLY = "price_test_pro";
       process.env.STRIPE_PRODUCT_PRO = "prod_test_pro";
       const proSubscription = premiumSubscription({
@@ -1312,7 +1313,7 @@ describe("stripe premium flow", () => {
       expect(res._getJSONData()).toEqual({ confirmed: true, role: "PREMIUM", subscriptionPlan: "PRO" });
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: "user_1" },
-        data: { role: "PREMIUM", subscriptionPlan: "PRO", tokensRemaining: 250 },
+        data: { role: "PREMIUM", subscriptionPlan: "PRO", tokensRemaining: 500 },
       });
     });
 
@@ -1993,6 +1994,20 @@ describe("stripe premium flow", () => {
           granted: true,
         },
       });
+    });
+
+    it.each([[120,620],[800,1000]])("grants 500 Pro renewal credits and preserves rollover (%i → %i)", async (balance, expected) => {
+      process.env.STRIPE_PRICE_PRO_MONTHLY="price_test_pro";
+      process.env.STRIPE_PRODUCT_PRO="prod_test_pro";
+      stripeMock.subscriptions.retrieve.mockResolvedValue(premiumSubscription({
+        items:{data:[{id:"si_pro",price:{id:"price_test_pro",product:"prod_test_pro"},quantity:1}]},
+      }));
+      stripeMock.webhooks.constructEvent.mockReturnValue({type:"invoice.payment_succeeded",data:{object:premiumInvoice({id:"in_pro_renewal",lines:{data:[{price:{id:"price_test_pro",product:"prod_test_pro"},subscription:"sub_premium",period:{start:1700000000,end:1702678400}}]}})}});
+      prismaMock.user.findFirst.mockResolvedValue({id:"user_1",role:"PREMIUM",subscriptionPlan:"PRO",tokensRemaining:balance});
+      const handler=(await import("../../pages/api/stripe/webhook")).default;
+      const res=createResponse();await handler(buildWebhookReq() as any,res as any);
+      expect(res._getStatusCode()).toBe(200);
+      expect(prismaMock.user.update).toHaveBeenCalledWith({where:{id:"user_1"},data:{role:"PREMIUM",subscriptionPlan:"PRO",tokensRemaining:expected}});
     });
 
     it("queues a low-balance renewal notice in the credit grant transaction", async () => {
