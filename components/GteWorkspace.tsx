@@ -39,6 +39,7 @@ import {
   warmTrackInstrument,
 } from "../lib/gteSamplePlayback";
 import { buildDiscreteSlideSteps } from "../lib/gteSlidePlayback";
+import { setNoteVibrato } from "../lib/gteVibrato";
 import { buildChordPlaybackWindows } from "../lib/gteChordPlayback";
 import {
   getAllTabsForMidi as getSnapshotTabsForMidi,
@@ -11298,6 +11299,20 @@ export default function GteWorkspace({
     ]
   );
 
+  const handleToggleVibrato = useCallback(() => {
+    if (guardSingleTrackSelectionAction("Vibrato") || activeChordIds.length || !selectedNoteIds.length) return;
+    const ids = selectedNoteIds.map(resolveNoteId);
+    const selected = snapshotRef.current.notes.filter(note => ids.includes(note.id));
+    if (!selected.length) return;
+    const enabled = !selected.every(note => note.vibrato);
+    const next = cloneSnapshot(snapshotRef.current);
+    setNoteVibrato(next, ids, enabled);
+    enqueueOptimisticMutation({label: enabled ? "add-vibrato" : "remove-vibrato",
+      apply: draft => {setNoteVibrato(draft, selectedNoteIds, enabled); return draft;},
+      commit: () => gteApi.applySnapshot(editorId, next),
+    });
+  }, [guardSingleTrackSelectionAction, activeChordIds.length, selectedNoteIds, resolveNoteId, cloneSnapshot, enqueueOptimisticMutation, editorId]);
+
   const handleAddNoteEffect = useCallback(
     (type: number) => {
       if (guardSingleTrackSelectionAction(getNoteEffectTypeName(type))) return;
@@ -11393,6 +11408,7 @@ export default function GteWorkspace({
     if (tool === "hammer-pull") handleAddNoteEffect(1);
     if (tool === "slide") handleAddNoteEffect(2);
     if (tool === "bend") handleAddNoteEffect(0);
+    if (tool === "vibrato") handleToggleVibrato();
     if (tool === "merge-chord") handleMakeChord();
     if (tool === "snap-key") handleSnapSelectedNotesToKey();
     if (tool === "merge-notes") void handleJoinSelectedNotes();
@@ -15448,6 +15464,10 @@ export default function GteWorkspace({
               >
                 <span className={shortcutClass}>{t("B")}</span>{t("Bend")}</button>
               {renderToolHelp("Bend")}
+              <button type="button" disabled={selectionActionsLocked} className={pendingSelectionTool === "vibrato" ? activeButtonClass : textButtonClass}
+                onClick={() => runSelectionAwareTool("vibrato", handleToggleVibrato)}>
+                <span className={shortcutClass}>~</span>{t("Vibrato")}
+              </button>
             </div>
           </div>
 
@@ -16016,6 +16036,8 @@ export default function GteWorkspace({
             { label: "Hammer/Pull", path: "", letter: "H", onClick: () => handleAddNoteEffect(1), disabled: !canCreateNoteEffect, separator: true },
             { label: "Bend", path: "", letter: "B", onClick: () => handleAddNoteEffect(0), disabled: !canCreateNoteEffect },
             { label: "Slide", path: "", letter: "/", onClick: () => handleAddNoteEffect(2), disabled: !canCreateNoteEffect },
+            { label: "Vibrato", path: "", letter: "~", onClick: handleToggleVibrato, disabled: selectedNoteIds.length === 0 || activeChordIds.length > 0 || selectionActionsLocked,
+              active: selectedNoteIds.length > 0 && activeChordIds.length === 0 && snapshot.notes.filter(note => selectedNoteIds.includes(note.id)).every(note => note.vibrato) },
             { label: allTrackEventsSelected ? "Deselect all" : "Select all", path: `M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M8 8h8v8H8z${allTrackEventsSelected ? "M3 21 21 3" : ""}`, onClick: toggleSelectAllTrackEvents, disabled: snapshot.notes.length + snapshot.chords.length === 0, separator: true },
           ] as Array<{ label: string; path: string; letter?: string; onClick: () => void; disabled?: boolean; active?: boolean; separator?: boolean }>).map((tool) => {
             const selectionTool = TOOLBAR_SELECTION_TOOLS[tool.label];
@@ -16365,6 +16387,10 @@ export default function GteWorkspace({
 
                   <div className="my-1 border-t border-slate-200" />
                   <div className="px-3 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">{t("Effects")}</div>
+                  <button type="button" onClick={() => {runSelectionAwareTool("vibrato", handleToggleVibrato); setContextMenu(null);}}
+                    disabled={selectionActionsLocked} className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400">
+                    <span>{t("Vibrato")}</span><span className="text-sm">~</span>
+                  </button>
                   {[
                     ["Hammer/Pull", "H", 1],
                     ["Slide", "L", 2],
@@ -17164,7 +17190,7 @@ export default function GteWorkspace({
                     className="absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-sm bg-white px-1.5 py-0.5 text-[12px] font-semibold leading-none tabular-nums text-slate-900"
                     style={{ left: placement.x, top: TIMELINE_BAR_HEADER_HEIGHT + y }}
                   >
-                    {placement.fret}
+                    {placement.fret}{placement.vibrato ? "~" : ""}
                   </div>
                 );
               })}
@@ -17469,7 +17495,7 @@ export default function GteWorkspace({
                                   top: TIMELINE_BAR_HEADER_HEIGHT + y,
                                 }}
                               >
-                                {placement.fret}
+                                {placement.fret}{placement.vibrato ? "~" : ""}
                               </div>
                             );
                           })}
@@ -18551,7 +18577,7 @@ export default function GteWorkspace({
                         }}
                       >
                         {idx === 0 ? <span className="relative inline-flex items-center">
-                          {note.tab[1] + (transposeToolActive && transposeNoteIds.has(note.id) ? transposeOffset : 0)}
+                          {note.tab[1] + (transposeToolActive && transposeNoteIds.has(note.id) ? transposeOffset : 0)}{note.vibrato ? "~" : ""}
                           {showSelectedFretCaret && selectedNoteIds.length === 1 && selectedNoteIds[0] === note.id && selectedChordIds.length === 0 && (
                             <span aria-hidden="true" className="gte-input-caret pointer-events-none absolute left-full top-1/2 ml-0.5 h-3 -translate-y-1/2 border-l border-current" />
                           )}

@@ -260,6 +260,7 @@ export const normalizeGuestSnapshot = (
             midiNum: clampInt(note.midiNum, 0, -2147483648, 2147483647),
             ...(typeof note.velocity === "number" && Number.isFinite(note.velocity) ? { velocity: Math.max(0, Math.min(1, Number(note.velocity))) } : {}),
             ...(Array.isArray(note.pitchBend) ? { pitchBend: note.pitchBend.filter((value): value is number => typeof value === "number" && Number.isFinite(value)) } : {}),
+            ...(typeof note.vibrato === "boolean" ? { vibrato: note.vibrato } : {}),
             ...(note.notationStaff === "treble" || note.notationStaff === "bass" ? { notationStaff: note.notationStaff } : {}),
             ...(note.notationVoice === 1 || note.notationVoice === 2 ? { notationVoice: note.notationVoice } : {}),
             ...(["auto", "manual", "import"].includes(String(note.notationVoiceSource)) ? { notationVoiceSource: note.notationVoiceSource as "auto" | "manual" | "import" } : {}),

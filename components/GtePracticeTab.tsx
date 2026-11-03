@@ -30,7 +30,7 @@ export default memo(function GtePracticeTab(props: Props) {
   const hasChordOverlays = Boolean(props.overlays?.length);
   const layout = useMemo(() => buildPracticeTabLayout(props.snapshot,width,props.focusRange,hasChordOverlays),[props.snapshot.notes,props.snapshot.chords,props.snapshot.totalFrames,props.snapshot.framesPerMessure,props.snapshot.tuning,props.snapshot.trackType,props.snapshot.editorType,props.snapshot.type,props.focusRange?.startBar,props.focusRange?.endBar,hasChordOverlays,width,props.snapshot.noteEffects]);
   const ratings = useMemo(() => new Map(props.rating?.notes.map(note => [note.placementKey,note]) ?? []),[props.rating]);
-  const effects = useMemo(() => buildPracticeTabEffects(props.snapshot, layout),[layout,props.snapshot.noteEffects]);
+  const effects = useMemo(() => buildPracticeTabEffects(props.snapshot, layout),[layout,props.snapshot.noteEffects,props.snapshot.notes]);
 
   useEffect(() => {
     const element = svg.current; if (!element) return;

@@ -1,8 +1,8 @@
 import type { EditorSnapshot } from "../types/gte";
-import type { PracticeTabLayout } from "./gtePracticeTabLayout";
+import { practiceTabPosition, type PracticeTabLayout } from "./gtePracticeTabLayout";
 
 export type PracticeTabEffect = {
-  key: string; kind: "hammer" | "pull" | "slide" | "bend" | "release";
+  key: string; kind: "hammer" | "pull" | "slide" | "bend" | "release" | "vibrato";
   row: number; path: string; arrow?: string;
   held?: boolean;
   hiddenFretKey?: string;
@@ -15,10 +15,10 @@ const bendAmount = (semitones: number) => semitones === 2 ? "full"
 /** Practice-only engraving. Geometry and source musical events stay unchanged. */
 export function buildPracticeTabEffects(snapshot: EditorSnapshot, layout: PracticeTabLayout): PracticeTabEffect[] {
   const frets = new Map(layout.frets.map(note => [note.key, note]));
-  const bounds = new Map<number, { left: number; right: number }>();
+  const bounds = new Map<number, { left: number; right: number; start: number; end: number }>();
   for (const measure of layout.measures) {
     const previous = bounds.get(measure.row);
-    bounds.set(measure.row, {left: previous?.left ?? measure.x, right: measure.x + measure.width});
+    bounds.set(measure.row, {left: previous?.left ?? measure.x, right: measure.x + measure.width, start: previous?.start ?? measure.start, end: measure.end});
   }
   const result: PracticeTabEffect[] = [];
   for (const effect of snapshot.noteEffects ?? []) {
@@ -67,6 +67,25 @@ export function buildPracticeTabEffects(snapshot: EditorSnapshot, layout: Practi
         item.labelY = Math.max(row * layout.rowHeight + 10, y - 19);
       }
       result.push(item);
+    }
+  }
+  for (const note of snapshot.notes) {
+    if (!note.vibrato) continue;
+    const fret = frets.get(`n:${note.id}`); if (!fret) continue;
+    const linked = (snapshot.noteEffects ?? []).some(effect => effect.startNoteId === note.id || effect.endNoteId === note.id);
+    for (let row = fret.row; row < layout.rowCount; row++) {
+      const edges = bounds.get(row); if (!edges) continue;
+      const {start,end} = edges;
+      if (note.startTime + note.length <= start) break;
+      let left = row === fret.row ? fret.x + fret.label.length * 3.5 + 4 : edges.left + 4;
+      const sustain = practiceTabPosition(layout, Math.min(note.startTime + note.length, end - 0.001));
+      const right = Math.min(edges.right - 4, Math.max(left + 18, sustain.x));
+      left = Math.min(left, right - 12);
+      const y = row * layout.rowHeight + layout.stringTop + fret.string * layout.stringGap - (linked ? 21 : 10);
+      const waves = Math.max(2, Math.round((right - left) / 7)), step = (right-left)/waves;
+      let path = `M${left} ${y}`;
+      for (let i = 0; i < waves; i++) path += `q${step/4} -3 ${step/2} 0t${step/2} 0`;
+      result.push({key:`vibrato:${note.id}:${row}`,kind:"vibrato",row,path,labelX:0,labelY:0});
     }
   }
   return result;
