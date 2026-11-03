@@ -84,7 +84,7 @@ export default memo(function GtePracticeTab(props: Props) {
     draw(); return () => cancelAnimationFrame(raf);
   },[layout]);
 
-  const hiddenBendTargets = useMemo(() => new Set(effects.flatMap(effect => effect.hiddenTargetKey ? [effect.hiddenTargetKey] : [])), [effects]);
+  const hiddenBendTargets = useMemo(() => new Set(effects.flatMap(effect => effect.hiddenFretKey ? [effect.hiddenFretKey] : [])), [effects]);
   const stringPaths = useMemo(() => {
     const gaps = new Map<string, Array<{left: number; right: number}>>();
     for (const note of layout.frets) {

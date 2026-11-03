@@ -23,7 +23,7 @@ it.each([
   expect(effects[0].kind).toBe(kind); expect(effects[0].label).toBe(label);
   expect(effects[0].path).not.toMatch(/NaN|Infinity/);
   expect(Boolean(effects[0].arrow)).toBe(kind === "bend" || kind === "release");
-  expect(effects[0].hiddenTargetKey).toBe(kind === "bend" ? "n:2" : undefined);
+  expect(effects[0].hiddenFretKey).toBe(kind === "bend" ? "n:2" : kind === "release" ? "n:1" : undefined);
   if (effects[0].arrow) {
     const shaft = effects[0].path.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
     const arrow = effects[0].arrow.match(/-?\d+(?:\.\d+)?/g)!.map(Number);

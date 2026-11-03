@@ -5,7 +5,7 @@ export type PracticeTabEffect = {
   key: string; kind: "hammer" | "pull" | "slide" | "bend" | "release";
   row: number; path: string; arrow?: string;
   held?: boolean;
-  hiddenTargetKey?: string;
+  hiddenFretKey?: string;
   label?: string; labelX: number; labelY: number;
 };
 
@@ -38,8 +38,10 @@ export function buildPracticeTabEffects(snapshot: EditorSnapshot, layout: Practi
       const y = row * layout.rowHeight + layout.stringTop + a.string * layout.stringGap;
       const middle = (left + right) / 2, span = right - left;
       const item: PracticeTabEffect = {key: `${effect.id}:${row}`, kind, row, path: "", labelX: middle, labelY: y - 16};
-      // A bend's destination is a sustained target pitch, not another fretted attack.
-      if (kind === "bend") item.hiddenTargetKey = b.key;
+      // The raised pitch is produced by bending, not by fretting that number.
+      // Hide the target for a bend and the starting pitch for a pre-bend release.
+      if (kind === "bend") item.hiddenFretKey = b.key;
+      if (kind === "release") item.hiddenFretKey = a.key;
       if (kind === "hammer" || kind === "pull") {
         // A balanced slur with near-vertical ends reads cleanly at short and
         // long spacings, unlike a shallow quadratic hump.
