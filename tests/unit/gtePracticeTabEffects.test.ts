@@ -27,7 +27,7 @@ it.each([
   if (effects[0].arrow) {
     const shaft = effects[0].path.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
     const arrow = effects[0].arrow.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
-    expect(shaft.at(-2)! - arrow[2]).toBeCloseTo(0.75); // Optical left offset of the head.
+    expect(shaft.at(-2)! - arrow[2]).toBeCloseTo(0.25); // Small optical left offset of the head.
     expect(shaft.at(-1)! - arrow[3]).toBe(kind === "bend" ? 3 : -3);
     expect(shaft.at(-4)).toBe(shaft.at(-2)); // Final tangent stays vertical.
   }

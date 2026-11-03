@@ -77,7 +77,7 @@ export function buildPracticeTabEffects(snapshot: EditorSnapshot, layout: Practi
           : `M${left} ${y - 14} H${right}`;
         // Optical correction: the incoming curve makes a geometrically centered
         // triangle appear right-heavy. Keep the shaft inside, but offset the head.
-        const arrowX = right - 0.75;
+        const arrowX = right - 0.25;
         if (transition) item.arrow = release
           ? `M${arrowX - 3} ${endY - 5} L${arrowX} ${endY} L${arrowX + 3} ${endY - 5} Z`
           : `M${arrowX - 3} ${endY + 5} L${arrowX} ${endY} L${arrowX + 3} ${endY + 5} Z`;
