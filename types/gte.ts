@@ -9,6 +9,7 @@ export type Note = {
   optimals: TabCoord[];
   velocity?: number;
   pitchBend?: number[];
+  vibrato?: boolean;
   notationStaff?: "treble" | "bass";
   notationVoice?: 1 | 2;
   notationVoiceSource?: "auto" | "manual" | "import";

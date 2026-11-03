@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { toolAllowsSelection, toolSelectionRule, TOOLBAR_SELECTION_TOOLS, type PendingSelectionTool } from "../../lib/gteToolSelection";
 import type { EditorSnapshot } from "../../types/gte";
+import { alignEffectNotesToFirstString } from "../../lib/gteNoteEffects";
 
 const fixture = (): EditorSnapshot => ({ id: "rules", fps: 240, framesPerMessure: 480, totalFrames: 960, cutPositionsWithCoords: [], optimalsByTime: {},
   notes: [
@@ -36,17 +37,28 @@ describe("tool-specific selection rules", () => {
     expect(rule("merge-notes", [1, 3])).toBe(false);
     expect(rule("merge-notes", [1, 2])).toBe(true);
   });
-  it.each(["bend", "slide", "hammer-pull"] as const)("requires compatible standalone pitches for %s", (tool) => {
+  it.each(["bend", "slide", "hammer-pull"] as const)("accepts standalone sequences for %s and leaves fingering failures to application", (tool) => {
     expect(rule(tool, [1])).toBe(false);
     expect(rule(tool, [1, 2])).toBe(true);
-    expect(rule(tool, [1, 3])).toBe(false);
+    expect(rule(tool, [1, 3])).toBe(true);
     expect(rule(tool, [1, 2], [1])).toBe(false);
     expect(toolAllowsSelection(tool, "chord")).toBe(false);
     const simultaneous = fixture(); simultaneous.notes[1].startTime = 0;
     expect(toolSelectionRule(tool, simultaneous, [1, 2], []).valid).toBe(false);
     const blocked = fixture(); blocked.notes.push({ ...blocked.notes[0], id: 4, startTime: 80, length: 10 });
-    expect(toolSelectionRule(tool, blocked, [1, 2], []).valid).toBe(false);
+    expect(toolSelectionRule(tool, blocked, [1, 2], []).valid).toBe(true);
     expect(toolSelectionRule(tool, blocked, [1, 2, 4], []).valid).toBe(true);
+  });
+  it.each(["bend", "slide", "hammer-pull"] as const)("allows cross-string %s selections before and after activating the tool", (tool) => {
+    const snapshot = fixture();
+    snapshot.notes[1].tab = [1, 8]; // G4, equivalent to fret 3 on the first string.
+    expect(toolSelectionRule(tool, snapshot, [], []).valid).toBe(false);
+    expect(toolSelectionRule(tool, snapshot, [1], []).valid).toBe(false);
+    expect(toolSelectionRule(tool, snapshot, [1, 2], []).valid).toBe(true);
+    const pitches = snapshot.notes.map(note => note.midiNum);
+    expect(alignEffectNotesToFirstString(snapshot, [1, 2]).ok).toBe(true);
+    expect(snapshot.notes[1].tab).toEqual([0, 3]);
+    expect(snapshot.notes.map(note => note.midiNum)).toEqual(pitches);
   });
   it.each(["quantize", "scale", "move", "subdivide", "transpose"] as const)("accepts notes, chords, and mixed selections for %s", (tool) => {
     expect(rule(tool, [1])).toBe(true);

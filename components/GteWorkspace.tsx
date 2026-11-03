@@ -40,6 +40,8 @@ import {
   warmTrackInstrument,
 } from "../lib/gteSamplePlayback";
 import { buildDiscreteSlideSteps } from "../lib/gteSlidePlayback";
+import { setNoteVibrato } from "../lib/gteVibrato";
+import GteCanvasNoteEffect from "./GteCanvasNoteEffect";
 import { buildChordPlaybackWindows } from "../lib/gteChordPlayback";
 import {
   getAllTabsForMidi as getSnapshotTabsForMidi,
@@ -91,6 +93,7 @@ import {
 } from "../lib/gteChordEditor";
 import type { Chord, ChordFingering, CutWithCoord, EditorSnapshot, Note, NoteEffect, TabCoord, TimingMapV2 } from "../types/gte";
 import TabViewer from "./TabViewer";
+import GtePracticeTab from "./GtePracticeTab";
 import { estimateChordName } from "../lib/gteChordName";
 import { PropertiesInspectorShell, PropertyNumberField, MusicalDurationField, ChordTransposeControl, NoteFingerings, ChordFingerings, InspectorAction, InspectorDelete } from "./GtePropertiesInspector";
 import { transposeInspectorFrets } from "../lib/gtePropertiesInspector";
@@ -11297,6 +11300,20 @@ export default function GteWorkspace({
     ]
   );
 
+  const handleToggleVibrato = useCallback(() => {
+    if (guardSingleTrackSelectionAction("Vibrato") || activeChordIds.length || !selectedNoteIds.length) return;
+    const ids = selectedNoteIds.map(resolveNoteId);
+    const selected = snapshotRef.current.notes.filter(note => ids.includes(note.id));
+    if (!selected.length) return;
+    const enabled = !selected.every(note => note.vibrato);
+    const next = cloneSnapshot(snapshotRef.current);
+    setNoteVibrato(next, ids, enabled);
+    enqueueOptimisticMutation({label: enabled ? "add-vibrato" : "remove-vibrato",
+      apply: draft => {setNoteVibrato(draft, selectedNoteIds, enabled); return draft;},
+      commit: () => gteApi.applySnapshot(editorId, next),
+    });
+  }, [guardSingleTrackSelectionAction, activeChordIds.length, selectedNoteIds, resolveNoteId, cloneSnapshot, enqueueOptimisticMutation, editorId]);
+
   const handleAddNoteEffect = useCallback(
     (type: number) => {
       if (guardSingleTrackSelectionAction(getNoteEffectTypeName(type))) return;
@@ -11318,9 +11335,7 @@ export default function GteWorkspace({
       } else {
         const alignment = alignEffectNotesToFirstString(nextSnapshot, resolvedNoteIds);
         if (!alignment.ok) {
-          const stringLabel =
-            alignment.targetString === null ? "the first note's string" : `string ${alignment.targetString + 1}`;
-          setError(`Could not keep every selected pitch on ${stringLabel} within the available fret range.`);
+          setError("These pitches cannot all be played on one string within the available fret range.");
           return;
         }
         addNoteEffectToSnapshot(nextSnapshot, alignment.noteIds, type);
@@ -11394,6 +11409,7 @@ export default function GteWorkspace({
     if (tool === "hammer-pull") handleAddNoteEffect(1);
     if (tool === "slide") handleAddNoteEffect(2);
     if (tool === "bend") handleAddNoteEffect(0);
+    if (tool === "vibrato") handleToggleVibrato();
     if (tool === "merge-chord") handleMakeChord();
     if (tool === "snap-key") handleSnapSelectedNotesToKey();
     if (tool === "merge-notes") void handleJoinSelectedNotes();
@@ -13581,7 +13597,7 @@ export default function GteWorkspace({
         return;
       }
       if (
-        !practiceMode &&
+        !practiceMode && !tabViewEnabled &&
         !isTyping &&
         !event.ctrlKey &&
         !event.metaKey &&
@@ -13620,7 +13636,7 @@ export default function GteWorkspace({
         return;
       }
       if (
-        moveToolActive &&
+        moveToolActive && !tabViewEnabled &&
         !isTyping &&
         !event.ctrlKey &&
         !event.metaKey &&
@@ -14663,6 +14679,14 @@ export default function GteWorkspace({
   useEffect(() => {
     if (!tabViewEnabled) return;
     setToolbarOpen(false);
+    setPendingSelectionTool(null);
+    setContextMenu(null);
+    setAddBarsDialogOpen(false);
+    setScaleToolActive(false);
+    setMoveToolActive(false);
+    setSliceToolActive(false);
+    setCutToolActive(false);
+    setTransposeToolActive(false);
     setSelectedNoteIds([]);
     setSelectedChordIds([]);
     setSelectedNoteEffectId(null);
@@ -15456,6 +15480,10 @@ export default function GteWorkspace({
               >
                 <span className={shortcutClass}>{t("B")}</span>{t("Bend")}</button>
               {renderToolHelp("Bend")}
+              <button type="button" disabled={selectionActionsLocked} className={pendingSelectionTool === "vibrato" ? activeButtonClass : textButtonClass}
+                onClick={() => runSelectionAwareTool("vibrato", handleToggleVibrato)}>
+                <span className={shortcutClass}>~</span>{t("Vibrato")}
+              </button>
             </div>
           </div>
 
@@ -16024,6 +16052,8 @@ export default function GteWorkspace({
             { label: "Hammer/Pull", path: "", letter: "H", onClick: () => handleAddNoteEffect(1), disabled: !canCreateNoteEffect, separator: true },
             { label: "Bend", path: "", letter: "B", onClick: () => handleAddNoteEffect(0), disabled: !canCreateNoteEffect },
             { label: "Slide", path: "", letter: "/", onClick: () => handleAddNoteEffect(2), disabled: !canCreateNoteEffect },
+            { label: "Vibrato", path: "", letter: "~", onClick: handleToggleVibrato, disabled: selectedNoteIds.length === 0 || activeChordIds.length > 0 || selectionActionsLocked,
+              active: selectedNoteIds.length > 0 && activeChordIds.length === 0 && snapshot.notes.filter(note => selectedNoteIds.includes(note.id)).every(note => note.vibrato) },
             { label: allTrackEventsSelected ? "Deselect all" : "Select all", path: `M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M8 8h8v8H8z${allTrackEventsSelected ? "M3 21 21 3" : ""}`, onClick: toggleSelectAllTrackEvents, disabled: snapshot.notes.length + snapshot.chords.length === 0, separator: true },
           ] as Array<{ label: string; path: string; letter?: string; onClick: () => void; disabled?: boolean; active?: boolean; separator?: boolean }>).map((tool) => {
             const selectionTool = TOOLBAR_SELECTION_TOOLS[tool.label];
@@ -16373,6 +16403,10 @@ export default function GteWorkspace({
 
                   <div className="my-1 border-t border-slate-200" />
                   <div className="px-3 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">{t("Effects")}</div>
+                  <button type="button" onClick={() => {runSelectionAwareTool("vibrato", handleToggleVibrato); setContextMenu(null);}}
+                    disabled={selectionActionsLocked} className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 disabled:text-slate-400">
+                    <span>{t("Vibrato")}</span><span className="text-sm">~</span>
+                  </button>
                   {[
                     ["Hammer/Pull", "H", 1],
                     ["Slide", "L", 2],
@@ -16902,954 +16936,22 @@ export default function GteWorkspace({
         }`}
       >
         {tabViewEnabled && (
-          practiceMode ? (
-          <div
-            ref={practiceScoreRef}
-            className="relative min-w-0 overflow-visible bg-white"
-            data-gte-tab-view="true"
-            data-gte-practice-score="true"
-            style={{ height: practiceRowCount * practiceRowHeight }}
-          >
-            {practiceRows.map(({ firstBar, lastBar, segments }, rowIndex) => {
-              const sourceLeft =
-                editorTabView.barStartXs[firstBar] - EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH;
-              const sourceRight =
-                editorTabView.barStartXs[lastBar] - EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH;
-              const rowContentWidth = segments.reduce((total, segment) => total + segment.width, 0);
-              const rowTop = rowIndex * practiceRowHeight;
-              return (
-                <div
-                  key={`practice-tab-row-${rowIndex}`}
-                  data-practice-row={rowIndex}
-                  className="absolute left-0 right-0"
-                  style={{
-                    top: rowTop,
-                    height: practiceRowHeight - effectivePracticeRowGap,
-                  }}
-                >
-                  {segments.map((segment) => {
-                    if (segment.endBar <= trackOffsetBarCount) return null;
-                    const barIndices = Array.from(
-                      { length: segment.endBar - segment.startBar },
-                      (_, offset) => segment.startBar + offset
-                    );
-                    const selected = barIndices.every((barIndex) =>
-                      selectedBarIndexSet.has(barIndex)
-                    );
-                    const partiallySelected =
-                      !selected &&
-                      barIndices.some((barIndex) => selectedBarIndexSet.has(barIndex));
-                    const segmentBarCount = segment.endBar - segment.startBar;
-                    const segmentBarRange =
-                      segmentBarCount === 1
-                        ? `${segment.startBar + 1}`
-                        : `${segment.startBar + 1}-${segment.endBar}`;
-                    const label = segment.empty
-                      ? segmentBarRange
-                      : `Bar ${segment.startBar + 1}`;
-                    return (
-                      <button
-                        key={`practice-bar-${segment.startBar}-${segment.endBar}`}
-                        type="button"
-                        data-bar-select="true"
-                        data-bar-select-editor={editorId}
-                        data-bar-index={segment.startBar}
-                        data-bar-end-index={segment.endBar - 1}
-                        onClick={(event) =>
-                          handlePracticeBarSegmentSelection(
-                            segment.startBar,
-                            segment.endBar,
-                            event
-                          )
-                        }
-                        className={`absolute top-0 z-20 flex items-center justify-center overflow-hidden whitespace-nowrap px-1.5 text-[9px] transition-colors ${
-                          selected
-                            ? "bg-emerald-50 text-emerald-800"
-                            : partiallySelected
-                            ? "bg-emerald-50/60 text-emerald-700"
-                            : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-                        }`}
-                        style={{
-                          left: getPracticeRowX(
-                            segments,
-                            editorTabView.barStartXs[segment.startBar]
-                          ),
-                          width: segment.width,
-                          height: TIMELINE_BAR_HEADER_HEIGHT,
-                        }}
-                        aria-label={t("Select {value1}", {value1: segment.empty ? t("empty bars {value1}", {value1: label}) : label})}
-                        title={segment.empty ? t("Empty bars {value1}", {value1: label}) : t(barBpmTitle(segment.startBar))}
-                      >
-                        {t(String(label))}
-                      </button>
-                    );
-                  })}
-                  {practiceChordOverlayItems
-                    .filter(
-                      (item) =>
-                        item.frame >= firstBar * framesPerMeasure &&
-                        item.frame < lastBar * framesPerMeasure
-                    )
-                    .map((item) => {
-                      const sourceX = getEditorTabViewCursorX(
-                        editorTabView.cursorAnchors,
-                        item.frame,
-                        Math.max(1, editorTabView.barCount * framesPerMeasure),
-                        editorTabView.width
-                      );
-                      return (
-                        <div
-                          key={`practice-chord-overlay-${rowIndex}-${item.chord.id}`}
-                          className="group absolute z-40 -translate-x-1/2"
-                          style={{
-                            left: getPracticeRowX(segments, sourceX),
-                            top: TIMELINE_BAR_HEADER_HEIGHT + practiceTabHeight - 4,
-                          }}
-                        >
-                          <button
-                            type="button"
-                            className="h-5 max-w-24 truncate rounded-md border border-slate-300 bg-slate-100 px-1.5 text-[10px] font-bold text-slate-800 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
-                            aria-label={t("{value1} chord diagram", {value1: t(item.label)})}
-                          >
-                            {t(item.label)}
-                          </button>
-                          <div className="invisible absolute left-1/2 top-full z-50 mt-1 -translate-x-1/2 rounded-lg border border-slate-200 bg-white p-2 opacity-0 shadow-xl transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
-                            <div className="mb-1 text-center text-xs font-bold text-slate-800">
-                              {t(item.label)}
-                            </div>
-                            {item.fingering ? (
-                              <ChordFingeringDiagram
-                                fingering={item.fingering}
-                                leftHanded={leftHandedChordDiagrams}
-                              />
-                            ) : (
-                              <div className="grid h-[76px] w-[82px] place-items-center text-[10px] font-semibold text-slate-400">{t("No shape")}</div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  {Array.from(
-                    { length: lastBar - firstBar + 1 },
-                    (_, offset) => firstBar + offset
-                  ).map((barIndex) => (
-                    <div
-                      key={`practice-bar-line-${rowIndex}-${barIndex}`}
-                      className="absolute w-px bg-slate-400"
-                      style={{
-                        left: getPracticeRowX(
-                          segments,
-                          editorTabView.barStartXs[barIndex]
-                        ),
-                        top: TIMELINE_BAR_HEADER_HEIGHT,
-                        height: practiceTabHeight,
-                      }}
-                    />
-                  ))}
-                  {editorTabView.strings.map((line, stringIndex) => (
-                    <div key={`practice-string-${rowIndex}-${stringIndex}`}>
-                      <div
-                        className="absolute z-20 flex w-7 -translate-y-1/2 justify-end bg-white pr-1 text-[10px] font-semibold text-slate-500"
-                        style={{
-                          left: 0,
-                          top:
-                            TIMELINE_BAR_HEADER_HEIGHT +
-                            line.y * practiceVerticalScale,
-                        }}
-                      >
-                        {t(line.label)}
-                      </div>
-                      <div
-                        className="absolute h-px bg-slate-500"
-                        style={{
-                          left: practiceLabelWidth,
-                          width: rowContentWidth,
-                          top:
-                            TIMELINE_BAR_HEADER_HEIGHT +
-                            line.y * practiceVerticalScale,
-                        }}
-                      />
-                    </div>
-                  ))}
-                  {editorTabView.placements
-                    .filter((placement) => {
-                      const contentX =
-                        placement.x - EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH;
-                      return contentX >= sourceLeft && contentX < sourceRight;
-                    })
-                    .map((placement) => {
-                      const y = editorTabView.strings[placement.stringIndex]?.y ?? 0;
-                      const rating = practiceRatingByPlacement.get(placement.key);
-                      const ratingClass =
-                        rating?.status === "correct"
-                          ? "rounded bg-emerald-500 text-white"
-                          : rating?.status === "timing"
-                          ? "rounded bg-amber-300 text-amber-950"
-                          : rating?.status === "missed"
-                          ? "rounded bg-rose-600 text-white"
-                          : "bg-white text-slate-900";
-                      const timingDetail =
-                        rating?.onsetErrorMs == null
-                          ? ""
-                          : Math.abs(rating.onsetErrorMs) < 1
-                          ? " · on time"
-                          : ` · ${Math.abs(Math.round(rating.onsetErrorMs))} ms ${
-                              rating.onsetErrorMs < 0 ? "early" : "late"
-                            }`;
-                      return (
-                        <button
-                          key={`practice-${rowIndex}-${placement.key}`}
-                          type="button"
-                          onClick={() => onPracticeNotePlay?.(placement.startTime)}
-                          className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-pointer px-0.5 text-[11px] font-bold leading-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 ${ratingClass}`}
-                          style={{
-                            left: getPracticeRowX(segments, placement.x),
-                            top:
-                              TIMELINE_BAR_HEADER_HEIGHT +
-                              y * practiceVerticalScale,
-                          }}
-                          title={
-                            rating ? rating.status === "missed" ? t("Missed note") : t("Timing {value1}%{value2}", {value1: Math.round(rating.timingAccuracy), value2: timingDetail}) : undefined
-                          }
-                          aria-label={t("Play from fret {value1}", {value1: placement.fret})}
-                        >
-                          {placement.fret}
-                        </button>
-                      );
-                    })}
-                  {(practiceRatingReplay?.falseNotes || [])
-                    .filter(
-                      (falseNote) =>
-                        falseNote.barIndex >= firstBar && falseNote.barIndex < lastBar
-                    )
-                    .map((falseNote, falseIndex) => {
-                      const sourceX = getEditorTabViewCursorX(
-                        editorTabView.cursorAnchors,
-                        falseNote.frame,
-                        Math.max(1, editorTabView.barCount * framesPerMeasure),
-                        editorTabView.width
-                      );
-                      return (
-                        <span
-                          key={`practice-false-${rowIndex}-${falseIndex}-${falseNote.frame}`}
-                          className="pointer-events-none absolute z-30 -translate-x-1/2 text-sm font-black text-rose-600"
-                          style={{
-                            left: getPracticeRowX(segments, sourceX),
-                            top: TIMELINE_BAR_HEADER_HEIGHT + 1,
-                          }}
-                          title={t("Unexpected MIDI note {value1}", {value1: falseNote.pitchMidi})}
-                          aria-label={t("Unexpected note")}
-                        >
-                          ?
-                        </span>
-                      );
-                    })}
-                  {editorTabView.effects
-                    .filter((effect) => {
-                      const contentX = effect.x - EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH;
-                      return contentX >= sourceLeft && contentX < sourceRight;
-                    })
-                    .map((effect) => {
-                      const y = editorTabView.strings[effect.stringIndex]?.y ?? 0;
-                      const left = Math.max(
-                        practiceLabelWidth,
-                        getPracticeRowX(segments, Math.min(effect.x1, effect.x2))
-                      );
-                      const right = Math.min(
-                        practiceLabelWidth + rowContentWidth,
-                        getPracticeRowX(segments, Math.max(effect.x1, effect.x2))
-                      );
-                      return (
-                        <div
-                          key={`practice-${rowIndex}-${effect.key}`}
-                          className="pointer-events-none absolute"
-                          style={{
-                            left,
-                            top:
-                              TIMELINE_BAR_HEADER_HEIGHT +
-                              y * practiceVerticalScale -
-                              13,
-                            width: Math.max(10, right - left),
-                          }}
-                        >
-                          <div className="absolute left-0 right-0 top-2 h-px bg-slate-600" />
-                          <span className="absolute top-0 bg-white px-0.5 text-[9px] font-bold text-slate-700">
-                            {t(effect.label)}
-                          </span>
-                        </div>
-                      );
-                    })}
+          <GtePracticeTab snapshot={snapshot} editorId={editorId}
+            getFrame={getCurrentPlayheadFrame} playing={effectiveIsPlaying} active={isActive}
+            selectedBars={selectedBarIndexSet} onBarSelect={handleBarSelection}
+            onBarRangeSelect={handlePracticeBarSegmentSelection}
+            onPlayFrom={practiceMode ? onPracticeNotePlay : setEffectivePlayheadFrame} showBarNumbers={showBarNumbers}
+            focusRange={practiceMode ? practiceFocusBarRange : undefined} rating={practiceMode ? practiceRatingReplay : undefined}
+            overlays={practiceMode ? practiceChordOverlayItems.map(item => ({
+              key: String(item.chord.id), frame: item.frame,
+              content: <div className="group relative">
+                <button type="button" className="rounded border border-slate-200 bg-white px-1.5 text-xs text-slate-700" aria-label={t("{value1} chord diagram", {value1: t(item.label)})}>{t(item.label)}</button>
+                <div className="invisible absolute left-1/2 top-full z-50 mt-1 -translate-x-1/2 rounded-lg border border-slate-200 bg-white p-2 shadow-lg group-hover:visible group-focus-within:visible">
+                  {item.fingering ? <ChordFingeringDiagram fingering={item.fingering} leftHanded={leftHandedChordDiagrams} /> : <span className="text-xs text-slate-500">{t("No shape")}</span>}
                 </div>
-              );
-            })}
-            <div
-              ref={tabViewCursorRef}
-              className="pointer-events-none absolute z-30 w-[2px] rounded-full bg-rose-500"
-              style={{
-                left: 0,
-                top: TIMELINE_BAR_HEADER_HEIGHT + 3,
-                height: Math.max(20, practiceTabHeight - 6),
-                transform: (() => {
-                  const position = getPracticePosition(editorTabView.cursorX);
-                  return `translate3d(${position.x}px, ${position.y}px, 0) translateX(-1px)`;
-                })(),
-              }}
-            />
-          </div>
-          ) : mobileViewport ? (
-          <div
-            ref={tabViewScrollRef}
-            data-gte-shared-timeline="true"
-            className={`min-w-0 bg-white ${
-              practiceMode ? "rounded-none border-0" : "rounded-xl border border-slate-200"
-            } ${
-              embedded && !mobileViewport
-                ? "hide-scrollbar overflow-x-hidden"
-                : "overflow-x-hidden"
-            } ${
-              isMobileEditMode ? "min-h-0 flex-1" : ""
-            } shadow-[0_1px_2px_rgba(15,23,42,0.035)] max-sm:rounded-lg`}
-            data-gte-tab-view="true"
-            data-gte-tab-score="true"
-            onScroll={handleTimelineOuterScroll}
-          >
-            <div
-              className="relative isolate min-w-full bg-white"
-              style={{
-                width: editorTabView.width,
-                height:
-                  editorTabView.height +
-                  TIMELINE_BAR_HEADER_HEIGHT +
-                  (showTimeRuler ? CUT_SEGMENT_OFFSET : 0),
-              }}
-            >
-              {framesPerMeasure > 0 &&
-                Array.from({ length: editorTabView.barCount }).map((_, barIndex) => {
-                  if (barIndex < trackOffsetBarCount) return null;
-                  const left = editorTabView.barStartXs[barIndex];
-                  const selected = selectedBarIndexSet.has(barIndex);
-                  return (
-                    <button
-                      key={`tab-view-bar-select-${barIndex}`}
-                      type="button"
-                      data-bar-select="true"
-                      data-bar-select-editor={editorId}
-                      data-bar-index={barIndex}
-                      onMouseDown={(event) => {
-                        event.stopPropagation();
-                      }}
-                      onClick={(event) => {
-                        if (touchHoldTriggeredRef.current) {
-                          touchHoldTriggeredRef.current = false;
-                          return;
-                        }
-                        handleBarSelection(barIndex, event);
-                      }}
-                      onContextMenu={(event) => {
-                        if (practiceMode) {
-                          event.preventDefault();
-                          return;
-                        }
-                        handleBarContextMenu(barIndex, event);
-                      }}
-                      draggable={!practiceMode && selected && !mobileViewport}
-                      onDragStart={(event) => {
-                        if (!practiceMode) handleSelectedBarDragStart(barIndex, event);
-                      }}
-                      onDragEnd={practiceMode ? undefined : handleSelectedBarDragEnd}
-                      className={`absolute top-0 z-20 flex items-center border-b px-2 text-[10px] font-medium tracking-[0.01em] transition-colors duration-150 ${
-                        selected
-                          ? "border-sky-200 bg-sky-50 text-sky-900"
-                          : "border-slate-200 bg-slate-50/80 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                      }`}
-                      style={{
-                        left,
-                        width: editorTabView.barWidths[barIndex],
-                        height: TIMELINE_BAR_HEADER_HEIGHT,
-                      }}
-                      title={t(barBpmTitle(barIndex))}
-                      aria-label={t("Select Bar {value1}, {value2} BPM", {value1: barIndex + 1, value2: formatTimingBpm(
-                        getTimingBarBpm(timingMap, barIndex, fallbackBarBpm)
-                      )})}
-                    >
-                      {showBarNumbers ? <span className="truncate">{t("Bar ")}{barIndex + 1}</span> : null}
-                    </button>
-                  );
-                })}
-              {framesPerMeasure > 0 &&
-                Array.from({ length: editorTabView.barCount + 1 }).map((_, insertIndex) => {
-                  if (insertIndex < trackOffsetBarCount) return null;
-                  const left = Math.max(
-                    editorTabView.barStartXs[0],
-                    Math.min(
-                      editorTabView.width - 6,
-                      editorTabView.barStartXs[Math.min(insertIndex, editorTabView.barCount)] - 3
-                    )
-                  );
-                  const isActiveDrop =
-                    Boolean(activeBarDrag && onRequestBarDrop) && barDropIndex === insertIndex;
-                  const dragEnabled = !practiceMode && Boolean(activeBarDrag && onRequestBarDrop);
-                  return (
-                    <button
-                      key={`tab-view-bar-drop-${insertIndex}`}
-                      type="button"
-                      aria-hidden={!dragEnabled}
-                      tabIndex={-1}
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => {
-                        if (!dragEnabled || !mobileViewport) return;
-                        setBarDropIndex(insertIndex);
-                        void onRequestBarDrop?.(insertIndex);
-                      }}
-                      onDragOver={(event) => handleBarDropTargetDragOver(insertIndex, event)}
-                      onDragEnter={(event) => handleBarDropTargetDragOver(insertIndex, event)}
-                      onDrop={(event) => handleBarDropTargetDrop(insertIndex, event)}
-                      onDragLeave={() => {
-                        if (barDropIndex === insertIndex) {
-                          setBarDropIndex(null);
-                        }
-                      }}
-                      className={`absolute top-0 z-30 flex w-5 -translate-x-1/2 items-center justify-center rounded-full transition-all ${
-                        dragEnabled ? "pointer-events-auto" : "pointer-events-none"
-                      } ${isActiveDrop ? "bg-sky-500" : "bg-transparent"}`}
-                      style={{
-                        left,
-                        height: TIMELINE_BAR_HEADER_HEIGHT + editorTabView.height,
-                        opacity: dragEnabled ? (isActiveDrop ? 0.95 : mobileViewport ? 0.32 : 0.5) : 0,
-                      }}
-                      title={dragEnabled ? t("Insert bars at {value1}", {value1: insertIndex + 1}) : undefined}
-                    />
-                  );
-                })}
-              {trackOffsetFrames > 0 && framesPerMeasure > 0 && (
-                <div
-                  data-track-offset-blank="true"
-                  className="absolute top-0 z-[60] cursor-default overflow-hidden border-r border-slate-200 bg-white"
-                  style={{
-                    left: editorTabView.barStartXs[0],
-                    width:
-                      editorTabView.barStartXs[Math.min(trackOffsetBarCount, editorTabView.barCount)] -
-                      editorTabView.barStartXs[0],
-                    height: editorTabView.height + TIMELINE_BAR_HEADER_HEIGHT + CUT_SEGMENT_OFFSET,
-                  }}
-                  title={t("Track begins at bar {value1}", {value1: trackOffsetFrames / FIXED_FRAMES_PER_BAR + 1})}
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                  }}
-                  onClick={(event) => event.stopPropagation()}
-                  onDoubleClick={(event) => event.stopPropagation()}
-                >
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-sky-600 px-2 py-0.5 text-xs font-bold text-white shadow-sm">
-                    â†’
-                  </span>
-                </div>
-              )}
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute z-0 bg-white"
-                style={{
-                  left: editorTabView.barStartXs[0],
-                  top: TIMELINE_BAR_HEADER_HEIGHT,
-                  width:
-                    editorTabView.barStartXs[editorTabView.barCount] -
-                    editorTabView.barStartXs[0],
-                  height: editorTabView.height,
-                  backgroundImage:
-                    "linear-gradient(to right, transparent 0, transparent calc(100% - 1px), rgba(226, 232, 240, 0.55) calc(100% - 1px), rgba(226, 232, 240, 0.55) 100%), linear-gradient(to right, transparent 0, transparent 50%, rgba(248, 250, 252, 0.72) 50%, rgba(248, 250, 252, 0.72) 100%)",
-                  backgroundSize: `${editorTabView.barWidth / Math.max(1, timeSignature)}px 100%, ${
-                    editorTabView.barWidth * 2
-                  }px 100%`,
-                }}
-              />
-              {selectedBarIndices
-                .filter((barIndex) => barIndex >= 0 && barIndex < editorTabView.barCount)
-                .map((barIndex) => (
-                  <div
-                    key={`tab-view-selected-bar-surface-${barIndex}`}
-                    aria-hidden="true"
-                    className="pointer-events-none absolute z-[1] bg-sky-50/70"
-                    style={{
-                      left: editorTabView.barStartXs[barIndex],
-                      top: TIMELINE_BAR_HEADER_HEIGHT,
-                      width: editorTabView.barWidths[barIndex],
-                      height: editorTabView.height,
-                    }}
-                  />
-                ))}
-              {editorTabView.barLines.map((barLine) => (
-                <div
-                  key={barLine.key}
-                  className="pointer-events-none absolute z-[2] top-0 bottom-0 w-px bg-slate-400"
-                  style={{ left: barLine.x, top: TIMELINE_BAR_HEADER_HEIGHT }}
-                />
-              ))}
-              <div
-                className="pointer-events-none sticky left-0 top-0 z-20 h-0"
-                style={{ width: GTE_TIMELINE_LABEL_COLUMN_WIDTH }}
-              >
-                <div
-                  role="group"
-                  aria-label={t("String tuning")}
-                  className="absolute left-0 border-r border-slate-200 bg-gradient-to-r from-white via-white to-white/90"
-                  style={{
-                    top: TIMELINE_BAR_HEADER_HEIGHT,
-                    height: editorTabView.height,
-                    width: GTE_TIMELINE_LABEL_COLUMN_WIDTH,
-                  }}
-                >
-                  {editorTabView.strings.map((line, stringIndex) => (
-                    <div
-                      key={`tab-string-label-${stringIndex}`}
-                      className="absolute left-0 flex w-7 -translate-y-1/2 justify-end pr-1 text-[11px] font-medium tabular-nums text-slate-500"
-                      style={{ top: line.y }}
-                    >
-                      {t(line.label)}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              {editorTabView.strings.map((line, stringIndex) => (
-                <div key={`tab-string-${stringIndex}`}>
-                  <div
-                    className="pointer-events-none absolute z-[3] h-px bg-slate-400"
-                    style={{
-                      left: EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH,
-                      right: GTE_TIMELINE_END_PADDING,
-                      top: TIMELINE_BAR_HEADER_HEIGHT + line.y,
-                    }}
-                  />
-                </div>
-              ))}
-              {editorTabView.effects.map((effect) => {
-                const y = editorTabView.strings[effect.stringIndex]?.y ?? 0;
-                const left = Math.min(effect.x1, effect.x2);
-                const width = Math.max(12, Math.abs(effect.x2 - effect.x1));
-                return (
-                  <div
-                    key={effect.key}
-                    className="pointer-events-none absolute z-[5]"
-                    style={{ left, top: TIMELINE_BAR_HEADER_HEIGHT + y - 15, width }}
-                  >
-                    <div className="absolute left-0 right-0 top-2 h-px bg-slate-500" />
-                    <span
-                      className="absolute top-0 -translate-x-1/2 rounded-sm bg-white px-1 text-[10px] font-semibold text-slate-600"
-                      style={{ left: effect.x - left }}
-                    >
-                      {t(effect.label)}
-                    </span>
-                  </div>
-                );
-              })}
-              {editorTabView.placements.map((placement) => {
-                const y = editorTabView.strings[placement.stringIndex]?.y ?? 0;
-                return (
-                  <div
-                    key={placement.key}
-                    className="absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-sm bg-white px-1.5 py-0.5 text-[12px] font-semibold leading-none tabular-nums text-slate-900"
-                    style={{ left: placement.x, top: TIMELINE_BAR_HEADER_HEIGHT + y }}
-                  >
-                    {placement.fret}
-                  </div>
-                );
-              })}
-              <div
-                ref={tabViewCursorRef}
-                className="pointer-events-none absolute bottom-3 top-3 z-20 w-[2px] -translate-x-px rounded-full bg-rose-500 shadow-[0_0_0_1px_rgba(255,255,255,0.75)]"
-                style={{
-                  left: 0,
-                  top: TIMELINE_BAR_HEADER_HEIGHT + 3,
-                  transform: `translate3d(${editorTabView.cursorX}px, 0, 0) translateX(-1px)`,
-                }}
-              />
-              {showTimeRuler && <div
-                role="button"
-                tabIndex={0}
-                className="absolute left-0 z-20 cursor-pointer border-t border-slate-200 bg-slate-50/90 text-[8px] tabular-nums text-slate-500"
-                style={{
-                  top: TIMELINE_BAR_HEADER_HEIGHT + editorTabView.height,
-                  width: editorTabView.width,
-                  height: CUT_SEGMENT_OFFSET,
-                }}
-                title={t("Click to jump playback")}
-                aria-label={t("Timeline seconds ruler, starting at 0:00")}
-                onMouseDown={handleTabViewRulerMouseDown}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter" && event.key !== " ") return;
-                  event.preventDefault();
-                  setEffectivePlayheadFrame(effectivePlayheadFrame);
-                }}
-              >
-                {tabViewSecondMarks.map(({ second, left, isLabel }) => (
-                  <div
-                    key={`tab-view-timeline-second-${second}`}
-                    className="absolute bottom-0 border-l border-slate-300"
-                    style={{
-                      left,
-                      height: isLabel ? CUT_SEGMENT_OFFSET : 6,
-                    }}
-                  >
-                    {isLabel ? (
-                      <span className="absolute left-1 top-0.5 whitespace-nowrap font-medium leading-none text-slate-500">
-                        {formatTimelineSecondLabel(second)}
-                      </span>
-                    ) : null}
-                  </div>
-                ))}
-              </div>}
-            </div>
-          </div>
-          ) : (
-          <div
-            ref={tabViewScrollRef}
-            data-gte-shared-timeline="true"
-            data-gte-tab-view="true"
-            data-gte-tab-score="true"
-            className="min-w-0 overflow-visible bg-white"
-          >
-            {(() => {
-              const tabRowHeight = desktopTabRowHeight;
-              const lastTabRowIndex = rows - 1;
-              const lastTabRowBarCount = Math.max(0, barCount - lastTabRowIndex * barsPerRow);
-              const tabAddBarStartsNewRow = shouldAddBarStartNewRow(
-                lastTabRowBarCount,
-                normalizedSharedRowCapacity
-              );
-              const tabScoreHeight =
-                rows * tabRowHeight +
-                Math.max(0, rows - 1) * ROW_GAP +
-                (tabAddBarStartsNewRow ? tabRowHeight + ROW_GAP : 0);
-              const safeCursorFrame = clamp(Math.round(effectivePlayheadFrame), 0, timelineEnd);
-              const tabAddBarRowIndex = tabAddBarStartsNewRow ? rows : lastTabRowIndex;
-              const tabAddBarSourceLeft = tabAddBarStartsNewRow
-                ? 0
-                : editorTabView.barStartXs[lastTabRowIndex * barsPerRow];
-              const tabAddBarLeft = tabAddBarStartsNewRow
-                ? EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + 16
-                : EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
-                  editorTabView.barStartXs[Math.min(barCount, editorTabView.barCount)] -
-                    tabAddBarSourceLeft +
-                  16;
-              const tabAddBarTop =
-                tabAddBarRowIndex * (tabRowHeight + ROW_GAP) +
-                TIMELINE_BAR_HEADER_HEIGHT +
-                Math.max(0, Math.round(editorTabView.height / 2) - ADD_BAR_BUTTON_HALF_SIZE);
-
-              return (
-                <div
-                  ref={desktopTabScoreRef}
-                  className="relative min-w-full bg-white"
-                  style={{ height: tabScoreHeight }}
-                >
-                  {Array.from({ length: rows }).map((_, rowIndex) => {
-                    const firstBar = rowIndex * barsPerRow;
-                    const endBar = Math.min(editorTabView.barCount, firstBar + barsPerRow);
-                    const rowBarCount = Math.max(0, endBar - firstBar);
-                    const sourceLeft = editorTabView.barStartXs[firstBar];
-                    const sourceRight = editorTabView.barStartXs[endBar];
-                    const rowContentWidth = Math.max(1, sourceRight - sourceLeft);
-                    const rowTop = rowIndex * (tabRowHeight + ROW_GAP);
-                    const rowBarIndices = Array.from({ length: rowBarCount }, (_, offset) => firstBar + offset);
-                    const blankEndBar = Math.min(endBar, trackOffsetBarCount);
-                    const blankWidth =
-                      blankEndBar > firstBar
-                        ? editorTabView.barStartXs[blankEndBar] - sourceLeft
-                        : 0;
-
-                    return (
-                      <div
-                        key={`desktop-tab-row-${rowIndex}`}
-                        data-desktop-tab-row={rowIndex}
-                        className="absolute left-0 right-0"
-                        style={{ top: rowTop, height: tabRowHeight }}
-                      >
-                        {rowBarIndices
-                          .filter((barIndex) => barIndex >= trackOffsetBarCount)
-                          .map((barIndex) => {
-                            const selected = selectedBarIndexSet.has(barIndex);
-                            return (
-                              <button
-                                key={`desktop-tab-bar-${barIndex}`}
-                                type="button"
-                                data-bar-select="true"
-                                data-bar-select-editor={editorId}
-                                data-bar-index={barIndex}
-                                onMouseDown={(event) => event.stopPropagation()}
-                                onClick={(event) => handleBarSelection(barIndex, event)}
-                                onContextMenu={(event) => handleBarContextMenu(barIndex, event)}
-                                draggable={selected}
-                                onDragStart={(event) => handleSelectedBarDragStart(barIndex, event)}
-                                onDragEnd={handleSelectedBarDragEnd}
-                                className={`absolute top-0 z-20 flex items-center border-b px-2 text-[10px] font-medium ${
-                                  selected
-                                    ? "border-sky-200 bg-sky-50 text-sky-900"
-                                    : "border-slate-200 bg-slate-50/80 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                                }`}
-                                style={{
-                                  left:
-                                    EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
-                                    editorTabView.barStartXs[barIndex] -
-                                    sourceLeft,
-                                  width: editorTabView.barWidths[barIndex],
-                                  height: TIMELINE_BAR_HEADER_HEIGHT,
-                                }}
-                                title={t(barBpmTitle(barIndex))}
-                                aria-label={t("Select Bar {value1}", {value1: barIndex + 1})}
-                              >
-                                {showBarNumbers ? <span className="truncate">{t("Bar ")}{barIndex + 1}</span> : null}
-                              </button>
-                            );
-                          })}
-
-                        {rowBarIndices.map((barIndex) => {
-                          const selected = selectedBarIndexSet.has(barIndex);
-                          if (!selected) return null;
-                          return (
-                            <div
-                              key={`desktop-tab-selected-${barIndex}`}
-                              aria-hidden="true"
-                              className="pointer-events-none absolute z-[1] bg-sky-50/70"
-                              style={{
-                                left:
-                                  EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
-                                  editorTabView.barStartXs[barIndex] -
-                                  sourceLeft,
-                                top: TIMELINE_BAR_HEADER_HEIGHT,
-                                width: editorTabView.barWidths[barIndex],
-                                height: editorTabView.height,
-                              }}
-                            />
-                          );
-                        })}
-
-                        {rowBarIndices.map((barIndex) =>
-                          Array.from({ length: Math.max(1, Math.round(timeSignature)) }, (_, beatIndex) => {
-                            const beatWidth = editorTabView.barWidths[barIndex] / Math.max(1, Math.round(timeSignature));
-                            const barLeft =
-                              EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
-                              editorTabView.barStartXs[barIndex] -
-                              sourceLeft;
-                            return (
-                              <Fragment key={`desktop-tab-grid-${barIndex}-${beatIndex}`}>
-                                {beatIndex === 0 && barIndex > rowIndex * barsPerRow ? (
-                                  <div
-                                    className="pointer-events-none absolute z-[4] w-[3px] bg-slate-500/85"
-                                    style={{
-                                      left: barLeft - 1,
-                                      top: TIMELINE_BAR_HEADER_HEIGHT,
-                                      height: editorTabView.height,
-                                    }}
-                                  />
-                                ) : null}
-                                {beatIndex > 0 ? (
-                                  <div
-                                    className="pointer-events-none absolute z-[2] w-px bg-slate-300/80"
-                                    style={{
-                                      left: barLeft + beatIndex * beatWidth,
-                                      top: TIMELINE_BAR_HEADER_HEIGHT,
-                                      height: editorTabView.height,
-                                    }}
-                                  />
-                                ) : null}
-                                <div
-                                  className="pointer-events-none absolute z-[2] w-px bg-slate-200/75"
-                                  style={{
-                                    left: barLeft + (beatIndex + 0.5) * beatWidth,
-                                    top: TIMELINE_BAR_HEADER_HEIGHT,
-                                    height: editorTabView.height,
-                                  }}
-                                />
-                              </Fragment>
-                            );
-                          })
-                        )}
-
-                        {Array.from({ length: rowBarCount + 1 }, (_, edgeOffset) => {
-                          const barIndex = firstBar + edgeOffset;
-                          return (
-                            <div
-                              key={`desktop-tab-edge-${rowIndex}-${barIndex}`}
-                              className="pointer-events-none absolute z-[3] w-px bg-slate-400"
-                              style={{
-                                left:
-                                  EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
-                                  editorTabView.barStartXs[barIndex] -
-                                  sourceLeft,
-                                top: TIMELINE_BAR_HEADER_HEIGHT,
-                                height: editorTabView.height,
-                              }}
-                            />
-                          );
-                        })}
-
-                        <div
-                          className="pointer-events-none absolute z-10 border-r border-slate-200 bg-white"
-                          style={{
-                            left: 0,
-                            top: TIMELINE_BAR_HEADER_HEIGHT,
-                            width: EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH,
-                            height: editorTabView.height,
-                          }}
-                        >
-                          {editorTabView.strings.map((line, stringIndex) => (
-                            <span
-                              key={`desktop-tab-label-${rowIndex}-${stringIndex}`}
-                              className="absolute left-0 flex w-7 -translate-y-1/2 justify-end pr-1 text-[11px] font-medium text-slate-500"
-                              style={{ top: line.y }}
-                            >
-                              {t(line.label)}
-                            </span>
-                          ))}
-                        </div>
-
-                        {editorTabView.strings.map((line, stringIndex) => (
-                          <div
-                            key={`desktop-tab-string-${rowIndex}-${stringIndex}`}
-                            className="pointer-events-none absolute z-[3] h-px bg-slate-400"
-                            style={{
-                              left: EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH,
-                              width: rowContentWidth,
-                              top: TIMELINE_BAR_HEADER_HEIGHT + line.y,
-                            }}
-                          />
-                        ))}
-
-                        {editorTabView.effects
-                          .filter((effect) => Math.max(effect.x1, effect.x2) >= sourceLeft && Math.min(effect.x1, effect.x2) < sourceRight)
-                          .map((effect) => {
-                            const y = editorTabView.strings[effect.stringIndex]?.y ?? 0;
-                            const effectLeft = Math.max(sourceLeft, Math.min(effect.x1, effect.x2));
-                            const effectRight = Math.min(sourceRight, Math.max(effect.x1, effect.x2));
-                            return (
-                              <div
-                                key={`desktop-tab-effect-${rowIndex}-${effect.key}`}
-                                className="pointer-events-none absolute z-[5]"
-                                style={{
-                                  left: EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH + effectLeft - sourceLeft,
-                                  top: TIMELINE_BAR_HEADER_HEIGHT + y - 15,
-                                  width: Math.max(12, effectRight - effectLeft),
-                                }}
-                              >
-                                <div className="absolute left-0 right-0 top-2 h-px bg-slate-500" />
-                                <span className="absolute top-0 rounded-sm bg-white px-1 text-[10px] font-semibold text-slate-600">
-                                  {t(effect.label)}
-                                </span>
-                              </div>
-                            );
-                          })}
-
-                        {editorTabView.placements
-                          .filter((placement) => placement.x >= sourceLeft && placement.x < sourceRight)
-                          .map((placement) => {
-                            const y = editorTabView.strings[placement.stringIndex]?.y ?? 0;
-                            return (
-                              <div
-                                key={`desktop-tab-placement-${rowIndex}-${placement.key}`}
-                                className="absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-sm bg-white px-1.5 py-0.5 text-[12px] font-semibold leading-none tabular-nums text-slate-900"
-                                style={{
-                                  left:
-                                    EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
-                                    placement.x -
-                                    sourceLeft,
-                                  top: TIMELINE_BAR_HEADER_HEIGHT + y,
-                                }}
-                              >
-                                {placement.fret}
-                              </div>
-                            );
-                          })}
-
-                        {blankWidth > 0 ? (
-                          <div
-                            data-track-offset-blank="true"
-                            className="absolute z-[30] overflow-hidden border-r border-slate-200 bg-white"
-                            style={{
-                              left: EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH,
-                              top: TIMELINE_BAR_HEADER_HEIGHT,
-                              width: blankWidth,
-                              height: editorTabView.height,
-                            }}
-                          >
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-sky-600 px-2 py-0.5 text-xs font-bold text-white shadow-sm">
-                              →
-                            </span>
-                          </div>
-                        ) : null}
-
-                        {rowBarIndices.flatMap((barIndex) => [barIndex, barIndex + 1]).filter(
-                          (insertIndex, index, values) =>
-                            values.indexOf(insertIndex) === index && insertIndex >= trackOffsetBarCount
-                        ).map((insertIndex) => {
-                          const isActiveDrop =
-                            Boolean(activeBarDrag && onRequestBarDrop) && barDropIndex === insertIndex;
-                          const dragEnabled = Boolean(activeBarDrag && onRequestBarDrop);
-                          return (
-                            <button
-                              key={`desktop-tab-drop-${rowIndex}-${insertIndex}`}
-                              type="button"
-                              aria-hidden={!dragEnabled}
-                              tabIndex={-1}
-                              onMouseDown={(event) => event.preventDefault()}
-                              onDragOver={(event) => handleBarDropTargetDragOver(insertIndex, event)}
-                              onDragEnter={(event) => handleBarDropTargetDragOver(insertIndex, event)}
-                              onDrop={(event) => handleBarDropTargetDrop(insertIndex, event)}
-                              className={`absolute top-0 z-30 w-5 -translate-x-1/2 ${
-                                dragEnabled ? "pointer-events-auto" : "pointer-events-none"
-                              } ${isActiveDrop ? "bg-sky-500" : "bg-transparent"}`}
-                              style={{
-                                left:
-                                  EDITOR_TAB_VIEW_LEFT_LABEL_WIDTH +
-                                  editorTabView.barStartXs[insertIndex] -
-                                  sourceLeft,
-                                height: tabRowHeight,
-                                opacity: dragEnabled ? (isActiveDrop ? 0.95 : 0.5) : 0,
-                              }}
-                            />
-                          );
-                        })}
-
-                      </div>
-                    );
-                  })}
-
-                  <div
-                    ref={tabViewCursorRef}
-                    className="pointer-events-none absolute z-20 w-[2px] rounded-full bg-rose-500"
-                    style={{
-                      left: 0,
-                      top: TIMELINE_BAR_HEADER_HEIGHT + 3,
-                      height: Math.max(20, editorTabView.height - 6),
-                      transform: (() => {
-                        const position = getDesktopTabPosition(
-                          safeCursorFrame,
-                          editorTabView.cursorX
-                        );
-                        return `translate3d(${position.x}px, ${position.y}px, 0) translateX(-1px)`;
-                      })(),
-                    }}
-                  />
-
-                  <button
-                    type="button"
-                    data-gte-editor-control="true"
-                    onClick={openAddBarsDialog}
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                    }}
-                    className="absolute z-40 flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-emerald-600 text-2xl font-semibold leading-none text-white shadow-[0_8px_22px_rgba(5,150,105,0.32)] ring-1 ring-emerald-700/30 transition hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow-[0_10px_26px_rgba(5,150,105,0.4)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
-                    style={{ left: tabAddBarLeft, top: tabAddBarTop }}
-                    title={t("Add bars to end")}
-                    aria-label={t("Add bars to end")}
-                  >
-                    <AddBarIcon />
-                  </button>
-
-                </div>
-              );
-            })()}
-          </div>
-          )
+              </div>,
+            })) : undefined}
+          />
         )}
         <div
           className={`relative flex min-w-0 ${tabViewEnabled ? "hidden" : ""} ${
@@ -18639,8 +17741,6 @@ export default function GteWorkspace({
                 )}
 
                 {renderableNoteEffects.flatMap(({ effect, startNote, connectorSegments }) => {
-                  const effectColorClass =
-                    selectedNoteEffectId === effect.id ? "bg-[#8AECC8]" : "bg-[#34D399]";
                   return connectorSegments.map((segment, idx) => {
                     const left = segment.inRowStart * scale;
                     const top =
@@ -18648,10 +17748,12 @@ export default function GteWorkspace({
                     const width = Math.max(8, segment.length * scale);
                     const height = mobileViewport ? ROW_HEIGHT - 2 : ROW_HEIGHT - 8;
                     return (
-                      <button
+                      <GteCanvasNoteEffect
                         key={`note-effect-${effect.id}-seg-${segment.rowIndex}-${idx}`}
-                        type="button"
-                        onMouseDown={(event) => {
+                        left={left} top={top} width={width} height={height}
+                        label={t(effect.noteEffectLabel)} title={t(getNoteEffectTypeName(effect.type))}
+                        showLabel={idx === 0} selected={selectedNoteEffectId === effect.id}
+                        onSelect={(event) => {
                           event.preventDefault();
                           event.stopPropagation();
                           setSelectedNoteEffectId(effect.id);
@@ -18664,24 +17766,7 @@ export default function GteWorkspace({
                           setNoteMenuNoteId(null);
                           setNoteMenuDraft(null);
                         }}
-                        className={`absolute z-[1] ${effectColorClass} ${selectedNoteEffectId === effect.id ? "shadow-sm" : ""}`}
-                        style={{
-                          left,
-                          top,
-                          width,
-                          height,
-                          borderRadius: 0,
-                        }}
-                        title={
-                          effect.noteEffectLabel || getNoteEffectTypeName(effect.type).toLowerCase()
-                        }
-                      >
-                        {idx === 0 ? (
-                          <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[11px] font-semibold text-slate-900">
-                            {t(effect.noteEffectLabel)}
-                          </span>
-                        ) : null}
-                      </button>
+                      />
                     );
                   });
                 })}
@@ -18836,7 +17921,7 @@ export default function GteWorkspace({
                         }}
                       >
                         {idx === 0 ? <span className="relative inline-flex items-center">
-                          {note.tab[1] + (transposeToolActive && transposeNoteIds.has(note.id) ? transposeOffset : 0)}
+                          {note.tab[1] + (transposeToolActive && transposeNoteIds.has(note.id) ? transposeOffset : 0)}{note.vibrato ? "~" : ""}
                           {showSelectedFretCaret && selectedNoteIds.length === 1 && selectedNoteIds[0] === note.id && selectedChordIds.length === 0 && (
                             <span aria-hidden="true" className="gte-input-caret pointer-events-none absolute left-full top-1/2 ml-0.5 h-3 -translate-y-1/2 border-l border-current" />
                           )}

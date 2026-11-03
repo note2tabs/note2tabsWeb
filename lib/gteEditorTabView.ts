@@ -15,6 +15,7 @@ export type EditorTabViewPlacement = {
   startTime: number;
   stringIndex: number;
   fret: number;
+  vibrato?: boolean;
   x: number;
 };
 
@@ -385,6 +386,7 @@ export const buildEditorTabView = (
       startTime,
       stringIndex: tab[0],
       fret: tab[1],
+      vibrato: note.vibrato,
       x: getPlacementX(startTime),
     };
     notePlacements.set(note.id, placement);

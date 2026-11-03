@@ -2,10 +2,11 @@ import type { EditorSnapshot } from "../types/gte";
 import { isNotationTrack } from "./gteNotation";
 import { getTrackInstrumentType } from "./gteInstrumentType";
 import { FIXED_NOTE_VELOCITY, withFixedVelocity } from "./gteFixedVelocity";
+import { serializeVibrato, restoreVibrato } from "./gteVibrato";
 
 export function serializeNotationPayload(snapshot: Record<string, any>): Record<string, any> {
   const serialize = (lane: EditorSnapshot) => {
-    lane = withFixedVelocity(lane);
+    lane = serializeVibrato(withFixedVelocity(lane));
     const next = isNotationTrack(lane) || lane.notation !== undefined || lane.notes.some(note => note.notationVoice !== undefined) || lane.chords.some(chord => chord.notationVoice !== undefined) ? serializeNotationSnapshot(lane) : lane;
     const type = getTrackInstrumentType(lane);
     // The legacy backend infers bass from sound IDs. Keep its transport sound
@@ -35,7 +36,7 @@ export function serializeNotationSnapshot(snapshot: EditorSnapshot): EditorSnaps
 }
 
 export function restoreNotationSnapshot(snapshot: EditorSnapshot): EditorSnapshot {
-  snapshot = withFixedVelocity(snapshot);
+  snapshot = restoreVibrato(withFixedVelocity(snapshot));
   if (!snapshot.instrumentType && snapshot.chordEditor?.instrumentType) {
     snapshot = { ...snapshot, instrumentType: getTrackInstrumentType(snapshot), instrumentId: typeof snapshot.chordEditor.instrumentSound === "string" ? snapshot.chordEditor.instrumentSound : snapshot.instrumentId,
       ...(snapshot.name === "Track" && typeof snapshot.chordEditor.instrumentDisplayName === "string" ? { name: snapshot.chordEditor.instrumentDisplayName } : {}),

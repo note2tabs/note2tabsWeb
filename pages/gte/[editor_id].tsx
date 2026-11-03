@@ -9241,7 +9241,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                 : practiceModeEnabled && isMobileViewport
                 ? "w-full min-h-0 space-y-2 bg-white px-1 py-2"
                 : practiceModeEnabled
-                ? "mx-auto min-h-[1050px] w-full max-w-[1100px] space-y-5 rounded-[3px] border border-slate-200 bg-white px-8 py-10 shadow-[0_20px_60px_rgba(15,23,42,0.12)] lg:max-w-[calc(100vw-32rem)] min-[1612px]:max-w-[1100px] max-sm:min-h-0 max-sm:px-3 max-sm:py-5"
+                ? `mx-auto ${notationTrackActive || drumTrackActive ? "min-h-[1050px] py-10" : "py-5"} w-full max-w-[1100px] space-y-5 rounded-[3px] border border-slate-200 bg-white px-8 shadow-[0_20px_60px_rgba(15,23,42,0.12)] lg:max-w-[calc(100vw-32rem)] min-[1612px]:max-w-[1100px] max-sm:min-h-0 max-sm:px-3 max-sm:py-4`
                 : "space-y-2"
             }`}
           >
