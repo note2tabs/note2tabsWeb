@@ -275,8 +275,12 @@ describe("transcriber import chunking", () => {
       sourceJobId: "job-1",
     });
 
-    expect(requests).toHaveLength(2);
-    expect(requests.every((request) => request.url === "/api/gte/transcriber/import")).toBe(true);
+    expect(requests).toHaveLength(3);
+    expect(requests[2]).toEqual({url:"/api/jobs/job-1/editor",body:{editorId:"canvas-1"}});
+    const imports=requests.slice(0,2);
+    expect(imports.every((request) => request.url === "/api/gte/transcriber/import")).toBe(true);
+    expect(imports.every((request) => request.body.deferJobLink === true)).toBe(true);
+    requests.pop();
     expect(requests[0].body.target).toBe("new");
     expect(requests[0].body.editorId).toBeUndefined();
     expect(requests[1].body.target).toBe("existing");
@@ -398,4 +402,15 @@ describe("transcriber import chunking", () => {
     ]);
     expect(result.canvas?.editors[0].timelineOffsetFrames).toBe(960);
   });
+});
+
+it("does not mark a partially imported job as delivered when a later chunk fails", async () => {
+  const urls:string[]=[];
+  vi.stubGlobal("fetch",vi.fn(async(url)=>{
+    urls.push(String(url));
+    return urls.length===1?new Response(JSON.stringify({editorId:"partial-editor",importedEditorIds:["first-track"]}),{status:200}):new Response("backend unavailable",{status:503});
+  }));
+  const groups=Array.from({length:TRANSCRIBER_IMPORT_CHUNK_MAX_GROUPS+1},(_,i)=>buildGroup(i));
+  await expect(gteApi.importTranscriberToSaved({segmentGroups:groups,sourceJobId:"job-partial"})).rejects.toThrow();
+  expect(urls).not.toContain("/api/jobs/job-partial/editor");
 });

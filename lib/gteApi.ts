@@ -309,7 +309,7 @@ const postTranscriberImportSaved = (
   request<TranscriberImportResponse>("/transcriber/import", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...pitchedImportTransport(payload), name: normalizeEditorName(payload.name) }),
+    body: JSON.stringify({ ...pitchedImportTransport(payload), deferJobLink: true, name: normalizeEditorName(payload.name) }),
   });
 
 type TranscriberChunkImportResult = {
@@ -561,6 +561,13 @@ async function importTranscriberToSaved(
         { timingMap: importTimingMap, quantization, rhythmScale, preferredTimingMap }
       )
     : undefined;
+  if (payload.sourceJobId) {
+    const linked = await fetch(`/api/jobs/${encodeURIComponent(payload.sourceJobId)}/editor`, {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({editorId:currentEditorId}),
+    });
+    if (!linked.ok) throw new Error("Could not confirm the completed editor import. Please try again.");
+  }
   return {
     ok: true,
     target: lastResponse.target ?? (payload.target === "existing" ? "existing" : "new"),

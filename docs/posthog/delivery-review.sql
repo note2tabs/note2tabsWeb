@@ -9,7 +9,7 @@ FROM events WHERE {filters}
 AND (properties.environment IS NULL OR properties.environment NOT IN ('preview','development','test'))
 AND (
 (event='$exception' AND properties.alert_eligible=true)
-OR event IN ('transcription_editor_import_failed','transcription_editor_navigation_failed','transcription_post_acceptance_failed','frustration_detected')
+OR event IN ('transcription_result_delivery_failed','transcription_editor_import_failed','transcription_editor_navigation_failed','transcription_post_acceptance_failed','frustration_detected')
 OR (event='transcription_failed' AND properties.access_type='paid')
 OR (event='browser_request_failed' AND (
 (properties.endpoint IN ('/api/gte/transcriber/import','/api/gte-guest/transcriber/import') AND (toFloat(properties.http_status)>=500 OR toFloat(properties.http_status)=413 OR properties.failure_type='network_error'))
