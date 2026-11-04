@@ -1,9 +1,10 @@
 import {publicMessagesForDocument} from "../lib/i18n/publicCatalogs.server";
+import {publicDocumentGeoCookies,geoCookieScript} from "../lib/i18n/publicGeoCookies";
 import { editorRequestLocale } from "../lib/i18n/editor/detection";
 import NextDocument, { Html, Head, Main, NextScript, type DocumentContext, type DocumentInitialProps } from "next/document";
 import { localeFromPath, localeDirection, isEditorPath, type AppLocale } from "../lib/i18n/locale";
 
-export default function Document({ contentLocale = "en" }: DocumentInitialProps & { contentLocale?: AppLocale }) {
+export default function Document({ contentLocale = "en", geoCookies }: DocumentInitialProps & { contentLocale?: AppLocale; geoCookies?:string[]|null }) {
   return (
     <Html lang={contentLocale} dir={localeDirection(contentLocale)}>
       <Head>
@@ -101,6 +102,7 @@ export default function Document({ contentLocale = "en" }: DocumentInitialProps 
         <meta name="theme-color" content="#ffffff" />
       </Head>
       <body>
+        {geoCookies && <script id="n2t-geo-preferences" dangerouslySetInnerHTML={{__html:geoCookieScript(geoCookies)}} />}
         <script id="n2t-public-messages" type="application/json" dangerouslySetInnerHTML={{__html: publicMessagesForDocument(contentLocale)}} />
         <Main />
         <NextScript />
@@ -112,4 +114,5 @@ export default function Document({ contentLocale = "en" }: DocumentInitialProps 
 Document.getInitialProps = async (context: DocumentContext) => ({
   ...await NextDocument.getInitialProps(context),
   contentLocale: isEditorPath(context.req?.url || context.pathname) && context.req ? editorRequestLocale(context.req) : localeFromPath(context.req?.url || context.pathname),
+  geoCookies: context.req ? publicDocumentGeoCookies(context.req.url || context.pathname,context.req.method,context.req.headers) : null,
 });

@@ -4,13 +4,13 @@ import { gteApi } from "../../lib/gteApi";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("editor draft concurrency", () => {
-  it("requests a track-only autosave response only for authenticated lane saves with merge context", async () => {
+  it("requests a track-only autosave response for authenticated lane saves with or without merge context", async () => {
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ok: true, snapshot: {}}))));
     vi.stubGlobal("fetch", fetchMock);
     await gteApi.applySnapshot("canvas__ed__ed-2", {notes: []}, {baseSnapshot: {notes: []}});
     expect(fetchMock.mock.calls[0][0]).toBe("/api/gte/editors/canvas__ed__ed-2/snapshot?lane_only=true");
     await gteApi.applySnapshot("canvas__ed__ed-2", {notes: []});
-    expect(fetchMock.mock.calls[1][0]).toBe("/api/gte/editors/canvas__ed__ed-2/snapshot");
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/gte/editors/canvas__ed__ed-2/snapshot?lane_only=true");
     await gteApi.applySnapshot("canvas", {editors: []}, {baseSnapshot: {editors: []}});
     expect(fetchMock.mock.calls[2][0]).toBe("/api/gte/editors/canvas/snapshot");
   });

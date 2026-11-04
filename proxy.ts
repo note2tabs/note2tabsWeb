@@ -9,8 +9,12 @@ import { localeFromPath } from "./lib/i18n/locale";
 import { detectedLocaleDestination } from "./lib/i18n/detection";
 import { localizedPilotAvailable } from "./lib/i18n/pilot";
 import {languagePromptPreview} from "./lib/i18n/languageMismatch";
+import {publicDocumentGeoCookies} from "./lib/i18n/publicGeoCookies";
 
 const withCurrencyPreference = (request: NextRequest, response: NextResponse) => {
+  // Public HTML installs these same non-sensitive preferences before hydration.
+  // Keeping Set-Cookie out of that response lets the country-varying CDN cache work.
+  if (response.status === 200 && publicDocumentGeoCookies(request.nextUrl.pathname,request.method,Object.fromEntries(request.headers))) return response;
   const country = request.headers.get("x-vercel-ip-country");
   response.cookies.set({name: PRICING_MARKET_COOKIE, value: requestPricingMarket(country), httpOnly: false, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/"});
   response.cookies.set({
@@ -83,7 +87,8 @@ export default async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/api/:path*",
+    // Exclude endpoints with no diagnostic work before invoking middleware.
+    "/api/((?!analytics(?:/|$)|gte/telemetry(?:/|$)|auth/session(?:/|$)).*)",
     "/", "/pricing", "/transcribe", "/editor", "/online-guitar-tab-editor", "/about", "/contact", "/terms", "/privacy",
     "/settings", "/home", "/shared", "/tabs/:path*", "/account", "/history", "/affiliate", "/auth/:path*", "/reset-password/:path*", "/job/:path*", "/premium/welcome", "/email/:path*",
     "/affiliate-program", "/internship-application", "/features/:path*", "/blog/:path*",

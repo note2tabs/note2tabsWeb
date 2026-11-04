@@ -775,6 +775,7 @@ export default function JobPage() {
   ): Promise<JobResponse | null> => {
     try {
       const result = await requestJobStatus<JobResponse>(id, {
+        accountId: session?.user?.id,
         includeOutput: options?.includeOutput,
         etag: options?.conditional ? jobEtagRef.current : null,
       });

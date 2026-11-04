@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/build-sample-versions.cjs",
+    "prebuild": "node scripts/build-sample-versions.cjs",
     "dev": "next dev --webpack",
     "build": "prisma generate && next build",
     "start": "next start",

@@ -1,10 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_JOB_POLL_DELAY_MS,
   JobStatusRequestError,
   parseRetryAfterMs,
   requestJobStatus,
 } from "../../lib/jobPolling";
+afterEach(()=>{vi.unstubAllGlobals();vi.useRealTimers();});
 
 describe("job polling", () => {
   it.each([408, 429, 500, 502, 503, 504])("marks HTTP %s status-fetch failures as retryable", async (status) => {
@@ -95,5 +96,39 @@ describe("job polling", () => {
       expect.objectContaining({ job: { status: "processing" } }),
     ]);
     vi.unstubAllGlobals();
+  });
+  it('shares concurrent polls across tabs, scopes them to accounts and expires them after one second',async()=>{
+    const storage: Record<string,unknown> = {};
+    Object.defineProperties(storage,{
+      getItem:{value:(key:string)=>storage[key]??null},
+      setItem:{value:(key:string,value:string)=>{storage[key]=value;}},
+      removeItem:{value:(key:string)=>{delete storage[key];}},
+    });
+    let tail:Promise<unknown>=Promise.resolve();
+    vi.stubGlobal('window',{localStorage:storage});
+    vi.stubGlobal('navigator',{locks:{request:(_key:string,callback:()=>unknown)=>{const next=tail.catch(()=>{}).then(callback);tail=next;return next;}}});
+    const fetcher=vi.fn(async()=>new Response(JSON.stringify({status:'processing'}),{status:200}));
+    vi.stubGlobal('fetch',fetcher);
+    vi.resetModules();const tabOne=await import('../../lib/jobPolling');
+    vi.resetModules();const tabTwo=await import('../../lib/jobPolling');
+    const results=await Promise.all([tabOne.requestJobStatus('job',{accountId:'one'}),tabTwo.requestJobStatus('job',{accountId:'one'})]);
+    expect(fetcher).toHaveBeenCalledTimes(1);expect(results[0]).toEqual(results[1]);
+    await tabTwo.requestJobStatus('job',{accountId:'two'});expect(fetcher).toHaveBeenCalledTimes(2);
+    await tabTwo.requestJobStatus('job',{accountId:'one',includeOutput:true});expect(fetcher).toHaveBeenCalledTimes(3);
+    const now=Date.now();vi.spyOn(Date,'now').mockReturnValue(now+1001);
+    await tabOne.requestJobStatus('job',{accountId:'one'});expect(fetcher).toHaveBeenCalledTimes(4);
+    vi.restoreAllMocks();
+  });
+  it('keeps polling normally when storage or locks are unavailable and does not retry transport errors',async()=>{
+    const fetcher=vi.fn(async()=>new Response(JSON.stringify({status:'processing'}),{status:200}));
+    vi.stubGlobal('fetch',fetcher);
+    vi.stubGlobal('window',{get localStorage(){throw new Error('blocked');}});
+    vi.stubGlobal('navigator',{locks:{request:(_key:string,callback:()=>unknown)=>callback()}});
+    await requestJobStatus('blocked',{accountId:'one'});expect(fetcher).toHaveBeenCalledTimes(1);
+    fetcher.mockRejectedValueOnce(new Error('offline'));
+    await expect(requestJobStatus('failed',{accountId:'one'})).rejects.toBeInstanceOf(JobStatusRequestError);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    vi.stubGlobal('navigator',{locks:{request:()=>Promise.reject(new Error('denied'))}});
+    await requestJobStatus('denied',{accountId:'one'});expect(fetcher).toHaveBeenCalledTimes(3);
   });
 });

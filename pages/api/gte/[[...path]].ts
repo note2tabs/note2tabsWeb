@@ -33,6 +33,7 @@ import {
   releaseTabShareEmailDelivery,
 } from "../../../lib/tabShareEmailPreferences";
 import { attachFunctionTiming } from "../../../lib/functionTiming";
+import { hasGteSnapshotPayload, snapshotPreferencesChanged } from "../../../lib/gteSnapshotPayload";
 
 // A single instrument track can exceed the default 1 MB even when imports
 // are chunked by track. Keep a bounded limit below Vercel's 4.5 MB ceiling.
@@ -455,10 +456,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   if (upstream.ok && isSnapshotSave) {
     const snapshot = (req.body as { snapshot?: unknown } | undefined)?.snapshot;
+    const base = (req.body as { baseSnapshot?: unknown } | undefined)?.baseSnapshot;
     await Promise.all([
-      persistTrackInstrumentsFromSnapshot(editorRef, snapshot),
-      persistTrackPlaybackFromSnapshot(session.user.id, editorRef, snapshot),
-      persistDrumLoopsFromSnapshot(editorRef, snapshot),
+      snapshotPreferencesChanged(snapshot, base, ["instrumentId"]) && persistTrackInstrumentsFromSnapshot(editorRef, snapshot),
+      snapshotPreferencesChanged(snapshot, base, ["playbackVolume", "playbackMuted", "playbackIsolated"]) && persistTrackPlaybackFromSnapshot(session.user.id, editorRef, snapshot),
+      snapshotPreferencesChanged(snapshot, base, ["drumLoops", "totalFrames"]) && persistDrumLoopsFromSnapshot(editorRef, snapshot),
     ]);
   }
 
@@ -466,21 +468,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (upstream.ok && editorRef && responseText) {
     try {
       const parsed = JSON.parse(responseText) as unknown;
-      const preferenceHydrationStartedAt = Date.now();
-      await Promise.all([
-        hydrateTrackInstrumentsFromStore(editorRef, parsed),
-        hydrateTrackPlaybackFromStore(session.user.id, editorRef, parsed),
-        hydrateDrumLoopsFromStore(editorRef, parsed),
-        ...(method === "GET"
-          ? [
-              hydrateGteEditorInputSettingsFromStore(session.user.id, editorRef, parsed),
-              hydrateGteActiveLaneFromStore(session.user.id, editorRef, parsed),
-            ]
-          : []),
-      ]);
-      preferenceHydrationDurationMs = Date.now() - preferenceHydrationStartedAt;
-      responseText = JSON.stringify(parsed);
-      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      if (hasGteSnapshotPayload(parsed)) {
+        const preferenceHydrationStartedAt = Date.now();
+        await Promise.all([
+          hydrateTrackInstrumentsFromStore(editorRef, parsed),
+          hydrateTrackPlaybackFromStore(session.user.id, editorRef, parsed),
+          hydrateDrumLoopsFromStore(editorRef, parsed),
+          ...(method === "GET"
+            ? [
+                hydrateGteEditorInputSettingsFromStore(session.user.id, editorRef, parsed),
+                hydrateGteActiveLaneFromStore(session.user.id, editorRef, parsed),
+              ]
+            : []),
+        ]);
+        preferenceHydrationDurationMs = Date.now() - preferenceHydrationStartedAt;
+        responseText = JSON.stringify(parsed);
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+      }
     } catch {
       // Keep proxy responses untouched when upstream did not return JSON.
     }

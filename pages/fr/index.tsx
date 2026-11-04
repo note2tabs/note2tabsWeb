@@ -1,8 +1,4 @@
-import { withFrenchPilot } from "../../lib/i18n/pilot";
+import { withLocalizedStaticPage } from "../../lib/i18n/pilot";
 export { default } from "../index";
 import { getStaticProps as load } from "../index";
-export const getServerSideProps = withFrenchPilot(async () => {
-  const result = await load({});
-  if ("props" in result) return { props: await result.props };
-  return { notFound: true };
-});
+export const getServerSideProps = withLocalizedStaticPage("fr", load);

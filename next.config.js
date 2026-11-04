@@ -117,6 +117,11 @@ const nextConfig = {
   async headers() {
     return [
       {
+        source: "/sound_samples/:path*",
+        has: [{type:"query",key:"v",value:"[a-f0-9]{12}"}],
+        headers: [{key:"Cache-Control",value:"public, max-age=31536000, immutable"}],
+      },
+      {
         // These version-stable brand assets were being revalidated on most
         // visits. Browser caching avoids repeat edge requests; Vercel's CDN
         // continues to serve the first request normally.
