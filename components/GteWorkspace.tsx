@@ -12514,9 +12514,17 @@ export default function GteWorkspace({
   }
 
   async function playNotePreview(tab: TabCoord, midiOverride?: number) {
+    return playPreviewPitches([getMidiFromTab(tab, midiOverride)], 0.16);
+  }
+
+  async function playChordPreview(chord: Chord) {
+    return playPreviewPitches(chord.currentTabs.map(tab => getMidiFromTab(tab)), 0.35);
+  }
+
+  async function playPreviewPitches(pitches: number[], duration: number) {
     if (effectivePlaybackVolume <= 0) return;
-    const midi = getMidiFromTab(tab, midiOverride);
-    if (!Number.isFinite(midi) || midi <= 0) return;
+    const midis = pitches.filter(midi => Number.isFinite(midi) && midi > 0);
+    if (!midis.length) return;
 
     let preview: ReturnType<typeof ensurePreviewAudio> | null = null;
     try {
@@ -12535,15 +12543,17 @@ export default function GteWorkspace({
         return;
       }
 
-      schedulePreparedTrackNote({
-        ctx: preview.ctx,
-        destination: preview.master,
+      const {ctx,destination} = {ctx:preview.ctx,destination:preview.master};
+      const startTime = ctx.currentTime + 0.005;
+      midis.forEach(midi => schedulePreparedTrackNote({
+        ctx,
+        destination,
         instrument,
         midi,
-        gain: 0.6,
-        startTime: preview.ctx.currentTime + 0.005,
-        duration: 0.16,
-      });
+        gain: 0.6 / Math.sqrt(midis.length),
+        startTime,
+        duration,
+      }));
     } catch (error) {
       if (preview && previewAudioRef.current !== preview.ctx) return;
       if (preview && preview.ctx.state !== "running") {
@@ -18118,6 +18128,7 @@ export default function GteWorkspace({
                               singleDragMovedRef.current = false;
                               return;
                             }
+                            if (editingChordId !== chord.id) void playChordPreview(chord);
                             if (mobileViewport) {
                               const previousSelected = selectedChordIdsRef.current;
                               const alreadySelected = previousSelected.includes(chord.id);
