@@ -1,3 +1,4 @@
+import { AUDIO_CONTEXT_RESUME_ERROR, resumePlaybackAudioContext as resumeAudioContext } from "../../lib/gteAudioContext";
 import { selectPortalTargetWithin } from "../../lib/selectPortalTarget";
 import { readGuestCanvasDraft, writeGuestCanvasDraft } from "../../lib/gteGuestCanvasDraft";
 import { playbackVibrato, type PlaybackVibrato } from "../../lib/gteVibrato";
@@ -297,8 +298,6 @@ const KEY_TYPE_OPTIONS = [
   "Minor Blues",
 ];
 
-const AUDIO_CONTEXT_RESUME_ERROR =
-  "Your browser blocked audio playback. Tap Play again to allow sound.";
 const PRACTICE_RATING_UI_ENABLED = false;
 
 const serializeForInlineScript = (value: string) =>
@@ -306,22 +305,6 @@ const serializeForInlineScript = (value: string) =>
     .replace(/</g, "\\u003c")
     .replace(/>/g, "\\u003e")
     .replace(/&/g, "\\u0026");
-
-function resumeAudioContext(ctx: AudioContext): Promise<void> {
-  try {
-    return Promise.resolve(ctx.resume())
-      .then(() => {
-        if (ctx.state !== "running") {
-          throw new Error(AUDIO_CONTEXT_RESUME_ERROR);
-        }
-      })
-      .catch(() => {
-        throw new Error(AUDIO_CONTEXT_RESUME_ERROR);
-      });
-  } catch {
-    return Promise.reject(new Error(AUDIO_CONTEXT_RESUME_ERROR));
-  }
-}
 
 function closeAudioContext(ctx: AudioContext) {
   if (ctx.state === "closed") return;
@@ -5414,6 +5397,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     if (!canvas) return false;
     if (globalPlaybackRafRef.current !== null || globalPlaybackStartPendingRef.current) return false;
     globalPlaybackStartPendingRef.current = true;
+    setSaveError(previous => previous === AUDIO_CONTEXT_RESUME_ERROR ? null : previous);
     setGlobalPlaybackIsPreparing(true);
     const requestId = globalPlaybackStartRequestRef.current + 1;
     globalPlaybackStartRequestRef.current = requestId;

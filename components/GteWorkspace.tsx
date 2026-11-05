@@ -1,3 +1,4 @@
+import { AUDIO_CONTEXT_RESUME_ERROR, resumePlaybackAudioContext as resumeAudioContext } from "../lib/gteAudioContext";
 import {memoNoteAlternates, type FingeringDerivationCache} from "../lib/gteFingeringDerivationCache";
 import { monitorEditorEdit, monitorFrustrationPromise } from "../lib/frustrationSignals";
 import { beginTransfer } from "../lib/engagement/transferTracking";
@@ -134,8 +135,6 @@ import {
   isSameMobileGridCursor,
 } from "../lib/gteMobileCursor";
 
-const AUDIO_CONTEXT_RESUME_ERROR =
-  "Your browser blocked audio playback. Tap Play again to allow sound.";
 
 const TOOL_HELP_SECTIONS = [
   {
@@ -179,22 +178,6 @@ const TOOL_HELP = new Map<string, string>(
     section.tools.map(([name, description]) => [name, description] as [string, string])
   )
 );
-
-function resumeAudioContext(ctx: AudioContext): Promise<void> {
-  try {
-    return Promise.resolve(ctx.resume())
-      .then(() => {
-        if (ctx.state !== "running") {
-          throw new Error(AUDIO_CONTEXT_RESUME_ERROR);
-        }
-      })
-      .catch(() => {
-        throw new Error(AUDIO_CONTEXT_RESUME_ERROR);
-      });
-  } catch {
-    return Promise.reject(new Error(AUDIO_CONTEXT_RESUME_ERROR));
-  }
-}
 
 function closeAudioContext(ctx: AudioContext) {
   if (ctx.state === "closed") return;
@@ -12965,6 +12948,7 @@ export default function GteWorkspace({
   const startPlayback = async (startFrameOverride?: number, speedOverride?: number) => {
     if (playheadRafRef.current !== null || playbackStartPendingRef.current) return;
     playbackStartPendingRef.current = true;
+    setError(previous => previous === AUDIO_CONTEXT_RESUME_ERROR ? null : previous);
     setPlaybackPreparing(true);
     const requestId = playbackStartRequestRef.current + 1;
     playbackStartRequestRef.current = requestId;
