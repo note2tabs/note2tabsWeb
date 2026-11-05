@@ -44,9 +44,20 @@ describe("guest draft account import",()=>{
   vi.mocked(gteApi.createEditor).mockResolvedValue({editorId:"saved",snapshot:saved});
   vi.mocked(gteApi.getEditor).mockResolvedValue(saved);
   await expect(saveGuestCanvasToAccount(original)).resolves.toBe("saved");
-  expect(gteApi.applySnapshot).toHaveBeenCalledWith("saved",saved);
+  expect(gteApi.applySnapshot).toHaveBeenCalledWith("saved",{...saved,editors:saved.editors.map(lane=>({...lane,version:(lane.version ?? 1)+1}))});
   expect(gteApi.commitEditor).toHaveBeenCalledWith("saved");
   expect(readGuestCanvasDraft()).toEqual(original);
+ });
+ it("advances versions beyond the new destination canvas instead of reusing guest revisions",async()=>{
+  const original=draft();original.editors[1].version=1;
+  const destination={...draft(),editors:draft().editors.map(lane=>({...lane,version:8,notes:[],chords:[]}))};
+  vi.mocked(gteApi.createEditor).mockResolvedValue({editorId:"saved",snapshot:destination});
+  vi.mocked(gteApi.getEditor).mockResolvedValue(original);
+  await saveGuestCanvasToAccount(original);
+  const payload=vi.mocked(gteApi.applySnapshot).mock.calls[0][1] as CanvasSnapshot;
+  expect(payload.editors.map(l=>l.version)).toEqual([9,9]);
+  expect(payload.editors[1].notes).toEqual(original.editors[1].notes);
+  expect(original.editors[1].version).toBe(1);
  });
  it("rejects a blank successful save and retains the recoverable browser draft",async()=>{
   const original=draft();writeGuestCanvasDraft(original);

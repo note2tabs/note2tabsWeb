@@ -87,8 +87,16 @@ export function clearImportedGuestDraft(draft: CanvasSnapshot): boolean {
 
 export async function saveGuestCanvasToAccount(draft: CanvasSnapshot): Promise<string> {
   const created = await gteApi.createEditor(undefined, draft.name || "Untitled");
+  // Lane versions belong to their canvas, not to a portable guest draft. The
+  // backend skips child-row writes for unchanged versions, so importing guest
+  // version 1 over the new canvas's empty version 1 would silently skip notes.
+  const existingVersions = new Map((created.snapshot?.editors ?? []).map(lane => [lane.id, lane.version ?? 1]));
   const payload: CanvasSnapshot = { ...draft, id: created.editorId,
-    name: created.snapshot?.name || draft.name || "Untitled" };
+    name: created.snapshot?.name || draft.name || "Untitled",
+    editors: draft.editors.map(lane => ({ ...lane,
+      version: Math.max(lane.version ?? 1, existingVersions.get(lane.id) ?? 0) + 1,
+    })),
+  };
   await gteApi.applySnapshot(created.editorId, payload);
   await gteApi.commitEditor(created.editorId);
   const saved = guestImportCanvas(await gteApi.getEditor(created.editorId, { fresh: true }));
