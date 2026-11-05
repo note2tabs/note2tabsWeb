@@ -1,4 +1,5 @@
 import {publicMessagesForDocument} from "../lib/i18n/publicCatalogs.server";
+import publicCatalogAssets from "../lib/i18n/publicCatalogAssets.json";
 import {publicDocumentGeoCookies,geoCookieScript} from "../lib/i18n/publicGeoCookies";
 import { editorRequestLocale } from "../lib/i18n/editor/detection";
 import NextDocument, { Html, Head, Main, NextScript, type DocumentContext, type DocumentInitialProps } from "next/document";
@@ -8,6 +9,7 @@ export default function Document({ contentLocale = "en", geoCookies }: DocumentI
   return (
     <Html lang={contentLocale} dir={localeDirection(contentLocale)}>
       <Head>
+        {contentLocale !== "en" && <link rel="preload" as="script" href={publicCatalogAssets[contentLocale]} />}
         <meta name="google-adsense-account" content="ca-pub-3904018627841872" />
         <style
           dangerouslySetInnerHTML={{
@@ -103,8 +105,11 @@ export default function Document({ contentLocale = "en", geoCookies }: DocumentI
       </Head>
       <body>
         {geoCookies && <script id="n2t-geo-preferences" dangerouslySetInnerHTML={{__html:geoCookieScript(geoCookies)}} />}
-        <script id="n2t-public-messages" type="application/json" dangerouslySetInnerHTML={{__html: publicMessagesForDocument(contentLocale)}} />
         <Main />
+        {/* Complete catalog must execute before Next hydrates the translated markup. */}
+        {contentLocale === "en"
+          ? <script id="n2t-public-messages" type="application/json" dangerouslySetInnerHTML={{__html:publicMessagesForDocument("en")}} />
+          : <script src={publicCatalogAssets[contentLocale]} />}
         <NextScript />
       </body>
     </Html>

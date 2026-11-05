@@ -46,7 +46,7 @@ export function translatedError(source: string | null | undefined, locale: AppLo
 }
 
 // Next removes this server-only branch from browser bundles. Public messages
-// are embedded once for the current document, never all ten dictionaries.
+// arrive as one reusable static asset, never all ten dictionaries.
 if (typeof window === "undefined") {
   const serverPublicCatalogs: Record<AppLocale, Record<string, string>> = {
     "en": require("./en.json"),
@@ -63,8 +63,9 @@ if (typeof window === "undefined") {
   for (const locale of ALL_LOCALES) registerPublicCatalog(locale, serverPublicCatalogs[locale]);
 } else {
   const initial = document.getElementById("n2t-public-messages");
-  if (initial?.textContent) {
-    const payload = JSON.parse(initial.textContent) as {locale: AppLocale; messages: Record<string,string>};
+  const bootstrap = (window as Window & {__note2tabsPublicMessages?: {locale: AppLocale; messages: Record<string,string>}}).__note2tabsPublicMessages;
+  if (bootstrap || initial?.textContent) {
+    const payload = bootstrap || JSON.parse(initial!.textContent!) as {locale: AppLocale; messages: Record<string,string>};
     if (ALL_LOCALES.includes(payload.locale)) registerPublicCatalog(payload.locale, payload.messages);
   }
 }
