@@ -1,4 +1,4 @@
-import { refreshFreeCreditBalance } from "../lib/freeCreditBalance";
+import { readFreeCreditBalance } from "../lib/freeCreditBalance";
 import { matchesAccountDeletionConfirmation } from "../lib/accountDeletionConfirmation";
 import LanguagePreference from "../components/LanguagePreference";
 import ReminderEmailPreference from "../components/ReminderEmailPreference";
@@ -961,19 +961,11 @@ export const getServerSideProps: GetServerSideProps<Props|GuestSettingsProps> = 
   const creditWindow = isPremium
     ? getCreditWindow({ userCreatedAt: user?.createdAt })
     : getCreditWindow();
-  const creditDurationCounts = await prisma.tabJob.groupBy({
+  const creditDurationCounts = isPremium ? await prisma.tabJob.groupBy({
     by: ["durationSec"],
-    where: isPremium
-      ? { userId: session.user.id }
-      : {
-          userId: session.user.id,
-          createdAt: {
-            gte: creditWindow.start,
-            lt: creditWindow.resetAt,
-          },
-        },
+    where: { userId: session.user.id },
     _count: { _all: true },
-  });
+  }) : [];
   const computedCredits = buildCreditsSummary({
     usedCredits: calculateCreditsUsedFromDurationCounts(
       creditDurationCounts.map((item) => ({
@@ -988,7 +980,7 @@ export const getServerSideProps: GetServerSideProps<Props|GuestSettingsProps> = 
   });
   let credits = isPremium
     ? reconcileCreditsWithStoredBalance(computedCredits, user?.tokensRemaining, PLAN_CATALOG[subscriptionPlan === "PRO" ? "PRO" : "PREMIUM"].rolloverCap)
-    : user?.id ? await refreshFreeCreditBalance(user.id, computedCredits, creditWindow.start) : computedCredits;
+    : user?.id ? await readFreeCreditBalance(user.id, computedCredits, creditWindow.start) : computedCredits;
   if (isPremium && user?.id) {
     try {
       const backendRemaining = await raiseBackendCreditsToFloor(

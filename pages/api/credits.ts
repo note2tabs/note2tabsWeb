@@ -1,4 +1,4 @@
-import { refreshFreeCreditBalance } from "../../lib/freeCreditBalance";
+import { readFreeCreditBalance } from "../../lib/freeCreditBalance";
 import { PLAN_CATALOG } from "../../lib/subscriptionPlans";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
@@ -34,19 +34,11 @@ async function buildUserCredits(user: {
   const creditWindow = isPremium
     ? getCreditWindow({ userCreatedAt: user.createdAt })
     : getCreditWindow();
-  const creditDurationCounts = await prisma.tabJob.groupBy({
+  const creditDurationCounts = isPremium ? await prisma.tabJob.groupBy({
     by: ["durationSec"],
-    where: isPremium
-      ? { userId: user.id }
-      : {
-          userId: user.id,
-          createdAt: {
-            gte: creditWindow.start,
-            lt: creditWindow.resetAt,
-          },
-        },
+    where: { userId: user.id },
     _count: { _all: true },
-  });
+  }) : [];
   const computedCredits = buildCreditsSummary({
     usedCredits: calculateCreditsUsedFromDurationCounts(
       creditDurationCounts.map((item) => ({
@@ -62,8 +54,8 @@ async function buildUserCredits(user: {
 
   let credits: CreditsSummary = isPremium
     ? reconcileCreditsWithStoredBalance(computedCredits, user.tokensRemaining, PLAN_CATALOG[subscriptionPlan === "PRO" ? "PRO" : "PREMIUM"].rolloverCap)
-    : await refreshFreeCreditBalance(user.id, computedCredits, creditWindow.start);
-  let source: "computed" | "stored" | "backend" = isPremium ? "stored" : "computed";
+    : await readFreeCreditBalance(user.id, computedCredits, creditWindow.start);
+  let source: "computed" | "stored" | "backend" = isPremium ? "stored" : "backend";
 
   if (isPremium) {
     try {
@@ -91,18 +83,6 @@ async function buildUserCredits(user: {
         data: { tokensRemaining: credits.remaining },
       });
     }
-  } else if (user.tokensRemaining !== credits.remaining) {
-    // Do not let a request that read a FREE account before checkout overwrite
-    // a paid balance after Stripe activates the subscription.
-    await prisma.user.updateMany({
-      where: {
-        id: user.id,
-        role: user.role,
-        subscriptionPlan: user.subscriptionPlan,
-        tokensRemaining: user.tokensRemaining,
-      },
-      data: { tokensRemaining: credits.remaining },
-    });
   }
 
   return { credits, source };

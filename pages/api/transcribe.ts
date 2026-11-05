@@ -545,19 +545,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const creditWindow = isPremium
             ? getCreditWindow({ userCreatedAt: user.createdAt })
             : getCreditWindow();
-          const creditDurationCounts = await prisma.tabJob.groupBy({
+          const creditDurationCounts = isPremium ? await prisma.tabJob.groupBy({
             by: ["durationSec"],
-            where: isPremium
-              ? { userId: session.user.id }
-              : {
-                  userId: session.user.id,
-                  createdAt: {
-                    gte: creditWindow.start,
-                    lt: creditWindow.resetAt,
-                  },
-                },
+            where: { userId: session.user.id },
             _count: { _all: true },
-          });
+          }) : [];
           const computedCredits = buildCreditsSummary({
             usedCredits: calculateCreditsUsedFromDurationCounts(
               creditDurationCounts.map((item) => ({
@@ -572,24 +564,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           });
           refreshedCredits = isPremium
             ? reconcileCreditsWithStoredBalance(computedCredits, user.tokensRemaining, PLAN_CATALOG[subscriptionPlan].rolloverCap)
-            : await refreshFreeCreditBalance(user.id, computedCredits, creditWindow.start);
-          if (!isPremium && user.tokensRemaining !== refreshedCredits.remaining) {
-            const storedTokens = user.tokensRemaining;
-            user.tokensRemaining = refreshedCredits.remaining;
-            try {
-              await prisma.user.updateMany({
-                where: {
-                  id: user.id,
-                  role: user.role,
-                  subscriptionPlan: user.subscriptionPlan,
-                  tokensRemaining: storedTokens,
-                },
-                data: { tokensRemaining: refreshedCredits.remaining },
-              });
-            } catch (error) {
-              console.warn("transcribe monthly credit sync failed", error);
-            }
-          }
+            : computedCredits;
         }
       } catch (error) {
         user = null;
@@ -804,6 +779,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         } catch (error) {
           console.warn("premium backend credit read failed; backend will enforce final balance", error);
         }
+      } else {
+        // Only a validated submission materializes a monthly reset or missing ledger.
+        // Backend spending remains atomic and authoritative after this synchronization.
+        refreshedCredits = await refreshFreeCreditBalance(user.id, refreshedCredits, getCreditWindow().start);
+        user.tokensRemaining = refreshedCredits.remaining;
       }
     }
 

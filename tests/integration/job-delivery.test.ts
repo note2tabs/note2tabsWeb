@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { router, session, events } = vi.hoisted(() => ({
-  router: { isReady: true, query: { job_id: "job_test" }, push: vi.fn(), replace: vi.fn() },
+  router: { isReady: true, query: { job_id: "job_test" }, push: vi.fn(), replace: vi.fn(), prefetch: vi.fn().mockResolvedValue(undefined) },
   session: { user: { id: "user_test" } },
   events: vi.fn(),
 }));
