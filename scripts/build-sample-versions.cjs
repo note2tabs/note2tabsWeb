@@ -7,7 +7,7 @@ function walk(dir) {
   for (const entry of readdirSync(dir,{withFileTypes:true}).sort((a,b)=>a.name.localeCompare(b.name))) {
     const path = join(dir,entry.name);
     if (entry.isDirectory()) walk(path);
-    else if (entry.name.endsWith(".opus")) versions[relative(root,path).split("\\").join("/")] = createHash("sha256").update(readFileSync(path)).digest("hex").slice(0,12);
+    else if (/\.(opus|mp3)$/.test(entry.name)) versions[relative(root,path).split("\\").join("/")] = createHash("sha256").update(readFileSync(path)).digest("hex").slice(0,12);
   }
 }
 walk(root);

@@ -1,3 +1,4 @@
+import { decodePlaybackSample, fetchPlaybackSample, playbackSampleUrl } from "./gteAudioSampleLoader";
 import {
   DEFAULT_TRACK_INSTRUMENT_ID,
   getTrackInstrumentOption,
@@ -58,7 +59,6 @@ export type ScheduledTrackNote = {
   }>;
 };
 
-const sampleDataPromise = new Map<string, Promise<ArrayBuffer>>();
 const preparedByContext = new WeakMap<
   AudioContext,
   Map<string, Promise<PreparedTrackInstrument>>
@@ -73,19 +73,6 @@ const toFiniteNumber = (value: unknown, fallback: number) => {
 };
 
 const centsToRatio = (cents: number) => Math.pow(2, cents / 1200);
-
-const fetchSampleData = (url: string) => {
-  const cached = sampleDataPromise.get(url);
-  if (cached) return cached;
-  const pending = fetch(url).then(async (response) => {
-    if (!response.ok) {
-      throw new Error(`Could not load instrument sample ${url}: ${response.status}`);
-    }
-    return response.arrayBuffer();
-  });
-  sampleDataPromise.set(url, pending);
-  return pending;
-};
 
 const normalizeBendSegments = (
   segments: ScheduledTrackNote["bendSegments"],
@@ -155,11 +142,13 @@ export const prepareTrackInstrument = async (
   }
   const pending = Promise.all(
     option.samples.map(async (sample) => {
-      const encoded = await fetchSampleData(sample.url);
-      const buffer = await ctx.decodeAudioData(encoded.slice(0));
+      const buffer = await decodePlaybackSample(ctx, sample.url);
       return { ...sample, buffer };
     })
-  ).then((samples) => ({ kind: "opus" as const, option, samples }));
+  ).then((samples) => ({ kind: "opus" as const, option, samples })).catch(error => {
+    if (contextCache.get(option.id) === pending) contextCache.delete(option.id);
+    throw error;
+  });
   contextCache.set(option.id, pending);
   return pending;
 };
@@ -169,7 +158,7 @@ export const warmTrackInstrument = async (instrumentId?: string | null) => {
   const option = getTrackInstrumentOption(instrumentId);
   if (option.kind === "synth") return;
   try {
-    await Promise.all(option.samples.map((sample) => fetchSampleData(sample.url)));
+    await Promise.all(option.samples.map((sample) => fetchPlaybackSample(playbackSampleUrl(sample.url))));
   } catch {
     // Playback reports the concrete loading error if the user tries to play this instrument.
   }
