@@ -1009,7 +1009,10 @@ export default function JobPage() {
     let resolvedTranscriberTracks = getJobTranscriberTracks(jobToImport);
     let resolvedTabSegments = getJobTabSegments(jobToImport);
     const tabJobId = getJobTabJobId(jobToImport);
-    if (tabJobId) {
+    // A structured result already contains the instrument metadata and segments
+    // used below. Readiness resolution may have just downloaded it from storage;
+    // fetching the same full payload again adds a serial DB/artifact round trip.
+    if (tabJobId && (resolvedTranscriberTracks.length === 0 || (!ytTitleHint && !jobToImport.song_title))) {
       const needsStoredPayload = resolvedTranscriberGroups.length === 0 || resolvedTabSegments.length === 0;
       try {
         const storedTab = await fetchStoredTabPayload(tabJobId);
@@ -1178,6 +1181,10 @@ export default function JobPage() {
     let importAttempted = false;
     const openingStartedAt = Date.now();
     const targetEditorChoice = appendEditorId ?? "new";
+    // Warm the dynamic editor page while finalization/import is running. This is
+    // an SSR route: Next prefetches its code, without creating/loading an editor.
+    // A placeholder ID resolves the same page bundle when the new ID is unknown.
+    void router.prefetch(getEditorHref(displayJob?.gte_editor_id || appendEditorId || "prefetch")).catch(() => {});
     try {
       if (displayJob?.gte_editor_id) {
         importedSuccessfully = true;
