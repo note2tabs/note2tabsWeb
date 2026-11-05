@@ -721,7 +721,7 @@ export async function optimizeImportedTrackFingerings(
     const lane = optimized.editors.find(item => item.id === laneId);
     if (!source || !lane) continue;
     const instrument = importedInstrument(source);
-    Object.assign(lane, instrument, { name: source.name, chordEditor: { ...lane.chordEditor, instrumentType: instrument.instrumentType, instrumentSound: instrument.instrumentId } });
+    Object.assign(lane, instrument, { name: source.name, ...(Number.isInteger(source.program) && source.program! >= 0 && source.program! <= 127 ? { program: source.program } : {}), chordEditor: { ...lane.chordEditor, instrumentType: instrument.instrumentType, instrumentSound: instrument.instrumentId } });
     if (instrument.instrumentType === "notation") Object.assign(lane, restorePitchedImport(lane, source.segments, importContext?.timingMap ?? optimized.timingMap, importContext?.quantization));
   }
 

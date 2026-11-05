@@ -9247,11 +9247,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
               const laneSoundId = normalizeTrackInstrumentId(lane.instrumentId);
               const laneUsesBuiltInSound = !trackInstrumentOptions.some((option) => option.id === laneSoundId) &&
                 TRACK_INSTRUMENT_OPTIONS.some((option) => option.id === laneSoundId);
-              const instrumentValue = trackInstrumentOptions.some(
-                (option) => option.id === laneSoundId
-              )
-                ? laneSoundId
-                : DEFAULT_TRACK_INSTRUMENT_ID;
+              const instrumentValue = laneSoundId;
               const instrumentLabel = drumLane
                 ? "Drum kit"
                 : laneUsesBuiltInSound

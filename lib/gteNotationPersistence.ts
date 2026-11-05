@@ -17,7 +17,7 @@ export function serializeNotationPayload(snapshot: Record<string, any>): Record<
     return { ...next, ...(neutralName ? { name: "Track" } : {}), ...(bassProgram ? { program: type === "notation" ? 0 : 24 } : {}),
       instrumentId: type === "notation" ? "gm:piano" : type === "guitar-tab" ? "acoustic" : next.instrumentId,
       chordEditor: { ...next.chordEditor, instrumentType: type, instrumentSound: lane.instrumentId,
-        ...(neutralName ? { instrumentDisplayName: lane.name } : {}), ...(pitched ? { instrumentProgram: lane.program } : {}) } };
+        ...(neutralName ? { instrumentDisplayName: lane.name } : {}), instrumentProgram: lane.program } };
   };
   if (Array.isArray(snapshot.editors)) return { ...snapshot, editors: snapshot.editors.map(serialize) };
   return Array.isArray(snapshot.notes) && Array.isArray(snapshot.chords) ? serialize(snapshot as EditorSnapshot) : snapshot;

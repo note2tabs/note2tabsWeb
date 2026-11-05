@@ -78,12 +78,12 @@ describe("independent track type and sound", () => {
     expect(restored.chords[0].originalMidi).toEqual([36,96]);
   });
   it("retains any sound on bass without changing its format", () => {
-    const source = { ...track(), instrumentType: "bass-tab" as const, editorType: "bass", instrumentId: "upright_piano" };
+    const source = { ...track(), instrumentType: "bass-tab" as const, editorType: "bass", program: 33, instrumentId: "upright_piano" };
     const wire = serializeNotationPayload(source) as EditorSnapshot;
     delete wire.instrumentType; wire.instrumentId = "bass_overdrive";
-    expect(restoreNotationSnapshot(wire)).toMatchObject({ instrumentType: "bass-tab", instrumentId: "upright_piano" });
+    expect(restoreNotationSnapshot(wire)).toMatchObject({ instrumentType: "bass-tab", program: 33, instrumentId: "upright_piano" });
   });
-  it.each([[0,"notation","upright_piano"], [24,"guitar-tab","acoustic"], [33,"bass-tab","bass_overdrive"], [42,"notation","gm:strings"], [81,"notation","gm:synth-lead"], [90,"notation","gm:synth-pad"], [73,"notation","gm:instrument"], [4,"notation","gm:instrument"], [3,"notation","upright_piano"]])("maps GM program %s to an appropriate representation and sound", (program, instrumentType, instrumentId) => {
+  it.each([[0,"notation","upright_piano"], [24,"guitar-tab","acoustic"], [33,"bass-tab","bass_overdrive"], [42,"notation","gm:strings"], [81,"notation","synth_lead"], [90,"notation","synth_lead_sweepPad"], [73,"notation","gm:instrument"], [4,"notation","upright_piano"], [3,"notation","upright_piano"]])("maps GM program %s to an appropriate representation and sound", (program, instrumentType, instrumentId) => {
     expect(importedInstrument({ program })).toEqual({ instrumentType, instrumentId });
   });
   it("does not let an old default guitar sound misclassify imported piano", () => {

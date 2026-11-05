@@ -34,3 +34,18 @@ it("groups sampled sounds and supports portalled selection, keyboard navigation 
     expect(host.querySelector<HTMLButtonElement>('[role="option"]')!.disabled).toBe(true);
   } finally { await act(async () => root.unmount()); host.remove(); dom.window.close(); vi.unstubAllGlobals(); }
 });
+
+it.each([["gm:piano", "Upright Piano"], ["gm:bass", "Bass (Overdrive)"], ["gm:instrument", "Instrument"], ["gm:strings", "String ensemble"]])("shows the actual selected sound for legacy %s instead of Acoustic Guitar", async (value, label) => {
+  const dom = new JSDOM("<!doctype html><html><body></body></html>");
+  vi.stubGlobal("window", dom.window); vi.stubGlobal("document", dom.window.document); vi.stubGlobal("React", React);
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+  try {
+    await act(async () => root.render(React.createElement(GteTrackSoundSelect, {value, options: getTrackInstrumentOptions(), onChange: vi.fn()})));
+    expect(host.querySelector("summary")?.textContent).toContain(label);
+    expect(host.querySelector("summary")?.textContent).not.toContain("Acoustic Guitar");
+    const details=host.querySelector("details")!;
+    await act(async () => {details.open=true; details.dispatchEvent(new dom.window.Event("toggle"));});
+    expect(document.querySelector('[role="option"][aria-selected="true"]')?.textContent).toContain(label);
+  } finally {await act(async()=>root.unmount());host.remove();dom.window.close();vi.unstubAllGlobals();}
+});
