@@ -26,3 +26,22 @@ describe("targeted instrument preparation",()=>{
   expect((await prepareTrackInstrument(ctx,"acoustic",[60])).samples).toHaveLength(1);expect(fetch).toHaveBeenCalledTimes(2);expect(ctx.decodeAudioData).toHaveBeenCalledTimes(3);
  });
 });
+
+it("loads only the requested new-bank roots and reuses their decoded samples", async()=>{
+ const fetch=vi.fn(async()=>new Response(new Uint8Array([1])));vi.stubGlobal("fetch",fetch);
+ const {prepareTrackInstrument,getTrackInstrumentOptions,findNearestTrackSample}=await import("../../lib/gteSamplePlayback");
+ const ctx=context();
+ for(const bank of getTrackInstrumentOptions().filter(b=>b.family)) {
+  const pitches=[48,60,64,72,64];const before=fetch.mock.calls.length;
+  const prepared=await prepareTrackInstrument(ctx,bank.id,pitches);
+  const needed=new Set(pitches.map(p=>findNearestTrackSample(bank.samples,p)!.url));
+  expect(fetch.mock.calls.length-before,bank.id).toBe(needed.size);
+  expect(prepared.samples.length,bank.id).toBe(needed.size);
+  expect(prepared.kind).toBe("opus");
+  await prepareTrackInstrument(ctx,bank.id,[64]);expect(fetch.mock.calls.length-before,bank.id).toBe(needed.size);
+  for(const sample of prepared.samples) {
+   const definition=bank.samples.find(s=>s.midi===sample.midi)!;
+   expect(sample.loop).toEqual(definition.loop); expect(sample.gain).toBe(definition.gain);
+  }
+ }
+});

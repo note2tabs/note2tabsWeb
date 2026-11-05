@@ -148,13 +148,12 @@ export function normalizeTranscriberTracks(value: unknown): StoredTranscriberTra
     const record = entry as Record<string, unknown>;
     const groups = normalizeTranscriberSegments([record.segments]);
     if (!groups.length) return [];
-    const program = Number(record.program);
-    const bass = record.trackType === "bass" || record.type === "bass" || record.instrumentId === "gm:bass" || (Number.isInteger(program) && program >= 32 && program <= 39) || (typeof record.name === "string" && /\bbass\b/i.test(record.name) && !/\bbassoon\b/i.test(record.name));
-    const trackType = record.trackType === "drums" || record.type === "drums" ? "drums" : bass ? "bass" : "tab";
+    const program = record.program == null || record.program === "" ? NaN : Number(record.program);
+    const { instrumentType, instrumentId } = importedInstrument(record);
+    const trackType = instrumentType === "drums" ? "drums" : instrumentType === "bass-tab" ? "bass" : "tab";
     const name = typeof record.name === "string" && record.name.trim()
       ? record.name.trim().slice(0, 80)
       : trackType === "drums" ? "Drums" : trackType === "bass" ? "Bass" : `Instrument ${index + 1}`;
-    const { instrumentType, instrumentId } = importedInstrument(record);
     return [{
       name,
       instrumentType,

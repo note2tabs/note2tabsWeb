@@ -83,14 +83,14 @@ describe("independent track type and sound", () => {
     delete wire.instrumentType; wire.instrumentId = "bass_overdrive";
     expect(restoreNotationSnapshot(wire)).toMatchObject({ instrumentType: "bass-tab", program: 33, instrumentId: "upright_piano" });
   });
-  it.each([[0,"notation","upright_piano"], [24,"guitar-tab","acoustic"], [33,"bass-tab","bass_overdrive"], [42,"notation","gm:strings"], [81,"notation","synth_lead"], [90,"notation","synth_lead_sweepPad"], [73,"notation","gm:instrument"], [4,"notation","upright_piano"], [3,"notation","upright_piano"]])("maps GM program %s to an appropriate representation and sound", (program, instrumentType, instrumentId) => {
+  it.each([[0,"notation","upright_piano"], [24,"guitar-tab","acoustic"], [33,"bass-tab","bass_overdrive"], [42,"notation","gm:strings"], [81,"notation","synth_lead"], [90,"notation","synth_lead_sweepPad"], [73,"notation","FluteSusNV"], [4,"notation","upright_piano"], [3,"notation","upright_piano"]])("maps GM program %s to an appropriate representation and sound", (program, instrumentType, instrumentId) => {
     expect(importedInstrument({ program })).toEqual({ instrumentType, instrumentId });
   });
   it("does not let an old default guitar sound misclassify imported piano", () => {
     expect(importedInstrument({ program: 0, instrumentId: "jazz" })).toEqual({ instrumentType: "notation", instrumentId: "upright_piano" });
     expect(importedInstrument({ program: 33, instrumentId: "jazz" })).toEqual({ instrumentType: "bass-tab", instrumentId: "bass_overdrive" });
     expect(importedInstrument({ program: 71, name: "Bass clarinet" }).instrumentType).toBe("notation");
-    expect(importedInstrument({ name: "Violin", instrumentId: "violin" })).toEqual({ instrumentType: "notation", instrumentId: "gm:strings" });
+    expect(importedInstrument({ name: "Violin", instrumentId: "violin" })).toEqual({ instrumentType: "notation", instrumentId: "SViolinVib" });
   });
   it("reconstructs low and high notation imports using aligned timing, retaining velocity and bend", () => {
     const source = track([]), map = synthesizeTimingMap(2, 960, 4, 4);

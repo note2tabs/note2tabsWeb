@@ -19,7 +19,7 @@ it("groups sampled sounds and supports portalled selection, keyboard navigation 
     await act(async () => { details.open = true; details.dispatchEvent(new dom.window.Event("toggle")); });
     const menu = document.querySelector('[role="listbox"]')!;
     expect(host.contains(menu)).toBe(false);
-    expect([...menu.querySelectorAll('[role="presentation"]')].map(node => node.textContent)).toEqual(["Guitar", "Bass", "Piano", "Synth"]);
+    expect([...menu.querySelectorAll('[role="presentation"]')].map(node => node.textContent)).toEqual(["Guitar", "Bass", "Piano", "Organ & reeds", "Strings", "Brass", "Woodwinds", "Percussion", "Other", "Synth"]);
     const options = [...menu.querySelectorAll<HTMLButtonElement>('[role="option"]')];
     const selected = menu.querySelector<HTMLButtonElement>('[aria-selected="true"]')!;
     expect(selected.textContent).toContain("Upright Piano");
@@ -80,4 +80,27 @@ it("keeps the track card open through mouse and touch selection in its portalled
     await act(async () => document.body.dispatchEvent(new dom.window.MouseEvent("mousedown", {bubbles:true})));
     expect(host.querySelector("details")).toBeNull();
   } finally { await act(async () => root.unmount()); dom.window.close(); vi.unstubAllGlobals(); }
+});
+
+it("filters sounds by name or family, keeps selection, and supports keyboard choice", async () => {
+ const dom=new JSDOM("<!doctype html><html><body></body></html>");
+ vi.stubGlobal("window",dom.window);vi.stubGlobal("document",dom.window.document);vi.stubGlobal("React",React);
+ vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT",true);vi.stubGlobal("requestAnimationFrame",vi.fn(()=>1));
+ const host=document.createElement("div");document.body.append(host);const root=createRoot(host),change=vi.fn();
+ try {
+  await act(async()=>root.render(React.createElement(GteTrackSoundSelect,{value:"upright_piano",options:getTrackInstrumentOptions(),onChange:change})));
+  const details=host.querySelector("details")!;
+  await act(async()=>{details.open=true;details.dispatchEvent(new dom.window.Event("toggle"));});
+  const input=document.querySelector<HTMLInputElement>('input[type="search"]')!;
+  const {Simulate}=await import("react-dom/test-utils");
+  await act(async()=>{Simulate.change(input,{target:{value:"brass"}} as any);});
+  expect([...document.querySelectorAll('[role="option"]')].map(e=>e.textContent)).toEqual(["Trumpet","Trombone","French Horn"]);
+  expect(change).not.toHaveBeenCalled();
+  input.focus();await act(async()=>input.dispatchEvent(new dom.window.KeyboardEvent("keydown",{key:"ArrowDown",bubbles:true})));
+  expect(document.activeElement?.textContent).toBe("Trumpet");
+  await act(async()=>(document.activeElement as HTMLButtonElement).click());expect(change).toHaveBeenCalledWith("TrumpetSus");
+  await act(async()=>{details.open=true;details.dispatchEvent(new dom.window.Event("toggle"));});
+  expect(document.querySelector<HTMLInputElement>('input[type="search"]')?.value).toBe("");
+  expect(document.querySelectorAll('[role="option"]').length).toBe(getTrackInstrumentOptions().length);
+ } finally {await act(async()=>root.unmount());dom.window.close();vi.unstubAllGlobals();}
 });

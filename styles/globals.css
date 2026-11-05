@@ -132,6 +132,10 @@
 .gte-track-select-menu { padding: 4px; border-radius: 8px; font-family: var(--font-sans); font-size: 12px; font-weight: 400; line-height: 1.35; letter-spacing: normal; text-transform: none; color: #334155; }
 .gte-track-select-menu button { min-height: 28px; padding: 4px 7px; gap: 6px; border-radius: 5px; font: inherit; }
 .gte-track-select-menu button[aria-selected="true"] { font-weight: 500; }
+.gte-track-select-menu button[aria-selected="true"] { background: #eaf4ee; color: #195e40; }
+.note2tabs-select__search { position: sticky; top: -4px; z-index: 1; padding: 4px 2px 7px; background: #fff; }
+.note2tabs-select__search input { width: 100%; min-height: 30px; padding: 5px 8px; border: 1px solid #d9dedb; border-radius: 5px; background: #f8faf8; color: #17201c; font: inherit; }
+.note2tabs-select__search input:focus { outline: 2px solid #d2e7da; outline-offset: 0; border-color: #75a58a; }
 .gte-track-select-menu [role="presentation"] { padding: 7px 8px 3px; font-family: inherit; font-size: 10px; font-weight: 500; letter-spacing: normal; text-transform: none; }
 [data-gte-track-picker-row] { min-height: 56px; gap: 8px; padding: 6px 8px; }
 [data-gte-track-picker-row] > [role="option"],
