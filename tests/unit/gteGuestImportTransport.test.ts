@@ -11,17 +11,23 @@ import type { CanvasSnapshot, EditorSnapshot } from "../../types/gte";
 let saved: CanvasSnapshot;
 let stored: CanvasSnapshot;
 let requests: Array<{url:string;init:RequestInit}>;
+let persisted: Map<string,EditorSnapshot>;
 let omit: "notation" | "effects" | "loops" | undefined;
 beforeEach(()=>{
- requests=[];omit=undefined;
+ requests=[];omit=undefined;persisted=new Map([["ed-1",createGuestSnapshot("ed-1")]]);
  vi.stubGlobal("fetch",vi.fn(async(input:RequestInfo|URL,init:RequestInit={})=>{
   const url=String(input);requests.push({url,init});
-  if(url==="/api/gte/editors" && init.method==="POST") return Response.json({editorId:"account-copy",snapshot:{name:"Saved song"}});
+  if(url==="/api/gte/editors" && init.method==="POST") return Response.json({editorId:"account-copy",snapshot:{name:"Saved song",editors:[createGuestSnapshot("ed-1")]}});
   if(url.endsWith("/snapshot")) {
    stored=JSON.parse(String(init.body)).snapshot;
    saved=JSON.parse(JSON.stringify(stored));
    saved.editors=saved.editors.map(lane=>{
-    const next={...lane};delete next.instrumentType;delete next.notation;
+    const previous=persisted.get(lane.id);
+    const next={...lane};
+    // This is the production _db_upsert_canvas_snapshot optimization: lane
+    // metadata updates, but equal versions skip writing all note/chord rows.
+    if(previous && previous.version===lane.version){next.notes=previous.notes;next.chords=previous.chords;}
+    delete next.instrumentType;delete next.notation;
     next.notes=next.notes.map(n=>{
      const copy={...n,startTime:Math.trunc(n.startTime),length:Math.trunc(n.length)};
      delete copy.notationVoice;delete copy.notationStaff;delete copy.vibrato;delete copy.vibratoSettings;
@@ -30,6 +36,7 @@ beforeEach(()=>{
     if(omit==="notation" && next.chordEditor) delete next.chordEditor.notation;
     if(omit==="effects") next.noteEffects=[];
     if(omit==="loops") next.drumLoops=[];
+    persisted.set(next.id,structuredClone(next));
     return next;
    });
    return Response.json({ok:true,snapshot:saved});
@@ -64,6 +71,22 @@ describe("guest import client transport",()=>{
   expect(stored.editors).toHaveLength(1);
   expect(requests.at(-1)).toMatchObject({url:"/api/gte/editors/account-copy",init:{cache:"no-store"}});
   expect(requests.every(r=>r.url.startsWith("/api/gte/"))).toBe(true);
+ });
+ it("reproduces the database version collision that leaves a newly created tab blank",async()=>{
+  const original=canvas("guitar-tab");
+  await gteApi.createEditor();
+  await gteApi.applySnapshot("account-copy",original);
+  await gteApi.commitEditor("account-copy");
+  const blank=await gteApi.getEditor("account-copy",{fresh:true}) as CanvasSnapshot;
+  expect(blank.editors[0].notes).toHaveLength(0);
+  expect(blank.editors[0].totalFrames).toBe(original.editors[0].totalFrames);
+ });
+ it("writes notes and chords when importing a guest version 1 over the new tab's version 1",async()=>{
+  const original=canvas("guitar-tab");
+  await saveGuestCanvasToAccount(original);
+  expect(saved.editors[0].notes).toHaveLength(1);
+  expect(saved.editors[0].chords).toHaveLength(1);
+  expect(stored.editors[0].version).toBe(2);
  });
  it("accepts disabled vibrato as the same sound as an omitted backend flag",async()=>{
   const original=canvas("guitar-tab");original.editors[0].notes[0].vibrato=false;
