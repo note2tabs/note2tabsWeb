@@ -1974,5 +1974,6 @@
   "Transcribe piano": "Transcrever piano",
   "Account deletion confirmation word": "excluir",
   "Type {word} to confirm": "Digite {word} para confirmar",
-  "This permanently removes your account, saved tabs, transcription history, and active subscription. Type {word} to confirm.": "Isso exclui permanentemente sua conta, as tablaturas salvas e o histórico de transcrições, e cancela sua assinatura ativa. Digite {word} para confirmar."
+  "This permanently removes your account, saved tabs, transcription history, and active subscription. Type {word} to confirm.": "Isso exclui permanentemente sua conta, as tablaturas salvas e o histórico de transcrições, e cancela sua assinatura ativa. Digite {word} para confirmar.",
+  "No notes were detected in this recording. Your credits have been restored. Try a clearer recording or a different section.": "Nenhuma nota foi detectada nesta gravação. Seus créditos foram devolvidos. Tente uma gravação mais nítida ou outro trecho."
 }

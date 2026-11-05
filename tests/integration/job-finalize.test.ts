@@ -65,4 +65,13 @@ describe("job finalize endpoint", () => {
       job: { job_id: "job_123", status: "done", workflowState: "finalized" },
     });
   });
+  it("explains an empty prediction and preserves the refund outcome", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({detail:{error:"no_notes",creditsRestored:4}}), {status:422}));
+    const handler = (await import("../../pages/api/jobs/[job_id]/finalize")).default;
+    const {req,res}=createMocks({method:"POST",query:{job_id:"job_123"},body:{}});
+    await handler(req as any,res as any);
+    expect(res._getStatusCode()).toBe(422);
+    expect(res._getJSONData()).toMatchObject({error_code:"no_notes",creditsRestored:4,error:expect.stringContaining("credits have been restored")});
+  });
+
 });

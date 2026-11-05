@@ -1974,5 +1974,6 @@
   "Transcribe piano": "钢琴音频转谱",
   "Account deletion confirmation word": "删除",
   "Type {word} to confirm": "请输入“{word}”以确认",
-  "This permanently removes your account, saved tabs, transcription history, and active subscription. Type {word} to confirm.": "此操作将永久删除您的账户、已保存的乐谱和转录记录，并取消当前订阅。请输入“{word}”以确认。"
+  "This permanently removes your account, saved tabs, transcription history, and active subscription. Type {word} to confirm.": "此操作将永久删除您的账户、已保存的乐谱和转录记录，并取消当前订阅。请输入“{word}”以确认。",
+  "No notes were detected in this recording. Your credits have been restored. Try a clearer recording or a different section.": "未能在此录音中检测到音符。积分已退还。请尝试更清晰的录音或其他片段。"
 }

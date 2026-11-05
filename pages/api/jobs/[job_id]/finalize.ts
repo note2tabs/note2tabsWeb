@@ -71,5 +71,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).send(text);
   }
 
+  if (upstream.status === 422) {
+    try {
+      const parsed=JSON.parse(text);
+      if(parsed?.detail?.error==='no_notes') return res.status(422).json({
+        error: "No notes were detected in this recording. Your credits have been restored. Try a clearer recording or a different section.",
+        error_code: "no_notes", creditsRestored: parsed.detail.creditsRestored,
+      });
+    } catch { /* Other upstream errors keep their normal handling. */ }
+  }
   return res.status(upstream.status).json({ error: await readUpstreamErrorFromText(text, upstream.status) });
 }

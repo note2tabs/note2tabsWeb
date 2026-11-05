@@ -1,3 +1,4 @@
+import { refreshFreeCreditBalance } from "../../lib/freeCreditBalance";
 import { PLAN_CATALOG } from "../../lib/subscriptionPlans";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
@@ -61,7 +62,7 @@ async function buildUserCredits(user: {
 
   let credits: CreditsSummary = isPremium
     ? reconcileCreditsWithStoredBalance(computedCredits, user.tokensRemaining, PLAN_CATALOG[subscriptionPlan === "PRO" ? "PRO" : "PREMIUM"].rolloverCap)
-    : computedCredits;
+    : await refreshFreeCreditBalance(user.id, computedCredits, creditWindow.start);
   let source: "computed" | "stored" | "backend" = isPremium ? "stored" : "computed";
 
   if (isPremium) {

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   setBackendCredits: vi.fn(),
   raiseBackendCreditsToFloor: vi.fn(),
   prisma: {
+    $queryRaw: vi.fn(),
     user: {
       findUnique: vi.fn(),
       update: vi.fn(),
@@ -17,6 +18,12 @@ const mocks = vi.hoisted(() => ({
       groupBy: vi.fn(),
     },
   },
+}));
+
+// These fixtures exercise credit charging; YouTube entitlement has its own suite.
+vi.mock("../../lib/youtubeAvailability", async () => ({
+  ...await vi.importActual<typeof import("../../lib/youtubeAvailability")>("../../lib/youtubeAvailability"),
+  canDownloadYouTube: () => true,
 }));
 
 vi.mock("next-auth/next", () => ({
@@ -155,6 +162,7 @@ describe("transcribe credits", () => {
     mocks.prisma.user.updateMany.mockReset();
     mocks.prisma.user.updateMany.mockResolvedValue({ count: 1 });
     mocks.prisma.tabJob.groupBy.mockReset();
+    mocks.prisma.$queryRaw.mockResolvedValue([{remaining: 10}]);
     vi.stubGlobal("fetch", mocks.fetch);
     vi.stubEnv("BACKEND_API_BASE_URL", "https://backend.test");
     vi.stubEnv("BACKEND_SHARED_SECRET", "secret_test");

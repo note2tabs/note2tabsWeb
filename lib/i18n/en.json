@@ -1962,5 +1962,6 @@
   "Check the groove, register and fingering.": "Check the groove, register and fingering.",
   "Account deletion confirmation word": "delete",
   "Type {word} to confirm": "Type {word} to confirm",
-  "This permanently removes your account, saved tabs, transcription history, and active subscription. Type {word} to confirm.": "This permanently removes your account, saved tabs, transcription history, and active subscription. Type {word} to confirm."
+  "This permanently removes your account, saved tabs, transcription history, and active subscription. Type {word} to confirm.": "This permanently removes your account, saved tabs, transcription history, and active subscription. Type {word} to confirm.",
+  "No notes were detected in this recording. Your credits have been restored. Try a clearer recording or a different section.": "No notes were detected in this recording. Your credits have been restored. Try a clearer recording or a different section."
 }

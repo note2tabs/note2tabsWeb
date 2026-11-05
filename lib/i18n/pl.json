@@ -1974,5 +1974,6 @@
   "Transcribe piano": "Transkrybuj fortepian",
   "Account deletion confirmation word": "usuń",
   "Type {word} to confirm": "Wpisz {word}, aby potwierdzić",
-  "This permanently removes your account, saved tabs, transcription history, and active subscription. Type {word} to confirm.": "Spowoduje to trwałe usunięcie konta, zapisanych tabulatur i historii transkrypcji oraz anulowanie aktywnej subskrypcji. Wpisz {word}, aby potwierdzić."
+  "This permanently removes your account, saved tabs, transcription history, and active subscription. Type {word} to confirm.": "Spowoduje to trwałe usunięcie konta, zapisanych tabulatur i historii transkrypcji oraz anulowanie aktywnej subskrypcji. Wpisz {word}, aby potwierdzić.",
+  "No notes were detected in this recording. Your credits have been restored. Try a clearer recording or a different section.": "Nie wykryto nut w tym nagraniu. Kredyty zostały zwrócone. Spróbuj wyraźniejszego nagrania lub innego fragmentu."
 }
