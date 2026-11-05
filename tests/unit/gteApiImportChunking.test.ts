@@ -475,6 +475,21 @@ describe("saved import confirmation recovery", () => {
     expect(confirmations).toBe(status >= 500 ? 2 : 1);
   });
 
+  it("does not retry cancellation or programming errors", async () => {
+    for (const error of [new DOMException("Cancelled", "AbortError"), new Error("Unexpected failure")]) {
+      let confirmations = 0;
+      vi.stubGlobal("fetch", vi.fn(async (url) => {
+        if (String(url).endsWith("/editor")) {
+          confirmations++;
+          throw error;
+        }
+        return new Response(JSON.stringify({editorId: "saved-editor", importedEditorIds: ["lane-1"]}), {status: 200});
+      }));
+      await expect(gteApi.importTranscriberToSaved({segmentGroups: [buildGroup(0)], sourceJobId: "job-1"})).rejects.toBe(error);
+      expect(confirmations).toBe(1);
+    }
+  });
+
   it("bounds network retries and preserves the final network error", async () => {
     let confirmations = 0;
     vi.stubGlobal("fetch", vi.fn(async (url) => {
