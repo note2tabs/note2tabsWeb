@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createGuestSnapshot } from "../../lib/gteGuestDraft";
-import { readGuestCanvasDraft, writeGuestCanvasDraft } from "../../lib/gteGuestCanvasDraft";
-import { loadGuestImportDraft, saveGuestCanvasToAccount } from "../../lib/gteGuestImport";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createGuestSnapshot, GTE_GUEST_DRAFT_STORAGE_KEY, writeGuestDraft } from "../../lib/gteGuestDraft";
+import { GTE_GUEST_CANVAS_STORAGE_KEY, readGuestCanvasDraft, writeGuestCanvasDraft } from "../../lib/gteGuestCanvasDraft";
+import { clearImportedGuestDraft, isCurrentGuestImportDraft, loadGuestImportDraft, saveGuestCanvasToAccount } from "../../lib/gteGuestImport";
 import { gteApi } from "../../lib/gteApi";
 import type { CanvasSnapshot } from "../../types/gte";
 vi.mock("../../lib/gteApi", () => ({gteApi: {
@@ -14,7 +14,9 @@ const draft = (): CanvasSnapshot => ({id:"local", name:"My song", secondsPerBar:
  notes:[{id:1,startTime:120,length:60,midiNum:64,tab:[0,0],optimals:[]}],
  chords:[{id:2,startTime:240,length:120,currentTabs:[[1,2],[2,2]],ogTabs:[[1,2],[2,2]],originalMidi:[61,57]}]},
 ]});
-beforeEach(()=>{localStorage.clear();vi.clearAllMocks();});
+beforeEach(()=>{localStorage.clear();vi.resetAllMocks();});
+afterEach(() => vi.restoreAllMocks());
+
 describe("guest draft account import",()=>{
  it("restores a populated single-track draft instead of the named blank server copy",async()=>{
   const original=draft();original.editors=[original.editors[1]];
@@ -63,5 +65,75 @@ describe("guest draft account import",()=>{
  it("retains all server tracks for older sessions without browser storage",async()=>{
   const original=draft();vi.mocked(gteApi.getEditor).mockResolvedValue(original);
   expect(await loadGuestImportDraft()).toEqual(original);
+ });
+});
+
+
+describe("guest import safety edge cases", () => {
+ it.each(["{bad json", JSON.stringify({canvas:{editors:[null]}}), JSON.stringify({canvas:{editors:[{id:"ed-1"}]}})])("rejects corrupt drafts without replacing them with an older copy: %s", async raw => {
+   localStorage.setItem(GTE_GUEST_CANVAS_STORAGE_KEY,raw);
+   vi.mocked(gteApi.getEditor).mockResolvedValue(draft());
+   await expect(loadGuestImportDraft()).rejects.toThrow("not been removed");
+   expect(localStorage.getItem(GTE_GUEST_CANVAS_STORAGE_KEY)).toBe(raw);
+   expect(gteApi.getEditor).not.toHaveBeenCalled();
+ });
+ it("reports blocked browser storage without importing an unknown fallback", async () => {
+   vi.spyOn(Storage.prototype,"getItem").mockImplementation(()=>{throw new DOMException("Blocked","SecurityError");});
+   await expect(loadGuestImportDraft()).rejects.toThrow("not been removed");
+   expect(gteApi.getEditor).not.toHaveBeenCalled();
+ });
+ it("supports unwrapped browser drafts and legacy single-track drafts",async()=>{
+   const original=draft();localStorage.setItem(GTE_GUEST_CANVAS_STORAGE_KEY,JSON.stringify(original));
+   expect(await loadGuestImportDraft()).toEqual(original);
+   localStorage.removeItem(GTE_GUEST_CANVAS_STORAGE_KEY);
+   writeGuestDraft(original.editors[1]);
+   expect((await loadGuestImportDraft())?.editors[0]).toMatchObject({id:"ed-1",notes:original.editors[1].notes,chords:expect.any(Array)});
+   expect(localStorage.getItem(GTE_GUEST_DRAFT_STORAGE_KEY)).not.toBeNull();
+ });
+ it.each(["createEditor","applySnapshot","commitEditor","getEditor"] as const)("retains the source if %s fails",async step=>{
+   const original=draft();writeGuestCanvasDraft(original);
+   vi.mocked(gteApi.createEditor).mockResolvedValue({editorId:"saved",snapshot:original});
+   vi.mocked(gteApi.getEditor).mockResolvedValue({...original,id:"saved"});
+   vi.mocked(gteApi[step]).mockRejectedValueOnce(new Error("connection lost"));
+   await expect(saveGuestCanvasToAccount(original)).rejects.toThrow("connection lost");
+   expect(readGuestCanvasDraft()).toEqual(original);
+ });
+ it.each(["missing track","missing note","changed pitch","changed fret","missing chord"])("does not trust successful HTTP responses with %s",async change=>{
+   const original=draft();writeGuestCanvasDraft(original);
+   const saved=JSON.parse(JSON.stringify(original)) as CanvasSnapshot;
+   if(change==="missing track") saved.editors.pop();
+   if(change==="missing note") saved.editors[1].notes=[];
+   if(change==="changed pitch") saved.editors[1].notes[0].midiNum++;
+   if(change==="changed fret") saved.editors[1].notes[0].tab[1]++;
+   if(change==="missing chord") saved.editors[1].chords=[];
+   vi.mocked(gteApi.createEditor).mockResolvedValue({editorId:"saved",snapshot:original});
+   vi.mocked(gteApi.getEditor).mockResolvedValue(saved);
+   await expect(saveGuestCanvasToAccount(original)).rejects.toThrow("could not verify");
+   expect(readGuestCanvasDraft()).toEqual(original);
+ });
+ it("bypasses editor prefetches when verifying a completed save",async()=>{
+   const original=draft();vi.mocked(gteApi.createEditor).mockResolvedValue({editorId:"saved",snapshot:original});
+   vi.mocked(gteApi.getEditor).mockResolvedValue(original);
+   await saveGuestCanvasToAccount(original);
+   expect(gteApi.getEditor).toHaveBeenCalledWith("saved",{fresh:true});
+ });
+ it("does not clear a draft another tab edited during import",()=>{
+   const original=draft();writeGuestCanvasDraft(original);
+   const changed=draft();changed.editors[1].notes[0].tab=[0,7];writeGuestCanvasDraft(changed);
+   expect(isCurrentGuestImportDraft(original)).toBe(false);
+   expect(clearImportedGuestDraft(original)).toBe(false);
+   expect(readGuestCanvasDraft()).toEqual(changed);
+ });
+ it("cleans up old bare single-track records without timestamps only after successful import",async()=>{
+   const legacy=draft().editors[1];delete legacy.updatedAt;
+   localStorage.setItem(GTE_GUEST_DRAFT_STORAGE_KEY,JSON.stringify(legacy));
+   const loaded=await loadGuestImportDraft();expect(loaded).not.toBeNull();
+   expect(clearImportedGuestDraft(loaded!)).toBe(true);
+   expect(localStorage.getItem(GTE_GUEST_DRAFT_STORAGE_KEY)).toBeNull();
+ });
+ it("clears only the successfully imported, unchanged browser copy",()=>{
+   const original=draft();writeGuestCanvasDraft(original);
+   expect(clearImportedGuestDraft(original)).toBe(true);
+   expect(readGuestCanvasDraft()).toBeNull();
  });
 });

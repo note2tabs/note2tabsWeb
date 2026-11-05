@@ -2126,14 +2126,16 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
           let normalized = normalizeCanvas(data, editorId);
           const canvasDraft = readGuestCanvasDraft();
           const legacy = readGuestDraft();
-          const hasSessionContent =
-            (normalized.name || "Untitled") !== "Untitled" ||
-            normalized.editors.some(
-              (lane) =>
-                lane.notes.length > 0 ||
-                lane.chords.length > 0 ||
-                lane.cutPositionsWithCoords.length > 1
-            );
+          // A title alone must not let an empty server session overwrite the
+          // browser's recoverable music when returning to guest editing.
+          const hasSessionContent = normalized.editors.some(
+            (lane) =>
+              lane.notes.length > 0 ||
+              lane.chords.length > 0 ||
+              lane.cutPositionsWithCoords.length > 1 ||
+              (lane.notation?.rests?.length ?? 0) > 0 ||
+              (lane.drumLoops?.length ?? 0) > 0
+          );
           if (!hasSessionContent) {
             if (canvasDraft) {
               normalized = normalizeCanvas(canvasDraft, editorId);
