@@ -1,7 +1,24 @@
 import { prisma } from "./prisma";
 import type { CreditsSummary } from "./credits";
 
-/** Backend consumption is authoritative. Saved results are not a charge ledger. */
+/** Display the authoritative balance without granting/resetting credits or taking write locks. */
+export async function readFreeCreditBalance(userId: string, credits: CreditsSummary, windowStart: Date, db: Pick<typeof prisma, "$queryRaw"> = prisma): Promise<CreditsSummary> {
+  const rows = await db.$queryRaw<Array<{ remaining: number }>>`
+    SELECT CASE
+      WHEN b."updatedAt" < ${windowStart} THEN 10
+      WHEN b."userId" IS NULL THEN LEAST(10, GREATEST(0, u."tokensRemaining"))
+      ELSE b.credits
+    END AS remaining
+    FROM "User" u LEFT JOIN user_credits b ON b."userId"=u.id
+    WHERE u.id=${userId} AND u.role='FREE' AND u."subscriptionPlan"='FREE'
+  `;
+  if (rows.length !== 1) throw new Error("Account changed while reading credits");
+  const remaining = Math.max(0, rows[0].remaining);
+  return { ...credits, remaining, used: Math.max(0, credits.limit - remaining) };
+}
+
+/** Submission-only initialization/reset. Never call this from balance displays.
+ * Backend consumption is authoritative. Saved results are not a charge ledger. */
 export async function refreshFreeCreditBalance(userId: string, credits: CreditsSummary, windowStart: Date): Promise<CreditsSummary> {
   const rows = await prisma.$queryRaw<Array<{ remaining: number }>>`
     WITH account AS (

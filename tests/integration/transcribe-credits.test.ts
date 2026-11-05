@@ -201,6 +201,21 @@ describe("transcribe credits", () => {
     expect((res.body as { credits: { remaining: number } }).credits.remaining).toBe(8);
   });
 
+  it("does not aggregate saved results for free submissions", async () => {
+    const res = await callTranscribe("FREE");
+    expect(res.statusCode).toBe(202);
+    expect(mocks.prisma.tabJob.groupBy).not.toHaveBeenCalled();
+    expect(mocks.prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not initialize or reset credits for an invalid free clip", async () => {
+    const res = await callTranscribe("FREE", false, "light", 31);
+    expect(res.statusCode).toBe(403);
+    expect(mocks.prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(mocks.prisma.tabJob.groupBy).not.toHaveBeenCalled();
+    expect(mocks.fetch).not.toHaveBeenCalled();
+  });
+
   it("deducts credits for admin users too", async () => {
     const res = await callTranscribe("ADMIN");
 

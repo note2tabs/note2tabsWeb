@@ -119,15 +119,8 @@ describe("credits role refresh", () => {
     expect(res.statusCode).toBe(200);
     expect(mocks.raiseBackendCreditsToFloor).not.toHaveBeenCalled();
     expect((res.body as { credits: { remaining: number } }).credits.remaining).toBe(10);
-    expect(mocks.prisma.user.updateMany).toHaveBeenCalledWith({
-      where: {
-        id: "user_1",
-        role: "FREE",
-        subscriptionPlan: "FREE",
-        tokensRemaining: 7,
-      },
-      data: { tokensRemaining: 10 },
-    });
+    expect(mocks.prisma.user.updateMany).not.toHaveBeenCalled();
+    expect(mocks.prisma.tabJob.groupBy).not.toHaveBeenCalled();
   });
 
   it("does not refill free credits when a charged result was not saved", async () => {
