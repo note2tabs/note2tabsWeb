@@ -7,13 +7,25 @@ type Delivery = (payloads: Payload[]) => Promise<void>;
  * retries may deliver the same payload, but never a newly timestamped copy. */
 async function store(payloads: Payload[]) {
   const pending: Payload[] = [];
-  for (const payload of payloads) {
+  // Deduplicate within the batch before ON CONFLICT; the first immutable event
+  // wins, just as sequential inserts did. Sort SQL input to avoid lock inversion.
+  const byIdentity = new Map<string, Payload>();
+  for (const payload of payloads) if (!byIdentity.has(payload.uuid)) byIdentity.set(payload.uuid, payload);
+  const unique = [...byIdentity.values()];
+  for (let index = 0; index < unique.length; index += 100) {
+    const batch = unique.slice(index, index + 100);
     const rows = await prisma.$queryRaw<Array<{payload: Payload; deliveredAt: Date | null}>>`
       INSERT INTO "AnalyticsDeliveryOutbox" ("id", "payload")
-      VALUES (${payload.uuid}, ${JSON.stringify(payload)}::jsonb)
+      SELECT item->>'uuid', item FROM jsonb_array_elements(${JSON.stringify(batch)}::jsonb) AS item
+      ORDER BY item->>'uuid'
       ON CONFLICT ("id") DO UPDATE SET "id" = EXCLUDED."id"
       RETURNING "payload", "deliveredAt"`;
-    if (rows[0] && !rows[0].deliveredAt) pending.push(rows[0].payload);
+    const byId = new Map(rows.map(row => [row.payload.uuid, row]));
+    for (const payload of batch) {
+      const row = byId.get(payload.uuid);
+      if (!row) throw new Error("Analytics event persistence was not acknowledged");
+      if (!row.deliveredAt) pending.push(row.payload);
+    }
   }
   return pending;
 }
@@ -29,9 +41,14 @@ async function deliver(payloads: Payload[], send: Delivery) {
   if (!payloads.length) return;
   // Send batches below PostHog's normal limits. A failed response or a failed
   // acknowledgement leaves rows pending; replay reuses the complete payload.
-  await send(payloads);
-  for (const payload of payloads) await prisma.$executeRaw`
-    UPDATE "AnalyticsDeliveryOutbox" SET "deliveredAt" = NOW() WHERE "id" = ${payload.uuid} AND "deliveredAt" IS NULL`;
+  for (let index = 0; index < payloads.length; index += 100) {
+    const batch = payloads.slice(index, index + 100);
+    await send(batch);
+    await prisma.$executeRaw`
+      UPDATE "AnalyticsDeliveryOutbox" SET "deliveredAt" = NOW()
+      WHERE "id" IN (SELECT jsonb_array_elements_text(${JSON.stringify(batch.map(payload => payload.uuid))}::jsonb))
+        AND "deliveredAt" IS NULL`;
+  }
 }
 export async function retryPostHogCaptures(send: Delivery) {
   const rows = await prisma.$queryRaw<Array<{payload: Payload}>>`
