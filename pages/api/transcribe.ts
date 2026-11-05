@@ -1,3 +1,4 @@
+import { refreshFreeCreditBalance } from "../../lib/freeCreditBalance";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { canDownloadYouTube, YOUTUBE_UNAVAILABLE_MESSAGE } from "../../lib/youtubeAvailability";
 import { attachFunctionTiming } from "../../lib/functionTiming";
@@ -35,7 +36,6 @@ import {
 import { serializeStoredTabPayload } from "../../lib/storedTabs";
 import {
   raiseBackendCreditsToFloor,
-  setBackendCredits,
   withBackendRemainingCredits,
 } from "../../lib/backendCredits";
 import {
@@ -572,7 +572,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           });
           refreshedCredits = isPremium
             ? reconcileCreditsWithStoredBalance(computedCredits, user.tokensRemaining, PLAN_CATALOG[subscriptionPlan].rolloverCap)
-            : computedCredits;
+            : await refreshFreeCreditBalance(user.id, computedCredits, creditWindow.start);
           if (!isPremium && user.tokensRemaining !== refreshedCredits.remaining) {
             const storedTokens = user.tokensRemaining;
             user.tokensRemaining = refreshedCredits.remaining;
@@ -804,8 +804,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         } catch (error) {
           console.warn("premium backend credit read failed; backend will enforce final balance", error);
         }
-      } else {
-        await setBackendCredits(user.id, refreshedCredits.remaining, backendHeaders);
       }
     }
 

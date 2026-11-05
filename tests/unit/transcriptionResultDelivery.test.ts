@@ -21,6 +21,15 @@ describe('browser-independent result delivery',()=>{
   expect(await deliverCompletedTranscriptions()).toEqual({delivered:1,failed:0});
   expect(fetcher.mock.calls.map(c=>c[0])).toEqual(['https://backend.test/api/v1/jobs/job-1?include_output=true','https://backend.test/api/v1/jobs/job-1/finalize','https://backend.test/api/v1/jobs/job-1?include_output=true']);
  });
+ it('stops retrying a terminal empty prediction and records one incident outcome',async()=>{
+  const fetcher=vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({status:'done',workflowState:'review_ready'})))
+   .mockResolvedValueOnce(new Response(JSON.stringify({detail:{error:'no_notes',creditsRestored:4}}),{status:422}));
+  vi.stubGlobal('fetch',fetcher);
+  expect(await deliverCompletedTranscriptions()).toEqual({delivered:0,failed:1});
+  expect(m.update).toHaveBeenCalledTimes(1); // lease only; backend has marked it terminal
+  expect(m.persist).not.toHaveBeenCalled();expect(m.email).not.toHaveBeenCalled();
+  expect(m.capture).toHaveBeenCalledWith(expect.objectContaining({properties:expect.objectContaining({error_code:'no_notes',terminal:true,credits_reconciled:true})}));
+ });
  it('does not notify or acknowledge when storage fails; leaves a retry and safe alert',async()=>{
   vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response(JSON.stringify(done))));m.persist.mockRejectedValueOnce(new Error('private content'));
   expect(await deliverCompletedTranscriptions()).toEqual({delivered:0,failed:1});

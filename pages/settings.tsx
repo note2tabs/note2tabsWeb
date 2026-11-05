@@ -1,3 +1,4 @@
+import { refreshFreeCreditBalance } from "../lib/freeCreditBalance";
 import { matchesAccountDeletionConfirmation } from "../lib/accountDeletionConfirmation";
 import LanguagePreference from "../components/LanguagePreference";
 import ReminderEmailPreference from "../components/ReminderEmailPreference";
@@ -987,7 +988,7 @@ export const getServerSideProps: GetServerSideProps<Props|GuestSettingsProps> = 
   });
   let credits = isPremium
     ? reconcileCreditsWithStoredBalance(computedCredits, user?.tokensRemaining, PLAN_CATALOG[subscriptionPlan === "PRO" ? "PRO" : "PREMIUM"].rolloverCap)
-    : computedCredits;
+    : user?.id ? await refreshFreeCreditBalance(user.id, computedCredits, creditWindow.start) : computedCredits;
   if (isPremium && user?.id) {
     try {
       const backendRemaining = await raiseBackendCreditsToFloor(

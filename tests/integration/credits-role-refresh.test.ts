@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   session: vi.fn(),
   raiseBackendCreditsToFloor: vi.fn(),
   prisma: {
+    $queryRaw: vi.fn(),
     user: {
       findUnique: vi.fn(),
       update: vi.fn(),
@@ -69,6 +70,7 @@ function makeRes() {
 async function callCredits(role: string, storedRemaining: number, backendRemaining: number, plan?: string) {
   const handler = (await import("../../pages/api/credits")).default;
   mocks.session.mockResolvedValue({ user: { id: "user_1" } });
+  mocks.prisma.$queryRaw.mockResolvedValue([{remaining: backendRemaining}]);
   mocks.prisma.user.findUnique.mockResolvedValue({
     id: "user_1",
     role,
@@ -111,7 +113,7 @@ describe("credits role refresh", () => {
     expect(mocks.prisma.user.updateMany).not.toHaveBeenCalled();
   });
 
-  it("does not ask backend credits for free users", async () => {
+  it("reads free credits from the authoritative database balance", async () => {
     const res = await callCredits("FREE", 7, 10);
 
     expect(res.statusCode).toBe(200);
@@ -126,6 +128,13 @@ describe("credits role refresh", () => {
       },
       data: { tokensRemaining: 10 },
     });
+  });
+
+  it("does not refill free credits when a charged result was not saved", async () => {
+    const res = await callCredits("FREE", 10, 6);
+    expect(res.statusCode).toBe(200);
+    expect((res.body as { credits: { remaining: number } }).credits.remaining).toBe(6);
+    expect(mocks.raiseBackendCreditsToFloor).not.toHaveBeenCalled();
   });
 
   it("does not restore admin credits from a higher backend remaining balance", async () => {

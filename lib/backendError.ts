@@ -3,6 +3,9 @@ const GENERIC_BACKEND_ERROR = "We could not start this transcription. Please try
 export function publicJobError(value: unknown) {
   const message = typeof value === "string" ? value.trim() : "";
   const normalized = message.toLowerCase();
+  if (normalized.startsWith("no notes were detected in this recording.")) {
+    return "No notes were detected in this recording. Your credits have been restored. Try a clearer recording or a different section.";
+  }
   if (!message) {
     return "We could not complete this transcription. Try again with another section or model.";
   }

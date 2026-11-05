@@ -1974,5 +1974,6 @@
   "Transcribe piano": "تحويل تسجيل البيانو",
   "Account deletion confirmation word": "حذف",
   "Type {word} to confirm": "اكتب {word} للتأكيد",
-  "This permanently removes your account, saved tabs, transcription history, and active subscription. Type {word} to confirm.": "سيؤدي هذا إلى حذف حسابك والنوتات الموسيقية المحفوظة وسجل تحويل الموسيقى نهائيًا وإلغاء اشتراكك النشط. اكتب {word} للتأكيد."
+  "This permanently removes your account, saved tabs, transcription history, and active subscription. Type {word} to confirm.": "سيؤدي هذا إلى حذف حسابك والنوتات الموسيقية المحفوظة وسجل تحويل الموسيقى نهائيًا وإلغاء اشتراكك النشط. اكتب {word} للتأكيد.",
+  "No notes were detected in this recording. Your credits have been restored. Try a clearer recording or a different section.": "لم يتم اكتشاف نغمات في هذا التسجيل. تمت إعادة أرصدتك. جرّب تسجيلاً أوضح أو مقطعاً آخر."
 }

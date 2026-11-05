@@ -19,7 +19,11 @@ async function backendResult(job: PendingResult) {
   // prediction, deduct credits, or change the customer's selected instruments.
   if(payload.workflowState==='review_ready' || (payload.workflowState==='processing' && payload.status==='done')){
     const response=await fetch(`${url}/finalize`,{method:'POST',headers,body:'{}',signal:AbortSignal.timeout(20_000)});
-    if(!response.ok)throw Object.assign(new Error("Result finalization unavailable"),{httpStatus:response.status});
+    if(!response.ok) {
+      const body = await response.json().catch(() => null);
+      if(response.status===422 && body?.detail?.error==='no_notes') return null;
+      throw Object.assign(new Error("Result finalization unavailable"),{httpStatus:response.status});
+    }
     payload=await read();
   }
   if(!['done','completed','succeeded','success'].includes(String(payload.status)) || (payload.workflowState && payload.workflowState!=='finalized')){
@@ -57,6 +61,15 @@ export async function deliverCompletedTranscriptions() {
     let stage="result_fetch";
     try {
       const payload=await backendResult(job);
+      if(!payload) {
+        const client=createPostHogServerClient();
+        if(client){
+          client.capture({distinctId:job.userId,event:'transcription_result_delivery_failed',properties:{job_id:job.id,failure_stage:'no_notes',error_code:'no_notes',terminal:true,credits_reconciled:true,$insert_id:`no-notes:${job.id}`}});
+          await client.flush();
+        }
+        failed++;
+        continue;
+      }
       stage="result_persist";
       const tabJobId=await persistCompletedJob(job.id,job.userId,payload);
       if(!tabJobId)throw new Error("Completed result has no importable content");
