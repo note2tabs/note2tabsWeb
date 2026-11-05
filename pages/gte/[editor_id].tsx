@@ -1,3 +1,4 @@
+import { readGuestCanvasDraft, writeGuestCanvasDraft } from "../../lib/gteGuestCanvasDraft";
 import { playbackVibrato, type PlaybackVibrato } from "../../lib/gteVibrato";
 import { beginFrustrationAction, monitorFrustrationPromise, noteFrustrationRetry } from "../../lib/frustrationSignals";
 import { focusPianoTranscription } from "../../lib/instrumentTranscriptionEntry";
@@ -294,7 +295,7 @@ const KEY_TYPE_OPTIONS = [
   "Major Blues",
   "Minor Blues",
 ];
-const GTE_GUEST_CANVAS_STORAGE_KEY = "note2tabs:gte:guest-canvas:v1";
+
 const AUDIO_CONTEXT_RESUME_ERROR =
   "Your browser blocked audio playback. Tap Play again to allow sound.";
 const PRACTICE_RATING_UI_ENABLED = false;
@@ -717,39 +718,6 @@ const normalizeTrackVolume = (value: unknown) => {
   const next = Number(value);
   if (!Number.isFinite(next)) return 1;
   return Math.max(0, Math.min(1, next));
-};
-
-type GuestCanvasDraftRecord = {
-  version: 1;
-  savedAt: string;
-  canvas: CanvasSnapshot;
-};
-
-const readGuestCanvasDraft = (): CanvasSnapshot | null => {
-  if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(GTE_GUEST_CANVAS_STORAGE_KEY);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as GuestCanvasDraftRecord | CanvasSnapshot;
-    const canvas =
-      parsed && typeof parsed === "object" && "canvas" in parsed
-        ? (parsed as GuestCanvasDraftRecord).canvas
-        : (parsed as CanvasSnapshot);
-    if (!canvas || typeof canvas !== "object" || !Array.isArray(canvas.editors)) return null;
-    return canvas;
-  } catch {
-    return null;
-  }
-};
-
-const writeGuestCanvasDraft = (canvas: CanvasSnapshot) => {
-  if (typeof window === "undefined") return;
-  const payload: GuestCanvasDraftRecord = {
-    version: 1,
-    savedAt: new Date().toISOString(),
-    canvas,
-  };
-  window.localStorage.setItem(GTE_GUEST_CANVAS_STORAGE_KEY, JSON.stringify(payload));
 };
 
 const normalizeBarIndices = (lane: EditorSnapshot, barIndices: number[]) => {
