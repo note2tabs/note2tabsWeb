@@ -548,11 +548,23 @@ async function importTranscriberToSaved(
       )
     : undefined;
   if (payload.sourceJobId) {
-    const linked = await fetch(`/api/jobs/${encodeURIComponent(payload.sourceJobId)}/editor`, {
-      method: "POST", headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({editorId:currentEditorId}),
-    });
-    if (!linked.ok) throw new Error("Could not confirm the completed editor import. Please try again.");
+    // Linking the same editor is idempotent. A lost response must not repeat
+    // the import or strand a successfully saved transcription.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let linked: Response;
+      try {
+        linked = await fetch(`/api/jobs/${encodeURIComponent(payload.sourceJobId)}/editor`, {
+          method: "POST", headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({editorId:currentEditorId}),
+        });
+      } catch (error) {
+        if (attempt === 0 && error instanceof TypeError) continue;
+        throw error;
+      }
+      if (linked.ok) break;
+      if (attempt === 0 && linked.status >= 500) continue;
+      throw new Error("Could not confirm the completed editor import. Please try again.");
+    }
   }
   return {
     ok: true,

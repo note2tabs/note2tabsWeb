@@ -433,3 +433,58 @@ it("skips an identical timing write and persists the complete final import",asyn
   expect(result.canvas?.editors[0].notes.map(note=>[note.startTime,note.length,note.midiNum])).toEqual(source.editors[0].notes.map(note=>[note.startTime,note.length,note.midiNum]));
   vi.unstubAllGlobals();
 });
+
+
+describe("saved import confirmation recovery", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each(["network", "server"])("retries only confirmation after a %s failure", async (failure) => {
+    const calls: {url: string; body: unknown}[] = [];
+    let confirmations = 0;
+    vi.stubGlobal("fetch", vi.fn(async (url, init) => {
+      calls.push({url: String(url), body: JSON.parse(String(init?.body))});
+      if (String(url).endsWith("/editor")) {
+        confirmations++;
+        if (confirmations === 1) {
+          if (failure === "network") throw new TypeError("Failed to fetch");
+          return new Response(null, {status: 503});
+        }
+        return new Response(JSON.stringify({ok: true}), {status: 200});
+      }
+      return new Response(JSON.stringify({editorId: "saved-editor", importedEditorIds: ["lane-1"]}), {status: 200});
+    }));
+    const result = await gteApi.importTranscriberToSaved({segmentGroups: [buildGroup(0)], sourceJobId: "job-1"});
+    expect(result.editorId).toBe("saved-editor");
+    expect(calls.filter(call => !call.url.endsWith("/editor"))).toHaveLength(1);
+    expect(calls.filter(call => call.url.endsWith("/editor"))).toEqual([
+      {url: "/api/jobs/job-1/editor", body: {editorId: "saved-editor"}},
+      {url: "/api/jobs/job-1/editor", body: {editorId: "saved-editor"}},
+    ]);
+  });
+
+  it.each([400, 401, 403, 404, 429, 503])("keeps confirmation failures visible and bounds retries for HTTP %s", async (status) => {
+    let confirmations = 0;
+    vi.stubGlobal("fetch", vi.fn(async (url) => {
+      if (String(url).endsWith("/editor")) {
+        confirmations++;
+        return new Response(null, {status});
+      }
+      return new Response(JSON.stringify({editorId: "saved-editor", importedEditorIds: ["lane-1"]}), {status: 200});
+    }));
+    await expect(gteApi.importTranscriberToSaved({segmentGroups: [buildGroup(0)], sourceJobId: "job-1"})).rejects.toThrow("Could not confirm");
+    expect(confirmations).toBe(status >= 500 ? 2 : 1);
+  });
+
+  it("bounds network retries and preserves the final network error", async () => {
+    let confirmations = 0;
+    vi.stubGlobal("fetch", vi.fn(async (url) => {
+      if (String(url).endsWith("/editor")) {
+        confirmations++;
+        throw new TypeError("Failed to fetch");
+      }
+      return new Response(JSON.stringify({editorId: "saved-editor", importedEditorIds: ["lane-1"]}), {status: 200});
+    }));
+    await expect(gteApi.importTranscriberToSaved({segmentGroups: [buildGroup(0)], sourceJobId: "job-1"})).rejects.toThrow("Failed to fetch");
+    expect(confirmations).toBe(2);
+  });
+});
