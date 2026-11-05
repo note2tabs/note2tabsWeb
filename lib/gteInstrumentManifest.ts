@@ -6,6 +6,7 @@ export type TrackSampleDefinition = {
   url: string;
   loop?: [number, number];
   tuning?: number;
+  gain?: number;
 };
 
 export const TRACK_INSTRUMENT_FAMILIES = ["Guitar", "Bass", "Piano", "Organ & reeds", "Strings", "Brass", "Woodwinds", "Percussion", "Other", "Synth"] as const;
@@ -38,6 +39,7 @@ type RawManifestEntry = {
   family?: unknown;
   loops?: unknown;
   tuning?: unknown;
+  sampleGains?: unknown;
 };
 
 const parseManifest = (value: unknown): TrackInstrumentOption[] => {
@@ -61,9 +63,11 @@ const parseManifest = (value: unknown): TrackInstrumentOption[] => {
         if (!Number.isFinite(midi) || !file || file.toLowerCase().startsWith("mute_")) return [];
         const loop = (raw?.loops as Record<string, unknown> | undefined)?.[midiValue];
         const tuning = (raw?.tuning as Record<string, unknown> | undefined)?.[midiValue];
+        const gain = (raw?.sampleGains as Record<string, unknown> | undefined)?.[midiValue];
         return [{ midi, url: versionedSampleUrl(`/sound_samples/${folder.split("/").map(encodeURIComponent).join("/")}/${encodeURIComponent(file)}`),
           ...(Array.isArray(loop) && loop.length === 2 && loop.every(Number.isFinite) && loop[0] >= 0 && loop[1] > loop[0] ? { loop: loop as [number, number] } : {}),
-          ...(typeof tuning === "number" && Number.isFinite(tuning) ? { tuning } : {}) }];
+          ...(typeof tuning === "number" && Number.isFinite(tuning) ? { tuning } : {}),
+          ...(typeof gain === "number" && Number.isFinite(gain) && gain > 0 ? { gain } : {}) }];
       })
       .sort((left, right) => left.midi - right.midi);
     if (!samples.length) return [];

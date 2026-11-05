@@ -5,11 +5,13 @@ const PROGRAM_SOUNDS: Record<number, string> = {
     0: "upright_piano", 1: "upright_piano", 2: "upright_piano", 3: "upright_piano", 4: "upright_piano", 5: "upright_piano",
     6: "harpsichord", 13: "xylophone",
     16: "organ", 17: "organ", 18: "organ", 19: "organ", 20: "organ", 21: "accordion", 22: "harmonica", 23: "accordion",
-    40: "SViolinVib", 46: "harp", 56: "TrumpetSus", 57: "TromboneSus", 60: "FHornSus",
+    40: "SViolinVib", 43: "bass_upright", 46: "harp", 56: "TrumpetSus", 57: "TromboneSus", 60: "FHornSus",
     64: "saxophone", 65: "saxophone", 66: "saxophone", 67: "saxophone", 72: "FluteSusNV", 73: "FluteSusNV",
     105: "banjo",
   };
 const NAMED_SOUNDS: Array<[RegExp, string]> = [
+    [/upright.?bass|double.?bass|contrabass|bass_upright/i, "bass_upright"],
+    [/acoustic.?bass|bass_acoustic/i, "bass_acoustic"],
     [/harpsichord/i, "harpsichord"], [/xylophone/i, "xylophone"], [/accordion|bandoneon|concertina/i, "accordion"],
     [/harmonica/i, "harmonica"], [/organ/i, "organ"], [/ukulele/i, "ukulele"], [/banjo/i, "banjo"],
     [/harp(?!sichord)/i, "harp"], [/violin/i, "SViolinVib"], [/trumpet/i, "TrumpetSus"], [/trombone/i, "TromboneSus"],
@@ -25,17 +27,18 @@ export function importedInstrument(record: { trackType?: unknown; type?: unknown
   const sound = String(record.instrumentId ?? "");
   const program = record.program == null || record.program === "" ? NaN : Number(record.program);
   const validProgram = Number.isInteger(program) && program >= 0 && program <= 127;
+  const upright = !validProgram && /upright.?bass|double.?bass|contrabass|bass_upright/i.test(name + " " + sound);
   if (kind === "drums" || kind === "drum") return { instrumentType: "drums", instrumentId: "drum1" };
   const namedPitched = /piano|strings|violin|viola|cello|contrabass|flute|brass|organ|clarinet|sax|trumpet|trombone|horn|oboe|bassoon|harp|accordion|harmonica|xylophone|ukulele|banjo/i.test(name + " " + kind);
-  const bass = validProgram ? program >= 32 && program <= 39 : !/\bbassoon\b|clarinet|flute|trombone|sax/i.test(name) && (kind === "bass" || /^(gm:bass|bass_overdrive)$/.test(sound) || /\bbass\b/i.test(name));
+  const bass = validProgram ? program >= 32 && program <= 39 : !upright && !/\bbassoon\b|clarinet|flute|trombone|sax/i.test(name) && (kind === "bass" || /^(gm:bass|bass_overdrive|bass_acoustic)$/.test(sound) || /\bbass\b/i.test(name));
   const guitar = validProgram ? program >= 24 && program <= 31 : /guitar/i.test(name + " " + kind) || !namedPitched && /guitar|^(acoustic|jazz|electric)/i.test(sound);
   const pitched = validProgram && !bass && !guitar || /piano|strings|synth|notation|instrument|violin|viola|cello|contrabass|flute|brass|organ|clarinet|sax|trumpet|trombone|horn|oboe|bassoon|harp|accordion|harmonica|xylophone|ukulele|banjo/i.test(sound + " " + kind + " " + name);
   const explicit = record.instrumentType;
-  const instrumentType: InstrumentType = explicit === "notation" || explicit === "guitar-tab" || explicit === "bass-tab" ? explicit : bass ? "bass-tab" : guitar ? "guitar-tab" : pitched || kind !== "tab" ? "notation" : "guitar-tab";
+  const instrumentType: InstrumentType = explicit === "notation" || explicit === "guitar-tab" || explicit === "bass-tab" ? explicit : upright ? "notation" : bass ? "bass-tab" : guitar ? "guitar-tab" : pitched || kind !== "tab" ? "notation" : "guitar-tab";
   // The model's GM program is authoritative; names and legacy sound ids only decide when it is missing.
   if (validProgram && (guitar || bass)) {
     const guitarSounds: Record<number,string> = {24: "acoustic", 25: "acoustic", 26: "jazz", 27: "electric", 28: "electric", 29: "electric_overdrive", 30: "electric_distortion", 31: "electric"};
-    return { instrumentType, instrumentId: bass ? "bass_overdrive" : guitarSounds[program] };
+    return { instrumentType, instrumentId: bass ? program === 32 ? "bass_acoustic" : "bass_overdrive" : guitarSounds[program] };
   }
   const hint = sound + " " + name;
   // General MIDI programs are zero-based. Use dedicated banks where available;

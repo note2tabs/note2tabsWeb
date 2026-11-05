@@ -5,6 +5,8 @@ one does not convert the track between tablature, notation or drums.
 
 | Menu group | Sound / folder | Source |
 | --- | --- | --- |
+| Bass | Acoustic Bass / `bass_acoustic` | Local GeneralUser GS, bank 0 / program 32 |
+| Bass | Upright Bass / `bass_upright` | Karoryfer Meatbass, pizzicato |
 | Piano | Harpsichord / `harpsichord` | Versilian Community Sample Library (English harpsichord) |
 | Organ & reeds | Organ / `organ` | FreePats Drawbar Organ Emulation, 2019-07-12 |
 | Organ & reeds | Accordion / `accordion` | FreePats Button Accordion HN, 2024-03-29 |
@@ -35,10 +37,9 @@ Retain the upstream source attribution and CC0 notices when regenerating assets.
   omitted from the manifest; its pitch still plays using the nearest attack root.
 - Restored attack-region tuning and accordion loop points. Playback applies cents
   tuning and source loops, with a 2 ms tolerance for codec duration rounding.
-- Gains are calibrated against decoded onset RMS, with a peak ceiling. Percussive
-  sounds retain their transients rather than being boosted to sustained-instrument
-  RMS. Existing banks' gains are unchanged. Final listening balance still needs
-  musician review; RMS is not a perceptual loudness guarantee.
+- All sampled banks now use perceptual loudness calibration, with bounded
+  per-root corrections and peak headroom. Attacks, sustain and decay are retained;
+  user volume settings are not rewritten. See `docs/instrument-loudness-calibration.md`.
 - Preparation downloads/decodes only the nearest roots needed for the track.
   Shared downloads and decoded buffers are reused across previews and playback.
   Opening or searching the sound dropdown does not load audio files.
@@ -58,12 +59,33 @@ matching recording retain their existing fallback rather than being labelled as
 an unrelated recorded instrument. Existing piano/bass defaults remain unchanged.
 This affects new transcription imports, not customers' saved sound selections.
 
+Acoustic-bass program 32 now uses `bass_acoustic`; contrabass program 43 uses
+`bass_upright`. Named upright/double bass and contrabass imports use notation;
+acoustic bass uses bass tablature. Explicit representation choices are preserved.
+Clean electric bass and existing `gm:bass` selections retain the previous bank.
+
+The acoustic bank is rendered from the **complete GeneralUser preset** with
+FluidSynth at velocity 100, preserving its layered zones, tuning, filters and
+envelopes. Reverb and chorus are disabled. This is labelled as GeneralUser's
+Acoustic Bass preset, not claimed to be a specifically recorded acoustic bass
+guitar. Upright Bass uses the distinct Meatbass plucked double-bass recordings,
+the velocity-100 layer and first round robin; percussion key switches are excluded.
+Source: [Meatbass](https://shop.karoryfer.com/pages/free-meatbass),
+[GeneralUser GS](https://schristiancollins.com/generaluser.php).
+
 ## Local verification
 
 `python scripts/audit-playback-samples.py --output <report.json>` decodes both
 formats for all new banks and checks non-silence and loop bounds. `--all` includes
-the existing banks. The new library has 220 playable roots / 440 audio files.
+the existing banks. The new library has 251 playable roots / 502 audio files,
+including 18 acoustic-bass roots and 13 upright-bass roots.
 
 `python scripts/repair-sustain-samples.py --sources <extracted-source-root>`
 rebuilds the three affected banks from their source SFZ attack groups. The source
 folder layout is recorded in that script. Neither script runs during deployment.
+
+`scripts/build-bass-playback-samples.py --soundfont <GeneralUser-GS.sf2>
+--fluidsynth <fluidsynth executable> --meatbass <source folder>` reproduces both
+bass banks. The Meatbass folder must contain `pizz_basic_map.sfz` and the pitched
+`*_vl4_rr1.wav` files from its `Samples/pizz` directory. These source recordings
+and the soundfont/build tools are not bundled with the website.

@@ -39,6 +39,9 @@ it("loads only the requested new-bank roots and reuses their decoded samples", a
   expect(prepared.samples.length,bank.id).toBe(needed.size);
   expect(prepared.kind).toBe("opus");
   await prepareTrackInstrument(ctx,bank.id,[64]);expect(fetch.mock.calls.length-before,bank.id).toBe(needed.size);
-  for(const sample of prepared.samples)expect(sample.loop).toEqual(bank.samples.find(s=>s.midi===sample.midi)?.loop);
+  for(const sample of prepared.samples) {
+   const definition=bank.samples.find(s=>s.midi===sample.midi)!;
+   expect(sample.loop).toEqual(definition.loop); expect(sample.gain).toBe(definition.gain);
+  }
  }
 });

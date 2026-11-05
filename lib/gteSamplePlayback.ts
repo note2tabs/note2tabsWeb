@@ -247,7 +247,7 @@ export const schedulePreparedTrackNote = ({
   }
 
   const amp = ctx.createGain();
-  const peak = Math.max(0, gain * instrument.option.gain);
+  const peak = Math.max(0, gain * instrument.option.gain * (sample.gain ?? 1));
   amp.gain.setValueAtTime(0, startTime);
   amp.gain.linearRampToValueAtTime(peak, startTime + 0.005);
   amp.gain.setValueAtTime(peak, Math.max(startTime + 0.005, releaseStart));

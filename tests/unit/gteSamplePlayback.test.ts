@@ -30,7 +30,7 @@ describe("Opus guitar sample playback", () => {
       "synth_lead",
       "organ", "accordion", "saxophone", "xylophone", "ukulele", "harp", "banjo",
       "SViolinVib", "TrumpetSus", "TromboneSus", "FHornSus", "FluteSusNV",
-      "harmonica", "harpsichord",
+      "harmonica", "harpsichord", "bass_acoustic", "bass_upright",
     ]);
     expect(
       options
@@ -85,4 +85,17 @@ it("keeps source sustain loops despite sub-millisecond decoder duration rounding
  schedulePreparedTrackNote({ctx,destination:{} as AudioNode,midi:60,gain:1,startTime:0,duration:5,
  instrument:{kind:"opus",option:{id:"test",label:"Test",kind:"opus",gain:1,samples:[]},samples:[{midi:60,url:"test",buffer:{duration:2.9998} as AudioBuffer,loop:[.5,3]}]}});
  expect(source.loop).toBe(true);expect(source.loopEnd).toBe(2.9998);
+});
+
+it("combines track, instrument and sample calibration without changing the envelope or user volume", () => {
+ const param=()=>({setValueAtTime:vi.fn(),linearRampToValueAtTime:vi.fn()});const amplitude=param();
+ const source:any={playbackRate:param(),detune:param(),connect:vi.fn(),start:vi.fn(),stop:vi.fn()};
+ const ctx:any={createBufferSource:()=>source,createGain:()=>({gain:amplitude,connect:vi.fn()})};
+ const input={ctx,destination:{} as AudioNode,midi:60,gain:.5,startTime:2,duration:1,
+ instrument:{kind:"opus" as const,option:{id:"test",label:"Test",kind:"opus" as const,gain:.4,samples:[]},samples:[{midi:60,url:"test",gain:.75,buffer:{duration:3} as AudioBuffer}]}};
+ schedulePreparedTrackNote(input);
+ expect(amplitude.linearRampToValueAtTime).toHaveBeenCalledWith(expect.closeTo(.15),2.005);
+ expect(amplitude.setValueAtTime).toHaveBeenCalledWith(expect.closeTo(.15),3);
+ expect(amplitude.linearRampToValueAtTime).toHaveBeenCalledWith(0,3.08);
+ expect(input.gain).toBe(.5);expect(source.start).toHaveBeenCalledWith(2);
 });

@@ -22,19 +22,25 @@ banks = [bank for bank in json.loads((root / "manifest.json").read_text()) if ar
 def audit(job):
     bank, midi, filename, extension = job
     path = (root / bank["folder"] / filename).with_suffix(extension)
-    decoded = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", str(path), "-f", "f32le", "-ac", "1", "-ar", "16000", "pipe:1"], capture_output=True, check=True)
+    probe = json.loads(subprocess.check_output(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=channels", "-of", "json", str(path)]))
+    channels = int(probe["streams"][0]["channels"])
+    # Measure actual channel peaks, not FFmpeg's equal-power mono downmix,
+    # which can add 3 dB when stereo channels contain the same signal.
+    decoded = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", str(path), "-f", "f32le", "-ar", "16000", "pipe:1"], capture_output=True, check=True)
+    if decoded.stderr:
+        raise ValueError(f"Decoder errors for {path}: {decoded.stderr.decode(errors='replace')}")
     samples = array.array("f")
     samples.frombytes(decoded.stdout)
-    duration = len(samples) / 16000
+    duration = len(samples) / (16000 * channels)
     peak = max(map(abs, samples), default=0)
-    onset = samples[800:12800]
+    onset = samples[800 * channels:12800 * channels]
     rms = math.sqrt(sum(value * value for value in onset) / max(1, len(onset)))
     loop = bank.get("loops", {}).get(midi)
     if not samples or peak < 0.001 or not math.isfinite(peak):
         raise ValueError(f"Silent/invalid sample: {path}")
     if loop and not 0 <= loop[0] < loop[1] <= duration + .002:
         raise ValueError(f"Invalid sustain loop: {path}: {loop}, duration={duration}")
-    return {"bank": bank["id"], "root": midi, "format": extension, "seconds": duration, "peak": peak, "onsetRms": rms, "gain": bank["gain"], "bytes": path.stat().st_size}
+    return {"bank": bank["id"], "root": midi, "format": extension, "seconds": duration, "peak": peak, "onsetRms": rms, "gain": bank["gain"] * bank.get("sampleGains", {}).get(midi, 1), "bytes": path.stat().st_size}
 
 jobs = [(bank, midi, filename, extension) for bank in banks for midi, filename in bank["samples"].items() for extension in (".opus", ".mp3")]
 with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:

@@ -28,6 +28,8 @@ it("ships valid unique roots and versioned Opus files for every bank", () => {
   expect(ids.has(bank.id),bank.id).toBe(false);ids.add(bank.id);
   const roots=new Set<number>();
   for(const sample of bank.samples) {
+   expect(sample.gain, sample.url).toBeGreaterThan(0);
+   expect(sample.gain, sample.url).toBeLessThanOrEqual(2);
    expect(Number.isInteger(sample.midi)&&sample.midi>=0&&sample.midi<=127,sample.url).toBe(true);
    expect(roots.has(sample.midi),sample.url).toBe(false);roots.add(sample.midi);
    const path=decodeURIComponent(sample.url.split("?")[0]).replace(/^\/sound_samples\//,"");
