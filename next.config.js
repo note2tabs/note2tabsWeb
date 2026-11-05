@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Allow isolated local builds without interrupting the running editor.
+  distDir: process.env.N2T_BUILD_DIR || ".next",
   // Feature branches must be reviewable without exposing unfinished plans on
   // the production deployment. Vercel replaces this at build time.
   env: {
@@ -116,6 +118,7 @@ const nextConfig = {
   },
   async headers() {
     return [
+      {source: "/i18n/public/:catalog([A-Za-z-]+\\.[a-f0-9]{16}\\.js)", headers: [{key:"Cache-Control",value:"public, max-age=31536000, immutable"}]},
       {
         source: "/sound_samples/:path*",
         has: [{type:"query",key:"v",value:"[a-f0-9]{12}"}],

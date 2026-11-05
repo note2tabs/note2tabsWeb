@@ -246,7 +246,24 @@ export function logJobTransferMetric(metric: {
   });
 }
 
+const pendingJobStatus = new Map<string, Promise<Awaited<ReturnType<typeof fetchBackendJobOnce>>>>();
+/** Share only simultaneous status fetches. Every request still authenticates;
+ * results are not retained, and full-output reads always fetch independently. */
 export async function fetchBackendJob(jobId: string, headers: Record<string, string>, includeOutput: boolean) {
+  const entries = Object.entries(headers).map(([key,value]) => [key.toLowerCase(),value]).sort(([a],[b]) => a.localeCompare(b));
+  if (includeOutput || !entries.some(([key,value]) => key === "x-user-id" && value)) {
+    return fetchBackendJobOnce(jobId, headers, includeOutput);
+  }
+  const key = JSON.stringify([jobId, entries]);
+  const existing = pendingJobStatus.get(key);
+  if (existing) return existing;
+  if (pendingJobStatus.size >= 100) return fetchBackendJobOnce(jobId, headers, false);
+  const pending = fetchBackendJobOnce(jobId, headers, false).finally(() => { pendingJobStatus.delete(key); });
+  pendingJobStatus.set(key,pending);
+  return pending;
+}
+
+async function fetchBackendJobOnce(jobId: string, headers: Record<string, string>, includeOutput: boolean) {
   const startedAt = Date.now();
   const baseUrl = `${API_BASE}/api/v1/jobs/${encodeURIComponent(jobId)}`;
   const url = includeOutput ? appendQueryParam(baseUrl, "include_output", "true") : baseUrl;

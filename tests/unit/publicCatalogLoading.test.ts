@@ -1,4 +1,7 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
+import {runInNewContext} from "node:vm";
+import {createHash} from "node:crypto";
+import assets from "../../lib/i18n/publicCatalogAssets.json";
 import {readFileSync} from "node:fs";
 import {flowMessages} from "../../lib/i18n/flowMessages";
 import {languagePreferenceMessages} from "../../lib/i18n/languagePreferenceMessages";
@@ -12,6 +15,18 @@ function browserMessages(locale = "en", messages: Record<string,string> = {}) {
 afterEach(() => {vi.unstubAllGlobals(); vi.resetModules();});
 
 describe("public language catalogs", () => {
+  it("boots every content-hashed catalog before hydration with complete messages", async () => {
+    for (const locale of ALL_LOCALES) {
+      vi.resetModules();
+      const source=readFileSync(`public${assets[locale]}`,"utf8");
+      expect(assets[locale]).toContain(createHash("sha256").update(source).digest("hex").slice(0,16));
+      const browser:any={};runInNewContext(source,{window:browser});
+      vi.stubGlobal("window",browser);vi.stubGlobal("document",{getElementById:()=>null});
+      const {catalogs,hasPublicCatalog}=await import("../../lib/i18n/translate");
+      expect(hasPublicCatalog(locale)).toBe(true);
+      expect(catalogs[locale]).toMatchObject(JSON.parse(publicMessagesForDocument(locale)).messages);
+    }
+  });
   it("starts the browser with only the server-rendered language", async () => {
     browserMessages("fr", {"Upload audio": "Importer un fichier audio"});
     const {translate,hasPublicCatalog} = await import("../../lib/i18n/translate");
