@@ -1,6 +1,6 @@
+import { decodePlaybackSample } from "./gteAudioSampleLoader";
 import {
   DRUM_VOICES,
-  type DrumVoice,
   type DrumVoiceId,
 } from "./gteDrums";
 import { versionedSampleUrl } from "./gteSampleUrl";
@@ -20,7 +20,6 @@ export const DRUM_SAMPLE_GAINS: Readonly<Record<DrumVoiceId, number>> = {
   ride: 0.18,
 };
 
-const sampleData = new Map<string, Promise<ArrayBuffer | null>>();
 const preparedByContext = new WeakMap<AudioContext, Promise<PreparedDrumKit>>();
 let previewContext: AudioContext | null = null;
 
@@ -31,37 +30,20 @@ export const DRUM1_SAMPLE_URLS = Object.fromEntries(
   ])
 ) as Record<DrumVoiceId, string>;
 
-const fetchCandidate = (url: string) => {
-  const cached = sampleData.get(url);
-  if (cached) return cached;
-  const pending = fetch(url)
-    .then((response) => (response.ok ? response.arrayBuffer() : null))
-    .catch(() => null);
-  sampleData.set(url, pending);
-  return pending;
-};
-
-const loadVoiceSample = async (ctx: AudioContext, voice: DrumVoice) => {
-  const encoded = await fetchCandidate(DRUM1_SAMPLE_URLS[voice.id]);
-  if (!encoded) return null;
-  try {
-    return await ctx.decodeAudioData(encoded.slice(0));
-  } catch {
-    return null;
-  }
-};
-
 export const prepareDrumKit = (ctx: AudioContext) => {
   const cached = preparedByContext.get(ctx);
   if (cached) return cached;
   const pending = Promise.all(
-    DRUM_VOICES.map(async (voice) => [voice.id, await loadVoiceSample(ctx, voice)] as const)
+    DRUM_VOICES.map(async (voice) => [voice.id, await decodePlaybackSample(ctx, DRUM1_SAMPLE_URLS[voice.id])] as const)
   ).then((entries) => {
     const kit: PreparedDrumKit = new Map();
     entries.forEach(([voiceId, buffer]) => {
-      if (buffer) kit.set(voiceId, buffer);
+      kit.set(voiceId, buffer);
     });
     return kit;
+  }).catch(error => {
+    if (preparedByContext.get(ctx) === pending) preparedByContext.delete(ctx);
+    throw error;
   });
   preparedByContext.set(ctx, pending);
   return pending;

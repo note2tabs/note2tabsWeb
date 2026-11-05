@@ -1,3 +1,4 @@
+import { decodePlaybackSample, fetchPlaybackSample, playbackSampleUrl } from "./gteAudioSampleLoader";
 import {
   DEFAULT_TRACK_INSTRUMENT_ID,
   getTrackInstrumentOption,
@@ -58,7 +59,6 @@ export type ScheduledTrackNote = {
   }>;
 };
 
-const sampleDataPromise = new Map<string, Promise<ArrayBuffer>>();
 const decodedByContext = new WeakMap<AudioContext, Map<string, Promise<AudioBuffer>>>();
 const preparedByContext = new WeakMap<
   AudioContext,
@@ -74,20 +74,6 @@ const toFiniteNumber = (value: unknown, fallback: number) => {
 };
 
 const centsToRatio = (cents: number) => Math.pow(2, cents / 1200);
-
-const fetchSampleData = (url: string) => {
-  const cached = sampleDataPromise.get(url);
-  if (cached) return cached;
-  const pending = fetch(url).then(async (response) => {
-    if (!response.ok) {
-      throw new Error(`Could not load instrument sample ${url}: ${response.status}`);
-    }
-    return response.arrayBuffer();
-  });
-  pending.catch(() => { if (sampleDataPromise.get(url) === pending) sampleDataPromise.delete(url); });
-  sampleDataPromise.set(url, pending);
-  return pending;
-};
 
 const normalizeBendSegments = (
   segments: ScheduledTrackNote["bendSegments"],
@@ -166,7 +152,7 @@ export const prepareTrackInstrument = async (
       if (!decoded) { decoded = new Map(); decodedByContext.set(ctx, decoded); }
       let pending = decoded.get(sample.url);
       if (!pending) {
-        pending = fetchSampleData(sample.url).then(encoded => ctx.decodeAudioData(encoded.slice(0)));
+        pending = decodePlaybackSample(ctx, sample.url);
         decoded.set(sample.url, pending);
         pending.catch(() => { if (decoded!.get(sample.url) === pending) decoded!.delete(sample.url); });
       }
@@ -187,7 +173,7 @@ export const warmTrackInstrument = async (instrumentId?: string | null, required
   try {
     const selected = requiredMidi ? [...new Set(requiredMidi.filter(Number.isFinite).map(midi => findNearestTrackSample(option.samples, midi)).filter((sample): sample is TrackSampleDefinition => Boolean(sample)))] : option.samples;
     // Limit network fan-out while warming an entire bank.
-    for (let index = 0; index < selected.length; index += 4) await Promise.all(selected.slice(index, index + 4).map(sample => fetchSampleData(sample.url)));
+    for (let index = 0; index < selected.length; index += 4) await Promise.all(selected.slice(index, index + 4).map(sample => fetchPlaybackSample(playbackSampleUrl(sample.url))));
   } catch {
     // Playback reports the concrete loading error if the user tries to play this instrument.
   }

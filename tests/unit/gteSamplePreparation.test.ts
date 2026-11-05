@@ -21,8 +21,8 @@ describe("targeted instrument preparation",()=>{
  });
  it("retries failed decoding while reusing the downloaded bytes",async()=>{
   const fetch=vi.fn(async()=>new Response(new Uint8Array([1])));vi.stubGlobal("fetch",fetch);
-  const {prepareTrackInstrument}=await import("../../lib/gteSamplePlayback");const ctx=context();ctx.decodeAudioData.mockRejectedValueOnce(new Error("decode"));
+  const {prepareTrackInstrument}=await import("../../lib/gteSamplePlayback");const ctx=context();ctx.decodeAudioData.mockRejectedValueOnce(new Error("decode")).mockRejectedValueOnce(new Error("decode"));
   await expect(prepareTrackInstrument(ctx,"acoustic",[60])).rejects.toThrow("decode");
-  expect((await prepareTrackInstrument(ctx,"acoustic",[60])).samples).toHaveLength(1);expect(fetch).toHaveBeenCalledTimes(1);expect(ctx.decodeAudioData).toHaveBeenCalledTimes(2);
+  expect((await prepareTrackInstrument(ctx,"acoustic",[60])).samples).toHaveLength(1);expect(fetch).toHaveBeenCalledTimes(2);expect(ctx.decodeAudioData).toHaveBeenCalledTimes(3);
  });
 });

@@ -49,7 +49,7 @@ export default function GteDrumNotation(props: ComponentProps<typeof GteWorkspac
       onPoint={point => {
         seek(point.frame);
         if (readOnly) return;
-        if (write) { commit(insertDrumNotationHit(props.snapshot, voiceIndex, point.frame)); void previewDrumVoice(voice.id); }
+        if (write) { commit(insertDrumNotationHit(props.snapshot, voiceIndex, point.frame)); void previewDrumVoice(voice.id).catch(() => {}); }
         else setSelected([]);
       }}
       onSelect={(source, shift) => {
@@ -58,7 +58,7 @@ export default function GteDrumNotation(props: ComponentProps<typeof GteWorkspac
         setWrite(false);
         const id = source.noteId;
         setSelected(current => shift ? current.includes(id) ? current.filter(value => value !== id) : [...current, id] : [id]);
-        const instrument = getDrumVoiceByMidi(source.midi); if (instrument) void previewDrumVoice(instrument.id);
+        const instrument = getDrumVoiceByMidi(source.midi); if (instrument) void previewDrumVoice(instrument.id).catch(() => {});
       }}
       onBoxSelect={(sources, additive) => { if (!readOnly) { setWrite(false); setSelected(current => [...new Set([...(additive ? current : []), ...sources.flatMap(source => source.noteId === undefined ? [] : [source.noteId])])]); } }}
       onMove={(sources, shift, transpose) => commit(moveDrumNotationHits(props.snapshot, sources.flatMap(source => source.noteId === undefined ? [] : [source.noteId]), shift, transpose))}
