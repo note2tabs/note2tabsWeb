@@ -255,7 +255,12 @@ function prefetchEditor(editorId: string) {
   return promise;
 }
 
-function getPrefetchedEditor(editorId: string) {
+function getPrefetchedEditor(editorId: string, options?: { fresh?: boolean }) {
+  if (options?.fresh) {
+    editorPrefetches.delete(editorId);
+    if (typeof window !== "undefined" && window.__note2tabsEditorBootstrap?.editorId === editorId) delete window.__note2tabsEditorBootstrap;
+    return requestForEditor<EditorOrCanvasSnapshot>(editorId, `/editors/${encodeURIComponent(editorId)}`, { cache: "no-store" });
+  }
   const cached = editorPrefetches.get(editorId);
   editorPrefetches.delete(editorId);
   if (!cached || cached.expiresAt <= Date.now()) {

@@ -1,5 +1,5 @@
 import { clearGuestCanvasDraft } from "../../lib/gteGuestCanvasDraft";
-import { loadGuestImportDraft, saveGuestCanvasToAccount } from "../../lib/gteGuestImport";
+import { clearImportedGuestDraft, isCurrentGuestImportDraft, loadGuestImportDraft, saveGuestCanvasToAccount } from "../../lib/gteGuestImport";
 import EditorLibraryActions from "../../components/EditorLibraryActions";
 import { editorName } from "../../lib/i18n/editor/names";
 import { withEditorLocale } from "../../lib/i18n/editor/request";
@@ -7,7 +7,7 @@ import { translatedError } from "../../lib/i18n/translate";
 import { useLocale } from "../../lib/i18n/react";
 import { GetServerSideProps } from "next";
 import Link from "../../components/LocaleLink";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { useLocaleRouter as useRouter } from "../../lib/i18n/react";
@@ -36,6 +36,7 @@ export default function GteIndexPage({ userId }: Props) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [guestDraft, setGuestDraft] = useState<CanvasSnapshot | null>(null);
   const [guestImporting, setGuestImporting] = useState(false);
+  const guestImportInFlight = useRef(false);
   const router = useRouter();
   const highlightGuestImport = useMemo(() => {
     if (!router.isReady) return false;
@@ -45,9 +46,14 @@ export default function GteIndexPage({ userId }: Props) {
   }, [router.isReady, router.query.importGuest]);
 
   const loadGuestDraft = useCallback(async () => {
-    const draft = await loadGuestImportDraft();
-    setGuestDraft(draft);
-    return draft;
+    try {
+      const draft = await loadGuestImportDraft();
+      setGuestDraft(draft);
+      return draft;
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "We could not read the browser draft. It has not been removed.");
+      throw error;
+    }
   }, []);
 
   const writeEditorListCache = useCallback(
@@ -89,7 +95,7 @@ export default function GteIndexPage({ userId }: Props) {
 
   useEffect(() => {
     const refresh = () => {
-      void loadGuestDraft();
+      void loadGuestDraft().catch(() => {});
     };
     refresh();
     window.addEventListener("focus", refresh);
@@ -121,22 +127,23 @@ export default function GteIndexPage({ userId }: Props) {
   };
 
   const handleImportGuestDraft = async () => {
-    if (guestImporting) return;
-    const draft = await loadGuestDraft();
-    if (!draft) {
-      setGuestDraft(null);
-      setError("No guest draft found to import.");
-      return;
-    }
+    if (guestImportInFlight.current) return;
+    guestImportInFlight.current = true;
     setGuestImporting(true);
     setError(null);
     try {
+      const draft = await loadGuestDraft();
+      if (!draft) {
+        setGuestDraft(null);
+        setError("No guest draft found to import.");
+        return;
+      }
       const savedId = await saveGuestCanvasToAccount(draft);
       invalidateEditorListCache(window.sessionStorage, userId);
-      await gteApi.deleteEditor(GTE_GUEST_EDITOR_ID).catch(() => {});
-      clearGuestCanvasDraft();
-      clearGuestDraft();
-      setGuestDraft(null);
+      if (isCurrentGuestImportDraft(draft)) {
+        await gteApi.deleteEditor(GTE_GUEST_EDITOR_ID).catch(() => {});
+        if (clearImportedGuestDraft(draft)) setGuestDraft(null);
+      }
       await router.push(`/gte/${savedId}`);
     } catch (err: any) {
       setError(
@@ -144,6 +151,7 @@ export default function GteIndexPage({ userId }: Props) {
           "We could not save this browser draft to your account. The draft is still on this device; please try again."
       );
     } finally {
+      guestImportInFlight.current = false;
       setGuestImporting(false);
     }
   };
