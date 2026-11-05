@@ -59,6 +59,7 @@ export type ScheduledTrackNote = {
 };
 
 const sampleDataPromise = new Map<string, Promise<ArrayBuffer>>();
+const decodedByContext = new WeakMap<AudioContext, Map<string, Promise<AudioBuffer>>>();
 const preparedByContext = new WeakMap<
   AudioContext,
   Map<string, Promise<PreparedTrackInstrument>>
@@ -83,6 +84,7 @@ const fetchSampleData = (url: string) => {
     }
     return response.arrayBuffer();
   });
+  pending.catch(() => { if (sampleDataPromise.get(url) === pending) sampleDataPromise.delete(url); });
   sampleDataPromise.set(url, pending);
   return pending;
 };
@@ -139,7 +141,8 @@ export const loadTrackInstrumentOptions = async () => getTrackInstrumentOptions(
 
 export const prepareTrackInstrument = async (
   ctx: AudioContext,
-  instrumentId?: string | null
+  instrumentId?: string | null,
+  requiredMidi?: readonly number[]
 ): Promise<PreparedTrackInstrument> => {
   const option = getTrackInstrumentOption(instrumentId);
   let contextCache = preparedByContext.get(ctx);
@@ -147,29 +150,44 @@ export const prepareTrackInstrument = async (
     contextCache = new Map();
     preparedByContext.set(ctx, contextCache);
   }
-  const cached = contextCache.get(option.id);
+  const selected = requiredMidi
+    ? [...new Set(requiredMidi.filter(Number.isFinite).map(midi => findNearestTrackSample(option.samples, midi)).filter((sample): sample is TrackSampleDefinition => Boolean(sample)))]
+    : option.samples;
+  const cacheKey = option.id + ":" + selected.map(sample => sample.url).sort().join("|");
+  const cached = contextCache.get(cacheKey);
   if (cached) return cached;
 
   if (option.kind === "synth") {
     return { kind: "synth", option, samples: [] };
   }
   const pending = Promise.all(
-    option.samples.map(async (sample) => {
-      const encoded = await fetchSampleData(sample.url);
-      const buffer = await ctx.decodeAudioData(encoded.slice(0));
-      return { ...sample, buffer };
+    selected.map(async (sample) => {
+      let decoded = decodedByContext.get(ctx);
+      if (!decoded) { decoded = new Map(); decodedByContext.set(ctx, decoded); }
+      let pending = decoded.get(sample.url);
+      if (!pending) {
+        pending = fetchSampleData(sample.url).then(encoded => ctx.decodeAudioData(encoded.slice(0)));
+        decoded.set(sample.url, pending);
+        pending.catch(() => { if (decoded!.get(sample.url) === pending) decoded!.delete(sample.url); });
+      }
+      return { ...sample, buffer: await pending };
     })
   ).then((samples) => ({ kind: "opus" as const, option, samples }));
-  contextCache.set(option.id, pending);
+  pending.catch(() => { if (contextCache!.get(cacheKey) === pending) contextCache!.delete(cacheKey); });
+  // Decoded samples are cached per context; bound prepared subset combinations.
+  if (contextCache.size >= 64) contextCache.delete(contextCache.keys().next().value!);
+  contextCache.set(cacheKey, pending);
   return pending;
 };
 
-export const warmTrackInstrument = async (instrumentId?: string | null) => {
+export const warmTrackInstrument = async (instrumentId?: string | null, requiredMidi?: readonly number[]) => {
   if (typeof window === "undefined") return;
   const option = getTrackInstrumentOption(instrumentId);
   if (option.kind === "synth") return;
   try {
-    await Promise.all(option.samples.map((sample) => fetchSampleData(sample.url)));
+    const selected = requiredMidi ? [...new Set(requiredMidi.filter(Number.isFinite).map(midi => findNearestTrackSample(option.samples, midi)).filter((sample): sample is TrackSampleDefinition => Boolean(sample)))] : option.samples;
+    // Limit network fan-out while warming an entire bank.
+    for (let index = 0; index < selected.length; index += 4) await Promise.all(selected.slice(index, index + 4).map(sample => fetchSampleData(sample.url)));
   } catch {
     // Playback reports the concrete loading error if the user tries to play this instrument.
   }

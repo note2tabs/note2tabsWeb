@@ -427,7 +427,6 @@ export const collectTranscriberRhythmOnsets = (
   ).sort((left, right) => left - right);
 
 async function retainOnlyImportedTracks(
-  editorId: string,
   canvas: CanvasSnapshot,
   importedEditorIds: string[]
 ): Promise<CanvasSnapshot> {
@@ -436,26 +435,19 @@ async function retainOnlyImportedTracks(
     return canvas;
   }
 
-  let nextCanvas = canvas;
-  const unimportedLaneIds = canvas.editors
-    .filter((lane) => !importedIds.has(lane.id))
-    .map((lane) => lane.id);
+  // New imports are finalized by one authoritative snapshot save below.
+  // Removing placeholders in that snapshot avoids one delete/save/reload per lane.
+  return { ...canvas, editors: canvas.editors.filter(lane => importedIds.has(lane.id)) };
+}
 
-  for (const laneId of unimportedLaneIds) {
-    if (nextCanvas.editors.length <= 1) break;
-    const result = await requestForEditor<{ ok: true; canvas: CanvasSnapshot; removedEditorId: string }>(
-      editorId,
-      `/editors/${encodeURIComponent(editorId)}/canvas/editors/${encodeURIComponent(laneId)}`,
-      { method: "DELETE" }
-    );
-    nextCanvas = result.canvas;
-  }
-
-  if (nextCanvas.editors.some((lane) => !importedIds.has(lane.id))) {
-    throw new Error("Transcriber import left an unexpected non-imported track.");
-  }
-
-  return nextCanvas;
+async function updateImportTiming(editorId: string, canvas: CanvasSnapshot, timingMap: TimingMapV2) {
+  if (JSON.stringify(canvas.timingMap) === JSON.stringify(timingMap)) return { canvas, timingMap };
+  return requestForEditor<{ ok: true; canvas: CanvasSnapshot; timingMap: TimingMapV2 }>(
+    editorId, `/editors/${encodeURIComponent(editorId)}/timing`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expectedVersion: Math.max(1, Number(canvas.version) || 1), timingMap }),
+    }
+  );
 }
 
 async function importTranscriberToSaved(
@@ -535,23 +527,12 @@ async function importTranscriberToSaved(
       const preferred = scaleImportTimingMap(timingMap, scale);
       if (preferred !== timingMap) { rhythmScale = scale; timingMap = preferred; preferredTimingMap = preferred; }
     }
-    const patched = await requestForEditor<{ ok: true; canvas: CanvasSnapshot; timingMap: TimingMapV2 }>(
-      currentEditorId,
-      `/editors/${encodeURIComponent(currentEditorId)}/timing`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          expectedVersion: Math.max(1, Number(lastResponse.canvas.version) || 1),
-          timingMap,
-        }),
-      }
-    );
+    const patched = await updateImportTiming(currentEditorId, lastResponse.canvas, timingMap);
     lastResponse = { ...lastResponse, canvas: patched.canvas };
     if (payload.target !== "existing") {
       lastResponse = {
         ...lastResponse,
-        canvas: await retainOnlyImportedTracks(currentEditorId, patched.canvas, finalImportedEditorIds),
+        canvas: await retainOnlyImportedTracks(patched.canvas, finalImportedEditorIds),
       };
     }
   }
@@ -642,24 +623,13 @@ async function importTranscriberToGuest(
     const preferred = scaleImportTimingMap(timingMap, scale);
     if (preferred !== timingMap) { rhythmScale = scale; timingMap = preferred; preferredTimingMap = preferred; }
   }
-  const patched = await requestForEditor<{ ok: true; canvas: CanvasSnapshot; timingMap: TimingMapV2 }>(
-    response.editorId,
-    `/editors/${encodeURIComponent(response.editorId)}/timing`,
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        expectedVersion: Math.max(1, Number(response.canvas.version) || 1),
-        timingMap,
-      }),
-    }
-  );
+  const patched = await updateImportTiming(response.editorId, response.canvas, timingMap);
   const importedEditorIds = response.importedEditorIds || [];
   response = {
     ...response,
     canvas: existingCanvas
       ? patched.canvas
-      : await retainOnlyImportedTracks(response.editorId, patched.canvas, importedEditorIds),
+      : await retainOnlyImportedTracks(patched.canvas, importedEditorIds),
   };
   response = {
     ...response,

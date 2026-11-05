@@ -3063,7 +3063,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     const latest = canvasRef.current ?? current;
     const nextCanvas = normalizeCanvas({ ...latest, editors: latest.editors.map(item => item.id === laneId ? converted : item) }, editorId);
     applyCanvasUpdate(nextCanvas, { markDirty: true });
-    void warmTrackInstrument(converted.instrumentId);
+    void warmTrackInstrument(converted.instrumentId, converted.notes.map(note => note.midiNum));
     if (!isGuestMode) void gteApi.applySnapshot(editorId, cloneCanvas(nextCanvas)).catch((err: any) => setSaveError(err?.message || "Could not save track format."));
   }, [applyCanvasUpdate, editorId, isGuestMode, cloneCanvas, t]);
 
@@ -3600,7 +3600,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       );
       applyCanvasUpdate(nextCanvas, { markDirty: true });
       setActiveLaneId(laneId);
-      void warmTrackInstrument(normalizedInstrumentId);
+      void warmTrackInstrument(normalizedInstrumentId, (nextCanvas.editors.find(lane => lane.id === laneId)?.notes ?? []).map(note => note.midiNum));
       if (!isGuestMode) {
         const revisionAtSave = canvasRevisionRef.current;
         void Promise.all([
@@ -5243,7 +5243,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     .map((event) => event.instrumentId)
                 ),
               ].map(async (instrumentId) => {
-                const instrument = await prepareTrackInstrument(ctx, instrumentId);
+                const instrument = await prepareTrackInstrument(ctx, instrumentId, events.filter(event => !event.drumVoiceId && event.instrumentId === instrumentId).map(event => event.midi));
                 return [instrumentId, instrument] as const;
               })
             ),

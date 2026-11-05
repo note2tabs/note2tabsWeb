@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMocks } from "node-mocks-http";
 
-const { sessionMock, fetchMock, prismaMock, completionEmailMock } = vi.hoisted(() => ({
+const { sessionMock, fetchMock, prismaMock, completionEmailMock, waitUntilMock } = vi.hoisted(() => ({
+  waitUntilMock: vi.fn(),
   sessionMock: vi.fn(),
   fetchMock: vi.fn(),
   completionEmailMock: vi.fn(),
@@ -16,6 +17,8 @@ const { sessionMock, fetchMock, prismaMock, completionEmailMock } = vi.hoisted((
     },
   },
 }));
+
+vi.mock("@vercel/functions", () => ({waitUntil: waitUntilMock}));
 
 vi.mock("next-auth/next", () => ({
   getServerSession: (...args: unknown[]) => sessionMock(...args),
@@ -193,7 +196,9 @@ describe("job proxy backend coordination", () => {
     });
   });
 
-  it("persists a completed result by indexed backend id and acknowledges durability", async () => {
+  it("persists and responds before completion email delivery finishes", async () => {
+    let finishEmail!:(value:boolean)=>void;
+    completionEmailMock.mockReturnValueOnce(new Promise<boolean>(resolve=>{finishEmail=resolve;}));
     fetchMock
       .mockResolvedValueOnce(
         new Response(
@@ -247,6 +252,8 @@ describe("job proxy backend coordination", () => {
     expect(JSON.parse(res._getData())).toEqual(
       expect.objectContaining({ tabJobId: "tab_123", tab_job_id: "tab_123" })
     );
+    expect(waitUntilMock).toHaveBeenCalledWith(expect.any(Promise));
+    finishEmail(true);
     expect(completionEmailMock).toHaveBeenCalledWith({
       userId: "user_1",
       jobId: "job_123",

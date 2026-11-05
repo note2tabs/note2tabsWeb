@@ -1,3 +1,4 @@
+import {memoNoteAlternates, type FingeringDerivationCache} from "../lib/gteFingeringDerivationCache";
 import { monitorEditorEdit, monitorFrustrationPromise } from "../lib/frustrationSignals";
 import { beginTransfer } from "../lib/engagement/transferTracking";
 import { editorCount } from "../lib/i18n/editor/counts";
@@ -878,21 +879,8 @@ const getCutCoordFromNormalizedRegions = (cuts: CutWithCoord[], time: number): T
   return cloneTabCoord(cuts[0]?.[1] ?? DEFAULT_CUT_COORD);
 };
 
-const computeNoteAlternatesForSnapshot = (
-  snapshot: EditorSnapshot,
-  note: EditorSnapshot["notes"][number],
-  context?: FingeringOptimizationContext
-) => {
-  const noteStart = Math.round(note.startTime);
-  const noteEnd = noteStart + clampEventLength(note.length);
-  // Keep parity with backend: midiNum can be 0 as a temporary/local placeholder,
-  // so fall back to tab-derived MIDI unless midiNum is truthy.
-  const midi = note.midiNum || getTabMidi(snapshot, note.tab);
-  let candidates = context?.tabsByMidi.get(midi);
-  if (!candidates) {
-    candidates = getAllTabsForMidi(snapshot, midi);
-    context?.tabsByMidi.set(midi, candidates);
-  }
+const blockedFingeringStrings = (snapshot: EditorSnapshot, note: Note, context?: FingeringOptimizationContext) => {
+  const noteStart = Math.round(note.startTime), noteEnd = noteStart + clampEventLength(note.length);
   const blockedStrings = new Set<number>();
   const notes = context?.notesByStart ?? [...snapshot.notes].sort(
     (left, right) => Math.round(left.startTime) - Math.round(right.startTime) || left.id - right.id
@@ -919,6 +907,26 @@ const computeNoteAlternatesForSnapshot = (
       chord.currentTabs.forEach((tab) => blockedStrings.add(tab[0]));
     }
   }
+  return blockedStrings;
+};
+
+const computeNoteAlternatesForSnapshot = (
+  snapshot: EditorSnapshot,
+  note: EditorSnapshot["notes"][number],
+  context?: FingeringOptimizationContext,
+  precomputedBlocked?: Set<number>
+) => {
+  const noteStart = Math.round(note.startTime);
+  const noteEnd = noteStart + clampEventLength(note.length);
+  // Keep parity with backend: midiNum can be 0 as a temporary/local placeholder,
+  // so fall back to tab-derived MIDI unless midiNum is truthy.
+  const midi = note.midiNum || getTabMidi(snapshot, note.tab);
+  let candidates = context?.tabsByMidi.get(midi);
+  if (!candidates) {
+    candidates = getAllTabsForMidi(snapshot, midi);
+    context?.tabsByMidi.set(midi, candidates);
+  }
+  const blockedStrings = precomputedBlocked ?? blockedFingeringStrings(snapshot, note, context);
   const cutCoord = context
     ? getCutCoordFromNormalizedRegions(context.cuts, noteStart)
     : getCutCoordAtTime(snapshot, noteStart);
@@ -941,15 +949,66 @@ const computeNoteAlternatesForSnapshot = (
   };
 };
 
-const recomputeSnapshotOptimals = (snapshot: EditorSnapshot): EditorSnapshot => {
-  const context = buildFingeringOptimizationContext(snapshot);
+type FingeringInputState = {
+  globalKey: string;
+  notes: Map<number, {key: string; start: number; end: number}>;
+};
+const fingeringInputStates = new WeakMap<FingeringDerivationCache, FingeringInputState>();
+
+export const recomputeSnapshotOptimals = (snapshot: EditorSnapshot, cache?: FingeringDerivationCache): EditorSnapshot => {
+  // Keep the original uncached path as a correctness and performance reference.
+  if (!cache) {
+    const context = buildFingeringOptimizationContext(snapshot);
+    const notes = snapshot.notes.map(note => ({
+      ...note, optimals: computeNoteAlternatesForSnapshot(snapshot, note, context).possibleTabs.map(tab => [...tab] as TabCoord),
+    }));
+    const next = { ...snapshot, notes };
+    next.noteEffects = normalizeSnapshotNoteEffects(next);
+    return next;
+  }
+  const previous = cache ? fingeringInputStates.get(cache) : undefined;
+  const globalKey = JSON.stringify([
+    snapshot.tuning, getMaxFret(snapshot), snapshot.totalFrames, snapshot.cutPositionsWithCoords,
+    snapshot.chords.map(chord => [chord.startTime, chord.length, chord.currentTabs]),
+    (snapshot.noteEffects || []).map(effect => [effect.startNoteId, effect.endNoteId]),
+  ]);
+  const inputs = new Map(snapshot.notes.map(note => [note.id, {
+    key: JSON.stringify([note.startTime, note.length, note.midiNum, note.tab]),
+    start: Math.round(note.startTime), end: Math.round(note.startTime) + clampEventLength(note.length),
+  }]));
+  const affectedRegions: Array<{start:number; end:number}> = [];
+  const changedIds = new Set<number>();
+  let invalidateAll = !previous || previous.globalKey !== globalKey;
+  if (!invalidateAll && previous) {
+    for (const [id, input] of inputs) {
+      const old = previous.notes.get(id);
+      if (old?.key === input.key) continue;
+      changedIds.add(id); affectedRegions.push(input); if (old) affectedRegions.push(old);
+    }
+    for (const [id, old] of previous.notes) if (!inputs.has(id)) affectedRegions.push(old);
+    // Bulk edits should remain bounded rather than checking N notes against N regions.
+    if (affectedRegions.length > 32) invalidateAll = true;
+  }
+  let context: FingeringOptimizationContext | undefined;
   const notes = snapshot.notes.map((note) => {
-    const alternates = computeNoteAlternatesForSnapshot(snapshot, note, context);
-    return {
-      ...note,
-      optimals: alternates.possibleTabs.map((tab) => [tab[0], tab[1]] as TabCoord),
-    };
+    const input = inputs.get(note.id)!;
+    const affected = invalidateAll || changedIds.has(note.id) || affectedRegions.some(region => region.start < input.end && input.start < region.end);
+    if (!affected && cache?.has(note.id)) return { ...note, optimals: cache.get(note.id)!.tabs.map(tab => [...tab] as TabCoord) };
+    context ??= buildFingeringOptimizationContext(snapshot);
+    const blocked = blockedFingeringStrings(snapshot, note, context);
+    const key = JSON.stringify([
+      note.midiNum || getTabMidi(snapshot, note.tab), snapshot.tuning, getMaxFret(snapshot),
+      getCutCoordFromNormalizedRegions(context.cuts, input.start),
+      context.effectNoteIds.has(note.id), [...blocked].sort((a,b)=>a-b),
+    ]);
+    const optimals = memoNoteAlternates(cache, note.id, key, () =>
+      computeNoteAlternatesForSnapshot(snapshot, note, context, blocked).possibleTabs);
+    return { ...note, optimals };
   });
+  if (cache) {
+    for (const id of cache.keys()) if (!inputs.has(id)) cache.delete(id);
+    fingeringInputStates.set(cache, {globalKey, notes:inputs});
+  }
   const next = { ...snapshot, notes };
   next.noteEffects = normalizeSnapshotNoteEffects(next);
   return next;
@@ -2637,7 +2696,7 @@ function ChordLaneWorkspace({
       const { ctx, master } = ensureChordPreviewAudio();
       const audioReady = resumeAudioContext(ctx);
       const [instrument] = await Promise.all([
-        prepareTrackInstrument(ctx, DEFAULT_TRACK_INSTRUMENT_ID),
+        prepareTrackInstrument(ctx, DEFAULT_TRACK_INSTRUMENT_ID, midiNotes),
         audioReady,
       ]);
       const startTime = ctx.currentTime + 0.005;
@@ -7053,6 +7112,7 @@ export default function GteWorkspace({
     return JSON.parse(JSON.stringify(value)) as EditorSnapshot;
   }, []);
 
+  const fingeringDerivationCacheRef = useRef<FingeringDerivationCache>(new Map());
   const snapshotsEqual = useCallback((left: EditorSnapshot, right: EditorSnapshot) => {
     return JSON.stringify(left) === JSON.stringify(right);
   }, []);
@@ -7061,7 +7121,7 @@ export default function GteWorkspace({
     (next: EditorSnapshot, options?: { recordUndo?: boolean; recordHistory?: boolean }) => {
       const recordUndo = options?.recordUndo !== false && !useExternalHistory;
       const recordHistory = options?.recordHistory !== false;
-      const nextWithOptimals = recomputeSnapshotOptimals(next);
+      const nextWithOptimals = recomputeSnapshotOptimals(next, fingeringDerivationCacheRef.current);
       const current = snapshotRef.current;
       const sameSnapshot = current ? snapshotsEqual(current, nextWithOptimals) : false;
       if (recordUndo && current && !sameSnapshot) {
@@ -12532,7 +12592,7 @@ export default function GteWorkspace({
       preview = ensurePreviewAudio();
       const audioReady = resumeAudioContext(preview.ctx);
       const [instrument] = await Promise.all([
-        prepareTrackInstrument(preview.ctx, snapshot.instrumentId),
+        prepareTrackInstrument(preview.ctx, snapshot.instrumentId, midis),
         audioReady,
       ]);
       if (
@@ -12819,7 +12879,7 @@ export default function GteWorkspace({
     });
 
     const [instrument] = await Promise.all([
-      prepareTrackInstrument(ctx, snapshot.instrumentId),
+      prepareTrackInstrument(ctx, snapshot.instrumentId, events.map(event => event.midi)),
       audioReady,
     ]);
     if (!isCurrentRequest() || ctx.state !== "running") {

@@ -17,12 +17,16 @@ export async function recordEngagementEvents(accountId: string, events: Normaliz
   const selected = events.filter(e => ENGAGEMENT_EVENTS.has(e.name) && e.ts.getTime() <= now + 60_000 && e.ts.getTime() >= now - 30 * DAY);
   if (!selected.length) return;
   // Unsubscribe and paid status must be read from operational state at dispatch.
-  await prisma.$transaction(selected.map(event => {
-    const payload = toEngagementEvent(event);
-    return prisma.$executeRaw`INSERT INTO "EngagementSignal" ("id", "accountId", "at", "payload")
-      VALUES (${payload.id}, ${accountId}, ${event.ts}, ${JSON.stringify(payload)}::jsonb)
+  for (let offset = 0; offset < selected.length; offset += 100) {
+    const rows = selected.slice(offset, offset + 100).map(event => ({
+      id: stablePostHogEventUuid(event.eventId), at: event.ts.toISOString(), payload: toEngagementEvent(event),
+    }));
+    await prisma.$executeRaw`INSERT INTO "EngagementSignal" ("id", "accountId", "at", "payload")
+      SELECT item->>'id', ${accountId}, (item->>'at')::timestamp, item->'payload'
+      FROM jsonb_array_elements(${JSON.stringify(rows)}::jsonb) AS item
+      ORDER BY item->>'id'
       ON CONFLICT ("id") DO NOTHING`;
-  }));
+  }
 }
 
 export async function decideForAccount(accountId: string, context: DecisionContext, at = Date.now()) {
