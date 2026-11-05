@@ -78,6 +78,13 @@ if (!TRACK_INSTRUMENT_OPTIONS.length) {
 export const DEFAULT_TRACK_INSTRUMENT_ID = "acoustic";
 
 const LEGACY_INSTRUMENT_IDS: Record<string, string> = {
+  // Old imports stored a synthesized piano. Resolve them to our recorded piano
+  // consistently in playback, selectors and persisted sound overrides.
+  "gm:piano": "upright_piano",
+  // Temporary user-approved fallback for acoustic and clean electric bass.
+  "gm:bass": "bass_overdrive",
+  "gm:synth-lead": "synth_lead",
+  "gm:synth-pad": "synth_lead_sweepPad",
   "builtin:sine": "acoustic",
   "Nylon-Guitar": "acoustic",
   "acoustic-steel": "acoustic",

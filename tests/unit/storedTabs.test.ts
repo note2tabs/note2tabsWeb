@@ -39,7 +39,7 @@ describe("stored tab payloads", () => {
     expect(parseStoredTabPayload(resultJson).transcriberTracks).toEqual([
       expect.objectContaining({
         name: "Lead Synth",
-        instrumentId: "gm:synth-lead",
+        instrumentId: "synth_lead",
         program: 80,
         trackType: "tab",
         segments: [expect.objectContaining({ amplitude: 0.7, pitch_bend: [0, 1] })],
