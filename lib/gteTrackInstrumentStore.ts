@@ -1,3 +1,4 @@
+import {snapshotInstrumentSound} from "./gteSnapshotInstrumentSound";
 import { randomUUID } from "crypto";
 import { Prisma } from "@prisma/client";
 import type { CanvasSnapshot, EditorSnapshot } from "../types/gte";
@@ -106,7 +107,7 @@ const collectSelectionsFromSnapshot = (
         if (!laneId) return null;
         return {
           laneId,
-          instrumentId: toStoredInstrumentId(lane.instrumentId),
+          instrumentId: toStoredInstrumentId(snapshotInstrumentSound(lane as unknown as Record<string, unknown>)),
         } satisfies InstrumentSelection;
       })
       .filter((entry): entry is InstrumentSelection => Boolean(entry));
@@ -116,7 +117,7 @@ const collectSelectionsFromSnapshot = (
     return [
       {
         laneId: editorRef.laneId,
-        instrumentId: toStoredInstrumentId(snapshot.instrumentId),
+        instrumentId: toStoredInstrumentId(snapshotInstrumentSound(snapshot as unknown as Record<string, unknown>)),
       },
     ];
   }

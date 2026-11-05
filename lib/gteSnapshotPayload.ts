@@ -1,3 +1,4 @@
+import {snapshotInstrumentSound} from "./gteSnapshotInstrumentSound";
 /** Avoid preference-store queries for acknowledgement-only API responses. */
 export function hasGteSnapshotPayload(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
@@ -17,7 +18,7 @@ export function snapshotPreferencesChanged(snapshot: unknown, base: unknown, fie
     return lanes.map(lane => {
       if (!lane || typeof lane !== "object") return null;
       const row = lane as Record<string,unknown>;
-      return [row.id, ...fields.map(field=>row[field])];
+      return [row.id, ...fields.map(field=>field === "instrumentId" ? snapshotInstrumentSound(row) : row[field])];
     }).sort((a,b)=>String(a?.[0]).localeCompare(String(b?.[0])));
   };
   const next = project(snapshot), previous = project(base);
