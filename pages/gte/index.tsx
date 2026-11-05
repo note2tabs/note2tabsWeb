@@ -1,3 +1,5 @@
+import { clearGuestCanvasDraft } from "../../lib/gteGuestCanvasDraft";
+import { loadGuestImportDraft, saveGuestCanvasToAccount } from "../../lib/gteGuestImport";
 import EditorLibraryActions from "../../components/EditorLibraryActions";
 import { editorName } from "../../lib/i18n/editor/names";
 import { withEditorLocale } from "../../lib/i18n/editor/request";
@@ -10,8 +12,8 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]";
 import { useLocaleRouter as useRouter } from "../../lib/i18n/react";
 import { gteApi } from "../../lib/gteApi";
-import type { EditorListItem, EditorSnapshot } from "../../types/gte";
-import { clearGuestDraft, GTE_GUEST_EDITOR_ID, readGuestDraft } from "../../lib/gteGuestDraft";
+import type { CanvasSnapshot, EditorListItem } from "../../types/gte";
+import { clearGuestDraft, GTE_GUEST_EDITOR_ID } from "../../lib/gteGuestDraft";
 import NoIndexHead from "../../components/NoIndexHead";
 import GteFileImportButton from "../../components/GteFileImportButton";
 import { EditorLibraryLoadingState } from "../../components/EditorLoadingState";
@@ -32,7 +34,7 @@ export default function GteIndexPage({ userId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [guestDraft, setGuestDraft] = useState<EditorSnapshot | null>(null);
+  const [guestDraft, setGuestDraft] = useState<CanvasSnapshot | null>(null);
   const [guestImporting, setGuestImporting] = useState(false);
   const router = useRouter();
   const highlightGuestImport = useMemo(() => {
@@ -42,42 +44,11 @@ export default function GteIndexPage({ userId }: Props) {
     return value === "1" || value === "true";
   }, [router.isReady, router.query.importGuest]);
 
-  const hasGuestDraftContent = useCallback((snapshot: EditorSnapshot | null) => {
-    if (!snapshot) return false;
-    if (snapshot.notes.length > 0 || snapshot.chords.length > 0) return true;
-    if (snapshot.cutPositionsWithCoords.length > 1) return true;
-    if ((snapshot.name || "Untitled") !== "Untitled") return true;
-    return false;
-  }, []);
-
   const loadGuestDraft = useCallback(async () => {
-    try {
-      const data = await gteApi.getEditor(GTE_GUEST_EDITOR_ID);
-      if (data && typeof data === "object" && Array.isArray((data as any).editors)) {
-        const canvas = data as any;
-        const lane = canvas.editors?.[0];
-        if (lane) {
-          const snapshot: EditorSnapshot = {
-            ...lane,
-            id: GTE_GUEST_EDITOR_ID,
-            name: canvas.name || lane.name || "Untitled",
-            secondsPerBar: canvas.secondsPerBar ?? lane.secondsPerBar,
-          };
-          if (hasGuestDraftContent(snapshot)) {
-            setGuestDraft(snapshot);
-            return snapshot;
-          }
-        }
-      }
-    } catch {
-      // fall back to legacy browser storage below
-    }
-
-    const legacy = readGuestDraft();
-    const nextLegacy = hasGuestDraftContent(legacy) ? legacy : null;
-    setGuestDraft(nextLegacy);
-    return nextLegacy;
-  }, [hasGuestDraftContent]);
+    const draft = await loadGuestImportDraft();
+    setGuestDraft(draft);
+    return draft;
+  }, []);
 
   const writeEditorListCache = useCallback(
     (items: EditorListItem[]) => {
@@ -151,7 +122,7 @@ export default function GteIndexPage({ userId }: Props) {
 
   const handleImportGuestDraft = async () => {
     if (guestImporting) return;
-    const draft = guestDraft ?? (await loadGuestDraft());
+    const draft = await loadGuestDraft();
     if (!draft) {
       setGuestDraft(null);
       setError("No guest draft found to import.");
@@ -160,20 +131,13 @@ export default function GteIndexPage({ userId }: Props) {
     setGuestImporting(true);
     setError(null);
     try {
-      const created = await gteApi.createEditor(undefined, draft.name || "Untitled");
-      const uniqueName = created.snapshot?.name || draft.name || "Untitled";
-      const payload = {
-        id: created.editorId,
-        name: uniqueName,
-        secondsPerBar: draft.secondsPerBar,
-        editors: [{ ...draft, id: "ed-1", name: uniqueName || "Editor 1" }],
-      };
-      await gteApi.applySnapshot(created.editorId, payload as any);
-      await gteApi.commitEditor(created.editorId);
+      const savedId = await saveGuestCanvasToAccount(draft);
+      invalidateEditorListCache(window.sessionStorage, userId);
       await gteApi.deleteEditor(GTE_GUEST_EDITOR_ID).catch(() => {});
+      clearGuestCanvasDraft();
       clearGuestDraft();
       setGuestDraft(null);
-      await router.push(`/gte/${created.editorId}`);
+      await router.push(`/gte/${savedId}`);
     } catch (err: any) {
       setError(
         err?.message ||
@@ -188,6 +152,7 @@ export default function GteIndexPage({ userId }: Props) {
     if (!guestDraft) return;
     if (!window.confirm(t("Discard your guest draft? This cannot be undone."))) return;
     await gteApi.deleteEditor(GTE_GUEST_EDITOR_ID).catch(() => {});
+    clearGuestCanvasDraft();
     clearGuestDraft();
     setGuestDraft(null);
   };
