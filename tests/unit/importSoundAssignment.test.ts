@@ -75,3 +75,35 @@ it("does not let a stale bass type override a valid piano program", () => {
 it.each([["Acoustic Guitar","acoustic"],["Electric Guitar","electric"],["Distorted Guitar","electric_distortion"],["Electric Piano","upright_piano"],["Acoustic Bass","bass_overdrive"],["Electric Bass","bass_overdrive"]])("uses the %s name when a legacy import has no program and a generic preset", (name,instrumentId) => {
   expect(importedInstrument({name,instrumentId:"gm:instrument",trackType:"tab"}).instrumentId).toBe(instrumentId);
 });
+
+const newBankPrograms: Array<[number,string]> = [[6,"harpsichord"],[13,"xylophone"],[16,"organ"],[17,"organ"],[18,"organ"],[19,"organ"],[20,"organ"],[21,"accordion"],[22,"harmonica"],[23,"accordion"],[40,"SViolinVib"],[46,"harp"],[56,"TrumpetSus"],[57,"TromboneSus"],[60,"FHornSus"],[64,"saxophone"],[65,"saxophone"],[66,"saxophone"],[67,"saxophone"],[72,"FluteSusNV"],[73,"FluteSusNV"],[105,"banjo"]];
+it.each(newBankPrograms)("routes GM %s through stored transcription, transport and restore to %s", async (program, instrumentId) => {
+  const { normalizeTranscriberTracks } = await import("../../lib/storedTabs");
+  const { pitchedImportTransport } = await import("../../lib/gteNotationImport");
+  const { serializeNotationPayload, restoreNotationSnapshot } = await import("../../lib/gteNotationPersistence");
+  const segments = [{start_time_s:.125,end_time_s:.625,pitch_midi:60,amplitude:.8}];
+  const tracks = normalizeTranscriberTracks([{program,name:"Imported part",instrumentId:"acoustic",trackType:"tab",segments}]);
+  expect(tracks[0]).toMatchObject({program,instrumentId,instrumentType:"notation",trackType:"tab"});
+  expect(getTrackInstrumentOption(instrumentId).samples.length).toBeGreaterThan(0);
+  const transport = pitchedImportTransport({tracks,segmentGroups:[segments]});
+  expect(transport.tracks[0].instrumentId).toBe("gm:piano");
+  expect(tracks[0].instrumentId).toBe(instrumentId);
+  const lane = {id:"new",...tracks[0],editorType:"tab",notes:[],chords:[],framesPerMessure:480,fps:240,totalFrames:480,cutPositionsWithCoords:[],optimalsByTime:{},chordEditor:{instrumentType:"notation",instrumentSound:instrumentId}} as import("../../types/gte").EditorSnapshot;
+  const wire = serializeNotationPayload(lane) as typeof lane;
+  delete wire.instrumentType;
+  expect(restoreNotationSnapshot(wire).instrumentId).toBe(instrumentId);
+});
+it.each([["Ukulele","ukulele"],["Banjo","banjo"],["Accordion","accordion"],["Harmonica","harmonica"],["Harp","harp"],["Harpsichord","harpsichord"],["Organ","organ"],["Xylophone","xylophone"],["Violin","SViolinVib"],["Trumpet","TrumpetSus"],["Trombone","TromboneSus"],["French Horn","FHornSus"],["Tenor Saxophone","saxophone"],["Flute","FluteSusNV"]])("uses named %s without a valid program", (name,instrumentId) => {
+  expect(importedInstrument({name,program:null,instrumentId:"gm:instrument",trackType:"tab"})).toEqual({instrumentType:"notation",instrumentId});
+});
+it("does not turn missing programs into piano or a bass clarinet into bass tab", async () => {
+ const {normalizeTranscriberTracks}=await import("../../lib/storedTabs");
+ const segments=[{start_time_s:0,end_time_s:1,pitch_midi:60}];
+ const tracks=normalizeTranscriberTracks([{name:"Flute",program:null,segments},{name:"Bass clarinet",program:71,segments}]);
+ expect(tracks[0].instrumentId).toBe("FluteSusNV"); expect(tracks[0].program).toBeUndefined();
+ expect(tracks[1]).toMatchObject({instrumentType:"notation",trackType:"tab",program:71});
+});
+
+it.each(["acoustic","gm:strings","gm:instrument"])("replaces stale generic %s with the named sampled instrument", instrumentId=>{
+ expect(importedInstrument({name:"Flute",trackType:"tab",instrumentId})).toEqual({instrumentType:"notation",instrumentId:"FluteSusNV"});
+});

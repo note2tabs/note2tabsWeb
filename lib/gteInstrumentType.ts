@@ -1,3 +1,4 @@
+import { getTrackInstrumentOption, trackInstrumentFamily } from "./gteInstrumentManifest";
 import type { EditorSnapshot } from "../types/gte";
 
 export type InstrumentType = NonNullable<EditorSnapshot["instrumentType"]>;
@@ -9,6 +10,7 @@ export function getTrackInstrumentType(track: Track): InstrumentType {
   if (["notation", "guitar-tab", "bass-tab"].includes(String(explicit))) return explicit as InstrumentType;
   if (kind === "bass") return "bass-tab";
   if (kind === "chords") return "guitar-tab";
-  return ["piano", "strings", "notation", "instrument"].includes(kind) || /^(upright_piano|grand_piano|synth_lead(?:_(bowed|new_age|sweepPad))?|gm:(piano|strings|synth-lead|synth-pad|instrument))$/.test(track.instrumentId ?? "") ? "notation" : "guitar-tab";
+  const family = trackInstrumentFamily(getTrackInstrumentOption(track.instrumentId));
+  return ["piano", "strings", "notation", "instrument"].includes(kind) || !["Guitar", "Bass"].includes(family) ? "notation" : "guitar-tab";
 }
 export const defaultInstrumentSound = (type: InstrumentType) => type === "notation" ? "upright_piano" : type === "bass-tab" ? "bass_overdrive" : type === "drums" ? "drum1" : "acoustic";

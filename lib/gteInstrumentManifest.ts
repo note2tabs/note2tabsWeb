@@ -4,7 +4,12 @@ import { versionedSampleUrl } from "./gteSampleUrl";
 export type TrackSampleDefinition = {
   midi: number;
   url: string;
+  loop?: [number, number];
+  tuning?: number;
 };
+
+export const TRACK_INSTRUMENT_FAMILIES = ["Guitar", "Bass", "Piano", "Organ & reeds", "Strings", "Brass", "Woodwinds", "Percussion", "Other", "Synth"] as const;
+export type TrackInstrumentFamily = typeof TRACK_INSTRUMENT_FAMILIES[number];
 
 export type TrackInstrumentOption = {
   id: string;
@@ -12,6 +17,7 @@ export type TrackInstrumentOption = {
   kind: "opus" | "synth";
   gain: number;
   samples: TrackSampleDefinition[];
+  family?: TrackInstrumentFamily;
 };
 
 const VIRTUAL_INSTRUMENT_OPTIONS: TrackInstrumentOption[] = [
@@ -29,6 +35,9 @@ type RawManifestEntry = {
   folder?: unknown;
   gain?: unknown;
   samples?: unknown;
+  family?: unknown;
+  loops?: unknown;
+  tuning?: unknown;
 };
 
 const parseManifest = (value: unknown): TrackInstrumentOption[] => {
@@ -50,7 +59,11 @@ const parseManifest = (value: unknown): TrackInstrumentOption[] => {
         const midi = Number(midiValue);
         const file = typeof fileValue === "string" ? fileValue.trim() : "";
         if (!Number.isFinite(midi) || !file || file.toLowerCase().startsWith("mute_")) return [];
-        return [{ midi, url: versionedSampleUrl(`/sound_samples/${folder.split("/").map(encodeURIComponent).join("/")}/${encodeURIComponent(file)}`) }];
+        const loop = (raw?.loops as Record<string, unknown> | undefined)?.[midiValue];
+        const tuning = (raw?.tuning as Record<string, unknown> | undefined)?.[midiValue];
+        return [{ midi, url: versionedSampleUrl(`/sound_samples/${folder.split("/").map(encodeURIComponent).join("/")}/${encodeURIComponent(file)}`),
+          ...(Array.isArray(loop) && loop.length === 2 && loop.every(Number.isFinite) && loop[0] >= 0 && loop[1] > loop[0] ? { loop: loop as [number, number] } : {}),
+          ...(typeof tuning === "number" && Number.isFinite(tuning) ? { tuning } : {}) }];
       })
       .sort((left, right) => left.midi - right.midi);
     if (!samples.length) return [];
@@ -64,6 +77,7 @@ const parseManifest = (value: unknown): TrackInstrumentOption[] => {
         kind: "opus" as const,
         gain: Number.isFinite(gain) ? Math.max(0, gain) : 1,
         samples,
+        ...(TRACK_INSTRUMENT_FAMILIES.includes(raw?.family as TrackInstrumentFamily) ? { family: raw!.family as TrackInstrumentFamily } : {}),
       },
     ];
   });
@@ -114,3 +128,12 @@ export const getTrackInstrumentOption = (value?: string | null) => {
     TRACK_INSTRUMENT_OPTIONS[0]
   );
 };
+
+export function trackInstrumentFamily(option: TrackInstrumentOption): TrackInstrumentFamily {
+  if (option.family) return option.family;
+  if (option.id.includes("piano")) return "Piano";
+  if (option.id.includes("bass")) return "Bass";
+  if (option.id === "gm:strings") return "Strings";
+  if (option.id.includes("synth")) return "Synth";
+  return /^(acoustic|jazz|electric)/.test(option.id) ? "Guitar" : "Other";
+}

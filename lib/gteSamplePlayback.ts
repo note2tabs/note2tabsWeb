@@ -220,7 +220,7 @@ export const schedulePreparedTrackNote = ({
   const release = 0.08;
   const releaseStart = startTime + noteDuration;
   const releaseEnd = releaseStart + release;
-  const baseRate = Math.pow(2, (midi - sample.midi) / 12);
+  const baseRate = Math.pow(2, (midi - sample.midi + (sample.tuning ?? 0) / 100) / 12);
 
   const source = ctx.createBufferSource();
   source.buffer = sample.buffer;
@@ -229,7 +229,14 @@ export const schedulePreparedTrackNote = ({
 
   const needsSustainLoop =
     Boolean(bendSegments?.length || vibrato?.length) && sample.buffer.duration > 0.12;
-  if (needsSustainLoop) {
+  // Codec/resampling rounding can place the source loop end a fraction of a
+  // millisecond beyond the decoded buffer. Keep that loop rather than cutting
+  // off a held note; genuinely invalid source points are rejected by the audit.
+  if (sample.loop && sample.loop[0] < sample.buffer.duration && sample.loop[1] <= sample.buffer.duration + 0.002) {
+    source.loop = true;
+    source.loopStart = sample.loop[0];
+    source.loopEnd = Math.min(sample.loop[1], sample.buffer.duration);
+  } else if (needsSustainLoop) {
     const loopEnd = Math.max(0.08, sample.buffer.duration - 0.02);
     const loopStart = Math.max(0.02, Math.min(loopEnd - 0.04, sample.buffer.duration * 0.35));
     if (loopEnd - loopStart >= 0.03) {

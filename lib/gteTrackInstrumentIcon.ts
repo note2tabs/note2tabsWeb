@@ -1,4 +1,5 @@
 import type { EditorSnapshot } from "../types/gte";
+import { getTrackInstrumentOption, trackInstrumentFamily } from "./gteInstrumentManifest";
 
 export type TrackInstrumentIconKind = "guitar" | "bass" | "drums" | "piano" | "strings" | "synth" | "instrument";
 export function trackInstrumentIconKind(lane: Pick<EditorSnapshot, "instrumentId" | "trackType" | "editorType" | "type">): TrackInstrumentIconKind {
@@ -10,5 +11,9 @@ export function trackInstrumentIconKind(lane: Pick<EditorSnapshot, "instrumentId
   if (/strings|violin|cello/.test(instrument)) return "strings";
   if (instrument.includes("synth")) return "synth";
   if (instrument.startsWith("gm:")) return "instrument";
+  const family = trackInstrumentFamily(getTrackInstrumentOption(lane.instrumentId));
+  if (family === "Strings") return "strings";
+  if (family === "Organ & reeds" || family === "Piano") return "piano";
+  if (!["Guitar", "Bass"].includes(family)) return "instrument";
   return "guitar";
 }
