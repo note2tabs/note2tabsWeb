@@ -1,3 +1,4 @@
+import {stabilizeNewTranscriberTimingMap} from "../../lib/gteTranscriberTiming";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   collectTranscriberRhythmOnsets,
@@ -313,10 +314,13 @@ describe("transcriber import chunking", () => {
         { ...importedLane, id: "lane-imported", name: "Imported guitar" },
       ],
     };
+    let savedCanvas: CanvasSnapshot | undefined;
     const requests: Array<{ url: string; method: string }> = [];
     const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       const method = init?.method || "GET";
       requests.push({ url: String(url), method });
+      const body=init?.body ? JSON.parse(String(init.body)) : {};
+      if(body.snapshot){savedCanvas=body.snapshot;return new Response(JSON.stringify({ok:true,snapshot:savedCanvas}));}
       if (method === "DELETE") {
         return new Response(
           JSON.stringify({
@@ -351,10 +355,8 @@ describe("transcriber import chunking", () => {
       segmentGroups: [buildGroup(0)],
     });
 
-    expect(requests).toContainEqual({
-      method: "DELETE",
-      url: "/api/gte/editors/canvas-1/canvas/editors/lane-default",
-    });
+    expect(requests.some(request => request.method === "DELETE")).toBe(false);
+    expect(savedCanvas?.editors.map(lane=>lane.id)).toEqual(["lane-imported"]);
     expect(result.canvas?.editors.map((lane) => lane.id)).toEqual(["lane-imported"]);
   });
 
@@ -413,4 +415,21 @@ it("does not mark a partially imported job as delivered when a later chunk fails
   const groups=Array.from({length:TRANSCRIBER_IMPORT_CHUNK_MAX_GROUPS+1},(_,i)=>buildGroup(i));
   await expect(gteApi.importTranscriberToSaved({segmentGroups:groups,sourceJobId:"job-partial"})).rejects.toThrow();
   expect(urls).not.toContain("/api/jobs/job-partial/editor");
+});
+
+it("skips an identical timing write and persists the complete final import",async()=>{
+  const source=buildCanvas("unchanged",[120]);source.editors[0].notes[0].length=60;
+  source.timingMap=stabilizeNewTranscriberTimingMap(source);
+  const requests:Array<{url:string;method:string}>=[];
+  vi.stubGlobal("fetch",vi.fn(async(url,init)=>{
+    const method=init?.method||"GET",body=init?.body?JSON.parse(String(init.body)):{};requests.push({url:String(url),method});
+    if(method==="PATCH")throw new Error("Unexpected timing write");
+    if(body.snapshot)return new Response(JSON.stringify({ok:true,snapshot:body.snapshot}));
+    return new Response(JSON.stringify({ok:true,editorId:"unchanged",importedEditorIds:["lane-1"],canvas:source}));
+  }));
+  const result=await gteApi.importTranscriberToSaved({target:"new",segmentGroups:[buildGroup(0)]});
+  expect(requests.map(request=>request.url)).toEqual(["/api/gte/transcriber/import","/api/gte/editors/unchanged/snapshot"]);
+  expect(result.canvas?.timingMap).toEqual(source.timingMap);
+  expect(result.canvas?.editors[0].notes.map(note=>[note.startTime,note.length,note.midiNum])).toEqual(source.editors[0].notes.map(note=>[note.startTime,note.length,note.midiNum]));
+  vi.unstubAllGlobals();
 });

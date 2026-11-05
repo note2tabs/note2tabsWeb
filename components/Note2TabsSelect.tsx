@@ -59,6 +59,7 @@ export default function Note2TabsSelect<T extends string>({
   const closeMenu = () => { if (rootRef.current) rootRef.current.open = false; setOpen(false); summaryRef.current?.focus(); };
   const menu = <div ref={menuRef} id={listboxId} className={`note2tabs-select__menu${className.includes("gte-track-select") ? " gte-track-select-menu" : ""}`} role="listbox" aria-label={t(label)}
     data-gte-floating-ui={portal ? "true" : undefined}
+    data-select-owner={portal ? `${listboxId}-owner` : undefined}
     onMouseDown={event => { if (portal) event.stopPropagation(); }}
     style={portal ? { position: "fixed", ...position, minWidth: position.width, maxWidth: "calc(100vw - 16px)", zIndex: 10060, bottom: "auto" } : undefined}
     onKeyDown={event => {
@@ -80,6 +81,7 @@ export default function Note2TabsSelect<T extends string>({
 
   return (
     <details
+      id={`${listboxId}-owner`}
       className={`note2tabs-select ${disabled ? "note2tabs-select--disabled" : ""} ${className}`.trim()}
       ref={rootRef}
       onToggle={() => {

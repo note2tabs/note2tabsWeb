@@ -1,3 +1,4 @@
+import { waitUntil } from "@vercel/functions";
 import { requestLocale } from "../../../lib/i18n/request";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
@@ -139,22 +140,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           if (backendDurableResultId !== tabJobId) {
             await markBackendJobPersisted(jobId, session.user.id, tabJobId);
           }
-          try {
-            await sendTranscriptionCompleteEmailOnce({
-              userId: session.user.id,
-              jobId,
-              tabJobId,
-              locale: requestLocale(req),
-            });
-          } catch (error) {
-            // Email is helpful but must never turn a completed transcription
-            // into a failed job response. A later final-status poll can retry.
-            console.error("Transcription completion email delivery failed", {
-              userId: session.user.id,
-              jobId,
-              error,
-            });
-          }
+          // The completed result is already durable. The existing result-delivery
+          // scheduler retries notices independently of this browser request.
+          const notice = sendTranscriptionCompleteEmailOnce({
+            userId: session.user.id, jobId, tabJobId, locale: requestLocale(req),
+          }).catch(error => {
+            console.error("Transcription completion email delivery failed", { jobId, error });
+          });
+          try { waitUntil(notice); } catch { /* Local execution has no request lifetime hook. */ }
           resolvedTabJobId = tabJobId;
           payload.tab_job_id = tabJobId;
           payload.tabJobId = tabJobId;

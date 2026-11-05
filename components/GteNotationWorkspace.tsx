@@ -120,7 +120,7 @@ export default function GteNotationWorkspace(props: Props) {
       const ctx = audioRef.current ?? new AudioContext();
       audioRef.current = ctx;
       await ctx.resume();
-      const instrument = await prepareTrackInstrument(ctx, snapshot.instrumentId);
+      const instrument = await prepareTrackInstrument(ctx, snapshot.instrumentId, [midi]);
       if (ctx.state !== "running" || token !== auditionId.current) return;
       schedulePreparedTrackNote({ ctx, destination: ctx.destination, instrument, midi, gain: 0.35 * (snapshot.playbackVolume ?? 1) * (props.globalPlaybackVolume ?? 1), startTime: ctx.currentTime, duration: 0.25 });
     } catch { /* Entry remains usable if the browser blocks note audition. */ }

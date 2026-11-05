@@ -15,10 +15,19 @@ describe("durable shadow engagement", () => {
     vi.stubEnv("ENGAGEMENT_SIGNALS_ENABLED", "true");
     await recordEngagementEvents("a", [event(), event({ name: "$pageview" }), event({ ts: new Date(Date.now() + DAY) })]);
     expect(execute).toHaveBeenCalledTimes(1);
-    const payload = JSON.parse(execute.mock.calls[0].at(-1));
+    const payload = JSON.parse(execute.mock.calls[0].at(-1))[0].payload;
     expect(payload).toMatchObject({ reason: "credits_exhausted" });
     expect(payload.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(payload).not.toHaveProperty("filename"); expect(payload).not.toHaveProperty("content");
+  });
+  it("batches signals and keeps their original identity and timestamps", async () => {
+    vi.stubEnv("ENGAGEMENT_SIGNALS_ENABLED", "true");
+    const events=Array.from({length:205},(_,i)=>event({eventId:`event-${i}`}));
+    await recordEngagementEvents("a",events);
+    expect(execute).toHaveBeenCalledTimes(3);expect(transaction).not.toHaveBeenCalled();
+    const rows=execute.mock.calls.flatMap(call=>JSON.parse(call.at(-1)));
+    expect(rows).toHaveLength(205);expect(new Set(rows.map(row=>row.id)).size).toBe(205);
+    expect(rows.map(row=>row.at)).toEqual(events.map(event=>event.ts.toISOString()));
   });
   it("marks truncated snapshots incomplete and returns no promotion", async () => {
     const at = Date.now();

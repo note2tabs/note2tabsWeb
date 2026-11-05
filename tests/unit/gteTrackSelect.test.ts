@@ -2,6 +2,7 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { JSDOM } from "jsdom";
 import { expect, it, vi } from "vitest";
+import { selectPortalTargetWithin } from "../../lib/selectPortalTarget";
 import Note2TabsSelect from "../../components/Note2TabsSelect";
 import GteTrackSoundSelect from "../../components/GteTrackSoundSelect";
 import { getTrackInstrumentOptions } from "../../lib/gteInstrumentManifest";
@@ -48,4 +49,35 @@ it.each([["gm:piano", "Upright Piano"], ["gm:bass", "Bass (Overdrive)"], ["gm:in
     await act(async () => {details.open=true; details.dispatchEvent(new dom.window.Event("toggle"));});
     expect(document.querySelector('[role="option"][aria-selected="true"]')?.textContent).toContain(label);
   } finally {await act(async()=>root.unmount());host.remove();dom.window.close();vi.unstubAllGlobals();}
+});
+
+it("keeps the track card open through mouse and touch selection in its portalled sound menu", async () => {
+  const dom = new JSDOM("<!doctype html><html><body></body></html>");
+  vi.stubGlobal("window", dom.window); vi.stubGlobal("document", dom.window.document); vi.stubGlobal("React", React);
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+  const host = document.createElement("div"); document.body.append(host);
+  const root = createRoot(host), change = vi.fn();
+  function Card() {
+    const [open, setOpen] = React.useState(true);
+    React.useEffect(() => {
+      const outside = (e: Event) => { if (!selectPortalTargetWithin(e.target as Element, "[data-track-menu='true']")) setOpen(false); };
+      window.addEventListener("mousedown", outside, true); window.addEventListener("touchstart", outside, true);
+      return () => { window.removeEventListener("mousedown", outside, true); window.removeEventListener("touchstart", outside, true); };
+    }, []);
+    return open ? React.createElement("div", {"data-track-menu":"true"}, React.createElement(GteTrackSoundSelect, {value:"upright_piano",options:getTrackInstrumentOptions(),onChange:change})) : null;
+  }
+  try {
+    await act(async () => root.render(React.createElement(Card)));
+    for (const start of ["mousedown", "touchstart"]) {
+      const details = host.querySelector("details")!;
+      await act(async () => { details.open = true; details.dispatchEvent(new dom.window.Event("toggle")); });
+      const option = [...document.querySelectorAll<HTMLButtonElement>('[role="option"]')].find(el => el.textContent?.includes("Grand Piano"))!;
+      await act(async () => option.dispatchEvent(new dom.window.Event(start, {bubbles:true})));
+      expect(host.querySelector("details")).not.toBeNull();
+      await act(async () => option.dispatchEvent(new dom.window.MouseEvent("click", {bubbles:true})));
+    }
+    expect(change).toHaveBeenCalledTimes(2); expect(change).toHaveBeenLastCalledWith("grand_piano");
+    await act(async () => document.body.dispatchEvent(new dom.window.MouseEvent("mousedown", {bubbles:true})));
+    expect(host.querySelector("details")).toBeNull();
+  } finally { await act(async () => root.unmount()); dom.window.close(); vi.unstubAllGlobals(); }
 });

@@ -1,3 +1,5 @@
+import {serializeNotationPayload} from "../../lib/gteNotationPersistence";
+import {snapshotPreferencesChanged} from "../../lib/gteSnapshotPayload";
 import {beforeAll,afterAll,describe,it,expect,vi} from "vitest";
 import {createRequire} from "node:module";
 import type {EditorSnapshot} from "../../types/gte";
@@ -32,4 +34,30 @@ describe.skipIf(!modulePath)('preference persistence with isolated PostgreSQL',(
     expect(payload.snapshot.instrumentId).toBe('electric');expect(payload.snapshot.playbackVolume).toBe(0.5);expect(payload.snapshot.drumLoops).toEqual(changed.drumLoops);expect(payload.snapshot.notes).toEqual([{id:2,vibrato:true}]);
     for(const table of ['GteTrackInstrument','GteTrackPlaybackSetting','GteDrumLoopState'])expect((await db.query(`SELECT EXTRACT(YEAR FROM "updatedAt") AS year FROM "${table}"`)).rows[0].year).not.toBe('2000');
   });
+  it('retains the selected sound through transport normalization, later note saves and reload',async()=>{
+    const previous={...lane,instrumentType:'guitar-tab' as const,instrumentId:'jazz'};
+    const changed={...previous,instrumentId:'electric',chordEditor:{instrumentType:'guitar-tab',instrumentSound:'electric'}};
+    const wire=serializeNotationPayload(changed);
+    expect(wire.instrumentId).toBe('acoustic');
+    expect(snapshotPreferencesChanged(wire,serializeNotationPayload(previous),['instrumentId'])).toBe(true);
+    await save(wire);
+    const reloaded={snapshot:{...changed,instrumentId:'acoustic'}};
+    await hydrateTrackInstrumentsFromStore('canvas__ed__lane',reloaded);
+    expect(reloaded.snapshot.instrumentId).toBe('electric');
+    await save({...wire,notes:[{id:1}]});
+    reloaded.snapshot.instrumentId='acoustic';await hydrateTrackInstrumentsFromStore('canvas__ed__lane',reloaded);
+    expect(reloaded.snapshot.instrumentId).toBe('electric');
+  });
+
+  it('preserves piano sounds and switching back to the default guitar sound',async()=>{
+    const piano=serializeNotationPayload({...lane,instrumentType:'notation',instrumentId:'grand_piano'});
+    await save(piano);
+    const reloaded={snapshot:{...lane,instrumentId:'gm:piano'}};
+    await hydrateTrackInstrumentsFromStore('canvas__ed__lane',reloaded);
+    expect(reloaded.snapshot.instrumentId).toBe('grand_piano');
+    await save(serializeNotationPayload({...lane,instrumentType:'guitar-tab',instrumentId:'acoustic'}));
+    reloaded.snapshot.instrumentId='acoustic';await hydrateTrackInstrumentsFromStore('canvas__ed__lane',reloaded);
+    expect(reloaded.snapshot.instrumentId).toBe('acoustic');
+  });
+
 });

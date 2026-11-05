@@ -1,3 +1,4 @@
+import { selectPortalTargetWithin } from "../../lib/selectPortalTarget";
 import { readGuestCanvasDraft, writeGuestCanvasDraft } from "../../lib/gteGuestCanvasDraft";
 import { playbackVibrato, type PlaybackVibrato } from "../../lib/gteVibrato";
 import { beginFrustrationAction, monitorFrustrationPromise, noteFrustrationRetry } from "../../lib/frustrationSignals";
@@ -2441,7 +2442,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
   const handleMainMouseDownCapture = useCallback((event: ReactMouseEvent<HTMLElement>) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
-    if (target.closest("[data-desktop-track-selector='true']")) return;
+    if (selectPortalTargetWithin(target, "[data-desktop-track-selector='true']")) return;
     setDesktopTrackMenuOpen(false);
     setDesktopTrackAddMenuOpen(false);
   }, []);
@@ -3063,7 +3064,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     const latest = canvasRef.current ?? current;
     const nextCanvas = normalizeCanvas({ ...latest, editors: latest.editors.map(item => item.id === laneId ? converted : item) }, editorId);
     applyCanvasUpdate(nextCanvas, { markDirty: true });
-    void warmTrackInstrument(converted.instrumentId);
+    void warmTrackInstrument(converted.instrumentId, converted.notes.map(note => note.midiNum));
     if (!isGuestMode) void gteApi.applySnapshot(editorId, cloneCanvas(nextCanvas)).catch((err: any) => setSaveError(err?.message || "Could not save track format."));
   }, [applyCanvasUpdate, editorId, isGuestMode, cloneCanvas, t]);
 
@@ -3600,13 +3601,12 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
       );
       applyCanvasUpdate(nextCanvas, { markDirty: true });
       setActiveLaneId(laneId);
-      void warmTrackInstrument(normalizedInstrumentId);
+      void warmTrackInstrument(normalizedInstrumentId, (nextCanvas.editors.find(lane => lane.id === laneId)?.notes ?? []).map(note => note.midiNum));
       if (!isGuestMode) {
         const revisionAtSave = canvasRevisionRef.current;
-        void Promise.all([
-          gteApi.setTrackInstrument(editorId, laneId, normalizedInstrumentId),
-          gteApi.applySnapshot(editorId, cloneCanvas(nextCanvas)),
-        ])
+        // The snapshot persists both the sound and its compatibility metadata.
+        // A second preference request can race and overwrite that same setting.
+        void gteApi.applySnapshot(editorId, cloneCanvas(nextCanvas))
           .then(() => {
             if (canvasRevisionRef.current !== revisionAtSave) return;
             setHasPendingCommit(false);
@@ -5243,7 +5243,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
                     .map((event) => event.instrumentId)
                 ),
               ].map(async (instrumentId) => {
-                const instrument = await prepareTrackInstrument(ctx, instrumentId);
+                const instrument = await prepareTrackInstrument(ctx, instrumentId, events.filter(event => !event.drumVoiceId && event.instrumentId === instrumentId).map(event => event.midi));
                 return [instrumentId, instrument] as const;
               })
             ),
@@ -6103,7 +6103,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     if (!openTrackMenuId && !openMobileBarMenuLaneId && !trackContextMenu) return;
     const handlePointerDown = (event: MouseEvent | TouchEvent) => {
       const target = event.target as HTMLElement | null;
-      if (target?.closest("[data-track-menu='true'], [data-mobile-bar-menu='true']")) return;
+      if (selectPortalTargetWithin(target, "[data-track-menu='true'], [data-mobile-bar-menu='true']")) return;
       setOpenTrackMenuId(null);
       setOpenMobileBarMenuLaneId(null);
       setTrackContextMenu(null);
@@ -6120,7 +6120,7 @@ export default function GteEditorPage({ editorId, isGuestMode, hasAccount, passe
     if (!trackDropdownContextMenu) return;
     const handlePointerDown = (event: MouseEvent | TouchEvent) => {
       const target = event.target as HTMLElement | null;
-      if (target?.closest("[data-track-dropdown-context-menu='true']")) return;
+      if (selectPortalTargetWithin(target, "[data-track-dropdown-context-menu='true']")) return;
       setTrackDropdownContextMenu(null);
     };
     window.addEventListener("mousedown", handlePointerDown, true);

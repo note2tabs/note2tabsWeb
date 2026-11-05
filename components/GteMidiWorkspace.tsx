@@ -182,7 +182,7 @@ export default function GteMidiWorkspace(props: Props) {
     const version = ++auditionVersion.current;
     try {
       const ctx = audio.current ?? new AudioContext(); audio.current = ctx; await ctx.resume();
-      const instrument = await prepareTrackInstrument(ctx, snapshot.instrumentId);
+      const instrument = await prepareTrackInstrument(ctx, snapshot.instrumentId, [midi]);
       if (version !== auditionVersion.current || ctx.state !== "running") return;
       schedulePreparedTrackNote({ ctx, destination: ctx.destination, instrument, midi, gain: 0.35 * (snapshot.playbackVolume ?? 1) * (props.globalPlaybackVolume ?? 1), startTime: ctx.currentTime, duration: 0.22 });
     } catch { /* Editing remains available when audio is unavailable. */ }

@@ -208,7 +208,7 @@ export default function GteFileImportButton({
       // Resume synchronously from the click so browser audio policies permit playback.
       const resumePromise = ctx.state === "suspended" ? ctx.resume() : Promise.resolve();
       const [instrument] = await Promise.all([
-        prepareTrackInstrument(ctx, DEFAULT_TRACK_INSTRUMENT_ID),
+        prepareTrackInstrument(ctx, DEFAULT_TRACK_INSTRUMENT_ID, events.map(event => event.midi)),
         resumePromise,
       ]);
       if (previewRequestRef.current !== requestId || activeTrackPreviewRef.current?.ctx !== ctx) return;
