@@ -1,3 +1,4 @@
+import { createPostHogServerClient } from "../../../../lib/posthogServer";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/[...nextauth]";
@@ -74,10 +75,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (upstream.status === 422) {
     try {
       const parsed=JSON.parse(text);
-      if(parsed?.detail?.error==='no_notes') return res.status(422).json({
+      if(parsed?.detail?.error==='no_notes') {
+        try {
+          const client=createPostHogServerClient();
+          if(client){
+            client.capture({distinctId:session.user.id,event:"transcription_result_delivery_failed",properties:{
+              job_id:jobId,error_code:"no_notes",failure_stage:"no_notes",terminal:true,credits_reconciled:true,$insert_id:`no-notes:${jobId}`,
+            }});
+            await client.flush();
+          }
+        } catch { console.warn("no_notes_incident_capture_failed"); }
+        return res.status(422).json({
         error: "No notes were detected in this recording. Your credits have been restored. Try a clearer recording or a different section.",
         error_code: "no_notes", creditsRestored: parsed.detail.creditsRestored,
       });
+      }
     } catch { /* Other upstream errors keep their normal handling. */ }
   }
   return res.status(upstream.status).json({ error: await readUpstreamErrorFromText(text, upstream.status) });
