@@ -33,6 +33,10 @@ export function quantizeStreamingSegments(source: TranscriberTrack, secondsPerBa
 }
 
 /** Canonical one-bar processing, shared by progressive and complete raw input. */
+export class WaitingForPreviewTempoError extends Error {
+  constructor() { super("Waiting for preprocessing tempo"); this.name = "WaitingForPreviewTempoError"; }
+}
+
 export const STREAMING_CHUNK_BARS = 1;
 export function createPreviewBuilder() {
   let streamId = "";
@@ -44,7 +48,7 @@ export function createPreviewBuilder() {
     const beats = payload.tempoAnalysis?.beatsPerBar;
     const modelBpm = Number(payload.tempoAnalysis?.bpm);
     if (!initialTempo) {
-      if (!Number.isFinite(modelBpm) || modelBpm < 20 || modelBpm > 400) throw new Error("Waiting for preprocessing tempo");
+      if (!Number.isFinite(modelBpm) || modelBpm < 20 || modelBpm > 400) throw new WaitingForPreviewTempoError();
       initialTempo = { bpm: modelBpm, numerator: typeof beats === "number" && Number.isInteger(beats) && beats >= 1 && beats <= 16 ? beats : 4 };
     }
     const { bpm, numerator } = initialTempo, secondsPerBar = 60 * numerator / bpm;
