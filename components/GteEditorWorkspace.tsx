@@ -2193,6 +2193,25 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
     setActiveLaneIdState(previous => streamingActiveLane(previous, streaming.canvas, manuallySelectedTrackRef.current, streaming.ghosts));
   }, [streaming?.canvas, streaming?.ghosts]);
 
+  const [streamingProgressBottom, setStreamingProgressBottom] = useState(104);
+  useEffect(() => {
+    if (!streaming) return;
+    const controls = Array.from(document.querySelectorAll<HTMLElement>(
+      '[data-gte-shared-transport="true"], [data-gte-cursor-settings="true"]',
+    ));
+    const updatePosition = () => {
+      const tops = controls.map(control => control.getBoundingClientRect())
+        .filter(rect => rect.width > 0 && rect.height > 0 && rect.top < window.innerHeight && rect.bottom > 0)
+        .map(rect => rect.top);
+      setStreamingProgressBottom(tops.length ? Math.max(12, window.innerHeight - Math.min(...tops) + 12) : 104);
+    };
+    const observer = new ResizeObserver(updatePosition);
+    controls.forEach(control => observer.observe(control));
+    window.addEventListener("resize", updatePosition);
+    updatePosition();
+    return () => { observer.disconnect(); window.removeEventListener("resize", updatePosition); };
+  }, [!!streaming, isMobileViewport, tabViewEnabled, cursorSettingsLaneId, activeLaneId, practiceModeEnabled, !!canvas]);
+
   const streamInputsHydratedRef = useRef(false);
   useEffect(() => {
     if (!streaming) return;
@@ -9232,7 +9251,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
           </div>
         </div>
         )}
-          {streaming && <div className="gte-transcription-progress" role="status">
+          {streaming && <div className="gte-transcription-progress" role="status" style={{ bottom: streamingProgressBottom }}>
             <span>Note2Tabs is transcribing &quot;{streaming.name}&quot;</span><small>{streaming.stage} &middot; {Math.round(streaming.progress)}%</small>
             <div role="progressbar" aria-label="Transcription progress" aria-valuenow={Math.round(streaming.progress)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${streaming.progress}%` }} /></div>
           </div>}
@@ -10962,7 +10981,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
         </div>
       )}
       {!isMobileViewport && !tabViewEnabled && canvas && cursorSettingsLaneId !== null && cursorSettingsLaneId === activeLaneId && (
-        <div data-gte-floating-ui="true" data-gte-editor-control="true" role="region" aria-label={t("Editing settings")}
+        <div data-gte-cursor-settings="true" data-gte-floating-ui="true" data-gte-editor-control="true" role="region" aria-label={t("Editing settings")}
           className="fixed bottom-24 left-1/2 z-[9997] grid w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 grid-cols-2 items-end gap-x-2 gap-y-2 rounded-xl border border-slate-200 bg-white/95 p-2.5 text-slate-700 shadow-sm backdrop-blur">
                     <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_2.25rem_minmax(0,1fr)] items-start gap-2">
                     <label className="grid min-w-0 gap-1 text-xs font-medium text-slate-600">{t("Add note size")}<select
