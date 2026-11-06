@@ -54,3 +54,9 @@ TypeScript and the current production build pass. Automated coverage includes bo
 Progressive prefixes (including duplicate revisions and the last partial bar) match a complete-raw-input call to the same canonical one-bar pipeline across piano/guitar/bass/drums, 4/4 and 3/4, and 71.5/93/120/176 BPM. Notation timing/pitches also match an independent whole-track call to the existing quantizer. Tests cover boundary onset clusters, locked preprocessing tempo, edited timing/pitches, deletion and completion without a second musical transform.
 
 This equivalence is to running the current one-bar algorithm on all raw input at once. The historical whole-track fingering optimizer can use different cross-bar context; these tests do not establish identical fingerings to that older algorithm. No real model inference was run for this change. Backend inspection confirmed both streaming model adapters already provide the preprocessing beat grid before their note events; no backend changes or container rebuilds were needed.
+
+## Streaming presentation
+
+Until the first generated music is ready, the stream route reuses `JobStatusLayout`'s transcription progress screen, including current job timing; it does not use the editor skeleton. Initial track preference is guitar tab, bass tab, notation, then other tracks. Incoming source metadata never overrides an existing active track.
+
+The editor progress panel occupies normal document space below the editor header, avoiding overlays over notes and controls. Its percentage follows the revealed musical-time frontier; a model snapshot arriving ahead does not immediately advance the displayed percentage. Empty settled sections can advance progress once their queued notes have all appeared. Completion stays below 100% until saving succeeds.

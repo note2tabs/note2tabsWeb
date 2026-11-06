@@ -63,5 +63,6 @@ export function createStreamingWorkspaceApi(read: () => CanvasSnapshot | null): 
 /** Incoming source metadata never chooses a different track for the musician. */
 export function streamingActiveLane(current: string | null, canvas: CanvasSnapshot) {
   if (current && canvas.editors.some(lane => lane.id === current)) return current;
-  return canvas.editors.find(lane => lane.notes.length || lane.chords.length)?.id ?? canvas.editors[0]?.id ?? null;
+  const priority = (lane: EditorSnapshot) => lane.instrumentType === "guitar-tab" ? 0 : lane.instrumentType === "bass-tab" ? 1 : lane.instrumentType === "notation" ? 2 : 3;
+  return [...canvas.editors].sort((a,b) => priority(a) - priority(b))[0]?.id ?? null;
 }

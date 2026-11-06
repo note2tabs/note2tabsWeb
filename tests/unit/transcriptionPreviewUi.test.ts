@@ -32,7 +32,8 @@ it("waits without extra API calls before the first note and uses a simple progre
   await render(null);
   expect(fetch).not.toHaveBeenCalled();
   expect(mocks.render).not.toHaveBeenCalled();
-  expect(host.textContent).toContain("Listening and preparing the first bar");
+  expect(host.querySelector(".job-progress-card")).not.toBeNull();
+  expect(host.querySelector(".gte-editor-loading")).toBeNull();
 });
 it("mounts the real editor workspace and does not introduce separate preview transport or tabs", async () => {
   await render();
@@ -113,4 +114,17 @@ it("finishes in the same mounted editor, rejects stale final processing, and kee
   const props = mocks.render.mock.calls.at(-1)![0];
   expect(props.editorId).toBe("saved-editor"); expect(props.streaming).toBeUndefined();
   expect(props.hydratedCanvas.editors[0].notes[0].midiNum).toBe(72);
+});
+
+it("holds progress behind queued notes even when model progress is ahead", async () => {
+ const source = { ...canvas, editors: [{ ...canvas.editors[0], notes: [0,240,480,720].map((startTime,index) => ({ ...canvas.editors[0].notes[0], id:-index-1, startTime })) }] };
+ await render({ ...metadata, processedSeconds:8, settledSeconds:8 });
+ await act(async () => WorkerStub.current.onmessage?.({ data: { request:"attempt:1", canvas:source, throughSeconds:8 } }));
+ expect(mocks.render.mock.calls.at(-1)![0].streaming.progress).toBe(0);
+ await act(async () => { await vi.advanceTimersByTimeAsync(2100); });
+ const halfway = mocks.render.mock.calls.at(-1)![0];
+ expect(halfway.streaming.progress).toBeGreaterThan(0);
+ expect(halfway.streaming.progress).toBeLessThan(80);
+ await act(async () => { await vi.advanceTimersByTimeAsync(6500); });
+ expect(mocks.render.mock.calls.at(-1)![0].streaming.progress).toBe(80);
 });

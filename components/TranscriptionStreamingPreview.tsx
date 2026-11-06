@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { EditorLoadingState } from "./EditorLoadingState";
+import JobStatusLayout, { type JobResponse, type PendingJobPresentation } from "./JobStatusLayout";
 import type { CanvasSnapshot } from "../types/gte";
 import { previewMetadata, type TranscriptionPreviewMetadata, type TranscriptionPreviewPayload } from "../lib/transcriptionPreviewProtocol";
 import { applyStreamingEdits, emptyStreamingEdits, readStreamingEdits, recordStreamingCanvasEdit, saveStreamingEdits, type StreamingEdits } from "../lib/gteStreamingEdits";
@@ -11,9 +11,9 @@ import styles from "./TranscriptionStreamingPreview.module.css";
 
 const Editor = dynamic(() => import("./GteEditorWorkspace"), { ssr: false });
 const waiting: TranscriptionPreviewMetadata = { version: 1, streamId: "waiting", revision: 0, processedSeconds: 0, durationSeconds: 1, complete: false };
-type Props = { jobId: string; name: string; metadata: TranscriptionPreviewMetadata | null; finishing: boolean; onEditsChange?: (draft: StreamingEdits) => void; finalSource?: StreamingCompletionSource | null; onSave?: (canvas: CanvasSnapshot) => Promise<string> };
+type Props = { jobId: string; name: string; metadata: TranscriptionPreviewMetadata | null; finishing: boolean; onEditsChange?: (draft: StreamingEdits) => void; finalSource?: StreamingCompletionSource | null; onSave?: (canvas: CanvasSnapshot) => Promise<string>; loadingJob?: JobResponse | null; pendingPresentation?: PendingJobPresentation | null };
 
-export default function TranscriptionStreamingPreview({ jobId, name, metadata: incomingMetadata, finishing, onEditsChange, finalSource, onSave }: Props) {
+export default function TranscriptionStreamingPreview({ jobId, name, metadata: incomingMetadata, finishing, onEditsChange, finalSource, onSave, loadingJob, pendingPresentation }: Props) {
   const lastMetadata = useRef(incomingMetadata ?? waiting);
   if (incomingMetadata) lastMetadata.current = incomingMetadata;
   const metadata = lastMetadata.current;
@@ -95,7 +95,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
     window.addEventListener("blur", pointerUp); window.addEventListener("pointerup", pointerUp); window.addEventListener("pointercancel", pointerUp); window.addEventListener("keydown", typing, true);
     const timer = window.setInterval(() => {
       if (interaction.current.pointer || Date.now() < interaction.current.until || phaseRef.current === "saved" || phaseRef.current === "saving" || finalizing.current) return;
-      if (revealed.current.pending()) { const next = revealed.current.advance(125); if (next && next !== base.current) applySource(next); }
+      const next = revealed.current.advance(125); if (next && next !== base.current) applySource(next);
       finishLatestRef.current();
     }, 125);
     return () => { clearInterval(timer); window.removeEventListener("blur", pointerUp); window.removeEventListener("pointerup", pointerUp); window.removeEventListener("pointercancel", pointerUp); window.removeEventListener("keydown", typing, true); };
@@ -117,7 +117,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
       busy.current = false;
       if (event.data.request === wanted.current && event.data.canvas) {
         const first = !base.current || base.current.editors[0]?.id === "awaiting-first-track";
-        const next = revealed.current.receive(event.data.canvas, event.data.request.endsWith(":final"));
+        const next = revealed.current.receive(event.data.canvas, event.data.request.endsWith(":final"), event.data.throughSeconds ?? lastMetadata.current.settledSeconds ?? lastMetadata.current.processedSeconds);
         if (first && next) applySource(revealed.current.advance() ?? next);
         if (event.data.request.endsWith(":final")) sourceComplete.current = true;
         if (!storageFailed.current) setNotice("");
@@ -167,7 +167,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
     if (busy.current || !worker.current) pending.current = item;
     else { busy.current = true; worker.current.postMessage(item); }
   }, [finalSource]);
-  const progress = phase === "saved" ? 100 : Math.min(99, Math.max(0, 100 * metadata.processedSeconds / metadata.durationSeconds));
+  const progress = phase === "saved" ? 100 : Math.min(99, Math.max(0, 100 * revealed.current.throughSeconds() / metadata.durationSeconds));
   const initial = useRef<CanvasSnapshot>({ id: `stream-${jobId}`, name, secondsPerBar: 2, editors: [{
     id: "awaiting-first-track", name: "Guitar", program: 25, instrumentType: "guitar-tab", instrumentId: "acoustic_guitar", trackType: "tab",
     fps: 240, totalFrames: 480, framesPerMessure: 480, timeSignature: 4, timeSignatureBottom: 4, notes: [], chords: [], cutPositionsWithCoords: [], optimalsByTime: {},
@@ -183,8 +183,10 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
     {notice && <p role="status" className={styles.notice}>{notice}{phase === "finishing" && <button type="button" onClick={() => { if (finalError.current) { finalError.current = false; finishLatestRef.current(); } else void saveLatestRef.current(); }}>Retry</button>}</p>}
     {!openedEditor.current ? <main className={`page page-tight ${styles.waiting}`}>
       <div className="container stack">
-        <h1 className="page-title">Note2Tabs is transcribing &quot;{name}&quot;</h1>
-        <EditorLoadingState label="Listening and preparing the first bar" />
+        <h1 className="page-title">Preparing your transcription</h1>
+        <JobStatusLayout job={loadingJob ? { ...loadingJob, status: "processing" } : null} pendingPresentation={pendingPresentation}
+          onRestart={() => {}} onDownloadTabs={() => {}} hasWatchedAd showAdGate={false} onRetryAd={() => {}}
+          adContainerKey={0} onSkipAd={() => {}} showFallbackVideo={false} onVideoComplete={() => {}} />
       </div>
     </main> : <Editor editorId={savedEditorId || `stream-${jobId}`} isGuestMode={savedEditorId === "guest"} hasAccount passedTutorial
       hydratedCanvas={savedEditorId ? workspaceCanvas : undefined}

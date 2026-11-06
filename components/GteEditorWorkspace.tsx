@@ -7386,10 +7386,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
         }
         onMouseDownCapture={handleMainMouseDownCapture}
       >
-      {streaming && isMobileViewport && <div className="gte-transcription-progress gte-transcription-progress--mobile" role="status">
-        <span>Note2Tabs is transcribing &quot;{streaming.name}&quot;</span><small>{streaming.stage} &middot; {Math.round(streaming.progress)}%</small>
-        <div role="progressbar" aria-label="Transcription progress" aria-valuenow={Math.round(streaming.progress)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${streaming.progress}%` }} /></div>
-      </div>}
+
       {trackCleanupResult?.laneId === activeLaneId && <div role="status" aria-live="polite" data-gte-cleanup-feedback="true"
         className="fixed bottom-4 right-4 z-[10050] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-sm text-slate-700 shadow-lg backdrop-blur">
         {trackCleanupResult.count === 0 ? t("No tiny overlaps to trim.") : t("Trimmed {value1} note/chord endings.", { value1: trackCleanupResult.count })}
@@ -7916,10 +7913,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
               : { alignItems: "flex-start" }
           }
         >
-          {streaming && <div className="gte-transcription-progress" role="status">
-            <span>Note2Tabs is transcribing &quot;{streaming.name}&quot;</span><small>{streaming.stage} &middot; {Math.round(streaming.progress)}%</small>
-            <div role="progressbar" aria-label="Transcription progress" aria-valuenow={Math.round(streaming.progress)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${streaming.progress}%` }} /></div>
-          </div>}
+
           <div style={{ flex: "1 1 0", minWidth: 0 }}>
             <div
               style={{ position: "relative", display: "flex", alignItems: "center", gap: "14px", flexWrap: "nowrap", minHeight: 36, fontSize: "1rem", lineHeight: 1.25 }}
@@ -9226,6 +9220,10 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
           </div>
         </div>
         )}
+          {streaming && <div className="gte-transcription-progress" role="status">
+            <span>Note2Tabs is transcribing &quot;{streaming.name}&quot;</span><small>{streaming.stage} &middot; {Math.round(streaming.progress)}%</small>
+            <div role="progressbar" aria-label="Transcription progress" aria-valuenow={Math.round(streaming.progress)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${streaming.progress}%` }} /></div>
+          </div>}
         {isGuestMode && !streaming && !isMobileEditMode && !practiceModeEnabled && (
           <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1 shadow-sm sm:flex-wrap sm:gap-4 sm:rounded-xl sm:px-4 sm:py-3 [@media(max-height:500px)]:hidden">
             <div className="min-w-0">

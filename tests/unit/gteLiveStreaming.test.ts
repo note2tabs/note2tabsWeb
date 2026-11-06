@@ -74,3 +74,12 @@ describe("paced, editable streaming", () => {
   expect(streamingModelTempo({ output: { result: { tempoAnalysis: { bpm: 141.78, beatsPerBar: 4 } } } })).toEqual({ bpm: 141.78, beatsPerBar: 4 });
  });
 });
+
+it("prefers tabs then bass then notation only for the initial track", () => {
+ const piano=canvas().editors[0], bass={...piano,id:"bass",instrumentType:"bass-tab" as const}, guitar={...piano,id:"guitar",instrumentType:"guitar-tab" as const}, drums={...piano,id:"drums",instrumentType:"drums" as const};
+ const score={...canvas(),editors:[drums,piano,bass,guitar]};
+ expect(streamingActiveLane(null,score)).toBe("guitar");
+ expect(streamingActiveLane(null,{...score,editors:[piano,bass,drums]})).toBe("bass");
+ expect(streamingActiveLane(null,{...score,editors:[drums,piano]})).toBe("piano");
+ expect(streamingActiveLane("piano",score)).toBe("piano");
+});

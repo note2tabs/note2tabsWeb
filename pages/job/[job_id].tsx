@@ -1353,7 +1353,7 @@ export default function JobPage() {
     void router.replace({ pathname: "/gte/transcribing/[job_id]", query: { ...router.query, job_id } });
   }, [showStreaming, job_id, router.pathname]);
   if (showStreaming && typeof job_id === "string") return <>
-    <TranscriptionStreamingPreview key={job_id} jobId={job_id} name={ytTitleHint || displayJob?.song_title || "your song"} metadata={streamingMetadata} finishing={showReviewUi && !streamingSaved} finalSource={streamingFinalSource} onSave={saveStreamingArrangement} onEditsChange={draft => { streamingEditsRef.current = draft; }} />
+    <TranscriptionStreamingPreview key={job_id} jobId={job_id} loadingJob={displayJob} pendingPresentation={pendingPresentation} name={ytTitleHint || displayJob?.song_title || "your song"} metadata={streamingMetadata} finishing={showReviewUi && !streamingSaved} finalSource={streamingFinalSource} onSave={saveStreamingArrangement} onEditsChange={draft => { streamingEditsRef.current = draft; }} />
     {reviewError && <div role="alert" className="fixed bottom-24 left-1/2 z-[11000] -translate-x-1/2 rounded-lg border bg-white px-4 py-3 text-sm">
       {translatedError(reviewError, locale)} <button type="button" disabled={reviewBusy} onClick={() => { automaticImportJobRef.current = null; setReviewError(null); void automaticallyOpenEditor(); }}>Retry saving</button>
     </div>}
@@ -1389,7 +1389,7 @@ export default function JobPage() {
           <div className="job-route-content">
           {showStreaming && typeof job_id === "string" ? (
             <div className="stack">
-              <TranscriptionStreamingPreview key={job_id} jobId={job_id} name={ytTitleHint || displayJob?.song_title || "your song"} metadata={streamingMetadata} finishing={showReviewUi && !streamingSaved} finalSource={streamingFinalSource} onSave={saveStreamingArrangement} onEditsChange={draft => { streamingEditsRef.current = draft; }} />
+              <TranscriptionStreamingPreview key={job_id} jobId={job_id} loadingJob={displayJob} pendingPresentation={pendingPresentation} name={ytTitleHint || displayJob?.song_title || "your song"} metadata={streamingMetadata} finishing={showReviewUi && !streamingSaved} finalSource={streamingFinalSource} onSave={saveStreamingArrangement} onEditsChange={draft => { streamingEditsRef.current = draft; }} />
               {reviewError && <><p role="alert">{translatedError(reviewError, locale)}</p><button type="button" className="button-primary button-small" disabled={reviewBusy} onClick={() => { automaticImportJobRef.current = null; setReviewError(null); void automaticallyOpenEditor(); }}>Retry opening editor</button></>}
             </div>
           ) : showReviewUi ? (

@@ -8,6 +8,7 @@ export function createStreamingReveal() {
   let queue: Array<{ time: number; keys: string[] }> = [];
   let last: CanvasSnapshot | null = null;
   let lastArrival = 0, cadenceMs = 8000, groupsPerMs = 0, credit = 0;
+  let through = 0, revealedThrough = 0;
   const rebuild = () => {
     if (!source) return null;
     last = { ...source, editors: source.editors.map(lane => {
@@ -22,7 +23,8 @@ export function createStreamingReveal() {
     return last;
   };
   return {
-    receive(next: CanvasSnapshot, complete = false) {
+    receive(next: CanvasSnapshot, complete = false, processedSeconds = 0) {
+      through = Math.max(through, processedSeconds, ...next.editors.map(lane => lane.notes.reduce((end, note) => Math.max(end, note.startTime / lane.fps), lane.chords.reduce((end, chord) => Math.max(end, chord.startTime / lane.fps), 0))));
       const now = Date.now();
       if (lastArrival) cadenceMs = Math.max(4000, Math.min(12000, cadenceMs * .7 + (now - lastArrival) * .3));
       lastArrival = now;
@@ -37,6 +39,7 @@ export function createStreamingReveal() {
         }
       }
       queue = [...groups].map(([time, keys]) => ({ time, keys })).sort((a, b) => a.time - b.time);
+      if (!queue.length) revealedThrough = Math.max(revealedThrough, through);
       groupsPerMs = queue.length / (complete ? 1500 : cadenceMs);
       credit = 0;
       return rebuild();
@@ -49,10 +52,15 @@ export function createStreamingReveal() {
       const count = Math.min(queue.length, Math.floor(credit));
       if (!count) return last;
       credit -= count;
-      for (const group of queue.splice(0, count)) for (const id of group.keys) visible.add(id);
+      for (const group of queue.splice(0, count)) {
+        revealedThrough = Math.max(revealedThrough, group.time / 1000);
+        for (const id of group.keys) visible.add(id);
+      }
+      if (!queue.length) revealedThrough = Math.max(revealedThrough, through);
       return rebuild();
     },
     pending: () => queue.length,
-    reset() { source = null; last = null; queue = []; visible = new Set(); lastArrival = 0; cadenceMs = 8000; groupsPerMs = 0; credit = 0; },
+    throughSeconds: () => revealedThrough,
+    reset() { source = null; last = null; queue = []; visible = new Set(); through = 0; revealedThrough = 0; lastArrival = 0; cadenceMs = 8000; groupsPerMs = 0; credit = 0; },
   };
 }
