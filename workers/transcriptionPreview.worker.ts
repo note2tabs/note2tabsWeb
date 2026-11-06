@@ -1,5 +1,5 @@
 import { completeStreamingCanvas } from "../lib/gteStreamingCompletion";
-import { createPreviewBuilder, buildUnsettledGhosts } from "../lib/gteTranscriptionPreview";
+import { createPreviewBuilder, buildUnsettledGhosts, WaitingForPreviewTempoError } from "../lib/gteTranscriptionPreview";
 import type { TranscriptionPreviewPayload } from "../lib/transcriptionPreviewProtocol";
 
 const build = createPreviewBuilder();
@@ -10,5 +10,11 @@ self.onmessage = (event: MessageEvent<any>) => {
     return;
   }
   try { const canvas=build(event.data.payload); self.postMessage({ request: event.data.request, canvas, provisionalGhosts: buildUnsettledGhosts(event.data.payload,canvas), throughSeconds: event.data.payload.complete ? event.data.payload.durationSeconds : event.data.payload.settledSeconds ?? event.data.payload.processedSeconds }); }
-  catch { self.postMessage({ request: event.data.request, error: "Preview unavailable" }); }
+  catch (error) {
+    if (error instanceof WaitingForPreviewTempoError) {
+      self.postMessage({ request: event.data.request, waitingForTempo: true });
+    } else {
+      self.postMessage({ request: event.data.request, error: "Live editor update unavailable" });
+    }
+  }
 };
