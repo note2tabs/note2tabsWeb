@@ -3,7 +3,7 @@ import vm from "node:vm";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import {createGuestSnapshot} from "../../lib/gteGuestDraft";
-const source=ts.createSourceFile("editor.tsx",readFileSync("pages/gte/[editor_id].tsx","utf8"),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+const source=ts.createSourceFile("editor.tsx",readFileSync("components/GteEditorWorkspace.tsx","utf8"),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 let expression:ts.Expression|undefined;
 function visit(node:ts.Node){if(ts.isVariableDeclaration(node)&&node.name.getText(source)==="hasSessionContent") expression=node.initializer;ts.forEachChild(node,visit);}
 visit(source);

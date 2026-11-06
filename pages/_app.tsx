@@ -37,7 +37,7 @@ const AnalyticsIdentityLinker = dynamic(() => import("../components/AnalyticsIde
 export default function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps) {
   const router = useRouter();
   const isGteEditorPage =
-    router.pathname === "/gte/[editor_id]" || router.pathname === "/dev/heavy-preview-editor";
+    router.pathname === "/gte/[editor_id]" || router.pathname === "/gte/transcribing/[job_id]" || router.pathname === "/dev/heavy-preview-editor";
   const isProductHomePage = stripLocale(router.pathname) === "/home" || stripLocale(router.pathname) === "/shared";
 
   useEffect(() => {

@@ -5,7 +5,7 @@ import {ALL_LOCALES} from "../../lib/i18n/locale";
 import {translate,registerEditorCatalog} from "../../lib/i18n/translate";
 import {TOOL_SELECTION_LABELS} from "../../lib/gteToolSelection";
 
-const files=["components/GteWorkspace.tsx","components/GteOptimizeDialog.tsx","components/GtePropertiesInspector.tsx","components/GteScaleModeMenu.tsx","components/HoverSettingsDropdown.tsx","pages/gte/[editor_id].tsx"];
+const files=["components/GteWorkspace.tsx","components/GteOptimizeDialog.tsx","components/GtePropertiesInspector.tsx","components/GteScaleModeMenu.tsx","components/HoverSettingsDropdown.tsx","components/GteEditorWorkspace.tsx"];
 const notation=new Set(["x","o","i","C","J","S","G","H","L","B","K","M","T","{value1}/{value2}","1/{value1}","L{value1}","R{value1}","{value1} {value2}"]);
 const messages=new Set<string>([...Object.values(TOOL_SELECTION_LABELS),"Deselect all"]);
 function collectMessage(node:ts.Node){

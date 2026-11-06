@@ -1311,6 +1311,16 @@ export default function JobPage() {
   const streamingMetadata = previewMetadata(displayJob?.transcriptionPreview);
   const streamableModel = ["msmodel", "msmodel_small"].includes(displayJob?.transcriptionMethod ?? "") || modelHint === "light" || modelHint === "super_heavy";
   const showStreaming = Boolean((streamingMetadata || streamableModel && !showReviewUi) && !["error", "failed"].includes(displayJob?.status ?? ""));
+  useEffect(() => {
+    if (!showStreaming || typeof job_id !== "string" || router.pathname !== "/job/[job_id]") return;
+    void router.replace({ pathname: "/gte/transcribing/[job_id]", query: { ...router.query, job_id } });
+  }, [showStreaming, job_id, router.pathname]);
+  if (showStreaming && typeof job_id === "string") return <>
+    <TranscriptionStreamingPreview key={job_id} jobId={job_id} name={ytTitleHint || displayJob?.song_title || "your song"} metadata={streamingMetadata} finishing={showReviewUi} onEditsChange={draft => { streamingEditsRef.current = draft; }} />
+    {reviewError && <div role="alert" className="fixed bottom-24 left-1/2 z-[11000] -translate-x-1/2 rounded-lg border bg-white px-4 py-3 text-sm">
+      {translatedError(reviewError, locale)} <button type="button" disabled={reviewBusy} onClick={() => { automaticImportJobRef.current = null; setReviewError(null); void automaticallyOpenEditor(); }}>Retry saving</button>
+    </div>}
+  </>;
   const title = showReviewUi ? t("Opening editor - Note2Tabs") : t(transcriptionEntryInstrument(router.query.instrument) === "piano" ? "Preparing Piano Transcription - Note2Tabs" : "Preparing Tabs - Note2Tabs");
 
   return (

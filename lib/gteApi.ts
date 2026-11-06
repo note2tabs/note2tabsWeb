@@ -1,3 +1,4 @@
+import { hasStreamingEdits } from "./gteStreamingEdits";
 import type { StreamingEdits } from "./gteStreamingEdits";
 import { TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES } from "./gteImportPolicy";
 import { detectImportedKey } from "./gteImportedKey";
@@ -528,7 +529,7 @@ async function importTranscriberToSaved(
       ? preserveExistingTimingForOffsetImport(lastResponse.canvas, existingCanvas)
       : stabilizeNewTranscriberTimingMap(lastResponse.canvas);
     if (!existingCanvas) {
-      if (payload.streamingEdits?.tracks.length) {
+      if (hasStreamingEdits(payload.streamingEdits)) {
         const { streamingRhythmReference } = await import("./gteStreamingImport");
         streamingRhythmScale = estimateImportRhythmScale(streamingRhythmReference(lastResponse.canvas, payload.streamingEdits, finalImportedEditorIds, payload.tracks, { timingMap: importTimingMap, quantization }), finalImportedEditorIds);
       }
@@ -641,7 +642,7 @@ async function importTranscriberToGuest(
     : stabilizeNewTranscriberTimingMap(response.canvas);
   let rhythmScale = 1, streamingRhythmScale: number | undefined, preferredTimingMap: TimingMapV2 | undefined;
   if (!existingCanvas) {
-    if (payload.streamingEdits?.tracks.length) {
+    if (hasStreamingEdits(payload.streamingEdits)) {
       const { streamingRhythmReference } = await import("./gteStreamingImport");
       streamingRhythmScale = estimateImportRhythmScale(streamingRhythmReference(response.canvas, payload.streamingEdits, response.importedEditorIds ?? [], payload.tracks, { timingMap: importTimingMap, quantization: payload.quantization ?? { enabled: Boolean(payload.quantize) } }), response.importedEditorIds);
     }
@@ -705,7 +706,7 @@ export async function optimizeImportedTrackFingerings(
       };
   const { processImportedCanvas } = await import("./gteImportProcessing");
   let optimized = processImportedCanvas(canvas, passes, importedEditorIds, importedTracks, importContext, overlapCleanupOptions);
-  if (importContext?.streamingEdits?.tracks.length) {
+  if (importContext && hasStreamingEdits(importContext.streamingEdits)) {
     const { finalizeStreamingEdits } = await import("./gteStreamingImport");
     optimized = finalizeStreamingEdits(optimized, importContext.streamingEdits, importedEditorIds ?? [], importedTracks, importContext);
   }

@@ -1,13 +1,13 @@
 import type { CanvasSnapshot } from "../types/gte";
 import type { TranscriberTrack } from "./gteApi";
-import { applyStreamingEdits, type StreamingEditContext, type StreamingEdits } from "./gteStreamingEdits";
+import { applyStreamingEdits, hasStreamingEdits, type StreamingEditContext, type StreamingEdits } from "./gteStreamingEdits";
 import { importedInstrument } from "./gteImportedInstrument";
 import { restorePitchedImport } from "./gteNotationImport";
 import { scaleImportedLane, scaleImportTimingMap } from "./gteImportRhythm";
 import { detectImportedKey } from "./gteImportedKey";
 
 export function hasStreamingRhythmEdits(draft?: StreamingEdits) {
-  return Boolean(draft?.tracks.some(track => track.events.some(edit => !edit.before || !edit.after ||
+  return Boolean(draft?.addedTracks?.length || draft?.removedTrackKeys?.length || draft?.tracks.some(track => track.events.some(edit => !edit.before || !edit.after ||
     edit.before.startSeconds !== edit.after.startSeconds || edit.before.lengthSeconds !== edit.after.lengthSeconds) ||
     track.settings.some(edit => edit.field === "notation" && JSON.stringify((edit.before as any)?.rests) !== JSON.stringify((edit.after as any)?.rests))));
 }
@@ -25,7 +25,8 @@ export function streamingRhythmReference(canvas: CanvasSnapshot, draft: Streamin
 
 /** No draft means an exact identity operation, including all canonical metadata. */
 export function finalizeStreamingEdits(baseline: CanvasSnapshot, draft: StreamingEdits | undefined, ids: readonly string[], tracks: readonly TranscriberTrack[] | undefined, context: StreamingEditContext) {
-  if (!draft?.tracks.length) return baseline;
+  if (!hasStreamingEdits(draft)) return baseline;
+  draft = draft!;
   let result = applyStreamingEdits(baseline, draft, ids, tracks, { ...context, final: true });
   if (ids.length === result.editors.length) {
     // Rebar only after canonical fingering is chosen. A changed preferred BPM
@@ -47,7 +48,7 @@ export function finalizeStreamingEdits(baseline: CanvasSnapshot, draft: Streamin
       ...lane.notes.map(note => ({ pitch_midi: note.midiNum, start_time_s: note.startTime / lane.fps, end_time_s: (note.startTime + note.length) / lane.fps })),
       ...lane.chords.flatMap(chord => chord.originalMidi.map(pitch_midi => ({ pitch_midi, start_time_s: chord.startTime / lane.fps, end_time_s: (chord.startTime + chord.length) / lane.fps }))),
     ] }))) : null;
-    if (key) { result.keyBase = key.keyBase; result.keyType = key.keyType; }
+    if (key && !draft.canvasSettings?.some(change => change.field === "keyBase" || change.field === "keyType")) { result.keyBase = key.keyBase; result.keyType = key.keyType; }
   }
   return result;
 }

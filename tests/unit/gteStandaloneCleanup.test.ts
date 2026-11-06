@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { cleanTinyOverlapsInSnapshot } from "../../lib/gteOverlapCleanup";
 import type { EditorSnapshot } from "../../types/gte";
 
-const source = readFileSync("pages/gte/[editor_id].tsx", "utf8");
+const source = readFileSync("components/GteEditorWorkspace.tsx", "utf8");
 const ast = ts.createSourceFile("editor.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 let action = "";
 function visit(node: ts.Node) {

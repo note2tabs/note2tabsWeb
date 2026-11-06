@@ -40,7 +40,7 @@ it("assigns missing voices on Sheets entry, saves once, and does not rerun acros
   } finally { await act(async () => root.unmount()); dom.window.close(); }
 });
 it("the actual Tools menu action applies only the current selection and uses existing save/history callbacks", () => {
-  const source = readFileSync("pages/gte/[editor_id].tsx", "utf8"), ast = ts.createSourceFile("editor.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const source = readFileSync("components/GteEditorWorkspace.tsx", "utf8"), ast = ts.createSourceFile("editor.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let expression = "";
   function visit(node: ts.Node) {
     if (ts.isVariableDeclaration(node) && node.name.getText(ast) === "renderTrackCleanupTool") expression = node.initializer!.getText(ast);

@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const editorPage = fs.readFileSync(
-  path.join(process.cwd(), "pages/gte/[editor_id].tsx"),
+  path.join(process.cwd(), "components/GteEditorWorkspace.tsx"),
   "utf8"
 );
 const workspace = fs.readFileSync(

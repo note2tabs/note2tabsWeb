@@ -9,7 +9,7 @@ type Anchor = Entity & { startSeconds: number; lengthSeconds: number };
 type Edit = { before: Anchor | null; after: Anchor | null };
 type SettingEdit = { field: string; before: unknown; after: unknown };
 export type StreamingTrackEdits = { key: string; events: Edit[]; settings: SettingEdit[]; anchors?: Anchor[]; geometryFps?: number };
-export type StreamingEdits = { version: 1; tracks: StreamingTrackEdits[] };
+export type StreamingEdits = { version: 1; tracks: StreamingTrackEdits[]; canvasSettings?: SettingEdit[]; addedTracks?: EditorSnapshot[]; removedTrackKeys?: string[]; trackOrder?: string[] };
 export const emptyStreamingEdits = (): StreamingEdits => ({ version: 1, tracks: [] });
 const clone = <T,>(value: T): T => structuredClone(value);
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -56,6 +56,35 @@ export function recordStreamingEdit(draft: StreamingEdits, key: string, before: 
   next.tracks = next.tracks.filter(item => item.events.length || item.settings.length);
   return next;
 }
+
+/** The full editor sends explicit canvas transactions, never inference arrivals. */
+export function recordStreamingCanvasEdit(draft: StreamingEdits, before: CanvasSnapshot, after: CanvasSnapshot): StreamingEdits {
+  let next = clone(draft);
+  for (const lane of after.editors) {
+    const previous = before.editors.find(item => item.id === lane.id);
+    const added = next.addedTracks?.findIndex(item => item.id === lane.id) ?? -1;
+    if (added >= 0) next.addedTracks![added] = clone(lane);
+    else if (!previous) (next.addedTracks ??= []).push(clone(lane));
+    else next = recordStreamingEdit(next, streamingTrackKey(previous), previous, lane);
+  }
+  for (const lane of before.editors) if (!after.editors.some(item => item.id === lane.id)) {
+    if (next.addedTracks?.some(item => item.id === lane.id)) next.addedTracks = next.addedTracks.filter(item => item.id !== lane.id);
+    else next.removedTrackKeys = [...new Set([...(next.removedTrackKeys ?? []), streamingTrackKey(lane)])];
+  }
+  if (!equal(before.editors.map(lane => lane.id), after.editors.map(lane => lane.id))) next.trackOrder = after.editors.map(streamingTrackKey);
+  for (const field of ["name", "keyBase", "keyType", "editorInputSettings"] as const) {
+    if (equal(before[field], after[field])) continue;
+    const changes = next.canvasSettings ??= [];
+    const existing = changes.find(item => item.field === field);
+    if (existing) existing.after = clone(after[field]);
+    else changes.push({ field, before: clone(before[field]), after: clone(after[field]) });
+    next.canvasSettings = changes.filter(item => !equal(item.before, item.after));
+  }
+  return next;
+}
+
+export const hasStreamingEdits = (draft?: StreamingEdits) => Boolean(draft &&
+  (draft.tracks.length || draft.canvasSettings?.length || draft.addedTracks?.length || draft.removedTrackKeys?.length || draft.trackOrder?.length));
 
 export type StreamingEditContext = {
   /** Original import map before the existing preferred-BPM rebar pass. */
@@ -207,7 +236,8 @@ export function applyStreamingTrackEdits(source: EditorSnapshot, edits: Streamin
 }
 
 export function applyStreamingEdits(canvas: CanvasSnapshot, draft: StreamingEdits | undefined, importedIds?: readonly string[], tracks?: readonly TranscriberTrack[], context: StreamingEditContext = {}): CanvasSnapshot {
-  if (!draft?.tracks.length) return canvas;
+  if (!hasStreamingEdits(draft)) return canvas;
+  draft = draft!;
   const ids = importedIds ?? canvas.editors.map(lane => lane.id);
   const editors = canvas.editors.map(lane => {
     const index = ids.indexOf(lane.id); if (index < 0) return lane;
@@ -215,7 +245,29 @@ export function applyStreamingEdits(canvas: CanvasSnapshot, draft: StreamingEdit
     const edits = draft.tracks.find(item => item.key === key);
     return edits ? applyStreamingTrackEdits(lane, edits, context) : lane;
   });
-  return { ...canvas, editors };
+  const filtered = editors.filter(lane => {
+    const index = ids.indexOf(lane.id);
+    return index < 0 || !draft.removedTrackKeys?.includes(streamingTrackKey(tracks?.[index] ?? lane));
+  });
+  for (const lane of draft.addedTracks ?? []) {
+    if (filtered.some(item => item.id === lane.id)) continue;
+    const value = clone(lane), target = filtered[0];
+    if (context.final && target && value.fps !== target.fps) {
+      const factor = target.fps / value.fps;
+      value.notes = value.notes.map(note => ({ ...note, startTime: note.startTime * factor, length: note.length * factor }));
+      value.chords = value.chords.map(chord => ({ ...chord, startTime: chord.startTime * factor, length: chord.length * factor }));
+      value.totalFrames *= factor; value.fps = target.fps;
+    }
+    filtered.push(value);
+  }
+  if (draft.trackOrder?.length) {
+    const order = new Map(draft.trackOrder.map((key, index) => [key, index]));
+    const sourceKey = (lane: EditorSnapshot) => { const i = ids.indexOf(lane.id); return streamingTrackKey(tracks?.[i] ?? lane); };
+    filtered.sort((a, b) => (order.get(sourceKey(a)) ?? 10000) - (order.get(sourceKey(b)) ?? 10000));
+  }
+  const result = { ...canvas, editors: filtered };
+  for (const change of draft.canvasSettings ?? []) (result as any)[change.field] = clone(change.after);
+  return result;
 }
 
 const storageKey = (jobId: string) => `note2tabs:stream-edits:v1:${jobId}`;

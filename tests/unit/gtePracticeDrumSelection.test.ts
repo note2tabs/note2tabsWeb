@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
 
-const page = readFileSync("pages/gte/[editor_id].tsx", "utf8");
+const page = readFileSync("components/GteEditorWorkspace.tsx", "utf8");
 const start = page.indexOf("const globalControlsLaneId = useMemo(");
 const end = page.indexOf("const activeEditableLaneId", start);
 const select = new Function("canvas", "mobileEditLaneId", "practiceModeEnabled", "activeLaneId", "isDrumLane", "isChordLane", "useMemo",

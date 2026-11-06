@@ -30,29 +30,22 @@ const render = async (value: TranscriptionPreviewMetadata | null = metadata, fin
 it("waits without extra API calls before the first note and uses a simple progress banner", async () => {
   await render(null);
   expect(fetch).not.toHaveBeenCalled();
-  expect(host.textContent).toContain('Note2Tabs is transcribing "Song"');
-  expect(host.textContent).toContain("Waiting for the first notes");
-  expect(host.querySelector('[role="progressbar"]')).not.toBeNull();
+  expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ streaming: expect.objectContaining({ name: "Song", progress: 0 }) }));
 });
-it("enables local editing, keeps playback on view changes and reuses fetched revisions", async () => {
+it("mounts the real editor workspace and does not introduce separate preview transport or tabs", async () => {
   await render();
   await act(async () => WorkerStub.current.onmessage?.({ data: { request: "attempt:1", canvas } }));
-  expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ editMenuDisabled: false, allowBackend: false, practiceMode: false, autoAssignVoices: false }));
-  const pauseCalls = mocks.pause.mock.calls.length;
-  await act(async () => [...host.querySelectorAll("button")].find(button => button.textContent === "Practice")!.click());
-  expect(mocks.pause).toHaveBeenCalledTimes(pauseCalls);
-  await render({ ...metadata });
-  expect(fetch).toHaveBeenCalledTimes(1);
-  window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space", bubbles: true }));
-  expect(mocks.toggle).toHaveBeenCalledTimes(1);
+  expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ editorId: "stream-job", isGuestMode: false, streaming: expect.objectContaining({ finishing: false }) }));
+  expect(host.querySelector("select")).toBeNull(); expect(host.querySelector("footer")).toBeNull();
+  await render({ ...metadata }); expect(fetch).toHaveBeenCalledTimes(1);
 });
 it("discards stale worker results and keeps the preview visible during final import", async () => {
   await render(); await render({ ...metadata, revision: 2 }, true);
   await act(async () => WorkerStub.current.onmessage?.({ data: { request: "attempt:1", canvas } }));
-  expect(mocks.render).not.toHaveBeenCalled();
+  expect(mocks.render.mock.calls.at(-1)![0].streaming.canvas.editors[0].id).toBe("awaiting-first-track");
   await act(async () => WorkerStub.current.onmessage?.({ data: { request: "attempt:2", canvas } }));
   expect(mocks.render).toHaveBeenCalled();
-  expect(host.textContent).toContain("Finishing your arrangement");
+  expect(mocks.render.mock.calls.at(-1)![0].streaming.finishing).toBe(true);
   expect(host.querySelector('button[disabled]')).toBeNull();
 });
 it("keeps user changes and undo/redo separate from arriving notes, with no save requests", async () => {
@@ -61,18 +54,18 @@ it("keeps user changes and undo/redo separate from arriving notes, with no save 
   await render();
   await act(async () => WorkerStub.current.onmessage?.({ data: { request: "attempt:1", canvas: source } }));
   const changed = structuredClone(source.editors[0]); changed.notes[0].midiNum = 72;
-  await act(async () => mocks.render.mock.calls.at(-1)![0].onSnapshotChange(changed));
+  await act(async () => mocks.render.mock.calls.at(-1)![0].streaming.onChange(source, { ...source, editors: [changed] }));
   expect(JSON.parse(window.localStorage.getItem("note2tabs:stream-edits:v1:job")!).tracks[0].events).toHaveLength(1);
   const incoming = structuredClone(source); incoming.editors[0].notes.push({ ...incoming.editors[0].notes[0], id: -99, startTime: 600, midiNum: 65 });
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ...metadata, revision: 2, tracks: [] }))));
   await render({ ...metadata, revision: 2 });
   await act(async () => WorkerStub.current.onmessage?.({ data: { request: "attempt:2", canvas: incoming } }));
   let props = mocks.render.mock.calls.at(-1)![0];
-  expect(props.snapshot.notes.map((note: any) => note.midiNum)).toEqual([72, 65]);
-  await act(async () => props.onRequestUndo()); props = mocks.render.mock.calls.at(-1)![0];
-  expect(props.snapshot.notes.map((note: any) => note.midiNum)).toEqual([60, 65]);
-  await act(async () => props.onRequestRedo());
-  expect(mocks.render.mock.calls.at(-1)![0].snapshot.notes.map((note: any) => note.midiNum)).toEqual([72, 65]);
+  expect(props.streaming.canvas.editors[0].notes.map((note: any) => note.midiNum)).toEqual([72, 65]);
+  await act(async () => props.streaming.undo()); props = mocks.render.mock.calls.at(-1)![0];
+  expect(props.streaming.canvas.editors[0].notes.map((note: any) => note.midiNum)).toEqual([60, 65]);
+  await act(async () => props.streaming.redo());
+  expect(mocks.render.mock.calls.at(-1)![0].streaming.canvas.editors[0].notes.map((note: any) => note.midiNum)).toEqual([72, 65]);
   expect(vi.mocked(fetch).mock.calls.every(call => !call[1]?.method || call[1].method === "GET")).toBe(true);
 });
 it("restores local edits after a retry and disables editing only during final commit", async () => {
@@ -80,12 +73,11 @@ it("restores local edits after a retry and disables editing only during final co
     notes: [{ id: -1, startTime: 0, length: 60, midiNum: 60, tab: [0, 0], optimals: [] }] }] };
   await render(); await act(async () => WorkerStub.current.onmessage?.({ data: { request: "attempt:1", canvas: source } }));
   const changed = structuredClone(source.editors[0]); changed.notes[0].midiNum = 74;
-  await act(async () => mocks.render.mock.calls.at(-1)![0].onSnapshotChange(changed));
+  await act(async () => mocks.render.mock.calls.at(-1)![0].streaming.onChange(source, { ...source, editors: [changed] }));
   const meta = { ...metadata, streamId: "retry", revision: 1 };
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ...meta, tracks: [] }))));
   await render(meta); await act(async () => WorkerStub.current.onmessage?.({ data: { request: "retry:1", canvas: source } }));
-  expect(mocks.render.mock.calls.at(-1)![0].snapshot.notes[0].midiNum).toBe(74);
+  expect(mocks.render.mock.calls.at(-1)![0].streaming.canvas.editors[0].notes[0].midiNum).toBe(74);
   await render(meta, true);
-  expect(mocks.render.mock.calls.at(-1)![0].editMenuDisabled).toBe(true);
-  expect(mocks.render.mock.calls.at(-1)![0].isActive).toBe(false);
+  expect(mocks.render.mock.calls.at(-1)![0].streaming.finishing).toBe(true);
 });

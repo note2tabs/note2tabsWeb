@@ -34,19 +34,19 @@ describe("mobile editor layout", () => {
   });
 
   it("gives phones a transport for piano and drum-notation tracks, and hides keyboard-only practice help", () => {
-    const page = fs.readFileSync(path.join(process.cwd(), "pages/gte/[editor_id].tsx"), "utf8");
+    const page = fs.readFileSync(path.join(process.cwd(), "components/GteEditorWorkspace.tsx"), "utf8");
     expect(page).toContain('data-gte-shared-transport="mobile"');
     expect(page).toMatch(/isMobileViewport && canvas && \(notationTrackActive \|\| \(drumTrackActive && \(practiceModeEnabled \|\| tabViewEnabled\)\)\)/);
     expect(page).toContain("{!isMobileViewport && renderPracticeHelp()}");
   });
 
   it("exposes MIDI view as a third mode on phones for piano tracks only", () => {
-    const page = fs.readFileSync(path.join(process.cwd(), "pages/gte/[editor_id].tsx"), "utf8");
+    const page = fs.readFileSync(path.join(process.cwd(), "components/GteEditorWorkspace.tsx"), "utf8");
     expect(page).toContain("const showMiddleView = !compact || notationTrackActive;");
   });
 
   it("moves undo/redo to a bottom dock level with playback, and the track bar plus track settings up top", () => {
-    const page = fs.readFileSync(path.join(process.cwd(), "pages/gte/[editor_id].tsx"), "utf8");
+    const page = fs.readFileSync(path.join(process.cwd(), "components/GteEditorWorkspace.tsx"), "utf8");
     expect(page).toContain('data-gte-mobile-history="true"');
     expect(page).toContain("createPortal(renderMobileHistoryDock(), document.body)");
     expect(page).toContain("{!practiceModeEnabled && renderMobileTrackBar()}");
@@ -57,7 +57,7 @@ describe("mobile editor layout", () => {
   it("keeps a sticky notation rail beside the score on phones and compacts landscape chrome", () => {
     const workspace = fs.readFileSync(path.join(process.cwd(), "components/GteNotationWorkspace.tsx"), "utf8");
     expect(workspace).toContain("maxHeight: `calc(100dvh - ${toolbarTop}px - 6rem)`");
-    const page = fs.readFileSync(path.join(process.cwd(), "pages/gte/[editor_id].tsx"), "utf8");
+    const page = fs.readFileSync(path.join(process.cwd(), "components/GteEditorWorkspace.tsx"), "utf8");
     expect(page).toContain("[@media(max-height:500px)]:flex-row");
   });
 

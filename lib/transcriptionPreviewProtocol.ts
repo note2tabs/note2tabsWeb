@@ -1,5 +1,6 @@
 import type { TranscriberTrack } from "./gteApi";
-export function streamingTrackKey(source: { trackType?: string; program?: number; name?: string }) {
+export function streamingTrackKey(source: { id?: string; trackType?: string; program?: number; name?: string }) {
+  if (source.id?.startsWith("user-")) return source.id;
   return source.trackType === "drums" ? "drums" : Number.isInteger(source.program) ? `gm:${source.program}` : `name:${source.name ?? ""}`;
 }
 export type TranscriptionPreviewMetadata = {

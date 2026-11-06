@@ -12,7 +12,7 @@ import { RevisionedAutosaveQueue } from "../../lib/gteAutosaveQueue";
 import type { CanvasSnapshot } from "../../types/gte";
 import { assignVoices } from "../../lib/gteAssignVoices";
 
-const source = readFileSync("pages/gte/[editor_id].tsx", "utf8");
+const source = readFileSync("components/GteEditorWorkspace.tsx", "utf8");
 const ast = ts.createSourceFile("editor.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const actions = new Map<string, string>();
 function visit(node: ts.Node) {
@@ -40,7 +40,7 @@ afterEach(async () => { if (root) await act(async () => root!.unmount()); root =
 afterAll(() => { dom.window.close(); vi.unstubAllGlobals(); });
 
 async function harness() {
-  const scope: Record<string, any> = { sameHistoryContent, appendBoundedHistory, MAX_CANVAS_HISTORY: 64,
+  const scope: Record<string, any> = { streamingRef: { current: undefined }, editorEntryInstrument: () => null, sameHistoryContent, appendBoundedHistory, MAX_CANVAS_HISTORY: 64,
     canvasUndoRef: { current: [] }, canvasRedoRef: { current: [] }, addingLane: false, deletingLaneId: null,
     savingCanvas: false, canvasRevisionRef: { current: 0 }, rebaseHistoryLaneSaves: vi.fn(), router: { query: {} },
     setCanvasUndoCount: vi.fn(), setCanvasRedoCount: vi.fn(),

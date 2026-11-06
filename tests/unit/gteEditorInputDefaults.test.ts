@@ -23,7 +23,7 @@ describe("eighth-note editor input defaults", () => {
     isRecord: evaluate(backend.get("isRecord")!),
     normalizeDenominator: evaluate(backend.get("normalizeDenominator")!),
   };
-  const frontend = expressions("pages/gte/[editor_id].tsx");
+  const frontend = expressions("components/GteEditorWorkspace.tsx");
   const normalizeFrontend = evaluate(frontend.get("normalizeEditorInputSettings")!, {
     NOTE_LENGTH_FRACTION_DENOMINATORS: [0.5, 1, 2, 3, 4, 8, 16, 32, 64],
     CURSOR_SIZE_FRACTION_DENOMINATORS: [1, 2, 4, 8, 16, 32],
