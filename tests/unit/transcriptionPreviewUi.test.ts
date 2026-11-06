@@ -53,7 +53,8 @@ it("discards stale worker results and keeps the preview visible during final imp
   await render(); serve({ ...metadata, revision: 2 }); await poll(); await render({ ...metadata, revision: 2 }, true);
   await act(async () => WorkerStub.current.onmessage?.({ data: { request: "attempt:1", canvas } }));
   await act(async () => { await vi.advanceTimersByTimeAsync(9500); });
-  expect(mocks.render).not.toHaveBeenCalled();
+  // The editor is already open (artifact exists) but the stale result put no notes in it.
+  expect(mocks.render.mock.calls.at(-1)![0].streaming.canvas.editors[0].notes).toHaveLength(0);
   await act(async () => WorkerStub.current.onmessage?.({ data: { request: "attempt:2", canvas } }));
   await act(async () => { await vi.advanceTimersByTimeAsync(9500); });
   expect(mocks.render).toHaveBeenCalled();
@@ -146,4 +147,11 @@ it("opens the editor with unsettled real previews but keeps them out of the edit
  await act(async()=>{await vi.advanceTimersByTimeAsync(5000);});
  props=mocks.render.mock.calls.at(-1)![0];expect(props.streaming.canvas.editors[0].notes).toHaveLength(0);
  expect(props.streaming.ghosts.lane).toEqual([ghost]);
+});
+
+it("opens the editor as soon as the first preview artifact exists, before any note", async () => {
+  await render();
+  const props = mocks.render.mock.calls.at(-1)![0];
+  expect(props.streaming.canvas.editors[0].notes).toHaveLength(0);
+  expect(props.streaming.stage).toMatch(/Listening/);
 });

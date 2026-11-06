@@ -39,6 +39,8 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
   const displayGhosts = () => { const layers=revealed.current.ghosts(); for(const lane of working.current?.editors ?? []) if(layers[lane.id]) layers[lane.id]=cleanStreamingGhosts(lane,layers[lane.id]); return layers; };
   const storageFailed = useRef(false);
   const [notice, setNotice] = useState("");
+  // The first artifact proves inference is running: open the editor now, even before the first note.
+  const [artifactSeen, setArtifactSeen] = useState(false);
   const worker = useRef<Worker | null>(null), busy = useRef(false);
   const wanted = useRef(""), applied = useRef<{ streamId: string; revision: number } | null>(null);
   const pending = useRef<{ request: string; payload: TranscriptionPreviewPayload } | null>(null);
@@ -102,7 +104,8 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
     const timer = window.setInterval(() => {
       if (interaction.current.pointer || Date.now() < interaction.current.until || phaseRef.current === "saved" || phaseRef.current === "saving" || finalizing.current) return;
       const next = revealed.current.advance(125); if (next && next !== base.current) applySource(next);
-      setStreamingHead(revealed.current.headSeconds());
+      // Before the first note the caret rests at bar 1, so the editor already looks alive.
+      setStreamingHead(revealed.current.headSeconds() ?? (openedEditor.current && !sourceComplete.current ? 0 : null));
       const layers=displayGhosts(); setGhosts(previous => JSON.stringify(previous) === JSON.stringify(layers) ? previous : layers);
       finishLatestRef.current();
     }, 125);
@@ -161,7 +164,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
         if (!sameStream && revision.streamId !== expected && (current || expected !== "waiting")) throw new Error("Stale preview");
         if (sameStream && revision.revision <= current!.revision) throw new Error("Unchanged preview");
         void preloadStreamingEditor(payload.tracks);
-        applied.current = { streamId: revision.streamId, revision: revision.revision };
+        applied.current = { streamId: revision.streamId, revision: revision.revision }; setArtifactSeen(true);
         const request = `${revision.streamId}:${revision.revision}`; wanted.current = request;
         const item = { request, payload };
         if (busy.current || !worker.current) pending.current = item;
@@ -194,7 +197,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
   if (!working.current) working.current = shown;
   if (!base.current) base.current = shown;
   const stage = phase === "saving" ? "Saving your arrangement..." : phase === "finishing" ? "Finishing your arrangement..." : sourceComplete.current || revealed.current.pending() ? "Adding notes - you can edit and play" : "Listening - you can edit and play";
-  const ready = Boolean(canvas && (sourceComplete.current || canvas.editors.some(lane => lane.notes.length || lane.chords.length) || Object.values(ghosts).some(notes => notes.some(note => note.phase === "preview"))));
+  const ready = artifactSeen || Boolean(canvas && (sourceComplete.current || canvas.editors.some(lane => lane.notes.length || lane.chords.length) || Object.values(ghosts).some(notes => notes.some(note => note.phase === "preview"))));
   if (ready) openedEditor.current = true;
   return <>
     {notice && <p role="status" className={styles.notice}>{notice}{phase === "finishing" && <button type="button" onClick={() => { if (finalError.current) { finalError.current = false; finishLatestRef.current(); } else void saveLatestRef.current(); }}>Retry</button>}</p>}
