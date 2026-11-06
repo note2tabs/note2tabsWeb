@@ -17910,7 +17910,7 @@ export default function GteWorkspace({
                   </span>
                 )))}
                 {!tabViewEnabled && !practiceMode && streamingGhosts && (
-                  <GteStreamingCaret fps={snapshot.fps} scale={scale} rowStride={rowStride} height={rowBlockHeight}
+                  <GteStreamingCaret fps={snapshot.fps} scale={scale} rowStride={rowStride} height={rowHeight}
                     locate={frame => getSpanSegments(frame, 1)[0]} />
                 )}
                 {visibleNotes.flatMap((note) => {

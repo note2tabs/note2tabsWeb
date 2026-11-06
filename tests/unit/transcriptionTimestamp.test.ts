@@ -1,33 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { formatTimestamp, parseTimestampInput, sanitizeTimestampInput } from "../../lib/transcriptionTimestamp";
+import { formatTimestamp, maskTimestampInput, parseTimestampInput } from "../../lib/transcriptionTimestamp";
 
-describe("clip timestamp input", () => {
-  it("parses every prefix of '1:00' as typed, so no step is rewritten or rejected oddly", () => {
-    expect(["1", "1:", "1:0", "1:00"].map(parseTimestampInput)).toEqual([1, null, 60, 60]);
+describe("clip timestamp input (digits fill in from the right)", () => {
+  const typed = (keys: string) => { let shown = ""; for (const key of keys) shown = maskTimestampInput(shown + key); return shown; };
+  it("turns 14 into 0:14 and 310 into 3:10 as you type", () => {
+    expect(typed("14")).toBe("0:14");
+    expect(typed("310")).toBe("3:10");
+    expect(["1", "10", "100", "1000"].map(typed)).toEqual(["0:01", "0:10", "1:00", "10:00"]);
   });
-  it("accepts the ways people actually type a time", () => {
-    expect(parseTimestampInput("90")).toBe(90);
-    expect(parseTimestampInput("1:30")).toBe(90);
-    expect(parseTimestampInput("01:30")).toBe(90);
-    expect(parseTimestampInput(" 1:3 ")).toBe(63);
-    expect(parseTimestampInput("1:02:03")).toBe(3723);
-    expect(parseTimestampInput("1m30s")).toBe(90);
-    expect(parseTimestampInput("2m")).toBe(120);
-    expect(parseTimestampInput("45s")).toBe(45);
+  it("behaves identically when typing 1:30 literally, pasting, or backspacing", () => {
+    expect(typed("1:30")).toBe("1:30");
+    expect(maskTimestampInput("12:34")).toBe("12:34");
+    expect(maskTimestampInput("3:1")).toBe("0:31"); // backspace from 3:10
+    expect(maskTimestampInput("0:03")).toBe("0:03");
+    expect(maskTimestampInput("")).toBe("");
+    expect(maskTimestampInput("abc")).toBe("");
   });
-  it("rejects incomplete or impossible times instead of guessing", () => {
-    for (const bad of ["", "   ", ":", "1:", "1:60", "abc", "1:2:3:4", "1::2"]) expect(parseTimestampInput(bad)).toBeNull();
+  it("converts the displayed text to seconds, carrying seconds above 59", () => {
+    expect(parseTimestampInput("3:10")).toBe(190);
+    expect(parseTimestampInput("0:14")).toBe(14);
+    expect(parseTimestampInput("1:00")).toBe(60);
+    expect(parseTimestampInput("0:75")).toBe(75);
+    expect(parseTimestampInput("")).toBeNull();
   });
-  it("never inserts characters while typing", () => {
-    expect(sanitizeTimestampInput("1")).toBe("1");
-    expect(sanitizeTimestampInput("10")).toBe("10");
-    expect(sanitizeTimestampInput("1:0")).toBe("1:0");
-    expect(sanitizeTimestampInput("1a:0 0")).toBe("1:00");
+  it("keeps every digit while seconds are temporarily over 59", () => {
+    expect(typed("75")).toBe("0:75");
+    expect(typed("755")).toBe("7:55");
   });
-  it("formats normalised values, including hours", () => {
+  it("formats normalised values", () => {
     expect(formatTimestamp(60)).toBe("1:00");
     expect(formatTimestamp(5)).toBe("0:05");
-    expect(formatTimestamp(3723)).toBe("1:02:03");
+    expect(formatTimestamp(75)).toBe("1:15");
   });
 });
 

@@ -1,4 +1,4 @@
-import { formatTimestamp, parseTimestampInput, sanitizeTimestampInput } from "../lib/transcriptionTimestamp";
+import { formatTimestamp, maskTimestampInput, parseTimestampInput } from "../lib/transcriptionTimestamp";
 import SeoLandingPage, { type SeoLandingPageProps } from "../components/SeoLandingPage";
 import { canDownloadYouTube, YOUTUBE_UNAVAILABLE_MESSAGE } from "../lib/youtubeAvailability";
 import { TRANSCRIPTION_ENTRY_TITLES, transcriptionEntryInstrument } from "../lib/instrumentTranscriptionEntry";
@@ -625,7 +625,7 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
   }, [fileDuration, fileEndTime, fileStartTime, heavyPreviewAvailable, isPremiumUser, selectedFile, transcriptionModel]);
 
   const handleYtStartInputChange = (value: string) => {
-    const nextValue = sanitizeTimestampInput(value);
+    const nextValue = maskTimestampInput(value);
     setYtStartInput(nextValue);
     setError(null);
     const parsed = parseTimestampInput(nextValue);
@@ -637,7 +637,7 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
   };
 
   const handleYtEndInputChange = (value: string) => {
-    const nextValue = sanitizeTimestampInput(value);
+    const nextValue = maskTimestampInput(value);
     setYtEndInput(nextValue);
     setError(null);
     const parsed = parseTimestampInput(nextValue);
@@ -672,7 +672,7 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
 
   const handleFileStartInputChange = (value: string) => {
     fileClipEdited.current = true;
-    const nextValue = sanitizeTimestampInput(value);
+    const nextValue = maskTimestampInput(value);
     setFileStartInput(nextValue);
     setError(null);
     const parsed = parseTimestampInput(nextValue);
@@ -691,7 +691,7 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
 
   const handleFileEndInputChange = (value: string) => {
     fileClipEdited.current = true;
-    const nextValue = sanitizeTimestampInput(value);
+    const nextValue = maskTimestampInput(value);
     setFileEndInput(nextValue);
     setError(null);
     const parsed = parseTimestampInput(nextValue);

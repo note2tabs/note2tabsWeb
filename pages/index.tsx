@@ -1,4 +1,4 @@
-import { formatTimestamp, parseTimestampInput, sanitizeTimestampInput } from "../lib/transcriptionTimestamp";
+import { formatTimestamp, maskTimestampInput, parseTimestampInput } from "../lib/transcriptionTimestamp";
 import PriceTaxNote from "../components/PriceTaxNote";
 import { uploadTranscriptionFile, TranscriptionUploadError } from "../lib/transcriptionUpload";
 import { trackBlockedTranscriptionSubmission, type SubmissionBlockReason, type SubmissionBlockStage, type SubmissionBlockDetails } from "../lib/transcriptionSubmission";
@@ -597,7 +597,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   }, [fileDuration, fileEndTime, fileStartTime, heavyPreviewAvailable, isPremiumUser, selectedFile, transcriptionModel]);
 
   const handleYtStartInputChange = (value: string) => {
-    const nextValue = sanitizeTimestampInput(value);
+    const nextValue = maskTimestampInput(value);
     setYtStartInput(nextValue);
     setError(null);
     const parsed = parseTimestampInput(nextValue);
@@ -609,7 +609,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   };
 
   const handleYtEndInputChange = (value: string) => {
-    const nextValue = sanitizeTimestampInput(value);
+    const nextValue = maskTimestampInput(value);
     setYtEndInput(nextValue);
     setError(null);
     const parsed = parseTimestampInput(nextValue);
@@ -644,7 +644,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
   const handleFileStartInputChange = (value: string) => {
     fileClipEdited.current = true;
-    const nextValue = sanitizeTimestampInput(value);
+    const nextValue = maskTimestampInput(value);
     setFileStartInput(nextValue);
     setError(null);
     const parsed = parseTimestampInput(nextValue);
@@ -663,7 +663,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
 
   const handleFileEndInputChange = (value: string) => {
     fileClipEdited.current = true;
-    const nextValue = sanitizeTimestampInput(value);
+    const nextValue = maskTimestampInput(value);
     setFileEndInput(nextValue);
     setError(null);
     const parsed = parseTimestampInput(nextValue);
