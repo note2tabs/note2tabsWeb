@@ -136,3 +136,25 @@ export function clampYoutubeClipEnd(
   );
   return Math.min(maxEnd, Math.max(start + 1, endTime));
 }
+
+/**
+ * The end the form should move to on its own after the file length or plan becomes known,
+ * or null to leave the field alone. It must NEVER fire once the user has edited the range:
+ * a typed `1:0` equals the 60 s default and used to be silently replaced by the file length.
+ */
+export function autoAdjustedFileClipEnd(args: {
+  edited: boolean;
+  startTime: number | null;
+  endTime: number | null;
+  fileDurationSec: number | null;
+  isPremiumUser: boolean;
+  freeLimitSec: number;
+}): number | null {
+  const { edited, startTime, endTime, fileDurationSec, isPremiumUser, freeLimitSec } = args;
+  if (edited || fileDurationSec === null || startTime !== 0 || endTime === null) return null;
+  const fileLength = Math.max(1, Math.ceil(fileDurationSec));
+  const freeDefaultEnd = Math.min(fileLength, freeLimitSec);
+  if (isPremiumUser && endTime === freeDefaultEnd && fileLength > freeDefaultEnd) return fileLength;
+  if (!isPremiumUser && endTime > freeDefaultEnd) return freeDefaultEnd;
+  return null;
+}

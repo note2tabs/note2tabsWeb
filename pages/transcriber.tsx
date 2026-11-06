@@ -1,3 +1,4 @@
+import { formatTimestamp, parseTimestampInput, sanitizeTimestampInput } from "../lib/transcriptionTimestamp";
 import SeoLandingPage, { type SeoLandingPageProps } from "../components/SeoLandingPage";
 import { canDownloadYouTube, YOUTUBE_UNAVAILABLE_MESSAGE } from "../lib/youtubeAvailability";
 import { TRANSCRIPTION_ENTRY_TITLES, transcriptionEntryInstrument } from "../lib/instrumentTranscriptionEntry";
@@ -48,6 +49,7 @@ import {
   DEFAULT_YOUTUBE_SNIPPET_SEC,
   MAX_FREE_FILE_SNIPPET_SEC,
   MAX_FREE_YOUTUBE_SNIPPET_SEC,
+  autoAdjustedFileClipEnd,
   clampFileClipEnd,
   clampFileClipStart,
   clampYoutubeClipEnd,
@@ -122,40 +124,6 @@ const formatMb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 
 const isYouTubeId = (value: string) => /^[a-zA-Z0-9_-]{11}$/.test(value);
 
-const formatTimestamp = (totalSeconds: number) => {
-  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
-  const minutes = Math.floor(safeSeconds / 60);
-  const seconds = safeSeconds % 60;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
-};
-
-const parseTimestampInput = (value: string): number | null => {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  if (!/^\d+(?::\d{1,2})?$/.test(trimmed)) return null;
-  if (!trimmed.includes(":")) {
-    const seconds = Number(trimmed);
-    return Number.isNaN(seconds) ? null : seconds;
-  }
-  const [minutesPart, secondsPart] = trimmed.split(":");
-  const minutes = Number(minutesPart);
-  const seconds = Number(secondsPart);
-  if (Number.isNaN(minutes) || Number.isNaN(seconds) || seconds > 59) {
-    return null;
-  }
-  return minutes * 60 + seconds;
-};
-
-const preserveTimestampColon = (value: string, previousValue: string) => {
-  if (value.includes(":")) return value;
-  const digits = value.replace(/\D/g, "");
-  const previousColonIndex = previousValue.indexOf(":");
-  const colonIndex = Math.min(
-    previousColonIndex >= 0 ? previousColonIndex : Math.max(1, digits.length - 2),
-    digits.length
-  );
-  return `${digits.slice(0, colonIndex)}:${digits.slice(colonIndex)}`;
-};
 
 const getAudioFileDuration = (file: File): Promise<number | null> =>
   new Promise((resolve) => {
@@ -220,6 +188,8 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
   const [fileEndTime, setFileEndTime] = useState<number | null>(DEFAULT_FILE_SNIPPET_SEC);
   const [fileStartInput, setFileStartInput] = useState("0:00");
   const [fileEndInput, setFileEndInput] = useState(formatTimestamp(DEFAULT_FILE_SNIPPET_SEC));
+  // Once the user touches the clip range, nothing may rewrite it behind their back.
+  const fileClipEdited = useRef(false);
   const separateGuitar = false;
   const multipleGuitars = false;
   const [transcriptionModel, setTranscriptionModel] =
@@ -492,6 +462,7 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
   }, [router.isReady, router.query.mode]);
 
   const applyFileClipDefaults = (duration: number | null) => {
+    fileClipEdited.current = false;
     const nextRange = getDefaultFileClipRange(duration, isPremiumUser);
     setFileStartTime(nextRange.start);
     setFileStartInput("0:00");
@@ -598,6 +569,7 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
         setFileStartInput(formatTimestamp(pending.fileStartTime));
         setFileEndTime(pending.fileEndTime);
         setFileEndInput(formatTimestamp(pending.fileEndTime));
+        fileClipEdited.current = true;
         const duration = await getAudioFileDuration(pending.file);
         if (cancelled || resumeHandoffAttemptRef.current !== attemptId) return;
         setFileDuration(duration);
@@ -642,25 +614,18 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
   }, [router.isReady, router.query.resumeTranscription, sessionStatus]);
 
   useEffect(() => {
-    if (!selectedFile || fileDuration === null || fileStartTime !== 0 || fileEndTime === null) return;
-    const fileLength = Math.max(1, Math.ceil(fileDuration));
-    const freeLimit = heavyPreviewAvailable && transcriptionModel === "super_heavy"
+    if (!selectedFile) return;
+    const nextEnd = autoAdjustedFileClipEnd({ edited: fileClipEdited.current, startTime: fileStartTime, endTime: fileEndTime, fileDurationSec: fileDuration, isPremiumUser,
+      freeLimitSec: heavyPreviewAvailable && transcriptionModel === "super_heavy"
       ? HEAVY_PREVIEW_MAX_DURATION_SEC
-      : MAX_FREE_FILE_SNIPPET_SEC;
-    const freeDefaultEnd = Math.min(fileLength, freeLimit);
-    if (isPremiumUser && fileEndTime === freeDefaultEnd && fileLength > freeDefaultEnd) {
-      setFileEndTime(fileLength);
-      setFileEndInput(formatTimestamp(fileLength));
-      return;
-    }
-    if (!isPremiumUser && fileEndTime > freeDefaultEnd) {
-      setFileEndTime(freeDefaultEnd);
-      setFileEndInput(formatTimestamp(freeDefaultEnd));
-    }
+      : MAX_FREE_FILE_SNIPPET_SEC });
+    if (nextEnd === null) return;
+    setFileEndTime(nextEnd);
+    setFileEndInput(formatTimestamp(nextEnd));
   }, [fileDuration, fileEndTime, fileStartTime, heavyPreviewAvailable, isPremiumUser, selectedFile, transcriptionModel]);
 
   const handleYtStartInputChange = (value: string) => {
-    const nextValue = preserveTimestampColon(value, ytStartInput);
+    const nextValue = sanitizeTimestampInput(value);
     setYtStartInput(nextValue);
     setError(null);
     const parsed = parseTimestampInput(nextValue);
@@ -672,7 +637,7 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
   };
 
   const handleYtEndInputChange = (value: string) => {
-    const nextValue = preserveTimestampColon(value, ytEndInput);
+    const nextValue = sanitizeTimestampInput(value);
     setYtEndInput(nextValue);
     setError(null);
     const parsed = parseTimestampInput(nextValue);
@@ -706,7 +671,8 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
   };
 
   const handleFileStartInputChange = (value: string) => {
-    const nextValue = preserveTimestampColon(value, fileStartInput);
+    fileClipEdited.current = true;
+    const nextValue = sanitizeTimestampInput(value);
     setFileStartInput(nextValue);
     setError(null);
     const parsed = parseTimestampInput(nextValue);
@@ -724,7 +690,8 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
   };
 
   const handleFileEndInputChange = (value: string) => {
-    const nextValue = preserveTimestampColon(value, fileEndInput);
+    fileClipEdited.current = true;
+    const nextValue = sanitizeTimestampInput(value);
     setFileEndInput(nextValue);
     setError(null);
     const parsed = parseTimestampInput(nextValue);
