@@ -59,3 +59,9 @@ export function createStreamingWorkspaceApi(read: () => CanvasSnapshot | null): 
   };
   return new Proxy(methods, { get: (target, name: string) => target[name] ?? (() => Promise.reject(new Error("This action is available when transcription finishes."))) }) as EditorApi;
 }
+
+/** Incoming source metadata never chooses a different track for the musician. */
+export function streamingActiveLane(current: string | null, canvas: CanvasSnapshot) {
+  if (current && canvas.editors.some(lane => lane.id === current)) return current;
+  return canvas.editors.find(lane => lane.notes.length || lane.chords.length)?.id ?? canvas.editors[0]?.id ?? null;
+}

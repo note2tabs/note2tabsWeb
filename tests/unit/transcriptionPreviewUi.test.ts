@@ -18,7 +18,7 @@ class WorkerStub {
 }
 let host: HTMLDivElement, root: Root;
 const metadata: TranscriptionPreviewMetadata = { version: 1, streamId: "attempt", revision: 1, processedSeconds: 1, durationSeconds: 10, complete: false };
-const canvas = { id: "preview", editors: [{ id: "lane", name: "Piano", instrumentType: "notation", notes: [], chords: [], fps: 240, totalFrames: 480 }] };
+const canvas = { id: "preview", editors: [{ id: "lane", name: "Piano", instrumentType: "notation", notes: [{ id: -1, startTime: 0, length: 60, midiNum: 60, tab: [0, 0], optimals: [] }], chords: [], fps: 240, totalFrames: 480 }] };
 beforeEach(() => {
   vi.useFakeTimers();
   window.localStorage.clear();
@@ -31,12 +31,13 @@ const render = async (value: TranscriptionPreviewMetadata | null = metadata, fin
 it("waits without extra API calls before the first note and uses a simple progress banner", async () => {
   await render(null);
   expect(fetch).not.toHaveBeenCalled();
-  expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ streaming: expect.objectContaining({ name: "Song", progress: 0 }) }));
+  expect(mocks.render).not.toHaveBeenCalled();
+  expect(host.textContent).toContain("Listening and preparing the first bar");
 });
 it("mounts the real editor workspace and does not introduce separate preview transport or tabs", async () => {
   await render();
   await act(async () => WorkerStub.current.onmessage?.({ data: { request: "attempt:1", canvas } }));
-  await act(async () => { await vi.advanceTimersByTimeAsync(3500); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(8500); });
   expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ editorId: "stream-job", isGuestMode: false, streaming: expect.objectContaining({ finishing: false }) }));
   expect(host.querySelector("select")).toBeNull(); expect(host.querySelector("footer")).toBeNull();
   await render({ ...metadata }); expect(fetch).toHaveBeenCalledTimes(1);
@@ -44,10 +45,10 @@ it("mounts the real editor workspace and does not introduce separate preview tra
 it("discards stale worker results and keeps the preview visible during final import", async () => {
   await render(); await render({ ...metadata, revision: 2 }, true);
   await act(async () => WorkerStub.current.onmessage?.({ data: { request: "attempt:1", canvas } }));
-  await act(async () => { await vi.advanceTimersByTimeAsync(3500); });
-  expect(mocks.render.mock.calls.at(-1)![0].streaming.canvas.editors[0].id).toBe("awaiting-first-track");
+  await act(async () => { await vi.advanceTimersByTimeAsync(8500); });
+  expect(mocks.render).not.toHaveBeenCalled();
   await act(async () => WorkerStub.current.onmessage?.({ data: { request: "attempt:2", canvas } }));
-  await act(async () => { await vi.advanceTimersByTimeAsync(3500); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(8500); });
   expect(mocks.render).toHaveBeenCalled();
   expect(mocks.render.mock.calls.at(-1)![0].streaming.finishing).toBe(false);
   expect(host.querySelector('button[disabled]')).toBeNull();
@@ -57,7 +58,7 @@ it("keeps user changes and undo/redo separate from arriving notes, with no save 
     notes: [{ id: -1, startTime: 0, length: 60, midiNum: 60, tab: [0, 0], optimals: [] }] }] };
   await render();
   await act(async () => WorkerStub.current.onmessage?.({ data: { request: "attempt:1", canvas: source } }));
-  await act(async () => { await vi.advanceTimersByTimeAsync(3500); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(8500); });
   const changed = structuredClone(source.editors[0]); changed.notes[0].midiNum = 72;
   await act(async () => mocks.render.mock.calls.at(-1)![0].streaming.onChange(source, { ...source, editors: [changed] }));
   expect(JSON.parse(window.localStorage.getItem("note2tabs:stream-edits:v1:job")!).tracks[0].events).toHaveLength(1);
@@ -65,7 +66,7 @@ it("keeps user changes and undo/redo separate from arriving notes, with no save 
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ...metadata, revision: 2, tracks: [] }))));
   await render({ ...metadata, revision: 2 });
   await act(async () => WorkerStub.current.onmessage?.({ data: { request: "attempt:2", canvas: incoming } }));
-  await act(async () => { await vi.advanceTimersByTimeAsync(3500); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(8500); });
   let props = mocks.render.mock.calls.at(-1)![0];
   expect(props.streaming.canvas.editors[0].notes.map((note: any) => note.midiNum)).toEqual([72, 65]);
   await act(async () => props.streaming.undo()); props = mocks.render.mock.calls.at(-1)![0];
@@ -78,13 +79,13 @@ it("restores local edits after a retry and keeps editing enabled while the job f
   const source = { ...canvas, editors: [{ ...canvas.editors[0], program: 0, trackType: "tab", cutPositionsWithCoords: [], optimalsByTime: {},
     notes: [{ id: -1, startTime: 0, length: 60, midiNum: 60, tab: [0, 0], optimals: [] }] }] };
   await render(); await act(async () => WorkerStub.current.onmessage?.({ data: { request: "attempt:1", canvas: source } }));
-  await act(async () => { await vi.advanceTimersByTimeAsync(3500); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(8500); });
   const changed = structuredClone(source.editors[0]); changed.notes[0].midiNum = 74;
   await act(async () => mocks.render.mock.calls.at(-1)![0].streaming.onChange(source, { ...source, editors: [changed] }));
   const meta = { ...metadata, streamId: "retry", revision: 1 };
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ...meta, tracks: [] }))));
   await render(meta); await act(async () => WorkerStub.current.onmessage?.({ data: { request: "retry:1", canvas: source } }));
-  await act(async () => { await vi.advanceTimersByTimeAsync(3500); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(8500); });
   expect(mocks.render.mock.calls.at(-1)![0].streaming.canvas.editors[0].notes[0].midiNum).toBe(74);
   await render(meta, true);
   expect(mocks.render.mock.calls.at(-1)![0].streaming.finishing).toBe(false);
@@ -96,10 +97,10 @@ it("finishes in the same mounted editor, rejects stale final processing, and kee
   const finalSource = { tracks: [], bpm: 120, beatsPerBar: 4 };
   const save = vi.fn(async () => "saved-editor");
   await render(); await act(async () => WorkerStub.current.onmessage?.({ data: { request: "attempt:1", canvas: source } }));
-  await act(async () => { await vi.advanceTimersByTimeAsync(3500); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(8500); });
   await render(metadata, true, { finalSource, onSave: save });
   await act(async () => WorkerStub.current.onmessage?.({ data: { request: "attempt:final", canvas: source } }));
-  await act(async () => { await vi.advanceTimersByTimeAsync(3500); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(8500); });
   const finishing = WorkerStub.current.postMessage.mock.calls.findLast(([item]) => item.type === "complete")![0];
   const changed = structuredClone(source); changed.editors[0].notes[0].midiNum = 72;
   await act(async () => mocks.render.mock.calls.at(-1)![0].streaming.onChange(source, changed));

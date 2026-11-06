@@ -3,6 +3,7 @@ import { createStreamingReveal } from "../../lib/gteStreamingReveal";
 import { createLivePlaybackLookaheadScheduler } from "../../lib/gtePlaybackLookahead";
 import { completeStreamingCanvas } from "../../lib/gteStreamingCompletion";
 import { createPreviewBuilder, STREAMING_CHUNK_BARS } from "../../lib/gteTranscriptionPreview";
+import { streamingActiveLane } from "../../lib/gteStreamingWorkspace";
 import { streamingModelTempo } from "../../lib/transcriptionPreviewProtocol";
 import type { CanvasSnapshot } from "../../types/gte";
 const canvas = (): CanvasSnapshot => ({ id: "stream", secondsPerBar: 2, editors: [{ id: "piano", name: "Piano", program: 0, instrumentId: "upright_piano", instrumentType: "notation", fps: 240, totalFrames: 960, framesPerMessure: 480, timeSignature: 4, timeSignatureBottom: 4,
@@ -25,13 +26,26 @@ describe("paced, editable streaming", () => {
   while (reveal.pending()) reveal.advance();
   expect(reveal.advance()?.editors.map(lane => lane.notes.length)).toEqual([5, 5]);
  });
- it("uses settled two-bar chunks and reserves the song timeline", () => {
-  expect(STREAMING_CHUNK_BARS).toBe(2);
+ it("uses settled one-bar chunks and reserves the song timeline", () => {
+  expect(STREAMING_CHUNK_BARS).toBe(1);
   const build = createPreviewBuilder();
-  const source = { version: 1 as const, streamId: "s", revision: 1, processedSeconds: 3, settledSeconds: 3, durationSeconds: 20, complete: false, tempoAnalysis: { bpm: 120 }, tracks: [{ name: "Piano", trackType: "tab" as const, program: 0, instrumentId: "", segments: [{ pitch_midi: 60, start_time_s: 0, end_time_s: .5 }] }] };
+  const source = { version: 1 as const, streamId: "s", revision: 1, processedSeconds: 1, settledSeconds: 1, durationSeconds: 20, complete: false, tempoAnalysis: { bpm: 120 }, tracks: [{ name: "Piano", trackType: "tab" as const, program: 0, instrumentId: "", segments: [{ pitch_midi: 60, start_time_s: 0, end_time_s: .5 }] }] };
   expect(build(source).editors[0].notes).toHaveLength(0);
   const next = build({ ...source, revision: 2, settledSeconds: 4, processedSeconds: 4 });
   expect(next.editors[0].notes).toHaveLength(1); expect(next.editors[0].totalFrames).toBe(4800);
+ });
+ it("spreads arrivals over the expected cadence without changing the musician's track", () => {
+  vi.useFakeTimers(); vi.setSystemTime(1000);
+  try {
+   const source = canvas(), reveal = createStreamingReveal(); reveal.receive(source);
+   expect(reveal.advance(1000)?.editors[0].notes).toHaveLength(0);
+   expect(reveal.advance(1000)?.editors[0].notes).toHaveLength(1);
+   expect(reveal.advance(4000)?.editors[0].notes).toHaveLength(3);
+   expect(reveal.advance(2000)?.editors[0].notes).toHaveLength(4);
+   const changed = { ...source, activeLaneId: "new", editors: [{ ...source.editors[0], id: "new" }, ...source.editors] };
+   expect(streamingActiveLane("piano", changed)).toBe("piano");
+   expect(streamingActiveLane(null, changed)).toBe("new");
+  } finally { vi.useRealTimers(); }
  });
  it("updates a live audio queue without replaying old notes or resetting its clock", () => {
   const schedule = vi.fn();

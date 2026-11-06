@@ -8,7 +8,7 @@ Both MuScriptor Small (Light) and Medium (Heavy) publish snapshots from the same
 
 One artifact per inference attempt is overwritten at most every eight seconds, plus completion. Existing status polling discovers revisions. The private artifact is capped at two megabytes; reaching the cap stops preview publication, not transcription. Only a descriptor is patched into the job record. This uses polling, not SSE.
 
-A browser worker builds unquantized provisional tracks. Completed two-bar chunks run the existing fingering/playing-coordinate optimizer, with cached unchanged chunks. The progress watermark determines when a chunk is settled. The unfinished tail waits for the next settled watermark. Completed events are revealed chronologically at bounded render intervals, with simultaneous hits kept together. Reveals yield during editing gestures. Instrument mapping and key estimation reuse the import models; early key estimates are provisional.
+A browser worker builds unquantized provisional tracks. Completed one-bar chunks run the existing fingering/playing-coordinate optimizer, with cached unchanged chunks. The progress watermark determines when a chunk is settled. The unfinished tail waits for the next settled watermark. Completed events are revealed chronologically at bounded render intervals paced against the observed snapshot cadence, with simultaneous hits kept together. Reveals yield during editing gestures. Instrument mapping and key estimation reuse the import models; early key estimates are provisional.
 
 The existing Canvas, Sheets, MIDI and drum editors operate locally during streaming. User changes are recorded as a field-level journal in seconds, independently of new inference snapshots. Incoming data does not enter undo history. Local storage preserves the journal across refreshes; storage failure is surfaced. Preview edits cause no incremental server note writes. Practice and piano roll share the preview playback clock.
 
@@ -18,7 +18,7 @@ Live new arrangements finish in the same mounted editor. The complete source fil
 
 Editing remains available during completion. A revision check discards stale worker results and repeats completion from the latest score. Saving reuses one editor ID and repeats the snapshot only when edits arrived during an in-flight save. Preview source updates do not create incremental database note writes.
 
-Playback keeps its AudioContext and clock across source growth, updating its lookahead queue for newly available events. The normal speed, loop and mute controls retain their restart behavior. Automated tests cover paced reveal, simultaneous events, two-bar settling, live scheduling, edits during completion and adoption of the saved arrangement without navigation. Authenticated save/reopen and real inference still require dev end-to-end testing.
+Playback keeps its AudioContext and clock across source growth, updating its lookahead queue for newly available events. The normal speed, loop and mute controls retain their restart behavior. Automated tests cover paced reveal, simultaneous events, one-bar settling, live scheduling, edits during completion and adoption of the saved arrangement without navigation. Authenticated save/reopen and real inference still require dev end-to-end testing.
 
 ## Safe dev test setup (read-only inspection, 2026-11-06)
 

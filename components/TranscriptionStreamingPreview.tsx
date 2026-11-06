@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { EditorLoadingState } from "./EditorLoadingState";
 import type { CanvasSnapshot } from "../types/gte";
 import { previewMetadata, type TranscriptionPreviewMetadata, type TranscriptionPreviewPayload } from "../lib/transcriptionPreviewProtocol";
 import { applyStreamingEdits, emptyStreamingEdits, readStreamingEdits, recordStreamingCanvasEdit, saveStreamingEdits, type StreamingEdits } from "../lib/gteStreamingEdits";
@@ -25,6 +26,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
   const saveRef = useRef(onSave); saveRef.current = onSave;
   const interaction = useRef({ pointer: false, until: 0 });
   const [canvas, setCanvas] = useState<CanvasSnapshot | null>(null);
+  const openedEditor = useRef(false);
   const [historySize, setHistorySize] = useState({ undo: 0, redo: 0 });
   const draft = useRef<StreamingEdits>(emptyStreamingEdits()), base = useRef<CanvasSnapshot | null>(null), working = useRef<CanvasSnapshot | null>(null);
   const history = useRef<{ past: StreamingEdits[]; future: StreamingEdits[] }>({ past: [], future: [] });
@@ -93,9 +95,9 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
     window.addEventListener("blur", pointerUp); window.addEventListener("pointerup", pointerUp); window.addEventListener("pointercancel", pointerUp); window.addEventListener("keydown", typing, true);
     const timer = window.setInterval(() => {
       if (interaction.current.pointer || Date.now() < interaction.current.until || phaseRef.current === "saved" || phaseRef.current === "saving" || finalizing.current) return;
-      if (revealed.current.pending()) { const next = revealed.current.advance(); if (next) applySource(next); }
+      if (revealed.current.pending()) { const next = revealed.current.advance(125); if (next && next !== base.current) applySource(next); }
       finishLatestRef.current();
-    }, 250);
+    }, 125);
     return () => { clearInterval(timer); window.removeEventListener("blur", pointerUp); window.removeEventListener("pointerup", pointerUp); window.removeEventListener("pointercancel", pointerUp); window.removeEventListener("keydown", typing, true); };
   }, []);
   useEffect(() => {
@@ -115,8 +117,8 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
       busy.current = false;
       if (event.data.request === wanted.current && event.data.canvas) {
         const first = !base.current || base.current.editors[0]?.id === "awaiting-first-track";
-        const next = revealed.current.receive(event.data.canvas);
-        if (first && next) applySource(next);
+        const next = revealed.current.receive(event.data.canvas, event.data.request.endsWith(":final"));
+        if (first && next) applySource(revealed.current.advance() ?? next);
         if (event.data.request.endsWith(":final")) sourceComplete.current = true;
         if (!storageFailed.current) setNotice("");
         finishLatestRef.current();
@@ -175,12 +177,19 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
   if (!working.current) working.current = shown;
   if (!base.current) base.current = shown;
   const stage = phase === "saving" ? "Saving your arrangement..." : phase === "finishing" ? "Aligning timing and finishing fingerings..." : sourceComplete.current || revealed.current.pending() ? "Adding notes - you can edit and play" : "Listening - you can edit and play";
+  const ready = Boolean(canvas && (sourceComplete.current || canvas.editors.some(lane => lane.notes.length || lane.chords.length)));
+  if (ready) openedEditor.current = true;
   return <>
     {notice && <p role="status" className={styles.notice}>{notice}{phase === "finishing" && <button type="button" onClick={() => { if (finalError.current) { finalError.current = false; finishLatestRef.current(); } else void saveLatestRef.current(); }}>Retry</button>}</p>}
-    <Editor editorId={savedEditorId || `stream-${jobId}`} isGuestMode={savedEditorId === "guest"} hasAccount passedTutorial
+    {!openedEditor.current ? <main className={`page page-tight ${styles.waiting}`}>
+      <div className="container stack">
+        <h1 className="page-title">Note2Tabs is transcribing &quot;{name}&quot;</h1>
+        <EditorLoadingState label="Listening and preparing the first bar" />
+      </div>
+    </main> : <Editor editorId={savedEditorId || `stream-${jobId}`} isGuestMode={savedEditorId === "guest"} hasAccount passedTutorial
       hydratedCanvas={savedEditorId ? workspaceCanvas : undefined}
       streaming={phase === "saved" ? undefined : { canvas: workspaceCanvas, name, progress, finishing: phase !== "streaming", stage,
         onInteractionStart: () => { interaction.current.pointer = true; },
-        onChange: edit, undo, redo, undoCount: historySize.undo, redoCount: historySize.redo }} />
+        onChange: edit, undo, redo, undoCount: historySize.undo, redoCount: historySize.redo }} />}
   </>;
 }

@@ -7,6 +7,7 @@ export function createStreamingReveal() {
   let visible = new Set<string>();
   let queue: Array<{ time: number; keys: string[] }> = [];
   let last: CanvasSnapshot | null = null;
+  let lastArrival = 0, cadenceMs = 8000, groupsPerMs = 0, credit = 0;
   const rebuild = () => {
     if (!source) return null;
     last = { ...source, editors: source.editors.map(lane => {
@@ -21,7 +22,10 @@ export function createStreamingReveal() {
     return last;
   };
   return {
-    receive(next: CanvasSnapshot) {
+    receive(next: CanvasSnapshot, complete = false) {
+      const now = Date.now();
+      if (lastArrival) cadenceMs = Math.max(4000, Math.min(12000, cadenceMs * .7 + (now - lastArrival) * .3));
+      lastArrival = now;
       source = next;
       const groups = new Map<number, string[]>();
       for (const lane of next.editors) for (const [kind, events] of [["n", lane.notes], ["c", lane.chords]] as const) {
@@ -33,16 +37,22 @@ export function createStreamingReveal() {
         }
       }
       queue = [...groups].map(([time, keys]) => ({ time, keys })).sort((a, b) => a.time - b.time);
+      groupsPerMs = queue.length / (complete ? 1500 : cadenceMs);
+      credit = 0;
       return rebuild();
     },
-    advance() {
+    advance(elapsedMs?: number) {
       if (!queue.length) return last;
-      // Catch up within roughly three seconds without one huge paint.
-      const count = Math.max(1, Math.ceil(queue.length / 12));
+      // Hold a steady rate until the next arrival, instead of draining each
+      // snapshot in a burst. Keep simultaneous hits together across tracks.
+      credit += elapsedMs === undefined ? 1 : Math.max(0, elapsedMs) * groupsPerMs;
+      const count = Math.min(queue.length, Math.floor(credit));
+      if (!count) return last;
+      credit -= count;
       for (const group of queue.splice(0, count)) for (const id of group.keys) visible.add(id);
       return rebuild();
     },
     pending: () => queue.length,
-    reset() { source = null; last = null; queue = []; visible = new Set(); },
+    reset() { source = null; last = null; queue = []; visible = new Set(); lastArrival = 0; cadenceMs = 8000; groupsPerMs = 0; credit = 0; },
   };
 }

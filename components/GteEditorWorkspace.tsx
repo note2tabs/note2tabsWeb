@@ -1,4 +1,4 @@
-import { createStreamingWorkspaceApi } from "../lib/gteStreamingWorkspace";
+import { createStreamingWorkspaceApi, streamingActiveLane } from "../lib/gteStreamingWorkspace";
 import { AUDIO_CONTEXT_RESUME_ERROR, resumePlaybackAudioContext as resumeAudioContext } from "../lib/gteAudioContext";
 import { selectPortalTargetWithin } from "../lib/selectPortalTarget";
 import { readGuestCanvasDraft, writeGuestCanvasDraft } from "../lib/gteGuestCanvasDraft";
@@ -2188,7 +2188,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
     setLoading(false);
     if (!nameEditing) setNameDraft(normalized.name || "Untitled");
     if (!streamInputsHydratedRef.current) { hydrateEditorInputSettings(normalized); streamInputsHydratedRef.current = true; }
-    setActiveLaneId(previous => resolveActiveLaneId(previous, normalized));
+    setActiveLaneId(previous => streamingActiveLane(previous, normalized));
     setBpmDraft(formatBpm(secondsPerBarToBpm(normalized.secondsPerBar || 2, normalized.editors[0]?.timeSignature || 4)));
     setTimeSignatureDraft(String(normalized.editors[0]?.timeSignature || 4));
     setTimeSignatureBottomDraft(String(normalized.editors[0]?.timeSignatureBottom || 4));
@@ -7387,7 +7387,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
         onMouseDownCapture={handleMainMouseDownCapture}
       >
       {streaming && isMobileViewport && <div className="gte-transcription-progress gte-transcription-progress--mobile" role="status">
-        <span>Note2Tabs is transcribing &quot;{streaming.name}&quot;</span><small>{streaming.stage}</small>
+        <span>Note2Tabs is transcribing &quot;{streaming.name}&quot;</span><small>{streaming.stage} &middot; {Math.round(streaming.progress)}%</small>
         <div role="progressbar" aria-label="Transcription progress" aria-valuenow={Math.round(streaming.progress)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${streaming.progress}%` }} /></div>
       </div>}
       {trackCleanupResult?.laneId === activeLaneId && <div role="status" aria-live="polite" data-gte-cleanup-feedback="true"
@@ -7917,7 +7917,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
           }
         >
           {streaming && <div className="gte-transcription-progress" role="status">
-            <span>Note2Tabs is transcribing &quot;{streaming.name}&quot;</span><small>{streaming.stage}</small>
+            <span>Note2Tabs is transcribing &quot;{streaming.name}&quot;</span><small>{streaming.stage} &middot; {Math.round(streaming.progress)}%</small>
             <div role="progressbar" aria-label="Transcription progress" aria-valuenow={Math.round(streaming.progress)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${streaming.progress}%` }} /></div>
           </div>}
           <div style={{ flex: "1 1 0", minWidth: 0 }}>

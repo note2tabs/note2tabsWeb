@@ -16,8 +16,8 @@ import { assignVoices } from "./gteAssignVoices";
 import { previewMetadata, streamingTrackKey, type TranscriptionPreviewPayload } from "./transcriptionPreviewProtocol";
 export type { TranscriptionPreviewMetadata, TranscriptionPreviewPayload } from "./transcriptionPreviewProtocol";
 
-/** Two-bar provisional optimization. Final import never consumes these choices. */
-export const STREAMING_CHUNK_BARS = 2;
+/** One-bar provisional optimization. Final import never consumes these choices. */
+export const STREAMING_CHUNK_BARS = 1;
 export function createPreviewBuilder() {
   let streamId = "";
   const cache = new Map<string, { fingerprint: string; lane: EditorSnapshot }>();
