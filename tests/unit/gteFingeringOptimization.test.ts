@@ -9,6 +9,7 @@ import {
   scoreChord,
 } from "../../components/GteWorkspace";
 import { getTabMidi } from "../../lib/gteTuning";
+import { optimizeTrackFingeringInSnapshot as optimizeStreamingTrack } from "../../lib/gteFingeringOptimization";
 import type { Chord, EditorSnapshot, Note } from "../../types/gte";
 
 const note = (
@@ -57,6 +58,17 @@ const snapshot = (): EditorSnapshot => ({
 });
 
 describe("track fingering optimization", () => {
+  it("simplifies the seven-note transcription voicing into a playable six-string chord", () => {
+    const lane = snapshot();
+    lane.notes = [41, 48, 53, 55, 60, 64, 67].map((midi, i) => note(i + 1, 0, midi, [0, 0]));
+    optimizeStreamingTrack(lane, { simplifyOversizedChords: true });
+    optimizeStreamingTrack(lane, { simplifyOversizedChords: true });
+    expect(lane.chords).toHaveLength(1);
+    expect(lane.notes).toHaveLength(0);
+    expect(lane.chords[0].originalMidi).toHaveLength(6);
+    expect(new Set(lane.chords[0].currentTabs.map(tab => tab[0])).size).toBe(6);
+    expect(lane.chords[0].currentTabs.map(tab => getTabMidi(lane, tab))).toEqual(lane.chords[0].originalMidi);
+  });
   it("clusters nearby overlapping onsets without mutating the notes", () => {
     const notes = snapshot().notes;
     const before = JSON.stringify(notes);

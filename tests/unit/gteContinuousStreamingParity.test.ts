@@ -15,6 +15,17 @@ const fixture = (beats: number, bpm: number): TranscriptionPreviewPayload => {
    })) })) };
 };
 describe("continuous quantization and optimization parity", () => {
+ it("turns the actual seven-pitch guitar onset into one playable simplified chord", () => {
+  const raw = fixture(4, 144);
+  raw.tracks = [{ name: "Guitar", program: 29, trackType: "tab", instrumentId: "electric_overdrive", segments: [41,48,53,55,60,64,67].map((pitch_midi, i) => ({ sourceId: String(i), pitch_midi, start_time_s: 1, end_time_s: 1.2 })) }];
+  const original = structuredClone(raw);
+  const lane = createPreviewBuilder()(raw).editors[0];
+  expect(lane.chords).toHaveLength(1);
+  expect(lane.chords[0].currentTabs).toHaveLength(6);
+  expect(new Set(lane.chords[0].currentTabs.map(tab => tab[0])).size).toBe(6);
+  expect(lane.notes).toHaveLength(0);
+  expect(raw).toEqual(original);
+ });
  it.each([[4,120], [3,93], [4,71.5], [4,176]])("matches processing all raw input at once (%s/%s)", (beats, bpm) => {
   const raw = fixture(beats, bpm), untouched = structuredClone(raw), bar = 60 * beats / bpm;
   const reference = createPreviewBuilder()(raw), progressive = createPreviewBuilder();

@@ -306,19 +306,50 @@ const buildChord = (snapshot: EditorSnapshot, notes: Note[], id: number): Chord 
 
 export type FingeringOptimizationResult = { chordGroups: NoteChordCluster[]; createdChordIds: number[] };
 
+/** Pick a playable six-string voicing, favouring the bass and distinct pitch classes. */
+export const simplifyOversizedChord = (lane: EditorSnapshot, notes: Note[]): { notes: Note[]; tabs: TabCoord[] } | null => {
+  const candidates = [...notes].sort((a, b) => a.midiNum - b.midiNum || a.id - b.id).slice(0, 12);
+  let count = Math.min(6, getOpenStringMidiFromSnapshot(lane).length);
+  let best: { notes: Note[]; tabs: TabCoord[]; score: number } | null = null;
+  const chosen: Note[] = [];
+  const choose = (start: number) => {
+    if (chosen.length === count) {
+      const midis = chosen.map(note => note.midiNum);
+      if (new Set(midis).size !== midis.length) return;
+      const possible = createPossibleTabs(midis, new Map(midis.map(midi => [midi, getAllTabsForMidi(lane, midi)])));
+      for (const tabs of possible) {
+        const classes = new Set(midis.map(midi => ((midi % 12) + 12) % 12)).size;
+        const score = classes * 1000 + (chosen.includes(candidates[0]) ? 100 : 0) - scoreChord(tabs);
+        if (!best || score > best.score) best = { notes: [...chosen], tabs, score };
+      }
+      return;
+    }
+    for (let i = start; i <= candidates.length - (count - chosen.length); i++) { chosen.push(candidates[i]); choose(i + 1); chosen.pop(); }
+  };
+  for (; count >= 2 && !best; count--) choose(0);
+  return best;
+};
+
 export const optimizeTrackFingeringInSnapshot = (
   draft: EditorSnapshot,
-  options?: { optimizeChordFingerings?: boolean; preferPlayingPosition?: boolean }
+  options?: { optimizeChordFingerings?: boolean; preferPlayingPosition?: boolean; simplifyOversizedChords?: boolean }
 ): FingeringOptimizationResult => {
   const bass = isBassSnapshot(draft);
   const tolerance = Math.max(1, Math.round((draft.framesPerMessure || FIXED_FRAMES_PER_BAR) / 32));
   const groups = bass ? [] : clusterTrackNotesIntoChordGroups(draft.notes, tolerance);
   const createdChordIds: number[] = [];
+  const simplifiedChordIds = new Set<number>();
   const chordized = new Set<number>();
   let chordId = draft.chords.reduce((max, chord) => Math.max(max, chord.id), 0) + 1;
   groups.forEach((group) => {
-    if (group.notes.length < 2 || group.notes.length > 6) return;
-    draft.chords.push(buildChord(draft, group.notes, chordId));
+    if (group.notes.length < 2) return;
+    const simplified = group.notes.length > 6 && options?.simplifyOversizedChords ? simplifyOversizedChord(draft, group.notes) : null;
+    if (group.notes.length > 6 && !simplified) return;
+    const chordNotes = simplified ? simplified.notes.map((note, index) => ({ ...note, tab: simplified.tabs[index] })) : group.notes;
+    const chord = buildChord(draft, chordNotes, chordId);
+    if (simplified) chord.source = "simplified-transcription";
+    draft.chords.push(chord);
+    if (simplified) simplifiedChordIds.add(chordId);
     createdChordIds.push(chordId++);
     group.notes.forEach((note) => chordized.add(note.id));
   });
@@ -332,6 +363,7 @@ export const optimizeTrackFingeringInSnapshot = (
   const chordCache = new Map<string, TabCoord[][]>();
   if (!bass && options?.optimizeChordFingerings !== false) {
     [...draft.chords].sort((a, b) => a.startTime - b.startTime || a.id - b.id).forEach((chord) => {
+      if (simplifiedChordIds.has(chord.id) || (options?.simplifyOversizedChords && chord.source === "simplified-transcription")) return;
       const midis = chordMidis(draft, chord);
       if (!midis.length) return;
       const coord = cutCoordAt(cuts, chord.startTime);

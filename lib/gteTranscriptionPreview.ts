@@ -94,7 +94,7 @@ export function createPreviewBuilder() {
                 cleanTinyOverlapsInSnapshot(lane, { manual: true });
                 for (let pass = 0; pass < TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES; pass++) {
                   generatePlayingCoordinatesInSnapshot(lane);
-                  optimizeTrackFingeringInSnapshot(lane);
+                  optimizeTrackFingeringInSnapshot(lane, { simplifyOversizedChords: true });
                   finalizeOptimizedTrackFingeringInSnapshot(lane);
                   mergeRedundantCutRegionsInSnapshot(lane);
                 }
