@@ -1,18 +1,34 @@
 import type { CanvasSnapshot, EditorSnapshot } from "../types/gte";
 import { ghostNotes, type StreamingGhostLayers } from "./gteStreamingGhosts";
 const key = (lane: EditorSnapshot, kind: string, id: number) => `${lane.id}:${kind}:${id}`;
-/** Source processing may jump ahead. Reveal simultaneous onsets together in
- * chronological order, bounded to a few editor renders per second. */
+
+const DEFAULT_CADENCE_MS = 4000, MIN_CADENCE_MS = 2000, MAX_CADENCE_MS = 10000;
+const LAG = 1.15;            // drain slightly slower than arrival so the head never starves between batches
+const MAX_SPEED = 6;         // seconds of music per second of wall time while still receiving
+const MIN_SPEED = .5, COMPLETE_MIN_SPEED = 2;
+const COMPLETE_DRAIN_MS = 1500;
+const SPEED_EASE_MS = 700;   // speed changes glide instead of jumping at batch boundaries
+const SILENCE_SKIP_S = 1, SILENCE_BOOST = 3;
+
+/** LLM-style reveal. Inference arrives in irregular batches; the editor shows it
+ * through a single write head that sweeps the song left to right at a smoothly
+ * varying speed (a jitter buffer):
+ *  - settled notes (already optimized with full bar context) turn solid as the
+ *    head passes them, via a short translucent preview;
+ *  - raw, not-yet-settled notes appear as ghosts as the head passes them, and are
+ *    replaced in place by the settled version once their bar settles. */
 export function createStreamingReveal({ previewMs = 0 }: { previewMs?: number } = {}) {
   let source: CanvasSnapshot | null = null;
-  let completeSource=false;
-  const producedByLane=new Map<string,number>();
+  let completeSource = false;
+  let provisional: StreamingGhostLayers = {};
+  let draftTimes: number[] = [];
   let visible = new Set<string>();
   let queue: Array<{ time: number; keys: string[] }> = [];
-  let last: CanvasSnapshot | null = null;
-  let lastArrival = 0, cadenceMs = 8000, groupsPerMs = 0, credit = 0;
-  let through = 0, revealedThrough = 0, animationMs = 0, fakeHead = 0;
   let staged: Array<{ time: number; keys: string[]; due: number }> = [];
+  let last: CanvasSnapshot | null = null;
+  let lastArrival = 0, cadenceMs = DEFAULT_CADENCE_MS;
+  let through = 0, revealedThrough = 0, animationMs = 0;
+  let head = -1, bound = 0, speed = 0;
   const rebuild = () => {
     if (!source) return null;
     last = { ...source, editors: source.editors.map(lane => {
@@ -26,13 +42,27 @@ export function createStreamingReveal({ previewMs = 0 }: { previewMs?: number } 
     }) };
     return last;
   };
+  const solidify = (group: { time: number; keys: string[] }) => {
+    revealedThrough = Math.max(revealedThrough, group.time / 1000);
+    group.keys.forEach(id => visible.add(id));
+    return true;
+  };
+  const stage = (group: { time: number; keys: string[] }) => {
+    if (previewMs) staged.push({ ...group, due: animationMs + previewMs }); else solidify(group);
+  };
+  /** Stage every queued group the head has already passed. */
+  const release = () => { let any = false; while (queue.length && queue[0].time / 1000 <= head) { stage(queue.shift()!); any = true; } return any; };
+  const nextDraftAfter = (seconds: number) => draftTimes.find(time => time > seconds) ?? Infinity;
   return {
-    receive(next: CanvasSnapshot, complete = false, processedSeconds = 0) {
-      completeSource=complete;
+    receive(next: CanvasSnapshot, complete = false, processedSeconds = 0, drafts: StreamingGhostLayers = {}) {
+      const started = head >= 0;
+      completeSource = complete;
+      provisional = complete ? {} : drafts;
       through = Math.max(through, processedSeconds, ...next.editors.map(lane => lane.notes.reduce((end, note) => Math.max(end, note.startTime / lane.fps), lane.chords.reduce((end, chord) => Math.max(end, chord.startTime / lane.fps), 0))));
-      if (!source) fakeHead=Math.min(through,(next.secondsPerBar || 2)*2.5);
+      draftTimes = next.editors.flatMap(lane => (provisional[lane.id] ?? []).map(ghost => ghost.start / lane.fps)).sort((a, b) => a - b);
+      bound = Math.max(through, draftTimes.at(-1) ?? 0);
       const now = Date.now();
-      if (lastArrival) cadenceMs = Math.max(4000, Math.min(12000, cadenceMs * .7 + (now - lastArrival) * .3));
+      if (lastArrival) cadenceMs = Math.max(MIN_CADENCE_MS, Math.min(MAX_CADENCE_MS, cadenceMs * .7 + (now - lastArrival) * .3));
       lastArrival = now;
       source = next;
       const groups = new Map<number, string[]>();
@@ -45,40 +75,49 @@ export function createStreamingReveal({ previewMs = 0 }: { previewMs?: number } 
         }
       }
       queue = [...groups].map(([time, keys]) => ({ time, keys })).sort((a, b) => a.time - b.time);
-      if (!queue.length && !staged.length) revealedThrough = Math.max(revealedThrough, through);
-      groupsPerMs = queue.length / (complete ? 1500 : cadenceMs);
-      credit = 0;
+      // The write head starts at the first real music, so there is no dead wait.
+      if (!started) {
+        const first = Math.min((queue[0]?.time ?? Infinity) / 1000, draftTimes[0] ?? Infinity);
+        if (Number.isFinite(first)) head = first;
+      } else release();
       return rebuild();
     },
     advance(elapsedMs?: number) {
-      const delta=elapsedMs ?? 0; animationMs+=delta;
-      const bar=source?.secondsPerBar || 2;
-      fakeHead=Math.min(through, revealedThrough+bar*2.5, Math.max(fakeHead,revealedThrough)+delta/1000);
-      let changed=false;
-      const solidify=(group: {time:number;keys:string[]})=>{
-        if (!visible.size) fakeHead=Math.min(through,group.time/1000+bar*2.5);
-        revealedThrough=Math.max(revealedThrough,group.time/1000);
-        group.keys.forEach(id=>visible.add(id));
-        for(const lane of source?.editors ?? []) if(group.keys.some(id=>id.startsWith(`${lane.id}:`))) producedByLane.set(lane.id,Math.max(producedByLane.get(lane.id) ?? 0,group.time/1000));
-        changed=true;
-      };
-      const ready=staged.filter(group=>group.due<=animationMs); staged=staged.filter(group=>group.due>animationMs);
-      ready.forEach(solidify);
-      credit+=elapsedMs === undefined ? 1 : Math.max(0,delta)*groupsPerMs;
-      const count=Math.min(queue.length,Math.floor(credit)); credit-=count;
-      for(const group of queue.splice(0,count)) {
-        if(previewMs) staged.push({...group,due:animationMs+previewMs}); else solidify(group);
+      const delta = elapsedMs ?? 0; animationMs += delta;
+      let changed = false;
+      const ready = staged.filter(group => group.due <= animationMs); staged = staged.filter(group => group.due > animationMs);
+      for (const group of ready) changed = solidify(group);
+      if (elapsedMs === undefined) {
+        // Step mode: reveal exactly the next onset group.
+        const group = queue.shift();
+        if (group) { head = Math.max(head, group.time / 1000); stage(group); }
+      } else if (head >= 0 && delta > 0) {
+        const buffer = Math.max(0, bound - head);
+        // Proportional speed alone only approaches the bound asymptotically; a floor guarantees arrival.
+        const target = buffer <= 0 ? 0 : completeSource ? Math.max(COMPLETE_MIN_SPEED, buffer / (COMPLETE_DRAIN_MS / 1000)) : Math.max(MIN_SPEED, Math.min(MAX_SPEED, buffer / (cadenceMs * LAG / 1000)));
+        speed = completeSource ? target : speed + (target - speed) * Math.min(1, delta / SPEED_EASE_MS);
+        const nextTime = Math.min((queue[0]?.time ?? Infinity) / 1000, nextDraftAfter(head));
+        const boost = nextTime - head > SILENCE_SKIP_S ? SILENCE_BOOST : 1;
+        head = Math.min(bound, head + speed * boost * delta / 1000);
+        if (release()) changed = true;
       }
-      if(!queue.length && !staged.length) revealedThrough=Math.max(revealedThrough,through);
-      return changed ? rebuild() : last;
+      if (head >= 0) revealedThrough = Math.max(revealedThrough, Math.min(through, head));
+      if (completeSource && !queue.length && !staged.length) { revealedThrough = Math.max(revealedThrough, through); head = Math.max(head, bound); }
+      // Solid notes are the only part of the head's progress that changes the score.
+      return changed || elapsedMs === undefined ? rebuild() : last;
     },
     ghosts(): StreamingGhostLayers {
-      if(!source || (completeSource && !queue.length && !staged.length))return {};
-      const previews=new Set(staged.flatMap(group=>group.keys));
-      return Object.fromEntries(source.editors.map(lane=>[lane.id,ghostNotes(lane,previews,producedByLane.get(lane.id) ?? 0,fakeHead)]));
+      if (!source || (completeSource && !queue.length && !staged.length)) return {};
+      const previews = new Set(staged.flatMap(group => group.keys));
+      return Object.fromEntries(source.editors.map(lane => [lane.id, [
+        ...ghostNotes(lane, previews),
+        ...(head >= 0 ? (provisional[lane.id] ?? []).filter(ghost => ghost.start / lane.fps <= head) : []),
+      ]]));
     },
+    /** Position of the write head in seconds, or null before streaming starts / after it ends. */
+    headSeconds: () => !source || head < 0 || (completeSource && !queue.length && !staged.length) ? null : head,
     pending: () => queue.length + staged.length,
     throughSeconds: () => revealedThrough,
-    reset() { source = null; completeSource=false; producedByLane.clear(); last = null; queue = []; visible = new Set(); through = 0; revealedThrough = 0; animationMs=0; fakeHead=0; staged=[]; lastArrival = 0; cadenceMs = 8000; groupsPerMs = 0; credit = 0; },
+    reset() { source = null; completeSource = false; provisional = {}; draftTimes = []; last = null; queue = []; visible = new Set(); through = 0; revealedThrough = 0; animationMs = 0; staged = []; lastArrival = 0; cadenceMs = DEFAULT_CADENCE_MS; head = -1; bound = 0; speed = 0; },
   };
 }

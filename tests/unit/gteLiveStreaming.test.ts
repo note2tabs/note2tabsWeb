@@ -34,14 +34,17 @@ describe("paced, editable streaming", () => {
   const next = build({ ...source, revision: 2, settledSeconds: 4, processedSeconds: 4 });
   expect(next.editors[0].notes).toHaveLength(1); expect(next.editors[0].totalFrames).toBe(4800);
  });
- it("spreads arrivals over the expected cadence without changing the musician's track", () => {
+ it("sweeps a write head at a steady pace instead of dumping a batch, and always reaches the last note", () => {
   vi.useFakeTimers(); vi.setSystemTime(1000);
   try {
    const source = canvas(), reveal = createStreamingReveal(); reveal.receive(source);
-   expect(reveal.advance(1000)?.editors[0].notes).toHaveLength(0);
-   expect(reveal.advance(1000)?.editors[0].notes).toHaveLength(1);
-   expect(reveal.advance(4000)?.editors[0].notes).toHaveLength(3);
-   expect(reveal.advance(2000)?.editors[0].notes).toHaveLength(4);
+   expect(reveal.headSeconds()).toBe(0);
+   const counts: number[] = [];
+   for (let tick = 0; tick < 160; tick++) counts.push(reveal.advance(125)!.editors[0].notes.length);
+   expect(counts[0]).toBeLessThan(4);
+   expect([...counts].sort((a, b) => a - b)).toEqual(counts);
+   expect(counts.at(-1)).toBe(4);
+   expect(new Set(counts).size).toBe(4);
    const changed = { ...source, activeLaneId: "new", editors: [{ ...source.editors[0], id: "new" }, ...source.editors] };
    expect(streamingActiveLane("piano", changed)).toBe("piano");
    expect(streamingActiveLane(null, changed)).toBe("new");
@@ -90,9 +93,9 @@ it("promotes generated tracks until a manual track change", () => {
  const guitar = { ...piano, id: "guitar", instrumentType: "guitar-tab" as const, notes: [] as typeof piano.notes, chords: [] as typeof piano.chords };
  const score = { ...canvas(), editors: [piano, bass, guitar] };
  expect(streamingActiveLane(piano.id, score, false)).toBe("bass");
- const fake = { key: "ghost", phase: "fake" as const, start: 0, length: 30, midi: 60, tab: [0, 0] as [number, number] };
- expect(streamingActiveLane("bass", score, false, { guitar: [fake] })).toBe("bass");
- expect(streamingActiveLane("bass", score, false, { guitar: [{ ...fake, phase: "preview" }] })).toBe("guitar");
+ const draft = { key: "ghost", phase: "preview" as const, start: 0, length: 30, midi: 60, tab: [0, 0] as [number, number] };
+ expect(streamingActiveLane("bass", score, false, { guitar: [] })).toBe("bass");
+ expect(streamingActiveLane("bass", score, false, { guitar: [draft] })).toBe("guitar");
  guitar.notes = piano.notes;
  expect(streamingActiveLane("bass", score, false)).toBe("guitar");
  expect(streamingActiveLane(piano.id, score, true)).toBe(piano.id);

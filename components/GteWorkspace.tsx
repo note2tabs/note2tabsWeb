@@ -1,4 +1,5 @@
 import { streamingGhostColor, streamingGhostFret, cleanStreamingGhosts } from "../lib/gteStreamingGhosts";
+import GteStreamingCaret from "./GteStreamingCaret";
 import { AUDIO_CONTEXT_RESUME_ERROR, resumePlaybackAudioContext as resumeAudioContext } from "../lib/gteAudioContext";
 import {memoNoteAlternates, type FingeringDerivationCache} from "../lib/gteFingeringDerivationCache";
 import { monitorEditorEdit, monitorFrustrationPromise } from "../lib/frustrationSignals";
@@ -17881,6 +17882,10 @@ export default function GteWorkspace({
                     {streamingGhostFret(ghost)}
                   </span>
                 )))}
+                {!tabViewEnabled && !practiceMode && streamingGhosts && (
+                  <GteStreamingCaret fps={snapshot.fps} scale={scale} rowStride={rowStride} height={rowBlockHeight}
+                    locate={frame => getSpanSegments(frame, 1)[0]} />
+                )}
                 {visibleNotes.flatMap((note) => {
                   const noteEffectEdges = noteEffectEdgeMap.get(note.id) || { left: false, right: false };
                   const scalePreview = scaleToolActive ? scalePreviewNotes[note.id] : undefined;

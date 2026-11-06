@@ -2,91 +2,74 @@ import { describe,it,expect } from "vitest";
 import { createStreamingReveal } from "../../lib/gteStreamingReveal";
 import { ghostNotes, cleanStreamingGhosts, streamingGhostColor, streamingGhostFret, type StreamingGhost } from "../../lib/gteStreamingGhosts";
 import { completeStreamingCanvas } from "../../lib/gteStreamingCompletion";
+import { getStreamingHead, setStreamingHead, subscribeStreamingHead } from "../../lib/gteStreamingHead";
 import type { CanvasSnapshot } from "../../types/gte";
 const source=():CanvasSnapshot=>({id:"ghost-test",secondsPerBar:2,editors:[{id:"guitar",instrumentType:"guitar-tab",fps:240,totalFrames:1920,framesPerMessure:480,timeSignature:4,notes:[0,120,240,480].map((startTime,index)=>({id:-index-1,startTime,length:60,midiNum:60+index,tab:[index,5+index],optimals:[]})),chords:[],cutPositionsWithCoords:[],optimalsByTime:{}}]});
+const draft=(key:string,start:number,string=0):StreamingGhost=>({key,phase:"preview",showLabel:false,start,length:30,midi:60+string,tab:[string,0]});
 describe("display-only streaming ghosts",()=>{
  it("shows a real translucent preview before putting a note in the musical score",()=>{
   const raw=source(), untouched=structuredClone(raw), reveal=createStreamingReveal({previewMs:300});
   reveal.receive(raw,false,8);
-  expect(reveal.ghosts().guitar.some(note=>note.phase==="fake")).toBe(true);
-  const pending=reveal.advance(2000)!;
+  const pending=reveal.advance(125)!;
   expect(pending.editors[0].notes).toHaveLength(0);
   const previews=reveal.ghosts().guitar.filter(note=>note.phase==="preview");
   expect(previews).toHaveLength(1); expect(previews[0]).toMatchObject({start:0,midi:60,tab:[0,5]});
-  expect(reveal.advance(299)!.editors[0].notes).toHaveLength(0);
-  const solid=reveal.advance(1)!;
+  expect(reveal.advance(100)!.editors[0].notes).toHaveLength(0);
+  const solid=reveal.advance(200)!;
   expect(solid.editors[0].notes.map(note=>note.id)).toEqual([-1]);
-  expect(reveal.ghosts().guitar.some(note=>note.phase==="preview" && note.key==="n:-1")).toBe(false);
+  expect(reveal.ghosts().guitar.some(note=>note.key==="n:-1")).toBe(false);
   expect(JSON.stringify(completeStreamingCanvas(pending,{tracks:[]}))).not.toContain('"phase"');
   expect(raw).toEqual(untouched);
  });
- it("keeps placeholders within 2.5 bars and stops them at the available watermark",()=>{
-  const raw=source(),reveal=createStreamingReveal({previewMs:300}); reveal.receive(raw,false,8);
-  reveal.advance();
-  for(let i=0;i<8;i++) {
-   reveal.advance(125);
-   for(const ghost of reveal.ghosts().guitar.filter(note=>note.phase==="fake")) {
-    expect(ghost.start/raw.editors[0].fps).toBeLessThanOrEqual(reveal.throughSeconds()+5);
-    expect(ghost.start/raw.editors[0].fps).toBeLessThanOrEqual(8);
-   }
-  }
+ it("never invents notes: with no real music or drafts there is nothing to draw",()=>{
+  const raw=source(); raw.editors[0].notes=[];
+  const reveal=createStreamingReveal(); reveal.receive(raw,false,5);
+  for(let i=0;i<20;i++)reveal.advance(125);
+  expect(reveal.ghosts().guitar).toEqual([]); expect(reveal.headSeconds()).toBeNull();
  });
- it("keeps a dense, stable varied pattern visible across a quiet stretch until new music arrives",()=>{
-  const raw=source(); raw.editors[0].notes=raw.editors[0].notes.slice(0,1);
-  const reveal=createStreamingReveal(); reveal.receive(raw,false,5); reveal.advance(); reveal.advance(500);
-  const before=reveal.ghosts().guitar.filter(note=>note.phase==="fake");
-  expect(before.length).toBeGreaterThan(30);
-  expect(new Set(before.map(note=>note.length)).size).toBeGreaterThan(3);
-  expect(new Set(before.map(note=>note.tab[0])).size).toBeGreaterThan(3);
-  reveal.receive(raw,false,5); reveal.advance(5000);
-  expect(reveal.ghosts().guitar.filter(note=>note.phase==="fake")).toEqual(before);
-  const later=structuredClone(raw); later.editors[0].notes.push({...later.editors[0].notes[0],id:-99,startTime:960});
-  reveal.receive(later,false,6); reveal.advance();
-  expect(reveal.ghosts().guitar.filter(note=>note.phase==="fake").every(note=>note.start>960)).toBe(true);
-  const lane=source().editors[0];expect(ghostNotes(lane,new Set(),0,5)).toEqual(ghostNotes(lane,new Set(),0,5));
+ it("shows unsettled draft notes only as the write head passes them, in order",()=>{
+  const raw=source(); raw.editors[0].notes=[];
+  const reveal=createStreamingReveal(); reveal.receive(raw,false,0,{guitar:[draft("a",0),draft("b",120,1),draft("c",480,2)]});
+  expect(reveal.headSeconds()).toBe(0);
+  const seen:number[]=[];
+  for(let i=0;i<200;i++){reveal.advance(125);seen.push(reveal.ghosts().guitar.length);}
+  expect([...seen].sort((a,b)=>a-b)).toEqual(seen); expect(seen[0]).toBeLessThan(3); expect(seen.at(-1)).toBe(3);
  });
- it("does not clear one track's quiet stretch when another track produces notes",()=>{
-  const raw=source();raw.editors[0].notes=raw.editors[0].notes.slice(0,1);
-  raw.editors.push({...raw.editors[0],id:"piano",notes:[{...raw.editors[0].notes[0],id:-90,startTime:480}]});
-  const reveal=createStreamingReveal();reveal.receive(raw,false,5);reveal.advance();
-  const before=reveal.ghosts().guitar.filter(note=>note.phase==="fake");reveal.advance();
-  expect(reveal.ghosts().guitar.filter(note=>note.phase==="fake")).toEqual(before);
+ it("replaces a draft in place once its bar settles, without a gap",()=>{
+  const raw=source(), first=structuredClone(raw); first.editors[0].notes=[];
+  const reveal=createStreamingReveal({previewMs:300}); reveal.receive(first,false,0,{guitar:[draft("unsettled:0",0)]});
+  for(let i=0;i<8;i++)reveal.advance(125);
+  expect(reveal.ghosts().guitar.map(note=>note.key)).toEqual(["unsettled:0"]);
+  reveal.receive(raw,false,8,{});
+  // The head has already passed the settled notes, so they preview immediately.
+  expect(reveal.ghosts().guitar.some(note=>note.phase==="preview" && note.key.startsWith("n:"))).toBe(true);
  });
- it("holds completion for the real preview and clears all ghosts after the last solid note",()=>{
+ it("holds completion for the real preview and clears ghosts and the head after the last solid note",()=>{
   const raw=source(),reveal=createStreamingReveal({previewMs:300}); reveal.receive(raw,true,8);
-  reveal.advance(1500); expect(reveal.pending()).toBe(4);
-  const final=reveal.advance(300)!;
-  expect(reveal.pending()).toBe(0); expect(reveal.ghosts()).toEqual({}); expect(final).toEqual(raw);
+  let final=reveal.advance(125)!;
+  for(let i=0;i<40 && reveal.pending();i++)final=reveal.advance(125)!;
+  expect(reveal.pending()).toBe(0); expect(reveal.ghosts()).toEqual({}); expect(reveal.headSeconds()).toBeNull(); expect(final).toEqual(raw);
   reveal.reset(); expect(reveal.ghosts()).toEqual({});
  });
+ it("publishes the head to subscribers without touching React state",()=>{
+  let calls=0;const off=subscribeStreamingHead(()=>{calls++;});
+  setStreamingHead(1.5);setStreamingHead(1.5);setStreamingHead(null);off();
+  expect(calls).toBe(2);expect(getStreamingHead()).toBeNull();
+ });
 });
 
-it("renders random fake tab chords with aligned lengths on distinct playable strings",()=>{
- for(const instrumentType of ["guitar-tab","bass-tab"] as const){
-  const lane={...source().editors[0],instrumentType}, original=structuredClone(lane);
-  const ghosts=ghostNotes(lane,new Set(),0,5).filter(note=>note.phase==="fake");
-  const groups=new Map<number,typeof ghosts>();for(const note of ghosts)groups.set(note.start,[...(groups.get(note.start) ?? []),note]);
-  const chords=[...groups.values()].filter(group=>group.length>1);
-  expect(chords.length).toBeGreaterThan(0);
-  if(instrumentType === "guitar-tab")expect(chords.some(group=>group.length>=3)).toBe(true);
-  for(const chord of chords){expect(new Set(chord.map(note=>note.length)).size).toBe(1);expect(new Set(chord.map(note=>note.tab[0])).size).toBe(chord.length);expect(chord.every(note=>note.tab[0]>=0 && note.tab[0]<(instrumentType === "bass-tab" ? 4 : 6))).toBe(true);}
-  expect(lane).toEqual(original);expect(lane.chords).toEqual([]);
- }
+it("derives preview ghosts only from real notes and never exposes invented fret labels",()=>{
+ const lane=source().editors[0];
+ expect(ghostNotes(lane,new Set())).toEqual([]);
+ const ghosts=ghostNotes(lane,new Set(["guitar:n:-1"]));
+ expect(ghosts).toHaveLength(1);
+ expect(streamingGhostColor({...ghosts[0],shape:"chord"})).toBe("#30bced");
+ expect(streamingGhostFret({...draft("x",0),tab:[0,8]})).toBe("");
+ expect(streamingGhostFret({...ghosts[0],tab:[0,8]})).toBe("8");
 });
-
-it("uses blank blue fake chord blocks and never exposes invented fret labels",()=>{
- const ghosts=ghostNotes(source().editors[0],new Set(),0,5), chords=ghosts.filter(note=>note.phase==="fake" && note.shape==="chord");
- expect(chords.length).toBeGreaterThan(0);
- for(const ghost of chords){expect(streamingGhostColor(ghost)).toBe("#30bced");expect(streamingGhostFret({...ghost,tab:[0,22],showLabel:true})).toBe("");}
- expect(streamingGhostFret({key:"unsettled",phase:"preview",showLabel:false,start:0,length:10,midi:60,tab:[0,8]})).toBe("");
-});
-it("removes overlapping fake groups atomically while reserving real and preview notes",()=>{
+it("hides ghosts that would sit on real notes or earlier ghosts",()=>{
  const lane=source().editors[0];lane.notes=[{...lane.notes[0],startTime:90,length:80,tab:[1,7]}];
- const fake=(key:string,start:number,string:number,length=20):StreamingGhost=>({key,phase:"fake",shape:"chord",start,length,midi:60+string,tab:[string,0]});
- const group=[fake("a:0",100,0),fake("a:1",100,1),fake("a:2",100,2)];
- const preview:StreamingGhost={...fake("real-preview",210,0,60),phase:"preview",showLabel:true,tab:[0,12]};
- const ghosts=[...group,preview,fake("b:0",230,0),fake("b:1",230,1),fake("c:0",300,0),fake("c:1",300,1),fake("d:0",310,0)];
- const shown=cleanStreamingGhosts(lane,ghosts);
- expect(shown.map(note=>note.key)).toEqual(["real-preview","c:0","c:1"]);
+ const ghosts=[draft("on-note",100,1),draft("free",100,0),draft("on-free",110,0),draft("later",300,0)];
+ expect(cleanStreamingGhosts(lane,ghosts).map(note=>note.key)).toEqual(["free","later"]);
  expect(lane.notes[0].tab[1]).toBe(7);
 });

@@ -27,7 +27,7 @@ beforeAll(() => {
 it("renders both ghost phases without exposing them as interactive MIDI notes", async()=>{
  const host=document.createElement("div");document.body.append(host);const root=createRoot(host), onChange=vi.fn();
  const snapshot:EditorSnapshot={id:"ghosts-midi",fps:240,totalFrames:960,framesPerMessure:480,timeSignature:4,notes:[],chords:[],cutPositionsWithCoords:[],optimalsByTime:{}};
- const ghosts=(["fake","preview"] as const).map((phase,index)=>({key:phase,phase,start:120+index*120,length:60,midi:60,tab:[0,0] as [number,number]}));
+ const ghosts=(["a","b"]).map((key,index)=>({key,phase:"preview" as const,start:120+index*120,length:60,midi:60,tab:[0,0] as [number,number]}));
  try {
   await act(async()=>root.render(React.createElement(GteMidiWorkspace,{editorId:"ghosts-midi",snapshot,onSnapshotChange:onChange,streamingGhosts:ghosts})));
   const layers=host.querySelectorAll("[data-streaming-ghost]");expect(layers).toHaveLength(2);

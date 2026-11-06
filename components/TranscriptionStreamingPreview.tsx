@@ -7,6 +7,7 @@ import { applyStreamingEdits, emptyStreamingEdits, readStreamingEdits, recordStr
 import { preloadStreamingEditor } from "../lib/gteStreamingPreload";
 import { cleanStreamingGhosts } from "../lib/gteStreamingGhosts";
 import { createStreamingReveal } from "../lib/gteStreamingReveal";
+import { setStreamingHead } from "../lib/gteStreamingHead";
 import type { StreamingCompletionSource } from "../lib/gteStreamingCompletion";
 import type { EditorSnapshot } from "../types/gte";
 import styles from "./TranscriptionStreamingPreview.module.css";
@@ -22,7 +23,6 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
   const [phase, setPhase] = useState<"streaming" | "finishing" | "saving" | "saved">("streaming");
   const [savedEditorId, setSavedEditorId] = useState<string | null>(null);
   const revealed = useRef(createStreamingReveal({ previewMs: 300 }));
-  const provisionalGhosts = useRef<import("../lib/gteStreamingGhosts").StreamingGhostLayers>({});
   const sourceComplete = useRef(false), finalizing = useRef(false), finalError = useRef(false), editRevision = useRef(0);
   const phaseRef = useRef(phase); phaseRef.current = phase;
   const finalSourceRef = useRef(finalSource); finalSourceRef.current = finalSource;
@@ -36,11 +36,11 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
   const history = useRef<{ past: StreamingEdits[]; future: StreamingEdits[] }>({ past: [], future: [] });
   const editsCallback = useRef(onEditsChange); editsCallback.current = onEditsChange;
   useEffect(() => { void preloadStreamingEditor(); }, []);
-  const displayGhosts = () => { const layers=revealed.current.ghosts(); for(const [id,notes] of Object.entries(provisionalGhosts.current)) layers[id]=[...(layers[id] ?? []),...notes]; for(const lane of working.current?.editors ?? []) if(layers[lane.id]) layers[lane.id]=cleanStreamingGhosts(lane,layers[lane.id]); return layers; };
+  const displayGhosts = () => { const layers=revealed.current.ghosts(); for(const lane of working.current?.editors ?? []) if(layers[lane.id]) layers[lane.id]=cleanStreamingGhosts(lane,layers[lane.id]); return layers; };
   const storageFailed = useRef(false);
   const [notice, setNotice] = useState("");
   const worker = useRef<Worker | null>(null), busy = useRef(false);
-  const wanted = useRef("");
+  const wanted = useRef(""), applied = useRef<{ streamId: string; revision: number } | null>(null);
   const pending = useRef<{ request: string; payload: TranscriptionPreviewPayload } | null>(null);
   const showDraft = (value: StreamingEdits) => {
     editRevision.current += 1; interaction.current.until = Date.now() + 350;
@@ -102,10 +102,11 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
     const timer = window.setInterval(() => {
       if (interaction.current.pointer || Date.now() < interaction.current.until || phaseRef.current === "saved" || phaseRef.current === "saving" || finalizing.current) return;
       const next = revealed.current.advance(125); if (next && next !== base.current) applySource(next);
+      setStreamingHead(revealed.current.headSeconds());
       const layers=displayGhosts(); setGhosts(previous => JSON.stringify(previous) === JSON.stringify(layers) ? previous : layers);
       finishLatestRef.current();
     }, 125);
-    return () => { clearInterval(timer); window.removeEventListener("blur", pointerUp); window.removeEventListener("pointerup", pointerUp); window.removeEventListener("pointercancel", pointerUp); window.removeEventListener("keydown", typing, true); };
+    return () => { clearInterval(timer); setStreamingHead(null); window.removeEventListener("blur", pointerUp); window.removeEventListener("pointerup", pointerUp); window.removeEventListener("pointercancel", pointerUp); window.removeEventListener("keydown", typing, true); };
   }, []);
   useEffect(() => {
     const instance = new Worker(new URL("../workers/transcriptionPreview.worker.ts", import.meta.url));
@@ -124,8 +125,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
       busy.current = false;
       if (event.data.request === wanted.current && event.data.canvas) {
         const first = !openedEditor.current || !base.current || base.current.editors[0]?.id === "awaiting-first-track";
-        provisionalGhosts.current=event.data.provisionalGhosts ?? {};
-        const next = revealed.current.receive(event.data.canvas, event.data.request.endsWith(":final"), event.data.throughSeconds ?? lastMetadata.current.settledSeconds ?? lastMetadata.current.processedSeconds);
+        const next = revealed.current.receive(event.data.canvas, event.data.request.endsWith(":final"), event.data.throughSeconds ?? lastMetadata.current.settledSeconds ?? lastMetadata.current.processedSeconds, event.data.provisionalGhosts ?? {});
         if (first && next) { applySource(revealed.current.advance() ?? next); setGhosts(displayGhosts()); }
         if (event.data.request.endsWith(":final")) sourceComplete.current = true;
         if (!storageFailed.current) setNotice("");
@@ -138,33 +138,40 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
     return () => { instance.terminate(); worker.current = null; };
   }, []);
   useEffect(() => {
-    base.current = null; working.current = null; provisionalGhosts.current={}; revealed.current.reset(); sourceComplete.current = false; setCanvas(null);
+    // The direct poll may already have applied this very stream before status announced it.
+    if (applied.current?.streamId === metadata.streamId) return;
+    base.current = null; working.current = null; revealed.current.reset(); setStreamingHead(null); sourceComplete.current = false; applied.current = null; setCanvas(null);
   }, [jobId, metadata.streamId]);
   useEffect(() => {
     let stopped = false, timer: ReturnType<typeof setTimeout> | undefined;
     const controller = new AbortController();
-    if (metadata.revision < 1 || finalSource) return () => controller.abort();
-    const request = `${metadata.streamId}:${metadata.revision}`; wanted.current = request;
+    if (finalSource) return () => controller.abort();
+    // Poll the artifact directly instead of waiting for the slower job-status poll
+    // to announce each revision; only genuinely newer revisions reach the worker.
     const load = async () => {
       try {
         const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/preview`, { signal: controller.signal, cache: "no-store" });
         if (!response.ok) throw new Error("Preview not ready");
         const payload = await response.json() as TranscriptionPreviewPayload;
-        void preloadStreamingEditor(payload.tracks);
         const revision = previewMetadata(payload);
-        // A replaced artifact can be newer than status. Never mix retries or go backwards.
-        if (!revision || revision.streamId !== metadata.streamId || revision.revision < metadata.revision) throw new Error("Stale preview");
-        if (stopped) return;
+        if (!revision || stopped) throw new Error("Stale preview");
+        const current = applied.current, expected = lastMetadata.current.streamId;
+        // A new inference attempt is only trusted once job status has announced it.
+        const sameStream = current?.streamId === revision.streamId;
+        if (!sameStream && revision.streamId !== expected && (current || expected !== "waiting")) throw new Error("Stale preview");
+        if (sameStream && revision.revision <= current!.revision) throw new Error("Unchanged preview");
+        void preloadStreamingEditor(payload.tracks);
+        applied.current = { streamId: revision.streamId, revision: revision.revision };
+        const request = `${revision.streamId}:${revision.revision}`; wanted.current = request;
         const item = { request, payload };
         if (busy.current || !worker.current) pending.current = item;
         else { busy.current = true; worker.current.postMessage(item); }
-      } catch {
-        if (!stopped) timer = setTimeout(load, 8000);
-      }
+      } catch {}
+      if (!stopped) timer = setTimeout(load, 2500);
     };
     void load();
     return () => { stopped = true; controller.abort(); if (timer) clearTimeout(timer); };
-  }, [jobId, metadata.streamId, metadata.revision, finalSource]);
+  }, [jobId, finalSource]);
   useEffect(() => {
     if (!finalSource) return;
     void preloadStreamingEditor(finalSource.tracks);
