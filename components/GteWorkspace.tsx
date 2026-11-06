@@ -13625,6 +13625,7 @@ export default function GteWorkspace({
       return;
     }
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (typeof event.key !== "string" || !event.key) return;
       const target = event.target as HTMLElement | null;
       const arrowFromLengthenControl = event.key.startsWith("Arrow") && Boolean(
         target?.closest("[data-gte-scale-mode-menu='true'], [data-scale-mode-select='true'], [data-scale-hud='true']")
