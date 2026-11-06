@@ -5,6 +5,8 @@ import { synthesizeTimingMap } from "./gteTiming";
 export type StreamingWorkspaceBinding = {
   canvas: CanvasSnapshot;
   ghosts?: import("./gteStreamingGhosts").StreamingGhostLayers;
+  /** Lane ids with inferred music, even if not yet revealed; drives track priority. */
+  known?: string[];
   name: string;
   progress: number;
   finishing: boolean;
@@ -67,11 +69,12 @@ export function streamingActiveLane(
   canvas: CanvasSnapshot,
   manuallySelected = true,
   ghosts?: import("./gteStreamingGhosts").StreamingGhostLayers,
+  known: readonly string[] = [],
 ) {
   const active = canvas.editors.find(lane => lane.id === current);
   if (active && manuallySelected) return active.id;
   const priority = (lane: EditorSnapshot) => lane.instrumentType === "guitar-tab" ? 0 : lane.instrumentType === "bass-tab" ? 1 : lane.instrumentType === "notation" ? 2 : 3;
-  const generated = canvas.editors.filter(lane => lane.notes.length || lane.chords.length || ghosts?.[lane.id]?.some(ghost => ghost.phase === "preview"));
+  const generated = canvas.editors.filter(lane => lane.notes.length || lane.chords.length || known.includes(lane.id) || ghosts?.[lane.id]?.some(ghost => ghost.phase === "preview"));
   const preferred = [...(generated.length ? generated : canvas.editors)].sort((a, b) => priority(a) - priority(b))[0];
   // Keep a generated higher-priority track; an empty seed must not steal focus.
   if (active && (!generated.length || generated.some(lane => lane.id === active.id)) && (!preferred || priority(active) <= priority(preferred))) return active.id;

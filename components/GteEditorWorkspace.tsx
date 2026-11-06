@@ -2190,8 +2190,8 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
 
   useEffect(() => {
     if (!streaming) return;
-    setActiveLaneIdState(previous => streamingActiveLane(previous, streaming.canvas, manuallySelectedTrackRef.current, streaming.ghosts));
-  }, [streaming?.canvas, streaming?.ghosts]);
+    setActiveLaneIdState(previous => streamingActiveLane(previous, streaming.canvas, manuallySelectedTrackRef.current, streaming.ghosts, streaming.known));
+  }, [streaming?.canvas, streaming?.ghosts, streaming?.known?.join(",")]);
 
   const [streamingProgressBottom, setStreamingProgressBottom] = useState(104);
   useEffect(() => {

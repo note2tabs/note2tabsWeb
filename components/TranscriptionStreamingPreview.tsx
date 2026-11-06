@@ -41,6 +41,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
   const [notice, setNotice] = useState("");
   // The first artifact proves inference is running: open the editor now, even before the first note.
   const [artifactSeen, setArtifactSeen] = useState(false);
+  const [known, setKnown] = useState<string[]>([]);
   const worker = useRef<Worker | null>(null), busy = useRef(false);
   const wanted = useRef(""), applied = useRef<{ streamId: string; revision: number } | null>(null);
   const pending = useRef<{ request: string; payload: TranscriptionPreviewPayload } | null>(null);
@@ -106,6 +107,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
       const next = revealed.current.advance(125); if (next && next !== base.current) applySource(next);
       // Before the first note the caret rests at bar 1, so the editor already looks alive.
       setStreamingHead(revealed.current.headSeconds() ?? (openedEditor.current && !sourceComplete.current ? 0 : null));
+      const lanes = revealed.current.knownLanes(); setKnown(previous => previous.join() === lanes.join() ? previous : lanes);
       const layers=displayGhosts(); setGhosts(previous => JSON.stringify(previous) === JSON.stringify(layers) ? previous : layers);
       finishLatestRef.current();
     }, 125);
@@ -210,7 +212,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
       </div>
     </main> : <Editor editorId={savedEditorId || `stream-${jobId}`} isGuestMode={savedEditorId === "guest"} hasAccount passedTutorial
       hydratedCanvas={savedEditorId ? workspaceCanvas : undefined}
-      streaming={phase === "saved" ? undefined : { canvas: workspaceCanvas, ghosts, name, progress, finishing: phase !== "streaming", stage,
+      streaming={phase === "saved" ? undefined : { canvas: workspaceCanvas, ghosts, known, name, progress, finishing: phase !== "streaming", stage,
         onInteractionStart: () => { interaction.current.pointer = true; setGhosts({}); },
         onChange: edit, undo, redo, undoCount: historySize.undo, redoCount: historySize.redo }} />}
   </>;

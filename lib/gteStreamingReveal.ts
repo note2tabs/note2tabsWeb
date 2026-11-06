@@ -116,6 +116,8 @@ export function createStreamingReveal({ previewMs = 0 }: { previewMs?: number } 
     },
     /** Position of the write head in seconds, or null before streaming starts / after it ends. */
     headSeconds: () => !source || head < 0 || (completeSource && !queue.length && !staged.length) ? null : head,
+    /** Lanes the model has produced anything for, whether or not the head has reached it yet. */
+    knownLanes: () => source ? source.editors.filter(lane => lane.notes.length || lane.chords.length || provisional[lane.id]?.length).map(lane => lane.id) : [],
     pending: () => queue.length + staged.length,
     throughSeconds: () => revealedThrough,
     reset() { source = null; completeSource = false; provisional = {}; draftTimes = []; last = null; queue = []; visible = new Set(); through = 0; revealedThrough = 0; animationMs = 0; staged = []; lastArrival = 0; cadenceMs = DEFAULT_CADENCE_MS; head = -1; bound = 0; speed = 0; },

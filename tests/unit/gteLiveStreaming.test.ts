@@ -96,6 +96,9 @@ it("promotes generated tracks until a manual track change", () => {
  const draft = { key: "ghost", phase: "preview" as const, start: 0, length: 30, midi: 60, tab: [0, 0] as [number, number] };
  expect(streamingActiveLane("bass", score, false, { guitar: [] })).toBe("bass");
  expect(streamingActiveLane("bass", score, false, { guitar: [draft] })).toBe("guitar");
+ // A track the model has produced music for counts as existing before the head reaches it.
+ expect(streamingActiveLane("bass", score, false, undefined, ["guitar"])).toBe("guitar");
+ expect(streamingActiveLane("bass", score, false, undefined, ["piano"])).toBe("bass");
  guitar.notes = piano.notes;
  expect(streamingActiveLane("bass", score, false)).toBe("guitar");
  expect(streamingActiveLane(piano.id, score, true)).toBe(piano.id);
