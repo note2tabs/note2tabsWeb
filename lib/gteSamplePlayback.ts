@@ -136,8 +136,9 @@ export const prepareTrackInstrument = async (
     contextCache = new Map();
     preparedByContext.set(ctx, contextCache);
   }
+  // A score has thousands of notes but at most ~128 distinct pitches: search once per pitch.
   const selected = requiredMidi
-    ? [...new Set(requiredMidi.filter(Number.isFinite).map(midi => findNearestTrackSample(option.samples, midi)).filter((sample): sample is TrackSampleDefinition => Boolean(sample)))]
+    ? [...new Set([...new Set(requiredMidi)].filter(Number.isFinite).map(midi => findNearestTrackSample(option.samples, midi)).filter((sample): sample is TrackSampleDefinition => Boolean(sample)))]
     : option.samples;
   const cacheKey = option.id + ":" + selected.map(sample => sample.url).sort().join("|");
   const cached = contextCache.get(cacheKey);
@@ -171,7 +172,7 @@ export const warmTrackInstrument = async (instrumentId?: string | null, required
   const option = getTrackInstrumentOption(instrumentId);
   if (option.kind === "synth") return;
   try {
-    const selected = requiredMidi ? [...new Set(requiredMidi.filter(Number.isFinite).map(midi => findNearestTrackSample(option.samples, midi)).filter((sample): sample is TrackSampleDefinition => Boolean(sample)))] : option.samples;
+    const selected = requiredMidi ? [...new Set([...new Set(requiredMidi)].filter(Number.isFinite).map(midi => findNearestTrackSample(option.samples, midi)).filter((sample): sample is TrackSampleDefinition => Boolean(sample)))] : option.samples;
     // Limit network fan-out while warming an entire bank.
     for (let index = 0; index < selected.length; index += 4) await Promise.all(selected.slice(index, index + 4).map(sample => fetchPlaybackSample(playbackSampleUrl(sample.url))));
   } catch {

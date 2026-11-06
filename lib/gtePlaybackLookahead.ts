@@ -25,14 +25,17 @@ export const createPlaybackLookaheadScheduler = <T extends PlaybackLookaheadEven
   };
 };
 
+const REPLACE_LOOKBACK_SECONDS = 20;
+
 /** A live score can grow while its AudioContext and clock keep running. */
 export function createLivePlaybackLookaheadScheduler<T extends PlaybackLookaheadEvent>(
   initial: readonly T[], schedule: (event: T) => void, lookahead: number,
   identity: (event: T) => string, end: (event: T) => number,
 ) {
-  let ordered = [...initial].sort((a, b) => a.start - b.start), next = 0;
+  let ordered = [...initial].sort((a, b) => a.start - b.start), next = 0, lastElapsed = 0;
   const scheduled = new Set<string>();
   const pump = (elapsed: number) => {
+    lastElapsed = elapsed;
     while (next < ordered.length && ordered[next].start <= elapsed + lookahead) {
       const event = ordered[next++], key = identity(event);
       if (scheduled.has(key)) continue;
@@ -40,6 +43,14 @@ export function createLivePlaybackLookaheadScheduler<T extends PlaybackLookahead
       if (end(event) > elapsed) schedule(event);
     }
   };
-  pump.replace = (events: readonly T[]) => { ordered = [...events].sort((a, b) => a.start - b.start); next = 0; };
+  pump.replace = (events: readonly T[]) => {
+    ordered = [...events].sort((a, b) => a.start - b.start);
+    // Resume near the playhead instead of re-walking (and re-keying) the whole past:
+    // anything that started long ago has ended or was already scheduled.
+    const from = lastElapsed - REPLACE_LOOKBACK_SECONDS;
+    let low = 0, high = ordered.length;
+    while (low < high) { const middle = (low + high) >>> 1; if (ordered[middle].start < from) low = middle + 1; else high = middle; }
+    next = low;
+  };
   return pump;
 }

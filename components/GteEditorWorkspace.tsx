@@ -221,6 +221,7 @@ type TopMenuId =
 
 const FIXED_FRAMES_PER_BAR = 480;
 const GLOBAL_PLAYBACK_LOOKAHEAD_SECONDS = 4;
+const LIVE_PLAYBACK_REFRESH_MS = 800;
 const DEFAULT_SECONDS_PER_BAR = 2;
 const CANVAS_AUTOSAVE_MS = 20000;
 const MAX_CANVAS_HISTORY = 64;
@@ -4543,7 +4544,8 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
     const { end, fps } = playbackBoundsRef.current;
     const normalized = Math.max(0, Math.min(end, Math.round(nextFrame)));
     globalPlaybackFrameRef.current = normalized;
-    const counterTick = Math.floor((normalized / Math.max(1, fps)) * 20);
+    // The streaming editor already re-renders on its own cadence; keep the counter coarser there.
+    const counterTick = Math.floor((normalized / Math.max(1, fps)) * (streamingRef.current ? 4 : 20));
     if (options?.forceReact || counterTick !== globalPlaybackCounterTickRef.current) {
       globalPlaybackCounterTickRef.current = counterTick;
       setGlobalPlaybackCounterFrame(normalized);
@@ -5442,19 +5444,33 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
         event => `${event.trackId}:${event.start}:${event.midi}:${event.instrumentId}`,
         event => event.start + event.duration);
       const ordinaryPump = createPlaybackLookaheadScheduler(events, scheduleEvent, GLOBAL_PLAYBACK_LOOKAHEAD_SECONDS);
-      let sourceCanvas = canvas, loadingLiveNotes = false;
+      let sourceCanvas = canvas, loadingLiveNotes = false, lastLiveRefresh = 0;
+      // Streaming changes the canvas several times a second. Rebuilding every event for the
+      // whole song that often starves the main thread, so coalesce into at most one refresh
+      // per interval (the newest canvas always wins) and only touch pitches that are new.
+      const preparedPitchKey = new Map<string, string>();
       const scheduleAhead = (elapsed: number) => {
         const live = livePlaybackSession;
         (live ? livePump : ordinaryPump)(elapsed);
         const latest = canvasRef.current;
         if (!live || !latest || latest === sourceCanvas || loadingLiveNotes) return;
+        const nowMs = typeof performance !== "undefined" ? performance.now() : Date.now();
+        if (nowMs - lastLiveRefresh < LIVE_PLAYBACK_REFRESH_MS) return;
+        lastLiveRefresh = nowMs;
         sourceCanvas = latest; loadingLiveNotes = true;
         const replacement = collectEvents(latest).events;
-        const instruments = [...new Set(replacement.filter(event => !event.drumVoiceId).map(event => event.instrumentId))];
+        const midisByInstrument = new Map<string, Set<number>>();
+        for (const event of replacement) {
+          if (event.drumVoiceId) continue;
+          const set = midisByInstrument.get(event.instrumentId) ?? new Set<number>();
+          set.add(event.midi); midisByInstrument.set(event.instrumentId, set);
+        }
         void Promise.all([
-          ...instruments.map(async id => {
-            const prepared = await prepareTrackInstrument(ctx, id, replacement.filter(event => event.instrumentId === id).map(event => event.midi));
-            preparedByInstrumentId.set(id, prepared);
+          ...[...midisByInstrument].map(async ([id, midis]) => {
+            const pitchKey = [...midis].sort((a, b) => a - b).join(",");
+            if (preparedPitchKey.get(id) === pitchKey && preparedByInstrumentId.has(id)) return;
+            const prepared = await prepareTrackInstrument(ctx, id, [...midis]);
+            preparedByInstrumentId.set(id, prepared); preparedPitchKey.set(id, pitchKey);
           }),
           replacement.some(event => event.drumVoiceId) && !preparedDrumKit ? prepareDrumKit(ctx).then(kit => { preparedDrumKit = kit; }) : null,
         ]).then(() => {

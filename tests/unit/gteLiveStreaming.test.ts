@@ -60,6 +60,16 @@ describe("paced, editable streaming", () => {
   pump.replace([first, second, event("past", .2), event("future", 2)]); pump(1.9);
   expect(schedule.mock.calls.map(([note]) => note.id)).toEqual(["a", "b", "c", "future"]);
  });
+ it("does not re-walk the long-finished past when a growing score replaces the live queue", () => {
+  const schedule = vi.fn(), identity = vi.fn((note: { id: string }) => note.id);
+  const old = Array.from({ length: 5000 }, (_, index) => ({ id: `old${index}`, start: index * .01, end: index * .01 + .1 }));
+  const pump = createLivePlaybackLookaheadScheduler(old, schedule, .25, identity, note => note.end);
+  pump(80); identity.mockClear();
+  const fresh = { id: "fresh", start: 80.5, end: 81 };
+  pump.replace([...old, fresh]); pump(80.4); pump(80.6);
+  expect(identity.mock.calls.length).toBeLessThan(10);
+  expect(schedule.mock.calls.map(([note]) => note.id)).toContain("fresh");
+ });
  it("saves the edited score without any completion-time musical rewrite", () => {
   const current = canvas(); current.editors[0].notes[0].midiNum = 77; current.editors[0].notes.splice(1, 1);
   current.editors[0].notes.push({ ...current.editors[0].notes[0], id: 99, midiNum: 80, startTime: 700 });
