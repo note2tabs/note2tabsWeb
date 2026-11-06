@@ -5,7 +5,7 @@ import { detectImportedKey } from "../../lib/gteImportedKey";
 import { optimizeImportedTrackFingerings } from "../../lib/gteApi";
 
 const payload = (): TranscriptionPreviewPayload => ({ version: 1, streamId: "attempt-1", revision: 1,
-  processedSeconds: 2, durationSeconds: 20, complete: false, tempoAnalysis: { bpm: 120 },
+  processedSeconds: 4, settledSeconds: 4, durationSeconds: 20, complete: false, tempoAnalysis: { bpm: 120 },
   tracks: [{ name: "Piano", trackType: "tab", instrumentId: "", program: 0, segments: [
     { start_time_s: .013, end_time_s: .269, pitch_midi: 60 },
     { start_time_s: .513, end_time_s: .769, pitch_midi: 64 },

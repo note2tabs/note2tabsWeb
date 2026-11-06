@@ -7,6 +7,8 @@ export type StreamingWorkspaceBinding = {
   name: string;
   progress: number;
   finishing: boolean;
+  stage?: string;
+  onInteractionStart?: () => void;
   onChange: (before: CanvasSnapshot, next: CanvasSnapshot) => void;
   undo: () => void;
   redo: () => void;

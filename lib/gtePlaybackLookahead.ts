@@ -24,3 +24,22 @@ export const createPlaybackLookaheadScheduler = <T extends PlaybackLookaheadEven
     }
   };
 };
+
+/** A live score can grow while its AudioContext and clock keep running. */
+export function createLivePlaybackLookaheadScheduler<T extends PlaybackLookaheadEvent>(
+  initial: readonly T[], schedule: (event: T) => void, lookahead: number,
+  identity: (event: T) => string, end: (event: T) => number,
+) {
+  let ordered = [...initial].sort((a, b) => a.start - b.start), next = 0;
+  const scheduled = new Set<string>();
+  const pump = (elapsed: number) => {
+    while (next < ordered.length && ordered[next].start <= elapsed + lookahead) {
+      const event = ordered[next++], key = identity(event);
+      if (scheduled.has(key)) continue;
+      scheduled.add(key);
+      if (end(event) > elapsed) schedule(event);
+    }
+  };
+  pump.replace = (events: readonly T[]) => { ordered = [...events].sort((a, b) => a.start - b.start); next = 0; };
+  return pump;
+}

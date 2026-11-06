@@ -1,6 +1,8 @@
+import type { CanvasSnapshot } from "../../types/gte";
+import type { StreamingCompletionSource } from "../../lib/gteStreamingCompletion";
 import { clearStreamingEdits, readStreamingEdits, type StreamingEdits } from "../../lib/gteStreamingEdits";
 import dynamic from "next/dynamic";
-import { previewMetadata } from "../../lib/transcriptionPreviewProtocol";
+import { previewMetadata, streamingModelTempo } from "../../lib/transcriptionPreviewProtocol";
 import { transcriptionEntryInstrument } from "../../lib/instrumentTranscriptionEntry";
 import { localizedSignIn as signIn } from "../../lib/i18n/auth";
 import { translatedError } from "../../lib/i18n/translate";
@@ -640,6 +642,10 @@ export default function JobPage() {
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [progressClock, setProgressClock] = useState(() => Date.now());
   const streamingEditsRef = useRef<StreamingEdits | null>(null);
+  const streamingSessionRef = useRef(false);
+  const streamingSavedEditorRef = useRef<string | null>(null);
+  const [streamingFinalSource, setStreamingFinalSource] = useState<StreamingCompletionSource | null>(null);
+  const [streamingSaved, setStreamingSaved] = useState(false);
   useEffect(() => { streamingEditsRef.current = typeof job_id === "string" ? readStreamingEdits(job_id) : null; }, [job_id]);
   const automaticImportJobRef = useRef<string | null>(null);
   const displayJob = useMemo(() => normalizeJobForDisplay(job), [job]);
@@ -1184,6 +1190,34 @@ export default function JobPage() {
     }
   };
 
+  const finishStreamingInPlace = (ready: JobResponse | null) => {
+    if (!ready || !streamingSessionRef.current || appendEditorId) return false;
+    const tracks = getJobTranscriberTracks(ready);
+    if (!tracks.length) return false;
+    const tempo = streamingModelTempo(ready);
+    setStreamingFinalSource({ tracks, ...tempo, name: ytTitleHint || ready.song_title || "Transcription" });
+    return true;
+  };
+  const saveStreamingArrangement = async (current: CanvasSnapshot): Promise<string> => {
+    if (!streamingSavedEditorRef.current) {
+      if (canOpenGuestEditor) streamingSavedEditorRef.current = GTE_GUEST_EDITOR_ID;
+      else {
+        if (!isSignedIn) throw new Error("Sign in to save your arrangement.");
+        const created = await gteApi.createEditor(undefined, current.name || ytTitleHint || displayJob?.song_title || "Transcription");
+        streamingSavedEditorRef.current = created.editorId;
+      }
+    }
+    const editorId = streamingSavedEditorRef.current;
+    await gteApi.applySnapshot(editorId, { ...current, id: editorId });
+    await gteApi.commitEditor(editorId);
+    if (!canOpenGuestEditor && typeof job_id === "string") {
+      const linked = await fetch(`/api/jobs/${encodeURIComponent(job_id)}/editor`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ editorId }) });
+      if (!linked.ok) throw new Error("Could not confirm the saved arrangement.");
+    }
+    setStreamingSaved(true);
+    return editorId;
+  };
+
   const automaticallyOpenEditor = async () => {
     if (!showReviewUi || typeof job_id !== "string" || reviewBusy) return;
     setReviewBusy(true);
@@ -1207,6 +1241,7 @@ export default function JobPage() {
         if (!importableJob) {
           throw new Error(t("Tabs are still getting ready for the editor. Please try again in a moment."));
         }
+        if (finishStreamingInPlace(importableJob)) { importedSuccessfully = true; return; }
         importAttempted = true;
         importedSuccessfully = await importJobToEditor(importableJob, targetEditorChoice, true);
         return;
@@ -1259,6 +1294,7 @@ export default function JobPage() {
         throw new Error("Tabs are still finalizing. Please try again in a moment.");
       }
 
+      if (finishStreamingInPlace(finalizedJobForImport)) { importedSuccessfully = true; return; }
       importAttempted = true;
       importedSuccessfully = await importJobToEditor(finalizedJobForImport, targetEditorChoice, true);
     } catch (err: any) {
@@ -1310,13 +1346,14 @@ export default function JobPage() {
   const showAdGate = isFinalizedJob && !hasWatchedAd;
   const streamingMetadata = previewMetadata(displayJob?.transcriptionPreview);
   const streamableModel = ["msmodel", "msmodel_small"].includes(displayJob?.transcriptionMethod ?? "") || modelHint === "light" || modelHint === "super_heavy";
-  const showStreaming = Boolean((streamingMetadata || streamableModel && !showReviewUi) && !["error", "failed"].includes(displayJob?.status ?? ""));
+  const showStreaming = Boolean((streamingSessionRef.current || streamingMetadata || streamableModel && !showReviewUi) && !["error", "failed"].includes(displayJob?.status ?? ""));
+  if (showStreaming && !showReviewUi) streamingSessionRef.current = true;
   useEffect(() => {
     if (!showStreaming || typeof job_id !== "string" || router.pathname !== "/job/[job_id]") return;
     void router.replace({ pathname: "/gte/transcribing/[job_id]", query: { ...router.query, job_id } });
   }, [showStreaming, job_id, router.pathname]);
   if (showStreaming && typeof job_id === "string") return <>
-    <TranscriptionStreamingPreview key={job_id} jobId={job_id} name={ytTitleHint || displayJob?.song_title || "your song"} metadata={streamingMetadata} finishing={showReviewUi} onEditsChange={draft => { streamingEditsRef.current = draft; }} />
+    <TranscriptionStreamingPreview key={job_id} jobId={job_id} name={ytTitleHint || displayJob?.song_title || "your song"} metadata={streamingMetadata} finishing={showReviewUi && !streamingSaved} finalSource={streamingFinalSource} onSave={saveStreamingArrangement} onEditsChange={draft => { streamingEditsRef.current = draft; }} />
     {reviewError && <div role="alert" className="fixed bottom-24 left-1/2 z-[11000] -translate-x-1/2 rounded-lg border bg-white px-4 py-3 text-sm">
       {translatedError(reviewError, locale)} <button type="button" disabled={reviewBusy} onClick={() => { automaticImportJobRef.current = null; setReviewError(null); void automaticallyOpenEditor(); }}>Retry saving</button>
     </div>}
@@ -1352,7 +1389,7 @@ export default function JobPage() {
           <div className="job-route-content">
           {showStreaming && typeof job_id === "string" ? (
             <div className="stack">
-              <TranscriptionStreamingPreview key={job_id} jobId={job_id} name={ytTitleHint || displayJob?.song_title || "your song"} metadata={streamingMetadata} finishing={showReviewUi} onEditsChange={draft => { streamingEditsRef.current = draft; }} />
+              <TranscriptionStreamingPreview key={job_id} jobId={job_id} name={ytTitleHint || displayJob?.song_title || "your song"} metadata={streamingMetadata} finishing={showReviewUi && !streamingSaved} finalSource={streamingFinalSource} onSave={saveStreamingArrangement} onEditsChange={draft => { streamingEditsRef.current = draft; }} />
               {reviewError && <><p role="alert">{translatedError(reviewError, locale)}</p><button type="button" className="button-primary button-small" disabled={reviewBusy} onClick={() => { automaticImportJobRef.current = null; setReviewError(null); void automaticallyOpenEditor(); }}>Retry opening editor</button></>}
             </div>
           ) : showReviewUi ? (

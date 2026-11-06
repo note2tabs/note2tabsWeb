@@ -14876,9 +14876,12 @@ html[lang="ar"] [data-editor-locale="ar"] :is(input[type="text"], textarea) {
   }
 }
 
-/* The same editor workspace is used while transcription streams. */
-.gte-transcription-progress { position: fixed; inset: 0 0 auto; z-index: 10002; height: 26px; display: flex; align-items: center; gap: 16px; padding: 0 20px; background: #f8faf7; border-bottom: 1px solid #e1e7e2; color: #52645b; font-size: 11px; }
+/* Progress lives below the normal editor controls, in the reading area. */
+.gte-transcription-progress { position: absolute; bottom: -46px; left: 50%; transform: translateX(-50%); z-index: 20; width: min(680px, calc(100% - 32px)); display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 5px 16px; padding: 7px 12px; border: 1px solid #dce6df; border-radius: 7px; background: #f9fbf8; color: #435b4d; font-size: 12px; }
 .gte-transcription-progress > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gte-transcription-progress [role="progressbar"] { flex: 1; min-width: 64px; height: 3px; background: #e3ebe5; }
+.gte-transcription-progress small { font-size: 11px; color: #6b7c72; }
+.gte-transcription-progress [role="progressbar"] { grid-column: 1/-1; height: 3px; background: #e3ebe5; overflow: hidden; }
 .gte-transcription-progress i { display: block; height: 100%; background: #26765b; transition: width .5s ease; }
-.gte-streaming-workspace .gte-editor-sticky-banner { top: 26px; }
+.gte-streaming-workspace .gte-editor-sticky-banner { margin-bottom: 50px; }
+.gte-transcription-progress--mobile { position: sticky; top: 0; left: auto; bottom: auto; transform: none; width: 100%; grid-template-columns: minmax(0,1fr); margin-bottom: 8px; z-index: 9990; }
+@media (max-width: 700px) { .gte-transcription-progress { grid-template-columns: minmax(0,1fr); } }

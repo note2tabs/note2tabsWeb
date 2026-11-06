@@ -15,3 +15,17 @@ export function previewMetadata(value: unknown): TranscriptionPreviewMetadata | 
   return { ...(typeof item.settledSeconds === "number" && Number.isFinite(item.settledSeconds) ? { settledSeconds: Math.max(0, Math.min(item.durationSeconds, item.settledSeconds)) } : {}), version: 1, streamId: item.streamId, revision: item.revision, processedSeconds: item.processedSeconds, durationSeconds: item.durationSeconds, complete: item.complete };
 }
 
+
+/** Look up the actual model tempo in the final job envelope. */
+export function streamingModelTempo(value: unknown): { bpm?: number; beatsPerBar?: number } {
+  const seen = new Set<object>();
+  const find = (item: any, depth: number): { bpm?: number; beatsPerBar?: number } | null => {
+    if (!item || typeof item !== "object" || seen.has(item) || depth > 6) return null;
+    seen.add(item);
+    const tempo = item.tempoAnalysis ?? item.tempo_analysis;
+    if (tempo && Number.isFinite(Number(tempo.bpm)) && Number(tempo.bpm) > 0) return { bpm: Number(tempo.bpm), beatsPerBar: Number(tempo.beatsPerBar) || 4 };
+    for (const key of ["output", "result", "prediction", "metadata", "meta", "analysis", "transcription", "transcriber"]) { const result = find(item[key], depth + 1); if (result) return result; }
+    return null;
+  };
+  return find(value, 0) ?? {};
+}

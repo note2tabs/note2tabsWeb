@@ -10,13 +10,14 @@ import { generatePlayingCoordinatesInSnapshot } from "./gtePlayingCoordinates";
 import { optimizeTrackFingeringInSnapshot, finalizeOptimizedTrackFingeringInSnapshot, mergeRedundantCutRegionsInSnapshot } from "./gteFingeringOptimization";
 import { cleanTinyOverlapsInSnapshot } from "./gteOverlapCleanup";
 import { TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES } from "./gteImportPolicy";
+import { FIXED_NOTE_VELOCITY } from "./gteFixedVelocity";
 import { assignVoices } from "./gteAssignVoices";
 
 import { previewMetadata, streamingTrackKey, type TranscriptionPreviewPayload } from "./transcriptionPreviewProtocol";
 export type { TranscriptionPreviewMetadata, TranscriptionPreviewPayload } from "./transcriptionPreviewProtocol";
 
-/** Four-bar provisional optimization. Final import never consumes these choices. */
-export const STREAMING_CHUNK_BARS = 4;
+/** Two-bar provisional optimization. Final import never consumes these choices. */
+export const STREAMING_CHUNK_BARS = 2;
 export function createPreviewBuilder() {
   let streamId = "";
   const cache = new Map<string, { fingerprint: string; lane: EditorSnapshot }>();
@@ -26,7 +27,7 @@ export function createPreviewBuilder() {
     const beats = payload.tempoAnalysis?.beatsPerBar;
     const numerator = typeof beats === "number" && Number.isInteger(beats) && beats >= 1 && beats <= 16 ? beats : 4;
     const bpm = Number(payload.tempoAnalysis?.bpm), secondsPerBar = 60 * numerator / (Number.isFinite(bpm) && bpm >= 20 && bpm <= 400 ? bpm : 120);
-    const totalFrames = Math.max(480, Math.ceil(payload.processedSeconds / secondsPerBar) * 480);
+    const totalFrames = Math.max(480, Math.ceil(Math.max(payload.durationSeconds, payload.processedSeconds) / secondsPerBar) * 480);
     const timingMap = synthesizeTimingMap(secondsPerBar, totalFrames, numerator, 4);
     const editors = payload.tracks.map(source => {
       if (!Array.isArray(source.segments) || source.segments.some(note => !Number.isFinite(note.start_time_s) || !Number.isFinite(note.end_time_s) || !Number.isInteger(note.pitch_midi) || note.pitch_midi! < 0 || note.pitch_midi! > 127 || note.start_time_s! < 0 || note.end_time_s! <= note.start_time_s!)) throw new Error("Invalid preview notes");
@@ -49,6 +50,7 @@ export function createPreviewBuilder() {
         const key = `${trackKey}:${chunk}`, offset = chunk * STREAMING_CHUNK_BARS * 480;
         const origin = chunk * STREAMING_CHUNK_BARS * secondsPerBar;
         const settled = payload.complete || origin + STREAMING_CHUNK_BARS * secondsPerBar <= (payload.settledSeconds ?? payload.processedSeconds);
+        if (!settled) continue;
         const fingerprint = JSON.stringify([group, secondsPerBar, numerator, settled]);
         let lane = cache.get(key)?.fingerprint === fingerprint ? cache.get(key)!.lane : undefined;
         if (!lane) {
@@ -82,6 +84,7 @@ export function createPreviewBuilder() {
               .sort((a, b) => Math.abs((a.segment.start_time_s! - origin) * seed.fps - note.startTime) - Math.abs((b.segment.start_time_s! - origin) * seed.fps - note.startTime))[0];
             const sourceId = Number(source?.segment.sourceId);
             note.id = -(source && Number.isSafeInteger(sourceId) && sourceId >= 0 && source.segment.sourceId !== undefined ? sourceId + 1 : (source?.index ?? 0) + 1);
+            note.velocity = FIXED_NOTE_VELOCITY;
             note.startTime += offset;
           });
           lane.chords.forEach(chord => { chord.startTime += offset; chord.id = -(1_000_000 + chunk * 100_000 + chord.id); });

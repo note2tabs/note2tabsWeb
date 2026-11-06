@@ -173,7 +173,7 @@ import { appendBoundedHistory, replaceCanvasLane } from "../lib/gteEditorPerform
 import { useGteCanvasState } from "../lib/useGteCanvasState";
 import { sameHistoryContent } from "../lib/gteHistoryEquality";
 import { RevisionedAutosaveQueue } from "../lib/gteAutosaveQueue";
-import { createPlaybackLookaheadScheduler } from "../lib/gtePlaybackLookahead";
+import { createLivePlaybackLookaheadScheduler, createPlaybackLookaheadScheduler } from "../lib/gtePlaybackLookahead";
 import { getPlaybackScrollTarget } from "../lib/gtePlaybackScroll";
 import {
   GTE_EDITOR_TOOLBAR_GUTTER,
@@ -198,6 +198,7 @@ type Props = {
   hasAccount: boolean;
   passedTutorial: boolean;
   streaming?: import("../lib/gteStreamingWorkspace").StreamingWorkspaceBinding;
+  hydratedCanvas?: CanvasSnapshot;
 };
 
 type TrackOffsetSession = {
@@ -1302,7 +1303,7 @@ const moveBarsInCanvas = (
   );
 };
 
-export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, hasAccount, passedTutorial, streaming }: Props) {
+export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, hasAccount, passedTutorial, streaming, hydratedCanvas }: Props) {
   const isGuestMode = guestMode || Boolean(streaming);
   useGteRenderInstrumentation("GteEditorPage", editorId);
   const { data: session } = useSession();
@@ -1606,7 +1607,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
   );
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const practiceRootRef = useRef<HTMLElement | null>(null);
-  useEffect(() => { practiceRootRef.current?.toggleAttribute("inert", Boolean(streaming && (streaming.finishing || streaming.canvas.editors[0]?.id === "awaiting-first-track"))); }, [streaming?.finishing, streaming?.canvas.editors[0]?.id]);
+
   const practiceSettingsHydratedRef = useRef(false);
   const globalPlaybackFrameRef = useRef(0);
   // Where the next Play begins: updated on explicit seeks and pauses.
@@ -2108,6 +2109,11 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
 
   useEffect(() => {
     if (!editorId || streamingRef.current) return;
+    if (hydratedCanvas?.id === editorId) {
+      setRenderedCanvas(normalizeCanvas(hydratedCanvas, editorId));
+      setLoading(false); setHasPendingCommit(false); resetCanvasHistory();
+      return;
+    }
     sharedTimelineScrollRatioRef.current = 0;
     if (isGuestMode) {
       const loadGuestEditor = async () => {
@@ -2174,13 +2180,14 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
     writeGuestCanvasDraft(canvas);
   }, [canvas, isGuestMode]);
 
+  const streamInputsHydratedRef = useRef(false);
   useEffect(() => {
     if (!streaming) return;
     const normalized = normalizeCanvas(streaming.canvas, editorId);
     setRenderedCanvas(normalized);
     setLoading(false);
-    setNameDraft(normalized.name || "Untitled");
-    hydrateEditorInputSettings(normalized);
+    if (!nameEditing) setNameDraft(normalized.name || "Untitled");
+    if (!streamInputsHydratedRef.current) { hydrateEditorInputSettings(normalized); streamInputsHydratedRef.current = true; }
     setActiveLaneId(previous => resolveActiveLaneId(previous, normalized));
     setBpmDraft(formatBpm(secondsPerBarToBpm(normalized.secondsPerBar || 2, normalized.editors[0]?.timeSignature || 4)));
     setTimeSignatureDraft(String(normalized.editors[0]?.timeSignature || 4));
@@ -4270,7 +4277,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
     [canvas?.editors]
   );
   const editMenuOwnerLaneId = activeEditableLaneId ?? fallbackEditableLaneId;
-  const editMenuDisabled = activeEditableLaneId === null || Boolean(streaming?.finishing);
+  const editMenuDisabled = activeEditableLaneId === null;
   useEffect(() => {
     synchronizeSharedTimelineScroll(sharedTimelineScrollRatioRef.current);
   }, [canvas?.editors.length, editorId, globalTimelineTrackWidth, synchronizeSharedTimelineScroll, tabViewEnabled]);
@@ -4314,6 +4321,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
           }),
     [canvas]
   );
+  const playbackTimingMapRef = useRef(globalTimingMap); playbackTimingMapRef.current = globalTimingMap;
   const selectedPracticePlaybackRange = useMemo(
     () =>
       practiceModeEnabled && barSelection?.laneId === globalControlsLaneId
@@ -4498,10 +4506,13 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
     );
   }, [globalPlaybackFps, globalPlaybackFrame]);
 
+  const playbackBoundsRef = useRef({ end: canvasTimelineEnd, fps: globalPlaybackFps });
+  playbackBoundsRef.current = { end: canvasTimelineEnd, fps: globalPlaybackFps };
   const syncGlobalPlaybackFrame = useCallback((nextFrame: number, options?: { forceReact?: boolean }) => {
-    const normalized = Math.max(0, Math.min(canvasTimelineEnd, Math.round(nextFrame)));
+    const { end, fps } = playbackBoundsRef.current;
+    const normalized = Math.max(0, Math.min(end, Math.round(nextFrame)));
     globalPlaybackFrameRef.current = normalized;
-    const counterTick = Math.floor((normalized / Math.max(1, globalPlaybackFps)) * 20);
+    const counterTick = Math.floor((normalized / Math.max(1, fps)) * 20);
     if (options?.forceReact || counterTick !== globalPlaybackCounterTickRef.current) {
       globalPlaybackCounterTickRef.current = counterTick;
       setGlobalPlaybackCounterFrame(normalized);
@@ -4510,7 +4521,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
       setGlobalPlaybackFrame(normalized);
       setGlobalPlaybackFrameRevision((revision) => revision + 1);
     }
-  }, [canvasTimelineEnd, globalPlaybackFps]);
+  }, []);
 
   const getGlobalPlaybackFrame = useCallback(
     () => globalPlaybackFrameRef.current,
@@ -4846,7 +4857,10 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
     stopGlobalPlayback();
   }, [practiceModeEnabled, stopGlobalPlayback]);
 
+  const playbackEditorIdentityRef = useRef(editorId);
   useEffect(() => {
+    if (playbackEditorIdentityRef.current === editorId || hydratedCanvas?.id === editorId) return;
+    playbackEditorIdentityRef.current = editorId;
     stopGlobalPlayback();
     syncGlobalPlaybackFrame(0, { forceReact: true });
   }, [editorId, stopGlobalPlayback, syncGlobalPlaybackFrame]);
@@ -4859,6 +4873,8 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
     setLocalIsolateBool(false);
   }, [activeLaneId]);
 
+  const livePlaybackControlsRef = useRef({ trackMuteById, trackPanById, isolatedTrackIds, local_isolate_bool, activeLaneId });
+  livePlaybackControlsRef.current = { trackMuteById, trackPanById, isolatedTrackIds, local_isolate_bool, activeLaneId };
   const scheduleGlobalPlayback = useCallback(
     async (
       ctx: AudioContext,
@@ -4898,6 +4914,8 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
         return getSnapshotTabMidi(lane, tab, 0);
       };
 
+      const collectEvents = (canvas: CanvasSnapshot) => {
+      const { trackMuteById, trackPanById, isolatedTrackIds, local_isolate_bool, activeLaneId } = livePlaybackControlsRef.current;
       let endFrame = Math.max(playbackStartFrame, playbackEndFrame);
       const events: Array<{
         trackId: string;
@@ -5239,8 +5257,11 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
         });
       });
 
+      return { events, endFrame };
+      };
+      let { events, endFrame } = collectEvents(canvas);
       const drumEventsPresent = !muteOutput && events.some((event) => event.drumVoiceId);
-      const [preparedEntries, preparedDrumKit] = await Promise.all([
+      const [preparedEntries, initialDrumKit] = await Promise.all([
         muteOutput
           ? Promise.resolve([] as Array<readonly [string, Awaited<ReturnType<typeof prepareTrackInstrument>>]>)
           : Promise.all(
@@ -5261,6 +5282,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
       if (!isCurrentRequest() || ctx.state !== "running") {
         throw new Error(AUDIO_CONTEXT_RESUME_ERROR);
       }
+      let preparedDrumKit = initialDrumKit;
       const preparedByInstrumentId = new Map<string, Awaited<ReturnType<typeof prepareTrackInstrument>>>(
         preparedEntries
       );
@@ -5341,10 +5363,21 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
         });
       }
 
-      const scheduleAhead = createPlaybackLookaheadScheduler(
-        events,
-        (evt) => {
+      const scheduleEvent = (evt: typeof events[number]) => {
           if (muteOutput) return;
+          if (!destinationByTrackId.has(evt.trackId)) {
+            // Tracks can arrive after Play: give them the same gain/pan routing.
+            const trackGain = ctx.createGain();
+            trackGain.gain.value = normalizeTrackVolume(trackVolumeById[evt.trackId] ?? 1);
+            trackGain.connect(master);
+            trackGainById.set(evt.trackId, trackGain);
+            if (typeof ctx.createStereoPanner === "function") {
+              const pan = ctx.createStereoPanner();
+              pan.pan.value = normalizeTrackPan(evt.pan);
+              pan.connect(trackGain);
+              destinationByTrackId.set(evt.trackId, pan);
+            } else destinationByTrackId.set(evt.trackId, trackGain);
+          }
           const destination = destinationByTrackId.get(evt.trackId) ?? master;
           if (evt.drumVoiceId) {
             if (!preparedDrumKit) return;
@@ -5367,14 +5400,37 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
             instrument,
             midi: evt.midi,
             gain: evt.gain,
-            startTime: playBase + evt.start,
-            duration: Math.max(0.05, evt.duration),
+            startTime: Math.max(ctx.currentTime, playBase + evt.start),
+            duration: Math.max(0.01, evt.duration - Math.max(0, ctx.currentTime - playBase - evt.start)),
             bendSegments: evt.bendSegments,
             vibrato: evt.vibrato,
           });
-        },
-        GLOBAL_PLAYBACK_LOOKAHEAD_SECONDS
-      );
+        };
+      const livePlaybackSession = Boolean(streamingRef.current);
+      const livePump = createLivePlaybackLookaheadScheduler(events, scheduleEvent, GLOBAL_PLAYBACK_LOOKAHEAD_SECONDS,
+        event => `${event.trackId}:${event.start}:${event.midi}:${event.instrumentId}`,
+        event => event.start + event.duration);
+      const ordinaryPump = createPlaybackLookaheadScheduler(events, scheduleEvent, GLOBAL_PLAYBACK_LOOKAHEAD_SECONDS);
+      let sourceCanvas = canvas, loadingLiveNotes = false;
+      const scheduleAhead = (elapsed: number) => {
+        const live = livePlaybackSession;
+        (live ? livePump : ordinaryPump)(elapsed);
+        const latest = canvasRef.current;
+        if (!live || !latest || latest === sourceCanvas || loadingLiveNotes) return;
+        sourceCanvas = latest; loadingLiveNotes = true;
+        const replacement = collectEvents(latest).events;
+        const instruments = [...new Set(replacement.filter(event => !event.drumVoiceId).map(event => event.instrumentId))];
+        void Promise.all([
+          ...instruments.map(async id => {
+            const prepared = await prepareTrackInstrument(ctx, id, replacement.filter(event => event.instrumentId === id).map(event => event.midi));
+            preparedByInstrumentId.set(id, prepared);
+          }),
+          replacement.some(event => event.drumVoiceId) && !preparedDrumKit ? prepareDrumKit(ctx).then(kit => { preparedDrumKit = kit; }) : null,
+        ]).then(() => {
+          if (isCurrentRequest()) livePump.replace(replacement);
+        }).catch(() => { /* Retry new samples without stopping already playing audio. */ sourceCanvas = canvas; })
+          .finally(() => { loadingLiveNotes = false; });
+      };
       scheduleAhead(0);
 
       recordGtePerfMeasure("global-playback-schedule", (typeof performance !== "undefined" ? performance.now() : Date.now()) - scheduleStartedAt, {
@@ -5524,7 +5580,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
       scheduled.scheduleAhead(elapsed);
       const nextFrame =
         secondsToFrame(
-          globalTimingMap,
+          playbackTimingMapRef.current,
           frameToSeconds(globalTimingMap, globalPlaybackStartFrameRef.current) +
             elapsed * runPlaybackSpeed
         );
@@ -6034,7 +6090,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
       `count:${countInEnabled ? 1 : 0}`,
       `train:${speedTrainerEnabled ? 1 : 0}`,
       `speed:${Math.round(normalizedPlaybackSpeed * 1000)}`,
-      ...canvas.editors.map((lane, index) => {
+      ...canvas.editors.filter((lane, index) => !streamingRef.current || trackMuteById[lane.id || `ed-${index + 1}`] || trackPanById[lane.id || `ed-${index + 1}`]).map((lane, index) => {
         const laneId = lane.id || `ed-${index + 1}`;
         return `${laneId}:${trackMuteById[laneId] ? 1 : 0}:${Math.round(
           normalizeTrackPan(trackPanById[laneId] ?? 0) * 1000
@@ -6057,6 +6113,9 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
     trackPanById,
   ]);
 
+  const latestStartPlaybackRef = useRef(startGlobalPlayback);
+  latestStartPlaybackRef.current = startGlobalPlayback;
+
   useEffect(() => {
     const previousTrackPlaybackStateSignature = previousTrackPlaybackStateSignatureRef.current;
     previousTrackPlaybackStateSignatureRef.current = trackPlaybackStateSignature;
@@ -6071,10 +6130,10 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
     stopGlobalPlayback();
     setGlobalPlaybackFrame(resumeFrame);
     const timer = window.setTimeout(() => {
-      void startGlobalPlayback();
+      void latestStartPlaybackRef.current();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [globalPlaybackIsPlaying, startGlobalPlayback, stopGlobalPlayback, trackPlaybackStateSignature]);
+  }, [globalPlaybackIsPlaying, stopGlobalPlayback, trackPlaybackStateSignature]);
 
   const trackInstrumentSignature = useMemo(() => {
     if (!canvas) return "";
@@ -6092,7 +6151,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
     if (!previousTrackInstrumentSignature || previousTrackInstrumentSignature === trackInstrumentSignature) {
       return;
     }
-    if (!globalPlaybackIsPlaying) return;
+    if (!globalPlaybackIsPlaying || streamingRef.current) return;
     const resumeFrame = Math.max(0, Math.round(globalPlaybackFrameRef.current));
     stopGlobalPlayback();
     setGlobalPlaybackFrame(resumeFrame);
@@ -7310,6 +7369,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
       {!streaming && <script dangerouslySetInnerHTML={{ __html: bootstrapEditorScript }} />}
       <NoIndexHead title={t("Guitar Tab Editor Workspace | Note2Tabs")} canonicalPath={`/gte/${editorId}`} />
       <main
+        onPointerDownCapture={() => streamingRef.current?.onInteractionStart?.()}
         ref={practiceRootRef}
         dir="ltr"
         data-editor-locale={locale}
@@ -7319,15 +7379,15 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
   style={
     !isMobileEditMode
       ? {
-          paddingTop: streaming ? 28 : isMobileViewport ? 12 : 0,
+          paddingTop: isMobileViewport ? 12 : 0,
           ...(isMobileViewport ? { paddingBottom: "calc(7.5rem + env(safe-area-inset-bottom))" } : {}),
         }
       : undefined
         }
         onMouseDownCapture={handleMainMouseDownCapture}
       >
-      {streaming && <div className="gte-transcription-progress" role="status">
-        <span>Note2Tabs is transcribing &quot;{streaming.name}&quot;</span>
+      {streaming && isMobileViewport && <div className="gte-transcription-progress gte-transcription-progress--mobile" role="status">
+        <span>Note2Tabs is transcribing &quot;{streaming.name}&quot;</span><small>{streaming.stage}</small>
         <div role="progressbar" aria-label="Transcription progress" aria-valuenow={Math.round(streaming.progress)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${streaming.progress}%` }} /></div>
       </div>}
       {trackCleanupResult?.laneId === activeLaneId && <div role="status" aria-live="polite" data-gte-cleanup-feedback="true"
@@ -7856,6 +7916,10 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
               : { alignItems: "flex-start" }
           }
         >
+          {streaming && <div className="gte-transcription-progress" role="status">
+            <span>Note2Tabs is transcribing &quot;{streaming.name}&quot;</span><small>{streaming.stage}</small>
+            <div role="progressbar" aria-label="Transcription progress" aria-valuenow={Math.round(streaming.progress)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${streaming.progress}%` }} /></div>
+          </div>}
           <div style={{ flex: "1 1 0", minWidth: 0 }}>
             <div
               style={{ position: "relative", display: "flex", alignItems: "center", gap: "14px", flexWrap: "nowrap", minHeight: 36, fontSize: "1rem", lineHeight: 1.25 }}

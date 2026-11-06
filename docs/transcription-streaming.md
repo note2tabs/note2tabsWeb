@@ -8,17 +8,17 @@ Both MuScriptor Small (Light) and Medium (Heavy) publish snapshots from the same
 
 One artifact per inference attempt is overwritten at most every eight seconds, plus completion. Existing status polling discovers revisions. The private artifact is capped at two megabytes; reaching the cap stops preview publication, not transcription. Only a descriptor is patched into the job record. This uses polling, not SSE.
 
-A browser worker builds unquantized provisional tracks. Completed four-bar chunks run the existing fingering/playing-coordinate optimizer, with cached unchanged chunks. The progress watermark determines when a chunk is settled. The unfinished tail remains visible and editable. Instrument mapping and key estimation reuse the import models; early key estimates are provisional.
+A browser worker builds unquantized provisional tracks. Completed two-bar chunks run the existing fingering/playing-coordinate optimizer, with cached unchanged chunks. The progress watermark determines when a chunk is settled. The unfinished tail waits for the next settled watermark. Completed events are revealed chronologically at bounded render intervals, with simultaneous hits kept together. Reveals yield during editing gestures. Instrument mapping and key estimation reuse the import models; early key estimates are provisional.
 
 The existing Canvas, Sheets, MIDI and drum editors operate locally during streaming. User changes are recorded as a field-level journal in seconds, independently of new inference snapshots. Incoming data does not enter undo history. Local storage preserves the journal across refreshes; storage failure is surfaced. Preview edits cause no incremental server note writes. Practice and piano roll share the preview playback clock.
 
-## Final import and parity
+## Live completion
 
-Completion runs the ordinary importer on the complete raw result. Both paths call the same canonical processing function. With no user edits, the journal is an exact bypass: preview fingerings and snapshots never become final input.
+Live new arrangements finish in the same mounted editor. The complete source fills the reveal queue; a worker then quantizes and optimizes the current edited score, using MuScriptor's BPM and reconsidering its key. This live path intentionally does not apply the ordinary importer's preferred-eighth-note BPM rescaling. Existing append imports retain their original completion path.
 
-For edited imports, the journal overlays only changed fields onto the canonical baseline. Timing edits are quantized at completion. Preferred BPM uses the current edited rhythmic content; rebar occurs after canonical fingering so a changed tempo preference does not itself alter untouched fingerings. Key is reconsidered for musical-content edits. An append preserves the existing arrangement tempo/key.
+Editing remains available during completion. A revision check discards stale worker results and repeats completion from the latest score. Saving reuses one editor ID and repeats the snapshot only when edits arrived during an in-flight save. Preview source updates do not create incremental database note writes.
 
-Tests cover edited pitches/timing, additions/deletions, undo, retry epochs, equal-pitch swaps, reassigned IDs, notes/chords regrouped by quantization, and unrelated tracks. Coincident duplicate pitches and ambiguous source-to-final regrouping still need real-song testing; synthetic parity tests cannot prove every possible edited passage. Final commit briefly locks editing to capture one consistent journal.
+Playback keeps its AudioContext and clock across source growth, updating its lookahead queue for newly available events. The normal speed, loop and mute controls retain their restart behavior. Automated tests cover paced reveal, simultaneous events, two-bar settling, live scheduling, edits during completion and adoption of the saved arrangement without navigation. Authenticated save/reopen and real inference still require dev end-to-end testing.
 
 ## Safe dev test setup (read-only inspection, 2026-11-06)
 
