@@ -120,3 +120,22 @@ export function createPreviewBuilder() {
     return { id: `preview-${streamId}`, editors, timingMap, secondsPerBar, ...detectImportedKey(payload.tracks) };
   };
 }
+
+/** Unsettled inference is visible immediately, but stays outside the musical
+ * model until the normal bar quantization/optimization has validated it. */
+export function buildUnsettledGhosts(payload: TranscriptionPreviewPayload, canvas: CanvasSnapshot): import("./gteStreamingGhosts").StreamingGhostLayers {
+ if(payload.complete)return {};
+ const bar=canvas.secondsPerBar || 2, numerator=canvas.editors[0]?.timeSignature || 4;
+ const settled=Math.max(0,Math.floor(((payload.settledSeconds ?? 0)-bar/numerator/12)/bar))*480;
+ return Object.fromEntries(payload.tracks.map(track=>{
+  const lane=canvas.editors.find(item=>item.id.endsWith(`-${streamingTrackKey(track)}`));
+  if(!lane)return ["",[]];
+  const notes=track.segments.filter(note=>note.start_time_s!*lane.fps>=settled).slice(0,128).flatMap((note,index)=>{
+   const playable=getAllTabsForMidi(lane,note.pitch_midi!);
+   if(lane.instrumentType !== "notation" && lane.instrumentType !== "drums" && !playable.length)return [];
+   const tab: [number,number]=lane.instrumentType === "notation" ? [0,0] : lane.instrumentType === "drums" ? [Math.max(0,DRUM_VOICES.findIndex(voice=>voice.id===getDrumVoiceByMidi(note.pitch_midi!)?.id)),0] : playable[0];
+   return [{key:`unsettled:${note.sourceId ?? index}`,phase:"preview" as const,start:Math.round(note.start_time_s!*lane.fps),length:Math.max(1,Math.round((note.end_time_s!-note.start_time_s!)*lane.fps)),midi:note.pitch_midi!,tab}];
+  });
+  return [lane.id,notes];
+ }));
+}

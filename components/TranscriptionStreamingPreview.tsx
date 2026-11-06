@@ -4,6 +4,7 @@ import JobStatusLayout, { type JobResponse, type PendingJobPresentation } from "
 import type { CanvasSnapshot } from "../types/gte";
 import { previewMetadata, type TranscriptionPreviewMetadata, type TranscriptionPreviewPayload } from "../lib/transcriptionPreviewProtocol";
 import { applyStreamingEdits, emptyStreamingEdits, readStreamingEdits, recordStreamingCanvasEdit, saveStreamingEdits, type StreamingEdits } from "../lib/gteStreamingEdits";
+import { preloadStreamingEditor } from "../lib/gteStreamingPreload";
 import { createStreamingReveal } from "../lib/gteStreamingReveal";
 import type { StreamingCompletionSource } from "../lib/gteStreamingCompletion";
 import type { EditorSnapshot } from "../types/gte";
@@ -20,6 +21,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
   const [phase, setPhase] = useState<"streaming" | "finishing" | "saving" | "saved">("streaming");
   const [savedEditorId, setSavedEditorId] = useState<string | null>(null);
   const revealed = useRef(createStreamingReveal({ previewMs: 300 }));
+  const provisionalGhosts = useRef<import("../lib/gteStreamingGhosts").StreamingGhostLayers>({});
   const sourceComplete = useRef(false), finalizing = useRef(false), finalError = useRef(false), editRevision = useRef(0);
   const phaseRef = useRef(phase); phaseRef.current = phase;
   const finalSourceRef = useRef(finalSource); finalSourceRef.current = finalSource;
@@ -32,6 +34,8 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
   const draft = useRef<StreamingEdits>(emptyStreamingEdits()), base = useRef<CanvasSnapshot | null>(null), working = useRef<CanvasSnapshot | null>(null);
   const history = useRef<{ past: StreamingEdits[]; future: StreamingEdits[] }>({ past: [], future: [] });
   const editsCallback = useRef(onEditsChange); editsCallback.current = onEditsChange;
+  useEffect(() => { void preloadStreamingEditor(); }, []);
+  const displayGhosts = () => { const layers=revealed.current.ghosts(); for(const [id,notes] of Object.entries(provisionalGhosts.current)) layers[id]=[...(layers[id] ?? []),...notes]; return layers; };
   const storageFailed = useRef(false);
   const [notice, setNotice] = useState("");
   const worker = useRef<Worker | null>(null), busy = useRef(false);
@@ -97,7 +101,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
     const timer = window.setInterval(() => {
       if (interaction.current.pointer || Date.now() < interaction.current.until || phaseRef.current === "saved" || phaseRef.current === "saving" || finalizing.current) return;
       const next = revealed.current.advance(125); if (next && next !== base.current) applySource(next);
-      const layers=revealed.current.ghosts(); setGhosts(previous => JSON.stringify(previous) === JSON.stringify(layers) ? previous : layers);
+      const layers=displayGhosts(); setGhosts(previous => JSON.stringify(previous) === JSON.stringify(layers) ? previous : layers);
       finishLatestRef.current();
     }, 125);
     return () => { clearInterval(timer); window.removeEventListener("blur", pointerUp); window.removeEventListener("pointerup", pointerUp); window.removeEventListener("pointercancel", pointerUp); window.removeEventListener("keydown", typing, true); };
@@ -119,8 +123,9 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
       busy.current = false;
       if (event.data.request === wanted.current && event.data.canvas) {
         const first = !openedEditor.current || !base.current || base.current.editors[0]?.id === "awaiting-first-track";
+        provisionalGhosts.current=event.data.provisionalGhosts ?? {};
         const next = revealed.current.receive(event.data.canvas, event.data.request.endsWith(":final"), event.data.throughSeconds ?? lastMetadata.current.settledSeconds ?? lastMetadata.current.processedSeconds);
-        if (first && next) { applySource(revealed.current.advance() ?? next); setGhosts(revealed.current.ghosts()); }
+        if (first && next) { applySource(revealed.current.advance() ?? next); setGhosts(displayGhosts()); }
         if (event.data.request.endsWith(":final")) sourceComplete.current = true;
         if (!storageFailed.current) setNotice("");
         finishLatestRef.current();
@@ -132,7 +137,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
     return () => { instance.terminate(); worker.current = null; };
   }, []);
   useEffect(() => {
-    base.current = null; working.current = null; revealed.current.reset(); sourceComplete.current = false; setCanvas(null);
+    base.current = null; working.current = null; provisionalGhosts.current={}; revealed.current.reset(); sourceComplete.current = false; setCanvas(null);
   }, [jobId, metadata.streamId]);
   useEffect(() => {
     let stopped = false, timer: ReturnType<typeof setTimeout> | undefined;
@@ -144,6 +149,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
         const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/preview`, { signal: controller.signal, cache: "no-store" });
         if (!response.ok) throw new Error("Preview not ready");
         const payload = await response.json() as TranscriptionPreviewPayload;
+        void preloadStreamingEditor(payload.tracks);
         const revision = previewMetadata(payload);
         // A replaced artifact can be newer than status. Never mix retries or go backwards.
         if (!revision || revision.streamId !== metadata.streamId || revision.revision < metadata.revision) throw new Error("Stale preview");
@@ -160,6 +166,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
   }, [jobId, metadata.streamId, metadata.revision, finalSource]);
   useEffect(() => {
     if (!finalSource) return;
+    void preloadStreamingEditor(finalSource.tracks);
     const request = `${metadata.streamId}:final`; wanted.current = request;
     const end = finalSource.tracks.reduce((maximum, track) => track.segments.reduce((value, note) => Math.max(value, note.end_time_s || 0), maximum), metadata.durationSeconds);
     const payload: TranscriptionPreviewPayload = { version: 1, streamId: metadata.streamId, revision: metadata.revision || 1, complete: true,

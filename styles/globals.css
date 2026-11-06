@@ -14877,7 +14877,7 @@ html[lang="ar"] [data-editor-locale="ar"] :is(input[type="text"], textarea) {
 }
 
 /* Progress lives below the normal editor controls, in the reading area. */
-.gte-transcription-progress { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 80; width: min(520px, calc(100% - 32px)); margin: 0; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px 18px; padding: 12px 16px; border: 1px solid #cad8cc; border-radius: 10px; background: rgba(246,250,246,.78); backdrop-filter: blur(8px); color: #244635; font-size: 13px; box-shadow: 0 3px 12px #203e2810; }
+.gte-transcription-progress { position: fixed; top: 65%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 80; width: min(520px, calc(100% - 32px)); margin: 0; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px 18px; padding: 12px 16px; border: 1px solid #cad8cc; border-radius: 10px; background: rgba(246,250,246,.78); backdrop-filter: blur(8px); color: #244635; font-size: 13px; box-shadow: 0 3px 12px #203e2810; }
 .gte-transcription-progress > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gte-transcription-progress small { font-size: 12px; color: #6b7c72; }
 .gte-transcription-progress [role="progressbar"] { grid-column: 1/-1; height: 6px; border-radius: 3px; background: #dbe7de; overflow: hidden; }
@@ -14886,5 +14886,12 @@ html[lang="ar"] [data-editor-locale="ar"] :is(input[type="text"], textarea) {
 @media (max-width: 700px) { .gte-transcription-progress { grid-template-columns: minmax(0,1fr); padding: 10px 12px; margin: 0; font-size: 12px; } }
 
 [data-streaming-ghost] { pointer-events: none !important; user-select: none; }
-[data-streaming-ghost="fake"] { opacity: .14; }
+[data-streaming-ghost="fake"] { opacity: .14; animation: gte-ghost-pulse 1.8s ease-in-out infinite; }
 [data-streaming-ghost="preview"] { opacity: .38; }
+@keyframes gte-ghost-pulse {
+  0%, 100% { opacity: .10; }
+  50% { opacity: .19; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-streaming-ghost="fake"] { animation: none; }
+}

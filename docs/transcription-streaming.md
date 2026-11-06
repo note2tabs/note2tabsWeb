@@ -63,6 +63,14 @@ The compact editor progress panel is fixed at the viewport centre with a translu
 
 ## Display-only ghost phases
 
-Queued inference groups enter a translucent real preview for approximately 300 ms before entering the editable score. Fainter deterministic placeholders lead by up to 0.95 of a bar, with a steady advancing frontier bounded by available model progress. Placeholders contain no invented fret labels. They pause with incoming-data gaps and while the user is actively editing.
+Queued inference groups enter a translucent real preview for approximately 300 ms before entering the editable score. Fainter deterministic placeholders lead by roughly 2.5 bars, with a steady advancing frontier bounded by available model progress. Placeholders contain no invented fret labels. They pause with incoming-data gaps and while the user is actively editing. Quiet stretches retain their placeholders until real notes on that track advance into them; updates from other tracks do not clear the trail. Stable seeded variation adds density without frame-to-frame random flicker.
 
 Ghosts are separate typed display primitives, passed to Canvas/tab view, MIDI, sheet and drum editor overlays. They never enter CanvasSnapshot, note selection, audio scheduling, clipboard or persistence. Practice playback continues to use solid musical events only. SVG/DOM ghost elements are hidden from accessibility navigation and ignore pointer events. Ghost-only updates do not rerun sheet engraving.
+
+## First useful output
+
+The frontend preloads the main editor and dispatcher while the transcription loading screen is visible. Once instrument identity arrives it preloads only the preferred initial renderer; this does not warm audio samples, start inference, or increase cloud minimum instances.
+
+Unsettled raw predictions can open the editor as display-only real ghost notes. They are excluded from the editable/playable/savable snapshot until the normal settled-bar quantization and optimization path has run. Unsupported tab pitches are omitted from the temporary visual preview rather than shown at a false fret; raw predictions remain intact. Subsequent settled/final processing is unchanged.
+
+Model workers use a two-second publication interval for up to three startup attempts, plus a first-settled-bar opportunity, before returning to eight seconds. Failures consume the startup budget too, so an unavailable store cannot cause fast retries indefinitely. The same bounded artifact is overwritten; no new inference or ongoing high-frequency database writes were introduced. Tests use mock inference/storage and do not measure real Cloud Run cold-start latency.

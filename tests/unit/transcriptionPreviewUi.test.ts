@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import type { TranscriptionPreviewMetadata } from "../../lib/transcriptionPreviewProtocol";
 const mocks = vi.hoisted(() => ({ render: vi.fn(), toggle: vi.fn(), pause: vi.fn(), seek: vi.fn() }));
+vi.mock("../../lib/gteStreamingPreload", () => ({preloadStreamingEditor:vi.fn(async()=>{})}));
 vi.mock("next/dynamic", () => ({ default: () => (props: any) => { mocks.render(props); return null; } }));
 vi.mock("../../components/useTranscriptionPreviewPlayback", () => ({ useTranscriptionPreviewPlayback: () => ({ playing: false, speed: 1, position: 0,
   getFrame: () => 0, getSeconds: () => 0, toggle: mocks.toggle, pause: mocks.pause, seek: mocks.seek, changeSpeed: vi.fn(), error: "" }) }));
@@ -127,4 +128,17 @@ it("holds progress behind queued notes even when model progress is ahead", async
  expect(halfway.streaming.progress).toBeLessThan(80);
  await act(async () => { await vi.advanceTimersByTimeAsync(6500); });
  expect(mocks.render.mock.calls.at(-1)![0].streaming.progress).toBe(80);
+});
+
+it("opens the editor with unsettled real previews but keeps them out of the editable score",async()=>{
+ await render();
+ const empty={...canvas,editors:[{...canvas.editors[0],notes:[]}]};
+ const ghost={key:"unsettled:0",phase:"preview",start:0,length:60,midi:60,tab:[0,0]};
+ await act(async()=>WorkerStub.current.onmessage?.({data:{request:"attempt:1",canvas:empty,provisionalGhosts:{lane:[ghost]},throughSeconds:0}}));
+ let props=mocks.render.mock.calls.at(-1)![0];
+ expect(props.streaming.canvas.editors[0].notes).toHaveLength(0);
+ expect(props.streaming.ghosts.lane).toEqual([ghost]);
+ await act(async()=>{await vi.advanceTimersByTimeAsync(5000);});
+ props=mocks.render.mock.calls.at(-1)![0];expect(props.streaming.canvas.editors[0].notes).toHaveLength(0);
+ expect(props.streaming.ghosts.lane).toEqual([ghost]);
 });

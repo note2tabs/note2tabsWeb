@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createPreviewBuilder, quantizeStreamingSegments } from "../../lib/gteTranscriptionPreview";
+import { createPreviewBuilder, quantizeStreamingSegments, buildUnsettledGhosts } from "../../lib/gteTranscriptionPreview";
 import { completeStreamingCanvas } from "../../lib/gteStreamingCompletion";
 import { restorePitchedImport } from "../../lib/gteNotationImport";
 import { emptyStreamingEdits, recordStreamingCanvasEdit, applyStreamingEdits } from "../../lib/gteStreamingEdits";
@@ -62,4 +62,15 @@ describe("continuous quantization and optimization parity", () => {
  it("does not expose notes at an invented tempo while preprocessing is unavailable", () => {
   expect(() => createPreviewBuilder()({ ...fixture(4,120), tempoAnalysis:null })).toThrow("Waiting for preprocessing tempo");
  });
+});
+
+it("keeps early predictions display-only until the same canonical bar path settles",()=>{
+ const raw=fixture(4,120), build=createPreviewBuilder(), early={...raw,complete:false,settledSeconds:0,processedSeconds:1};
+ const score=build(early), original=structuredClone(early), ghosts=buildUnsettledGhosts(early,score);
+ expect(score.editors.every(lane=>!lane.notes.length&&!lane.chords.length)).toBe(true);
+ expect(Object.values(ghosts).flat().length).toBeGreaterThan(0);
+ expect(Object.values(ghosts).flat().every(note=>note.phase==="preview")).toBe(true);
+ expect(early).toEqual(original);
+ expect(build(raw)).toEqual(createPreviewBuilder()(raw));
+ expect(buildUnsettledGhosts(raw,build(raw))).toEqual({});
 });

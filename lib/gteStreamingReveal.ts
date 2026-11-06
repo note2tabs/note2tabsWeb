@@ -5,6 +5,8 @@ const key = (lane: EditorSnapshot, kind: string, id: number) => `${lane.id}:${ki
  * chronological order, bounded to a few editor renders per second. */
 export function createStreamingReveal({ previewMs = 0 }: { previewMs?: number } = {}) {
   let source: CanvasSnapshot | null = null;
+  let completeSource=false;
+  const producedByLane=new Map<string,number>();
   let visible = new Set<string>();
   let queue: Array<{ time: number; keys: string[] }> = [];
   let last: CanvasSnapshot | null = null;
@@ -26,8 +28,9 @@ export function createStreamingReveal({ previewMs = 0 }: { previewMs?: number } 
   };
   return {
     receive(next: CanvasSnapshot, complete = false, processedSeconds = 0) {
+      completeSource=complete;
       through = Math.max(through, processedSeconds, ...next.editors.map(lane => lane.notes.reduce((end, note) => Math.max(end, note.startTime / lane.fps), lane.chords.reduce((end, chord) => Math.max(end, chord.startTime / lane.fps), 0))));
-      if (!source) fakeHead=Math.min(through,(next.secondsPerBar || 2)*.85);
+      if (!source) fakeHead=Math.min(through,(next.secondsPerBar || 2)*2.5);
       const now = Date.now();
       if (lastArrival) cadenceMs = Math.max(4000, Math.min(12000, cadenceMs * .7 + (now - lastArrival) * .3));
       lastArrival = now;
@@ -50,12 +53,14 @@ export function createStreamingReveal({ previewMs = 0 }: { previewMs?: number } 
     advance(elapsedMs?: number) {
       const delta=elapsedMs ?? 0; animationMs+=delta;
       const bar=source?.secondsPerBar || 2;
-      fakeHead=Math.min(through, revealedThrough+bar*.95, Math.max(fakeHead,revealedThrough)+delta/1000);
+      fakeHead=Math.min(through, revealedThrough+bar*2.5, Math.max(fakeHead,revealedThrough)+delta/1000);
       let changed=false;
       const solidify=(group: {time:number;keys:string[]})=>{
-        if (!visible.size) fakeHead=Math.min(through,group.time/1000+bar*.85);
+        if (!visible.size) fakeHead=Math.min(through,group.time/1000+bar*2.5);
         revealedThrough=Math.max(revealedThrough,group.time/1000);
-        group.keys.forEach(id=>visible.add(id)); changed=true;
+        group.keys.forEach(id=>visible.add(id));
+        for(const lane of source?.editors ?? []) if(group.keys.some(id=>id.startsWith(`${lane.id}:`))) producedByLane.set(lane.id,Math.max(producedByLane.get(lane.id) ?? 0,group.time/1000));
+        changed=true;
       };
       const ready=staged.filter(group=>group.due<=animationMs); staged=staged.filter(group=>group.due>animationMs);
       ready.forEach(solidify);
@@ -68,12 +73,12 @@ export function createStreamingReveal({ previewMs = 0 }: { previewMs?: number } 
       return changed ? rebuild() : last;
     },
     ghosts(): StreamingGhostLayers {
-      if(!source || (!queue.length && !staged.length))return {};
+      if(!source || (completeSource && !queue.length && !staged.length))return {};
       const previews=new Set(staged.flatMap(group=>group.keys));
-      return Object.fromEntries(source.editors.map(lane=>[lane.id,ghostNotes(lane,previews,revealedThrough,fakeHead)]));
+      return Object.fromEntries(source.editors.map(lane=>[lane.id,ghostNotes(lane,previews,producedByLane.get(lane.id) ?? 0,fakeHead)]));
     },
     pending: () => queue.length + staged.length,
     throughSeconds: () => revealedThrough,
-    reset() { source = null; last = null; queue = []; visible = new Set(); through = 0; revealedThrough = 0; animationMs=0; fakeHead=0; staged=[]; lastArrival = 0; cadenceMs = 8000; groupsPerMs = 0; credit = 0; },
+    reset() { source = null; completeSource=false; producedByLane.clear(); last = null; queue = []; visible = new Set(); through = 0; revealedThrough = 0; animationMs=0; fakeHead=0; staged=[]; lastArrival = 0; cadenceMs = 8000; groupsPerMs = 0; credit = 0; },
   };
 }
