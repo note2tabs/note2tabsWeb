@@ -42,11 +42,11 @@ export default function GteNotationWorkspace(props: Props) {
   const auditionId = useRef(0);
   snapshotRef.current = snapshot;
   useEffect(() => {
-    if (editMenuDisabled || voiceCheckedSnapshot.current === snapshot) return;
+    if (editMenuDisabled || props.autoAssignVoices === false || voiceCheckedSnapshot.current === snapshot) return;
     voiceCheckedSnapshot.current = snapshot;
     const result = assignVoices({ track: snapshot });
     if (result.changed) onSnapshotChange(result.track, { recordHistory: false, markDirty: true });
-  }, [snapshot, editMenuDisabled, practiceMode, onSnapshotChange]);
+  }, [snapshot, editMenuDisabled, practiceMode, onSnapshotChange, props.autoAssignVoices]);
   const denominator = props.defaultNoteLengthDenominator ?? localDenominator;
   const entryLength = durationFrames(snapshot, denominator) * (dotted ? 1.5 : 1);
   const snapToKey = props.globalSnapToKeyEnabled ?? false;
@@ -295,7 +295,7 @@ export default function GteNotationWorkspace(props: Props) {
       onBarDragEnd={props.onBarDragEnd}
       onBarDrop={readOnly ? undefined : (index) => { void props.onRequestBarDrop?.(index); }}
       cursor={cursor ? { ...cursor, staff: cursor.staff ?? (cursor.midi < 60 ? "bass" : "treble") } : null} selection={selection}
-      playbackFrame={props.globalPlaybackFrame ?? 0} getPlaybackFrame={props.getGlobalPlaybackFrame} playing={Boolean(props.globalPlaybackIsPlaying)}
+      playbackFrame={props.globalPlaybackFrame ?? 0} getPlaybackFrame={props.getGlobalPlaybackFrame} playing={Boolean(props.globalPlaybackIsPlaying)} followPlayback={props.followPlayback}
       showBarNumbers={props.showBarNumbers !== false}
       transformPitch={(midi) => entryPitch(accidental === null ? midi : Math.max(0, Math.min(127, midiAtStep(notationPitch(midi, score.key).step) + accidental)))}
       onPoint={(point) => {

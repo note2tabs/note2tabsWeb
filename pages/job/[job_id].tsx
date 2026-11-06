@@ -1,3 +1,6 @@
+import { clearStreamingEdits, readStreamingEdits, type StreamingEdits } from "../../lib/gteStreamingEdits";
+import dynamic from "next/dynamic";
+import { previewMetadata } from "../../lib/transcriptionPreviewProtocol";
 import { transcriptionEntryInstrument } from "../../lib/instrumentTranscriptionEntry";
 import { localizedSignIn as signIn } from "../../lib/i18n/auth";
 import { translatedError } from "../../lib/i18n/translate";
@@ -27,6 +30,8 @@ import {
   JobStatusRequestError,
   requestJobStatus,
 } from "../../lib/jobPolling";
+
+const TranscriptionStreamingPreview = dynamic(() => import("../../components/TranscriptionStreamingPreview"), { ssr: false });
 
 const FINALIZE_IMPORT_TIMEOUT_MS = 60_000;
 const FINALIZE_IMPORT_POLL_MS = 1200;
@@ -634,6 +639,8 @@ export default function JobPage() {
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [progressClock, setProgressClock] = useState(() => Date.now());
+  const streamingEditsRef = useRef<StreamingEdits | null>(null);
+  useEffect(() => { streamingEditsRef.current = typeof job_id === "string" ? readStreamingEdits(job_id) : null; }, [job_id]);
   const automaticImportJobRef = useRef<string | null>(null);
   const displayJob = useMemo(() => normalizeJobForDisplay(job), [job]);
   const workflowState = useMemo(() => getWorkflowState(displayJob), [displayJob]);
@@ -1045,7 +1052,9 @@ export default function JobPage() {
           tracks: resolvedTranscriberTracks,
           quantize,
           sourceJobId: jobToImport.job_id,
+          streamingEdits: streamingEditsRef.current ?? readStreamingEdits(jobToImport.job_id),
         });
+        clearStreamingEdits(jobToImport.job_id);
         return {
           editorId: imported.editorId,
           importFormat: "segment_groups",
@@ -1088,7 +1097,9 @@ export default function JobPage() {
         tracks: resolvedTranscriberTracks,
         quantize,
         sourceJobId: jobToImport.job_id,
+        streamingEdits: streamingEditsRef.current ?? readStreamingEdits(jobToImport.job_id),
       });
+      clearStreamingEdits(jobToImport.job_id);
       return {
         editorId: imported.editorId,
         importFormat: "segment_groups",
@@ -1297,6 +1308,9 @@ export default function JobPage() {
   };
 
   const showAdGate = isFinalizedJob && !hasWatchedAd;
+  const streamingMetadata = previewMetadata(displayJob?.transcriptionPreview);
+  const streamableModel = ["msmodel", "msmodel_small"].includes(displayJob?.transcriptionMethod ?? "") || modelHint === "light" || modelHint === "super_heavy";
+  const showStreaming = Boolean((streamingMetadata || streamableModel && !showReviewUi) && !["error", "failed"].includes(displayJob?.status ?? ""));
   const title = showReviewUi ? t("Opening editor - Note2Tabs") : t(transcriptionEntryInstrument(router.query.instrument) === "piano" ? "Preparing Piano Transcription - Note2Tabs" : "Preparing Tabs - Note2Tabs");
 
   return (
@@ -1314,7 +1328,7 @@ export default function JobPage() {
       )}
       <main className="page page-tight">
         <div className="container stack">
-          <div className="page-header job-route-header">
+          {!showStreaming && <div className="page-header job-route-header">
             <div>
               <h1 className="page-title">{showReviewUi ? t("Opening your editor") : t(transcriptionEntryInstrument(router.query.instrument) === "piano" ? "Preparing your piano transcription" : "Preparing your guitar tab")}</h1>
             </div>
@@ -1323,10 +1337,15 @@ export default function JobPage() {
                 {t("Back")}
               </button>
             )}
-          </div>
+          </div>}
 
           <div className="job-route-content">
-          {showReviewUi ? (
+          {showStreaming && typeof job_id === "string" ? (
+            <div className="stack">
+              <TranscriptionStreamingPreview key={job_id} jobId={job_id} name={ytTitleHint || displayJob?.song_title || "your song"} metadata={streamingMetadata} finishing={showReviewUi} onEditsChange={draft => { streamingEditsRef.current = draft; }} />
+              {reviewError && <><p role="alert">{translatedError(reviewError, locale)}</p><button type="button" className="button-primary button-small" disabled={reviewBusy} onClick={() => { automaticImportJobRef.current = null; setReviewError(null); void automaticallyOpenEditor(); }}>Retry opening editor</button></>}
+            </div>
+          ) : showReviewUi ? (
             <div className="stack">
               <EditorLoadingState label={t("Quantizing transcription and opening your editor")} />
               {reviewError ? (

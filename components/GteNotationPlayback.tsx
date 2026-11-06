@@ -23,8 +23,8 @@ function scrollBy(from: HTMLElement | null, delta: number) {
 }
 
 /** Animate from the audio clock without rendering the score on every frame. */
-function GteNotationPlayback({ layout, score, frame, playing, getFrame }: {
-  layout: EngravedLayout; score: NotationScore; frame: number; playing: boolean; getFrame?: () => number;
+function GteNotationPlayback({ layout, score, frame, playing, getFrame, followPlayback = true }: {
+  layout: EngravedLayout; score: NotationScore; frame: number; playing: boolean; getFrame?: () => number; followPlayback?: boolean;
 }) {
   const line = useRef<SVGLineElement>(null), highlights = useRef<SVGGElement>(null);
   const followed = useRef<{ layout: EngravedLayout; top: number } | null>(null);
@@ -57,7 +57,7 @@ function GteNotationPlayback({ layout, score, frame, playing, getFrame }: {
         if (position) {
           line.current.setAttribute("x1", String(position.x)); line.current.setAttribute("x2", String(position.x));
           line.current.setAttribute("y1", String(position.measure.top)); line.current.setAttribute("y2", String(position.measure.bottom));
-          if (playing) {
+          if (playing && followPlayback) {
             const now = performance.now();
             const changedSystem = followed.current?.layout !== layout || followed.current.top !== position.measure.top;
             if (changedSystem || now - lastCheck >= 120) {
@@ -108,7 +108,7 @@ function GteNotationPlayback({ layout, score, frame, playing, getFrame }: {
     };
     update();
     return () => window.cancelAnimationFrame(raf);
-  }, [layout, score, frame, playing, getFrame]);
+  }, [layout, score, frame, playing, getFrame, followPlayback]);
   return <g pointerEvents="none" aria-hidden="true" data-notation-playback="true">
     <g ref={highlights} /><line ref={line} stroke="#d6556b" strokeWidth={1.4} />
   </g>;

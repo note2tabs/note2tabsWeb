@@ -1,3 +1,6 @@
+import type { StreamingEdits } from "./gteStreamingEdits";
+import { TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES } from "./gteImportPolicy";
+import { detectImportedKey } from "./gteImportedKey";
 import { restoreNotationSnapshot, serializeNotationPayload } from "./gteNotationPersistence";
 import { assignVoices } from "./gteAssignVoices";
 import type {
@@ -72,6 +75,7 @@ export const TRANSCRIBER_TEMPO_STABILIZATION_POLICY = {
 } as const;
 export type EditorOrCanvasSnapshot = EditorSnapshot | CanvasSnapshot;
 export type TranscriberSegment = {
+  sourceId?: string;
   start_time_s?: number;
   end_time_s?: number;
   pitch_midi?: number;
@@ -126,6 +130,7 @@ export type TranscriberQuantization = {
 };
 
 type ImportTranscriberToSavedPayload = {
+  streamingEdits?: StreamingEdits;
   segmentGroups: TranscriberSegmentGroup[];
   tracks?: TranscriberTrack[];
   target?: "new" | "existing";
@@ -517,12 +522,16 @@ async function importTranscriberToSaved(
   const finalImportedEditorIds =
     importedEditorIds.length > 0 ? importedEditorIds : lastResponse.importedEditorIds || [];
   const importTimingMap = lastResponse.canvas?.timingMap;
-  let rhythmScale = 1, preferredTimingMap: TimingMapV2 | undefined;
+  let rhythmScale = 1, streamingRhythmScale: number | undefined, preferredTimingMap: TimingMapV2 | undefined;
   if (lastResponse.canvas) {
     let timingMap = existingCanvas
       ? preserveExistingTimingForOffsetImport(lastResponse.canvas, existingCanvas)
       : stabilizeNewTranscriberTimingMap(lastResponse.canvas);
     if (!existingCanvas) {
+      if (payload.streamingEdits?.tracks.length) {
+        const { streamingRhythmReference } = await import("./gteStreamingImport");
+        streamingRhythmScale = estimateImportRhythmScale(streamingRhythmReference(lastResponse.canvas, payload.streamingEdits, finalImportedEditorIds, payload.tracks, { timingMap: importTimingMap, quantization }), finalImportedEditorIds);
+      }
       const scale = estimateImportRhythmScale(lastResponse.canvas, finalImportedEditorIds);
       const preferred = scaleImportTimingMap(timingMap, scale);
       if (preferred !== timingMap) { rhythmScale = scale; timingMap = preferred; preferredTimingMap = preferred; }
@@ -544,7 +553,7 @@ async function importTranscriberToSaved(
         TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES,
         finalImportedEditorIds,
         payload.tracks,
-        { timingMap: importTimingMap, quantization, rhythmScale, preferredTimingMap }
+        { timingMap: importTimingMap, quantization, rhythmScale, preferredTimingMap, streamingEdits: payload.streamingEdits, streamingRhythmScale }
       )
     : undefined;
   if (payload.sourceJobId) {
@@ -578,6 +587,7 @@ async function importTranscriberToSaved(
 }
 
 type ImportTranscriberToGuestPayload = {
+  streamingEdits?: StreamingEdits;
   segmentGroups: TranscriberSegmentGroup[];
   tracks?: TranscriberTrack[];
   editorId?: string;
@@ -607,7 +617,7 @@ async function importTranscriberToGuest(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...pitchedImportTransport(payload),
+        ...pitchedImportTransport({ ...payload, streamingEdits: undefined }),
         target: "guest",
         alignmentMode: "auto",
         appendMode: "after_content",
@@ -629,8 +639,12 @@ async function importTranscriberToGuest(
   let timingMap = existingCanvas
     ? preserveExistingTimingForOffsetImport(response.canvas, existingCanvas)
     : stabilizeNewTranscriberTimingMap(response.canvas);
-  let rhythmScale = 1, preferredTimingMap: TimingMapV2 | undefined;
+  let rhythmScale = 1, streamingRhythmScale: number | undefined, preferredTimingMap: TimingMapV2 | undefined;
   if (!existingCanvas) {
+    if (payload.streamingEdits?.tracks.length) {
+      const { streamingRhythmReference } = await import("./gteStreamingImport");
+      streamingRhythmScale = estimateImportRhythmScale(streamingRhythmReference(response.canvas, payload.streamingEdits, response.importedEditorIds ?? [], payload.tracks, { timingMap: importTimingMap, quantization: payload.quantization ?? { enabled: Boolean(payload.quantize) } }), response.importedEditorIds);
+    }
     const scale = estimateImportRhythmScale(response.canvas, response.importedEditorIds);
     const preferred = scaleImportTimingMap(timingMap, scale);
     if (preferred !== timingMap) { rhythmScale = scale; timingMap = preferred; preferredTimingMap = preferred; }
@@ -651,7 +665,7 @@ async function importTranscriberToGuest(
       TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES,
       importedEditorIds,
       payload.tracks,
-      { timingMap: importTimingMap, quantization: payload.quantization ?? { enabled: Boolean(payload.quantize) }, rhythmScale, preferredTimingMap }
+      { timingMap: importTimingMap, quantization: payload.quantization ?? { enabled: Boolean(payload.quantize) }, rhythmScale, preferredTimingMap, streamingEdits: payload.streamingEdits, streamingRhythmScale }
     ),
   };
   return response;
@@ -662,7 +676,7 @@ const isDrumLane = (lane: EditorSnapshot) => {
   return trackType === "drums" || trackType === "drum";
 };
 
-export const TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES = 2;
+export { TRANSCRIBER_FINGERING_OPTIMIZATION_PASSES } from "./gteImportPolicy";
 
 /** Runs the same frontend transformation as Tools -> Optimize fingering on every imported track. */
 export async function optimizeImportedTrackFingerings(
@@ -671,7 +685,7 @@ export async function optimizeImportedTrackFingerings(
   passes: number = 1,
   importedEditorIds?: readonly string[],
   importedTracksOrCleanupOptions?: readonly TranscriberTrack[] | { manual?: boolean },
-  importContext?: { timingMap?: TimingMapV2; quantization?: TranscriberQuantization; rhythmScale?: number; preferredTimingMap?: TimingMapV2; preserveMusic?: boolean }
+  importContext?: { timingMap?: TimingMapV2; quantization?: TranscriberQuantization; rhythmScale?: number; preferredTimingMap?: TimingMapV2; preserveMusic?: boolean; streamingEdits?: StreamingEdits; streamingRhythmScale?: number }
 ): Promise<CanvasSnapshot> {
   const importedTracks = Array.isArray(importedTracksOrCleanupOptions) ? importedTracksOrCleanupOptions : undefined;
   // Preserve main's explicit import cleanup and the older options-only callers.
@@ -689,59 +703,12 @@ export async function optimizeImportedTrackFingerings(
         name: loaded.name,
         editors: [loaded],
       };
-  const optimized = JSON.parse(JSON.stringify(canvas)) as CanvasSnapshot;
-  const {
-    finalizeOptimizedTrackFingeringInSnapshot,
-    mergeRedundantCutRegionsInSnapshot,
-    optimizeTrackFingeringInSnapshot,
-  } = await import("./gteFingeringOptimization");
-  const importedLaneIds = importedEditorIds ? new Set(importedEditorIds) : null;
-  optimized.editors = optimized.editors.map(lane => (!importedLaneIds || importedLaneIds.has(lane.id)) && lane.notation === undefined && lane.chordEditor?.notation ? restoreNotationSnapshot(lane) : lane);
-
-  for (const [index, laneId] of (importedEditorIds ?? []).entries()) {
-    const source = importedTracks?.[index];
-    const lane = optimized.editors.find(item => item.id === laneId);
-    if (!source || !lane) continue;
-    const instrument = importedInstrument(source);
-    Object.assign(lane, instrument, { name: source.name, ...(Number.isInteger(source.program) && source.program! >= 0 && source.program! <= 127 ? { program: source.program } : {}), chordEditor: { ...lane.chordEditor, instrumentType: instrument.instrumentType, instrumentSound: instrument.instrumentId } });
-    if (instrument.instrumentType === "notation") Object.assign(lane, restorePitchedImport(lane, source.segments, importContext?.timingMap ?? optimized.timingMap, importContext?.quantization));
+  const { processImportedCanvas } = await import("./gteImportProcessing");
+  let optimized = processImportedCanvas(canvas, passes, importedEditorIds, importedTracks, importContext, overlapCleanupOptions);
+  if (importContext?.streamingEdits?.tracks.length) {
+    const { finalizeStreamingEdits } = await import("./gteStreamingImport");
+    optimized = finalizeStreamingEdits(optimized, importContext.streamingEdits, importedEditorIds ?? [], importedTracks, importContext);
   }
-
-  if (importContext?.preferredTimingMap && importContext.rhythmScale && importContext.rhythmScale !== 1) {
-    const map = importContext.preferredTimingMap, secondsPerBar = map.bars[0].endSeconds - map.bars[0].startSeconds;
-    optimized.timingMap = map; optimized.secondsPerBar = secondsPerBar;
-    optimized.editors = optimized.editors.map(lane => !importedLaneIds?.size || importedLaneIds.has(lane.id) ? scaleImportedLane(lane, importContext.rhythmScale!, secondsPerBar) : lane);
-  }
-
-  optimized.editors.forEach((lane) => {
-    if (importedLaneIds && !importedLaneIds.has(lane.id)) return;
-    if (importContext?.preserveMusic) return;
-    if (isNotationTrack(lane)) {
-      if (importedLaneIds?.has(lane.id)) cleanTinyOverlapsInSnapshot(lane, overlapCleanupOptions);
-      return;
-    }
-    if (
-      isDrumLane(lane) ||
-      !Array.isArray(lane.notes) ||
-      !Array.isArray(lane.chords) ||
-      (lane.notes.length === 0 && lane.chords.length === 0)
-    ) return;
-    if (importedLaneIds?.has(lane.id)) {
-      cleanTinyOverlapsInSnapshot(lane, overlapCleanupOptions);
-    }
-    const passCount = Math.max(1, Math.floor(passes));
-    for (let pass = 0; pass < passCount; pass += 1) {
-      generatePlayingCoordinatesInSnapshot(lane);
-      optimizeTrackFingeringInSnapshot(lane);
-      finalizeOptimizedTrackFingeringInSnapshot(lane);
-      mergeRedundantCutRegionsInSnapshot(lane);
-    }
-    if (importedLaneIds?.has(lane.id)) cleanTinyOverlapsInSnapshot(lane, overlapCleanupOptions);
-  });
-
-  // Every import format converges here after final timing, cleanup and fingering.
-  optimized.editors = optimized.editors.map(lane => importedLaneIds && !importedLaneIds.has(lane.id) || isDrumLane(lane)
-    ? lane : assignVoices({ track: lane }).track);
   const saved = await requestForEditor<{ ok: true; snapshot?: EditorOrCanvasSnapshot; canvas?: CanvasSnapshot }>(
     canvasId,
     `/editors/${encodeURIComponent(canvasId)}/snapshot`,

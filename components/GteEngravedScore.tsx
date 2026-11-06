@@ -10,7 +10,7 @@ export type NotationPoint = { frame: number; midi: number; staff: ScoreStaff };
 export type NotationSelection = ScoreSelection;
 const selectedSource = scoreEventSelected;
 
-export default function GteEngravedScore({ score, input, restInput = false, disabled, snapEnabled, denominator, dotted, length, cursor, selection, playbackFrame, getPlaybackFrame, playing, barsPerSystem, showBarNumbers, transformPitch, sourcePitch, onPoint, onSelect, onMove, onAudition, onBoxSelect, onAddBar, editorId, selectedBars = [], onBarSelect, onBarContextMenu, barDragging = false, onBarDragStart, onBarDragEnd, onBarDrop }: {
+export default function GteEngravedScore({ score, input, restInput = false, disabled, snapEnabled, denominator, dotted, length, cursor, selection, playbackFrame, getPlaybackFrame, playing, followPlayback, barsPerSystem, showBarNumbers, transformPitch, sourcePitch, onPoint, onSelect, onMove, onAudition, onBoxSelect, onAddBar, editorId, selectedBars = [], onBarSelect, onBarContextMenu, barDragging = false, onBarDragStart, onBarDragEnd, onBarDrop }: {
   score: NotationScore; input: boolean; restInput?: boolean; disabled: boolean; guides?: boolean; snapEnabled: boolean; denominator: number; dotted: boolean; length: number;
   cursor: NotationPoint | null; selection: NotationSelection; playbackFrame: number; playing: boolean; barsPerSystem?: number; showBarNumbers: boolean;
   onPoint: (point: NotationPoint) => void;
@@ -19,7 +19,7 @@ export default function GteEngravedScore({ score, input, restInput = false, disa
   onAudition?: (midi: number) => void;
   onBoxSelect?: (sources: ScoreEvent[], additive: boolean) => void;
   onAddBar?: () => void;
-  getPlaybackFrame?: () => number;
+  getPlaybackFrame?: () => number; followPlayback?: boolean;
   transformPitch: (midi: number) => number;
   sourcePitch?: (source: ScoreEvent) => number;
   editorId?: string;
@@ -262,7 +262,7 @@ export default function GteEngravedScore({ score, input, restInput = false, disa
           <text x={hoverPosition.x + 18} y={hoverPosition.y - 20} fontSize={10} fill="#216c50">{notationPitch(hover.midi, score.key).key.replace("/", "")}</text>
           </>}
         </g>}
-        <GteNotationPlayback layout={layout} score={score} frame={playbackFrame} playing={playing} getFrame={getPlaybackFrame} />
+        <GteNotationPlayback layout={layout} score={score} frame={playbackFrame} playing={playing} getFrame={getPlaybackFrame} followPlayback={followPlayback} />
       </svg>}
       {layout && !disabled && onBarSelect && layout.measures.map(measure => {
         const selected = selectedBars.includes(measure.index);

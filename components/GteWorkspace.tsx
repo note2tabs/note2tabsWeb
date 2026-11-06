@@ -264,6 +264,10 @@ type Props = {
   playbackSpeed?: number;
   onPlaybackSpeedChange?: (speed: number) => void;
   practiceMode?: boolean;
+  /** Disable automatic following for multi-track read-only overviews. */
+  followPlayback?: boolean;
+  /** Streaming chunks already carry provisional voices; view entry must not count as an edit. */
+  autoAssignVoices?: boolean;
   onPracticeNotePlay?: (frame: number) => void;
   practiceChordOverlay?: EditorSnapshot | null;
   practiceFingeringsVisible?: boolean;

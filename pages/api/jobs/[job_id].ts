@@ -1,3 +1,4 @@
+import { previewMetadata } from "../../../lib/transcriptionPreviewProtocol";
 import { waitUntil } from "@vercel/functions";
 import { requestLocale } from "../../../lib/i18n/request";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -159,6 +160,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         job_id: getStringValue(payload, ["job_id", "jobId", "id"]) || jobId,
         status: getStringValue(payload, ["status"]) || (upstream.ok ? "processing" : "error"),
       };
+      const preview = previewMetadata(getFirstJobValue(payload, ["transcriptionPreview"]));
+      if (preview) responsePayload.transcriptionPreview = preview;
       if (typeof payload.analyticsServerTracked === "boolean") {
         responsePayload.analyticsServerTracked = payload.analyticsServerTracked;
       }
@@ -180,7 +183,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         { field: "currentStepDetail", keys: ["currentStepDetail", "current_step_detail"] },
         { field: "lastError", keys: ["lastError", "last_error"] },
         { field: "error_message", keys: ["error_message", "errorMessage", "lastError", "last_error"] },
-        { field: "song_title", keys: ["song_title", "songTitle", "title"] },
+        { field: "song_title", keys: ["song_title", "songTitle", "title", "sourceLabel"] },
         { field: "artist", keys: ["artist"] },
         { field: "audio_preview_url", keys: ["audio_preview_url", "audioPreviewUrl"] },
         { field: "gte_editor_id", keys: ["gte_editor_id", "gteEditorId"] },

@@ -42,7 +42,7 @@ export default function GteDrumNotation(props: ComponentProps<typeof GteWorkspac
     <GteEngravedScore score={score} editorId={props.editorId} input={write && !readOnly} disabled={readOnly}
       snapEnabled={true} denominator={denominator} dotted={false} length={length}
       cursor={null} selection={{ noteIds: selected, chordIds: [] }}
-      playbackFrame={props.globalPlaybackFrame ?? 0} playing={Boolean(props.globalPlaybackIsPlaying)}
+      playbackFrame={props.globalPlaybackFrame ?? 0} playing={Boolean(props.globalPlaybackIsPlaying)} followPlayback={props.followPlayback}
       getPlaybackFrame={props.getGlobalPlaybackFrame} showBarNumbers={props.showBarNumbers !== false}
       transformPitch={midi => write ? DRUM_NOTATION_POSITIONS[voice.id].midi : midi}
       sourcePitch={source => DRUM_NOTATION_POSITIONS[getDrumVoiceByMidi(source.midi)?.id ?? "snare"].midi}

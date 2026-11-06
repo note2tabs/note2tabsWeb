@@ -1,3 +1,4 @@
+import type { TranscriptionPreviewMetadata } from "../lib/transcriptionPreviewProtocol";
 import { useLocale } from "../lib/i18n/react";
 import { translatedError } from "../lib/i18n/translate";
 import { useEffect, useState } from "react";
@@ -13,6 +14,7 @@ export type Stem = {
 
 export type JobResponse = {
   job_id: string;
+  transcriptionPreview?: TranscriptionPreviewMetadata | null;
   status: JobStatus;
   type?: string | null;
   transcriptionMethod?: string | null;
