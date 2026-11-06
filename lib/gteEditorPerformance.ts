@@ -48,3 +48,23 @@ export const appendBoundedHistory = <T>(history: readonly T[], snapshot: T, maxi
   if (keep === 0) return [snapshot];
   return [...history.slice(-keep), snapshot];
 };
+
+/**
+ * Which stacked rows are near the viewport. `top` is where the first row starts
+ * relative to the viewport's top edge (negative once scrolled past it). The range is
+ * generous (overscan) so fast scrolling never shows empty rows, but it only changes
+ * when a row boundary is crossed, so scrolling does not re-render per pixel.
+ */
+export const visibleRowRange = (
+  top: number,
+  viewportHeight: number,
+  rowStride: number,
+  rows: number,
+  overscanPx: number
+): { first: number; last: number } => {
+  const stride = Math.max(1, rowStride);
+  const overscan = Math.max(stride, overscanPx);
+  const first = Math.max(0, Math.min(rows - 1, Math.floor((-top - overscan) / stride)));
+  const last = Math.min(rows - 1, Math.max(first, Math.ceil((viewportHeight - top + overscan) / stride)));
+  return { first, last };
+};

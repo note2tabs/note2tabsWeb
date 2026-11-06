@@ -111,7 +111,7 @@ import {
 } from "../lib/gteEditorTabView";
 import { useGteRenderInstrumentation } from "../lib/gtePerformanceDiagnostics";
 import { RevisionedAutosaveQueue } from "../lib/gteAutosaveQueue";
-import { windowTimelineEvents } from "../lib/gteEditorPerformance";
+import { visibleRowRange, windowTimelineEvents } from "../lib/gteEditorPerformance";
 import { getPlaybackScrollTarget } from "../lib/gtePlaybackScroll";
 import {
   GTE_EDITOR_TOOLBAR_GUTTER,
@@ -377,6 +377,7 @@ const CUT_SEGMENT_MIN_WIDTH = 28;
 const CUT_BOUNDARY_OVERHANG = 12;
 const TIMELINE_BAR_HEADER_HEIGHT = 20;
 const TIMELINE_RENDER_OVERSCAN_PX = 900;
+const ROW_WINDOW_OVERSCAN_PX = 700;
 const MAX_HISTORY = 16;
 // Avoid uploading a complete editor snapshot for every small interaction in a
 // continuous edit. The periodic flush below still protects long-running edits.
@@ -6097,11 +6098,37 @@ export default function GteWorkspace({
       isLabel: second % 5 === 0,
     }));
   }, [editorTabView.barCount, editorTabView.barWidth, framesPerMeasure, playbackFps]);
+  // Stacked rows scroll with the page, so window them by vertical position. Only
+  // the rows near the viewport mount note/chord/bar DOM; this is what keeps very
+  // large tracks responsive. State changes only when the visible row range does.
+  const [visibleRows, setVisibleRowRange] = useState<{ first: number; last: number }>({ first: 0, last: 2 });
+  useEffect(() => {
+    if (rows <= 1 || typeof window === "undefined") return;
+    const container = timelineOuterRef.current;
+    if (!container) return;
+    let frame: number | null = null;
+    const measure = () => {
+      frame = null;
+      const top = container.getBoundingClientRect().top + TIMELINE_BAR_HEADER_HEIGHT;
+      const { first, last } = visibleRowRange(top, window.innerHeight, rowStride, rows, ROW_WINDOW_OVERSCAN_PX);
+      setVisibleRowRange((previous) => (previous.first === first && previous.last === last ? previous : { first, last }));
+    };
+    const schedule = () => { if (frame === null) frame = window.requestAnimationFrame(measure); };
+    measure();
+    // Capture phase also sees scrolling inside nested containers (e.g. mobile edit mode).
+    document.addEventListener("scroll", schedule, { capture: true, passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      document.removeEventListener("scroll", schedule, { capture: true } as EventListenerOptions);
+      window.removeEventListener("resize", schedule);
+      if (frame !== null) window.cancelAnimationFrame(frame);
+    };
+  }, [rows, rowStride, tabViewEnabled]);
   const timelineRenderWindow = useMemo(() => {
-    // Stacked rows are all visible through page scrolling, not horizontal
-    // scrolling. Do not cull later rows using the first row's scroll window.
     if (rows > 1) {
-      return { startFrame: 0, endFrame: timelineEnd };
+      const first = Math.min(visibleRows.first, rows - 1);
+      const last = Math.min(visibleRows.last, rows - 1);
+      return { startFrame: first * rowFrames, endFrame: Math.min(timelineEnd, (last + 1) * rowFrames) };
     }
     const safeScale = Math.max(0.0001, scale);
     const fallbackClientWidth = Math.min(
@@ -6115,7 +6142,7 @@ export default function GteWorkspace({
       startFrame: Math.max(0, Math.floor(leftPx / safeScale)),
       endFrame: Math.min(timelineEnd, Math.ceil(rightPx / safeScale)),
     };
-  }, [framesPerMeasure, rows, scale, timelineEnd, timelineViewport.clientWidth, timelineViewport.scrollLeft, viewportTimelineWidth]);
+  }, [framesPerMeasure, rowFrames, rows, scale, timelineEnd, timelineViewport.clientWidth, timelineViewport.scrollLeft, viewportTimelineWidth, visibleRows]);
   const selectedNoteIdSet = useMemo(() => new Set(selectedNoteIds), [selectedNoteIds]);
   const selectedChordIdSet = useMemo(() => new Set(selectedChordIds), [selectedChordIds]);
   const pinnedVisibleNoteIds = useMemo(() => {

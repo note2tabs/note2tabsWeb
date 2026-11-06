@@ -3,6 +3,7 @@ import { buildGteStressFixture } from "../../lib/gtePerformanceFixture";
 import {
   appendBoundedHistory,
   replaceCanvasLane,
+  visibleRowRange,
   windowTimelineEvents,
 } from "../../lib/gteEditorPerformance";
 
@@ -71,5 +72,22 @@ describe("large editor update boundaries", () => {
 
     expect(appendBoundedHistory([older], newest, 0)).toEqual([]);
     expect(appendBoundedHistory([older], newest, 1)).toEqual([newest]);
+  });
+});
+
+describe("stacked-row windowing", () => {
+  it("mounts only rows near the viewport of a 500-row track and moves with scrolling", () => {
+    const top = visibleRowRange(0, 900, 150, 500, 700);
+    expect(top.first).toBe(0);
+    expect(top.last - top.first + 1).toBeLessThan(20);
+    const scrolled = visibleRowRange(-30_000, 900, 150, 500, 700); // 200 rows down
+    expect(scrolled.first).toBeGreaterThan(190);
+    expect(scrolled.first).toBeLessThan(scrolled.last);
+    expect(scrolled.last - scrolled.first + 1).toBeLessThan(20);
+  });
+  it("stays in range at the ends, and does not change within one row of scrolling", () => {
+    expect(visibleRowRange(-1e9, 900, 150, 10, 700)).toEqual({ first: 9, last: 9 });
+    expect(visibleRowRange(1e9, 900, 150, 10, 700)).toEqual({ first: 0, last: 0 });
+    expect(visibleRowRange(-1000, 900, 150, 500, 700)).toEqual(visibleRowRange(-1010, 900, 150, 500, 700));
   });
 });
