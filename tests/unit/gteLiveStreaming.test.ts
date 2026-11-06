@@ -57,16 +57,17 @@ describe("paced, editable streaming", () => {
   pump.replace([first, second, event("past", .2), event("future", 2)]); pump(1.9);
   expect(schedule.mock.calls.map(([note]) => note.id)).toEqual(["a", "b", "c", "future"]);
  });
- it("finishes from the edited score at MuScriptor BPM, without the preferred-eighth-note tempo policy", () => {
+ it("saves the edited score without any completion-time musical rewrite", () => {
   const current = canvas(); current.editors[0].notes[0].midiNum = 77; current.editors[0].notes.splice(1, 1);
   current.editors[0].notes.push({ ...current.editors[0].notes[0], id: 99, midiNum: 80, startTime: 700 });
   const original = structuredClone(current);
   const result = completeStreamingCanvas(current, { bpm: 93, beatsPerBar: 4, tracks: [] });
-  expect(result.secondsPerBar).toBeCloseTo(60 * 4 / 93);
+  expect(result.secondsPerBar).toBe(current.secondsPerBar);
+  expect(result).toEqual(current);
   expect(result.editors[0].notes.map(note => note.midiNum)).toContain(77);
   expect(result.editors[0].notes.map(note => note.midiNum)).toContain(80);
   expect(result.editors[0].notes.map(note => note.midiNum)).not.toContain(61);
-  expect(result.editors[0].notes.every(note => note.startTime % 30 === 0)).toBe(true);
+  expect(result.editors[0].notes.at(-1)?.startTime).toBe(700);
   expect(current).toEqual(original);
  });
  it("reads tempo from the actual model result envelope", () => {

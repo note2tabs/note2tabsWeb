@@ -37,12 +37,12 @@ describe("disposable streaming transcription", () => {
     expect(previewMetadata({ ...payload(), processedSeconds: NaN })).toBeNull();
     expect(previewMetadata({ ...payload(), revision: -1 })).toBeNull();
   });
-  it("defers quantization, preserves raw input and maps GM instruments", () => {
+  it("quantizes before revealing, preserves raw input and maps GM instruments", () => {
     const raw = payload(), original = structuredClone(raw), canvas = createPreviewBuilder()(raw);
     expect(raw).toEqual(original);
     expect(canvas.editors[0].instrumentType).toBe("notation");
     expect(canvas.editors[0].instrumentId).toBe("upright_piano");
-    expect(canvas.editors[0].notes.map(note => note.startTime)).toEqual([3, 123]);
+    expect(canvas.editors[0].notes.map(note => note.startTime)).toEqual([0, 120]);
     expect(canvas.editors[0].notes.map(note => note.midiNum)).toEqual([60, 64]);
     expect(canvas.editors[0].notes.every(note => note.velocity === 100 / 127)).toBe(true);
   });

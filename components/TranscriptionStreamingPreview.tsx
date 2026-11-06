@@ -162,7 +162,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
     const end = finalSource.tracks.reduce((maximum, track) => track.segments.reduce((value, note) => Math.max(value, note.end_time_s || 0), maximum), metadata.durationSeconds);
     const payload: TranscriptionPreviewPayload = { version: 1, streamId: metadata.streamId, revision: metadata.revision || 1, complete: true,
       processedSeconds: end, settledSeconds: end, durationSeconds: end, tracks: finalSource.tracks,
-      tempoAnalysis: { bpm: finalSource.bpm || (base.current ? 60 * (base.current.editors[0]?.timeSignature || 4) / (base.current.secondsPerBar || 2) : 120), beatsPerBar: finalSource.beatsPerBar || base.current?.editors[0]?.timeSignature || 4 } };
+      tempoAnalysis: { bpm: base.current && base.current.editors[0]?.id !== "awaiting-first-track" ? 60 * (base.current.editors[0]?.timeSignature || 4) / (base.current.secondsPerBar || 2) : finalSource.bpm || 120, beatsPerBar: base.current?.editors[0]?.id !== "awaiting-first-track" && base.current?.editors[0]?.timeSignature || finalSource.beatsPerBar || 4 } };
     const item = { request, payload };
     if (busy.current || !worker.current) pending.current = item;
     else { busy.current = true; worker.current.postMessage(item); }
@@ -176,7 +176,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
   const workspaceCanvas = useMemo(() => ({ ...shown, id: savedEditorId || `stream-${jobId}`, name: shown.name || name }), [shown, jobId, name, savedEditorId]);
   if (!working.current) working.current = shown;
   if (!base.current) base.current = shown;
-  const stage = phase === "saving" ? "Saving your arrangement..." : phase === "finishing" ? "Aligning timing and finishing fingerings..." : sourceComplete.current || revealed.current.pending() ? "Adding notes - you can edit and play" : "Listening - you can edit and play";
+  const stage = phase === "saving" ? "Saving your arrangement..." : phase === "finishing" ? "Finishing your arrangement..." : sourceComplete.current || revealed.current.pending() ? "Adding notes - you can edit and play" : "Listening - you can edit and play";
   const ready = Boolean(canvas && (sourceComplete.current || canvas.editors.some(lane => lane.notes.length || lane.chords.length)));
   if (ready) openedEditor.current = true;
   return <>
