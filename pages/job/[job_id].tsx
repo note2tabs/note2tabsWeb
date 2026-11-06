@@ -111,7 +111,7 @@ function formatStageLabel(stageKey: PendingStageKey) {
   if (stageKey === "separate") return "Focus on guitar";
   if (stageKey === "predict") return "Find the notes";
   if (stageKey === "note_events") return "Build your tab";
-  if (stageKey === "format") return "Get preview ready";
+  if (stageKey === "format") return "Getting the editor ready.";
   return "In line";
 }
 
@@ -286,7 +286,7 @@ function buildPendingPresentation(
       detail: "Turning the performance into structured tablature.",
     },
     format: {
-      phaseLabel: "Getting your preview ready",
+      phaseLabel: "Getting the editor ready.",
       detail: "Putting everything together for the next screen.",
     },
   } as const;
