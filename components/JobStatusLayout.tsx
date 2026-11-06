@@ -134,7 +134,6 @@ function getFriendlyProgressMessages(progressPercent: number) {
     "Getting your tab ready to open.",
     "Polishing the final result.",
     "Almost ready to show you.",
-    "Preparing your preview.",
     "Putting the last pieces in place.",
     "Getting the editor ready.",
   ];
@@ -285,17 +284,17 @@ export default function JobStatusLayout({
       </div>
 
       <div className="stack" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))" }}>
-        <div className="card stack">
-          <div>
+        {(hasAudio || stems.some(Boolean)) && <div className="card stack">
+          {hasAudio && <div>
             <h3 className="label">Preview</h3>
             {hasAudio ? (
               <audio controls src={job.audio_preview_url || undefined} className="card-outline">{t(" Your browser does not support the audio element. ")}</audio>
             ) : (
               <p className="muted text-small">{t("No audio preview available.")}</p>
             )}
-          </div>
+          </div>}
           <StemsList stems={stems.filter(Boolean) as Stem[]} />
-        </div>
+        </div>}
 
         <div className="card">
           <TabViewer tabText={job.tab_text || ""} songTitle={job.song_title || undefined} />
