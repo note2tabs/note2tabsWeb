@@ -131,10 +131,10 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
         if (!storageFailed.current) setNotice("");
         finishLatestRef.current();
       }
-      else if (event.data.request === wanted.current && event.data.error) setNotice("The preview is catching up. Your transcription is still running.");
+      else if (event.data.request === wanted.current && event.data.error) setNotice("The live editor could not update. Your transcription is still running.");
       if (pending.current) { busy.current = true; instance.postMessage(pending.current); pending.current = null; }
     };
-    instance.onerror = () => { busy.current = false; setNotice("The preview is unavailable. Your transcription will still open when complete."); };
+    instance.onerror = () => { busy.current = false; setNotice("The live editor is unavailable. Your transcription will still open when complete."); };
     return () => { instance.terminate(); worker.current = null; };
   }, []);
   useEffect(() => {
