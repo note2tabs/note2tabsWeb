@@ -1343,7 +1343,15 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
   const [timingBpmDraft, setTimingBpmDraft] = useState("120");
   const [timingApplyToAll, setTimingApplyToAll] = useState(false);
   const [timingSaving, setTimingSaving] = useState(false);
-  const [activeLaneId, setActiveLaneId] = useState<string | null>(null);
+  const [activeLaneId, setActiveLaneIdState] = useState<string | null>(null);
+  const manuallySelectedTrackRef = useRef(false);
+  const setActiveLaneId = useCallback((update: React.SetStateAction<string | null>) => {
+    setActiveLaneIdState(previous => {
+      const next = typeof update === "function" ? update(previous) : update;
+      if (next !== previous) manuallySelectedTrackRef.current = true;
+      return next;
+    });
+  }, []);
   const [trackCleanupResult, setTrackCleanupResult] = useState<{ laneId: string; count: number } | null>(null);
   const [voiceAssignmentMessage, setVoiceAssignmentMessage] = useState<string | null>(null);
   const [voiceAssignmentConfirm, setVoiceAssignmentConfirm] = useState<{ apply: () => void; selection: boolean } | null>(null);
@@ -2095,7 +2103,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
       else resetCanvasHistory();
       setCanvas(normalized);
       hydrateEditorInputSettings(normalized);
-      setActiveLaneId((prev) => resolveActiveLaneId(entryInstrument || router.query.focusInstrument === "piano" ? null : prev, normalized));
+      setActiveLaneIdState((prev) => resolveActiveLaneId(entryInstrument || router.query.focusInstrument === "piano" ? null : prev, normalized));
       if (entryInstrument === "piano" || router.query.focusInstrument === "piano") setEditorMode("canvas");
       activeLaneHydratedRef.current = true;
       setLastCommittedAt(normalized.updatedAt || null);
@@ -2159,7 +2167,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
           else resetCanvasHistory();
           setCanvas(normalized);
           hydrateEditorInputSettings(normalized);
-          setActiveLaneId((prev) => resolveActiveLaneId(entryInstrument || router.query.focusInstrument === "piano" ? null : prev, normalized));
+          setActiveLaneIdState((prev) => resolveActiveLaneId(entryInstrument || router.query.focusInstrument === "piano" ? null : prev, normalized));
           if (entryInstrument === "piano" || router.query.focusInstrument === "piano") setEditorMode("canvas");
           setLastCommittedAt(normalized.updatedAt || null);
           setHasPendingCommit(false);
@@ -2180,6 +2188,11 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
     writeGuestCanvasDraft(canvas);
   }, [canvas, isGuestMode]);
 
+  useEffect(() => {
+    if (!streaming) return;
+    setActiveLaneIdState(previous => streamingActiveLane(previous, streaming.canvas, manuallySelectedTrackRef.current, streaming.ghosts));
+  }, [streaming?.canvas, streaming?.ghosts]);
+
   const streamInputsHydratedRef = useRef(false);
   useEffect(() => {
     if (!streaming) return;
@@ -2188,7 +2201,6 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
     setLoading(false);
     if (!nameEditing) setNameDraft(normalized.name || "Untitled");
     if (!streamInputsHydratedRef.current) { hydrateEditorInputSettings(normalized); streamInputsHydratedRef.current = true; }
-    setActiveLaneId(previous => streamingActiveLane(previous, normalized));
     setBpmDraft(formatBpm(secondsPerBarToBpm(normalized.secondsPerBar || 2, normalized.editors[0]?.timeSignature || 4)));
     setTimeSignatureDraft(String(normalized.editors[0]?.timeSignature || 4));
     setTimeSignatureBottomDraft(String(normalized.editors[0]?.timeSignatureBottom || 4));
@@ -2343,7 +2355,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
     }
     setTimeSignatureBottomDraft(String(normalizeTimeSignatureBottom(canvas.editors[0]?.timeSignatureBottom) ?? 4));
     if (activeLaneId && !canvas.editors.some((lane) => lane.id === activeLaneId)) {
-      setActiveLaneId(canvas.editors[0]?.id || null);
+      setActiveLaneIdState(canvas.editors[0]?.id || null);
     }
     if (mobileEditLaneId && !canvas.editors.some((lane) => lane.id === mobileEditLaneId)) {
       setMobileEditLaneId(null);

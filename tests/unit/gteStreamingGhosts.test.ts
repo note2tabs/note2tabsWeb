@@ -1,6 +1,6 @@
 import { describe,it,expect } from "vitest";
 import { createStreamingReveal } from "../../lib/gteStreamingReveal";
-import { ghostNotes } from "../../lib/gteStreamingGhosts";
+import { ghostNotes, cleanStreamingGhosts, streamingGhostColor, streamingGhostFret, type StreamingGhost } from "../../lib/gteStreamingGhosts";
 import { completeStreamingCanvas } from "../../lib/gteStreamingCompletion";
 import type { CanvasSnapshot } from "../../types/gte";
 const source=():CanvasSnapshot=>({id:"ghost-test",secondsPerBar:2,editors:[{id:"guitar",instrumentType:"guitar-tab",fps:240,totalFrames:1920,framesPerMessure:480,timeSignature:4,notes:[0,120,240,480].map((startTime,index)=>({id:-index-1,startTime,length:60,midiNum:60+index,tab:[index,5+index],optimals:[]})),chords:[],cutPositionsWithCoords:[],optimalsByTime:{}}]});
@@ -72,4 +72,21 @@ it("renders random fake tab chords with aligned lengths on distinct playable str
   for(const chord of chords){expect(new Set(chord.map(note=>note.length)).size).toBe(1);expect(new Set(chord.map(note=>note.tab[0])).size).toBe(chord.length);expect(chord.every(note=>note.tab[0]>=0 && note.tab[0]<(instrumentType === "bass-tab" ? 4 : 6))).toBe(true);}
   expect(lane).toEqual(original);expect(lane.chords).toEqual([]);
  }
+});
+
+it("uses blank blue fake chord blocks and never exposes invented fret labels",()=>{
+ const ghosts=ghostNotes(source().editors[0],new Set(),0,5), chords=ghosts.filter(note=>note.phase==="fake" && note.shape==="chord");
+ expect(chords.length).toBeGreaterThan(0);
+ for(const ghost of chords){expect(streamingGhostColor(ghost)).toBe("#30bced");expect(streamingGhostFret({...ghost,tab:[0,22],showLabel:true})).toBe("");}
+ expect(streamingGhostFret({key:"unsettled",phase:"preview",showLabel:false,start:0,length:10,midi:60,tab:[0,8]})).toBe("");
+});
+it("removes overlapping fake groups atomically while reserving real and preview notes",()=>{
+ const lane=source().editors[0];lane.notes=[{...lane.notes[0],startTime:90,length:80,tab:[1,7]}];
+ const fake=(key:string,start:number,string:number,length=20):StreamingGhost=>({key,phase:"fake",shape:"chord",start,length,midi:60+string,tab:[string,0]});
+ const group=[fake("a:0",100,0),fake("a:1",100,1),fake("a:2",100,2)];
+ const preview:StreamingGhost={...fake("real-preview",210,0,60),phase:"preview",showLabel:true,tab:[0,12]};
+ const ghosts=[...group,preview,fake("b:0",230,0),fake("b:1",230,1),fake("c:0",300,0),fake("c:1",300,1),fake("d:0",310,0)];
+ const shown=cleanStreamingGhosts(lane,ghosts);
+ expect(shown.map(note=>note.key)).toEqual(["real-preview","c:0","c:1"]);
+ expect(lane.notes[0].tab[1]).toBe(7);
 });

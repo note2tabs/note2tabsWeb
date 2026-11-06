@@ -1,3 +1,4 @@
+import { streamingGhostColor, streamingGhostFret } from "../lib/gteStreamingGhosts";
 import { memo, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode, type CSSProperties } from "react";
 import type { EditorSnapshot } from "../types/gte";
 import type { PracticeRatingReplay } from "../lib/gtePracticeRating";
@@ -140,8 +141,8 @@ export default memo(function GtePracticeTab(props: Props) {
       })}
       {fretLayer}
       {props.streamingGhosts?.map(ghost=>{const p=practiceTabPosition(layout,ghost.start);const y=p.y+layout.stringTop+ghost.tab[0]*layout.stringGap;
-        return <g key={ghost.key} data-streaming-ghost={ghost.phase} aria-hidden="true" pointerEvents="none" fill="#28785c">
-          {ghost.phase === "preview" ? <text x={p.x} y={y} dominantBaseline="central" textAnchor="middle" fontSize={12}>{ghost.tab[1]}</text> : <rect x={p.x-5} y={y-3} width={10} height={6} rx={2}/>}
+        return <g key={ghost.key} data-streaming-ghost={ghost.phase} aria-hidden="true" pointerEvents="none" fill={streamingGhostColor(ghost)}>
+          {streamingGhostFret(ghost) ? <text x={p.x} y={y} dominantBaseline="central" textAnchor="middle" fontSize={12}>{streamingGhostFret(ghost)}</text> : <rect x={p.x-5} y={y-3} width={10} height={6} rx={2}/>}
         </g>;})}
       {effects.map(effect => <g key={effect.key} data-practice-effect={effect.kind} pointerEvents="none" fill="none" stroke="#1e293b" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
         <path d={effect.path} strokeDasharray={effect.held ? "4 3" : undefined} />

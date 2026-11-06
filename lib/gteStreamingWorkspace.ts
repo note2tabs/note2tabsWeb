@@ -61,9 +61,19 @@ export function createStreamingWorkspaceApi(read: () => CanvasSnapshot | null): 
   return new Proxy(methods, { get: (target, name: string) => target[name] ?? (() => Promise.reject(new Error("This action is available when transcription finishes."))) }) as EditorApi;
 }
 
-/** Incoming source metadata never chooses a different track for the musician. */
-export function streamingActiveLane(current: string | null, canvas: CanvasSnapshot) {
-  if (current && canvas.editors.some(lane => lane.id === current)) return current;
+/** Follow generated instrument priority until the musician changes tracks. */
+export function streamingActiveLane(
+  current: string | null,
+  canvas: CanvasSnapshot,
+  manuallySelected = true,
+  ghosts?: import("./gteStreamingGhosts").StreamingGhostLayers,
+) {
+  const active = canvas.editors.find(lane => lane.id === current);
+  if (active && manuallySelected) return active.id;
   const priority = (lane: EditorSnapshot) => lane.instrumentType === "guitar-tab" ? 0 : lane.instrumentType === "bass-tab" ? 1 : lane.instrumentType === "notation" ? 2 : 3;
-  return [...canvas.editors].sort((a,b) => priority(a) - priority(b))[0]?.id ?? null;
+  const generated = canvas.editors.filter(lane => lane.notes.length || lane.chords.length || ghosts?.[lane.id]?.some(ghost => ghost.phase === "preview"));
+  const preferred = [...(generated.length ? generated : canvas.editors)].sort((a, b) => priority(a) - priority(b))[0];
+  // Keep a generated higher-priority track; an empty seed must not steal focus.
+  if (active && (!generated.length || generated.some(lane => lane.id === active.id)) && (!preferred || priority(active) <= priority(preferred))) return active.id;
+  return preferred?.id ?? null;
 }

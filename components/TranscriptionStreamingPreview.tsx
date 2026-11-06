@@ -5,6 +5,7 @@ import type { CanvasSnapshot } from "../types/gte";
 import { previewMetadata, type TranscriptionPreviewMetadata, type TranscriptionPreviewPayload } from "../lib/transcriptionPreviewProtocol";
 import { applyStreamingEdits, emptyStreamingEdits, readStreamingEdits, recordStreamingCanvasEdit, saveStreamingEdits, type StreamingEdits } from "../lib/gteStreamingEdits";
 import { preloadStreamingEditor } from "../lib/gteStreamingPreload";
+import { cleanStreamingGhosts } from "../lib/gteStreamingGhosts";
 import { createStreamingReveal } from "../lib/gteStreamingReveal";
 import type { StreamingCompletionSource } from "../lib/gteStreamingCompletion";
 import type { EditorSnapshot } from "../types/gte";
@@ -35,7 +36,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
   const history = useRef<{ past: StreamingEdits[]; future: StreamingEdits[] }>({ past: [], future: [] });
   const editsCallback = useRef(onEditsChange); editsCallback.current = onEditsChange;
   useEffect(() => { void preloadStreamingEditor(); }, []);
-  const displayGhosts = () => { const layers=revealed.current.ghosts(); for(const [id,notes] of Object.entries(provisionalGhosts.current)) layers[id]=[...(layers[id] ?? []),...notes]; return layers; };
+  const displayGhosts = () => { const layers=revealed.current.ghosts(); for(const [id,notes] of Object.entries(provisionalGhosts.current)) layers[id]=[...(layers[id] ?? []),...notes]; for(const lane of working.current?.editors ?? []) if(layers[lane.id]) layers[lane.id]=cleanStreamingGhosts(lane,layers[lane.id]); return layers; };
   const storageFailed = useRef(false);
   const [notice, setNotice] = useState("");
   const worker = useRef<Worker | null>(null), busy = useRef(false);
@@ -47,7 +48,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
     editsCallback.current?.(value);
     try { saveStreamingEdits(jobId, value); storageFailed.current = false; setNotice(""); }
     catch { storageFailed.current = true; setNotice("Your edits are kept in this tab, but device storage is unavailable. Keep this tab open until the editor is saved."); }
-    if (base.current) { const merged = applyStreamingEdits(base.current, value); working.current = merged; setCanvas(merged); }
+    if (base.current) { const merged = applyStreamingEdits(base.current, value); working.current = merged; setCanvas(merged); setGhosts(displayGhosts()); }
     setHistorySize({ undo: history.current.past.length, redo: history.current.future.length });
   };
   const edit = (_before: CanvasSnapshot, next: CanvasSnapshot) => {
@@ -200,7 +201,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
     </main> : <Editor editorId={savedEditorId || `stream-${jobId}`} isGuestMode={savedEditorId === "guest"} hasAccount passedTutorial
       hydratedCanvas={savedEditorId ? workspaceCanvas : undefined}
       streaming={phase === "saved" ? undefined : { canvas: workspaceCanvas, ghosts, name, progress, finishing: phase !== "streaming", stage,
-        onInteractionStart: () => { interaction.current.pointer = true; },
+        onInteractionStart: () => { interaction.current.pointer = true; setGhosts({}); },
         onChange: edit, undo, redo, undoCount: historySize.undo, redoCount: historySize.redo }} />}
   </>;
 }

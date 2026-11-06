@@ -1,3 +1,4 @@
+import { streamingGhostColor } from "../lib/gteStreamingGhosts";
 import { translatedError } from "../lib/i18n/translate";
 import { useLocale } from "../lib/i18n/react";
 import {
@@ -2955,7 +2956,7 @@ export default function GteDrumWorkspace({
           {streamingGhosts?.map(ghost=>{
             const voice=getDrumVoiceForNote({midiNum:ghost.midi,tab:ghost.tab} as Note);
             const index=DRUM_VOICES.findIndex(item=>item.id===voice.id);
-            return <span key={ghost.key} data-streaming-ghost={ghost.phase} aria-hidden="true" className="absolute rounded-sm bg-emerald-600" style={{pointerEvents:"none",left:LABEL_WIDTH+(ghost.start+gridStep/2)*pxPerFrame-drumHitSize/2,top:RULER_HEIGHT+index*ROW_HEIGHT+(ROW_HEIGHT-drumHitSize)/2,width:drumHitSize,height:drumHitSize}}/>;
+            return <span key={ghost.key} data-streaming-ghost={ghost.phase} aria-hidden="true" className="absolute rounded-sm" style={{backgroundColor:streamingGhostColor(ghost),pointerEvents:"none",left:LABEL_WIDTH+(ghost.start+gridStep/2)*pxPerFrame-drumHitSize/2,top:RULER_HEIGHT+index*ROW_HEIGHT+(ROW_HEIGHT-drumHitSize)/2,width:drumHitSize,height:drumHitSize}}/>;
           })}
           {visibleMaterializedNotes.map((item) => {
             const { note, virtual } = item;

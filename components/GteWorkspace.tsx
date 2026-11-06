@@ -1,3 +1,4 @@
+import { streamingGhostColor, streamingGhostFret, cleanStreamingGhosts } from "../lib/gteStreamingGhosts";
 import { AUDIO_CONTEXT_RESUME_ERROR, resumePlaybackAudioContext as resumeAudioContext } from "../lib/gteAudioContext";
 import {memoNoteAlternates, type FingeringDerivationCache} from "../lib/gteFingeringDerivationCache";
 import { monitorEditorEdit, monitorFrustrationPromise } from "../lib/frustrationSignals";
@@ -17874,10 +17875,10 @@ export default function GteWorkspace({
                   });
                 })}
 
-                {!tabViewEnabled && !practiceMode && streamingGhosts?.flatMap(ghost => getSpanSegments(ghost.start,ghost.length).map((segment,index)=>(
-                  <span key={`${ghost.key}:${index}`} aria-hidden="true" data-streaming-ghost={ghost.phase} className="gte-streaming-ghost absolute flex items-center justify-center rounded-sm bg-emerald-600 text-slate-900"
-                    style={{pointerEvents:"none",top:segment.rowIndex*rowStride+ghost.tab[0]*ROW_HEIGHT+canvasNoteTopInset,left:segment.inRowStart*scale+1,width:Math.max(8,segment.length*scale)-2,height:canvasNoteHeight,zIndex:0,fontSize:14}}>
-                    {ghost.phase === "preview" ? ghost.tab[1] : ""}
+                {!tabViewEnabled && !practiceMode && (streamingGhosts ? cleanStreamingGhosts(snapshot, streamingGhosts, Math.max(6,10/scale)) : []).flatMap(ghost => getSpanSegments(ghost.start,ghost.length).map((segment,index)=>(
+                  <span key={`${ghost.key}:${index}`} aria-hidden="true" data-streaming-ghost={ghost.phase} data-ghost-shape={ghost.shape} className="gte-streaming-ghost absolute flex items-center justify-center rounded-sm text-slate-900"
+                    style={{backgroundColor:streamingGhostColor(ghost),pointerEvents:"none",top:segment.rowIndex*rowStride+ghost.tab[0]*ROW_HEIGHT+canvasNoteTopInset,left:segment.inRowStart*scale+1,width:Math.max(8,segment.length*scale)-2,height:canvasNoteHeight,zIndex:0,fontSize:14}}>
+                    {streamingGhostFret(ghost)}
                   </span>
                 )))}
                 {visibleNotes.flatMap((note) => {

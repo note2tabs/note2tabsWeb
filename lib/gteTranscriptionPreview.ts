@@ -134,8 +134,9 @@ export function buildUnsettledGhosts(payload: TranscriptionPreviewPayload, canva
    const playable=getAllTabsForMidi(lane,note.pitch_midi!);
    if(lane.instrumentType !== "notation" && lane.instrumentType !== "drums" && !playable.length)return [];
    const tab: [number,number]=lane.instrumentType === "notation" ? [0,0] : lane.instrumentType === "drums" ? [Math.max(0,DRUM_VOICES.findIndex(voice=>voice.id===getDrumVoiceByMidi(note.pitch_midi!)?.id)),0] : playable[0];
-   return [{key:`unsettled:${note.sourceId ?? index}`,phase:"preview" as const,start:Math.round(note.start_time_s!*lane.fps),length:Math.max(1,Math.round((note.end_time_s!-note.start_time_s!)*lane.fps)),midi:note.pitch_midi!,tab}];
+   return [{key:`unsettled:${note.sourceId ?? index}`,phase:"preview" as const,showLabel:false,start:Math.round(note.start_time_s!*lane.fps),length:Math.max(1,Math.round((note.end_time_s!-note.start_time_s!)*lane.fps)),midi:note.pitch_midi!,tab}];
   });
-  return [lane.id,notes];
+  const counts=new Map<number,number>();for(const note of notes){const onset=Math.round(note.start/30);counts.set(onset,(counts.get(onset) ?? 0)+1);}
+  return [lane.id,notes.map(note=>({...note,shape:(counts.get(Math.round(note.start/30)) ?? 0)>1 ? "chord" as const : "note" as const}))];
  }));
 }

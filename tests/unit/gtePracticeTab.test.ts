@@ -25,9 +25,11 @@ it("updates SVG playback without rerendering notes; follows systems, seeks, loop
   const tick = () => {const next = [...tasks.values()]; tasks.clear(); next.forEach(callback => callback(0));};
   const source: EditorSnapshot = {id:"tab",framesPerMessure:480,totalFrames:1440,fps:240,notes:Array.from({length:24},(_,i) => ({id:i+1,startTime:i*60,length:60,midiNum:64,tab:[0,i%2 ? 14 : 12],optimals:[]})),chords:[],cutPositionsWithCoords:[],optimalsByTime:{}};
   const play = vi.fn(), select = vi.fn(), rangeSelect = vi.fn(); const root = createRoot(document.getElementById("root")!);
-  const render = async (snapshot = source) => act(async () => root.render(React.createElement(PracticeTab,{snapshot,editorId:"tab",getFrame:()=>frame,playing:true,active:true,selectedBars:new Set<number>(),onBarSelect:select,onBarRangeSelect:rangeSelect,onPlayFrom:play})));
+  const render = async (snapshot = source) => act(async () => root.render(React.createElement(PracticeTab,{snapshot,editorId:"tab",getFrame:()=>frame,playing:true,active:true,selectedBars:new Set<number>(),onBarSelect:select,onBarRangeSelect:rangeSelect,onPlayFrom:play,streamingGhosts:[{key:"fake-chord",phase:"fake",shape:"chord",showLabel:true,start:1350,length:20,midi:60,tab:[2,22]}]})));
   try {
     await render();
+    const placeholder=document.querySelector("[data-streaming-ghost='fake']");
+    expect(placeholder?.getAttribute("fill")).toBe("#30bced");expect(placeholder?.querySelector("text")).toBeNull();
     const first = document.querySelector('[data-practice-fret="n:1"]')!;
     // A focused clicked fret must not restart playback after the transport pauses it.
     let transportPlaying = false;

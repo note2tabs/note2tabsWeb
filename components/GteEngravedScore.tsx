@@ -1,3 +1,4 @@
+import { streamingGhostColor } from "../lib/gteStreamingGhosts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { StreamingGhost } from "../lib/gteStreamingGhosts";
 import { DRUM_NOTATION_POSITIONS } from "../lib/gteDrumNotation";
@@ -263,8 +264,8 @@ export default function GteEngravedScore({ streamingGhosts, score, input, restIn
           const point=coordinate({frame:ghost.start,midi,staff}); if(!point)return null;
           const x=measure.columns.length<2 ? measure.startX+(ghost.start%score.framesPerBar)/score.framesPerBar*(measure.endX-measure.startX) : point.x;
           const value=Math.max(1,Math.min(64,2**Math.round(Math.log2(score.framesPerBar*score.denominator/score.numerator/Math.max(1,ghost.length)))));
-          return <g key={ghost.key} data-streaming-ghost={ghost.phase} aria-hidden="true" pointerEvents="none" fill="#28785c" stroke="#28785c">
-            {drum && DRUM_NOTATION_POSITIONS[drum.id].head ? <path d={`M${x-4} ${point.y-4}l8 8m-8 0l8-8`} fill="none" strokeWidth={1.8}/> : <ellipse cx={x+5} cy={point.y} rx={6} ry={4} fill={value<=2 ? "none" : "#28785c"} transform={`rotate(-20 ${x+5} ${point.y})`} />}
+          return <g key={ghost.key} data-streaming-ghost={ghost.phase} aria-hidden="true" pointerEvents="none" fill={streamingGhostColor(ghost)} stroke={streamingGhostColor(ghost)}>
+            {drum && DRUM_NOTATION_POSITIONS[drum.id].head ? <path d={`M${x-4} ${point.y-4}l8 8m-8 0l8-8`} fill="none" strokeWidth={1.8}/> : <ellipse cx={x+5} cy={point.y} rx={6} ry={4} fill={value<=2 ? "none" : streamingGhostColor(ghost)} transform={`rotate(-20 ${x+5} ${point.y})`} />}
             {value>1 && <line x1={x+10} x2={x+10} y1={point.y} y2={point.y-29} strokeWidth={1.3}/>}
             {Array.from({length:Math.max(0,Math.log2(value)-2)},(_,flag)=><path key={flag} d={`M${x+10} ${point.y-29+flag*5}q12 7 5 15q2-9-5-11`} />)}
           </g>;

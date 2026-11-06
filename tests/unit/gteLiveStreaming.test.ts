@@ -83,3 +83,19 @@ it("prefers tabs then bass then notation only for the initial track", () => {
  expect(streamingActiveLane(null,{...score,editors:[drums,piano]})).toBe("piano");
  expect(streamingActiveLane("piano",score)).toBe("piano");
 });
+
+it("promotes generated tracks until a manual track change", () => {
+ const piano = canvas().editors[0];
+ const bass = { ...piano, id: "bass", instrumentType: "bass-tab" as const };
+ const guitar = { ...piano, id: "guitar", instrumentType: "guitar-tab" as const, notes: [] as typeof piano.notes, chords: [] as typeof piano.chords };
+ const score = { ...canvas(), editors: [piano, bass, guitar] };
+ expect(streamingActiveLane(piano.id, score, false)).toBe("bass");
+ const fake = { key: "ghost", phase: "fake" as const, start: 0, length: 30, midi: 60, tab: [0, 0] as [number, number] };
+ expect(streamingActiveLane("bass", score, false, { guitar: [fake] })).toBe("bass");
+ expect(streamingActiveLane("bass", score, false, { guitar: [{ ...fake, phase: "preview" }] })).toBe("guitar");
+ guitar.notes = piano.notes;
+ expect(streamingActiveLane("bass", score, false)).toBe("guitar");
+ expect(streamingActiveLane(piano.id, score, true)).toBe(piano.id);
+ guitar.notes = [];
+ expect(streamingActiveLane("guitar", score, false)).toBe("bass");
+});
