@@ -24,6 +24,18 @@ beforeAll(() => {
   Object.assign(dom.window.HTMLElement.prototype, { attachEvent() {}, detachEvent() {} });
 });
 
+it("renders both ghost phases without exposing them as interactive MIDI notes", async()=>{
+ const host=document.createElement("div");document.body.append(host);const root=createRoot(host), onChange=vi.fn();
+ const snapshot:EditorSnapshot={id:"ghosts-midi",fps:240,totalFrames:960,framesPerMessure:480,timeSignature:4,notes:[],chords:[],cutPositionsWithCoords:[],optimalsByTime:{}};
+ const ghosts=(["fake","preview"] as const).map((phase,index)=>({key:phase,phase,start:120+index*120,length:60,midi:60,tab:[0,0] as [number,number]}));
+ try {
+  await act(async()=>root.render(React.createElement(GteMidiWorkspace,{editorId:"ghosts-midi",snapshot,onSnapshotChange:onChange,streamingGhosts:ghosts})));
+  const layers=host.querySelectorAll("[data-streaming-ghost]");expect(layers).toHaveLength(2);
+  for(const layer of layers){expect(layer.getAttribute("pointer-events")).toBe("none");expect(layer.getAttribute("tabindex")).toBeNull();}
+  expect(host.querySelectorAll("[data-midi-note]")).toHaveLength(0);expect(snapshot.notes).toHaveLength(0);expect(onChange).not.toHaveBeenCalled();
+ } finally {await act(async()=>root.unmount());host.remove();}
+});
+
 it("loads delayed music, guards tiny drags, supports navigation, loop selection and restores editing context", async () => {
   const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
   let snapshot: EditorSnapshot = { id: "delayed", instrumentId: "gm:piano", framesPerMessure: 480, fps: 240, totalFrames: 9600, timeSignature: 4, timeSignatureBottom: 4,

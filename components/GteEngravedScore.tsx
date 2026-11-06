@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { StreamingGhost } from "../lib/gteStreamingGhosts";
+import { DRUM_NOTATION_POSITIONS } from "../lib/gteDrumNotation";
+import { getDrumVoiceByMidi } from "../lib/gteDrums";
 import VexFlow, { Renderer } from "vexflow/bravura";
 import { engravingPoint, engravingXAt, prepareNotationEngraving, type EngravedHit, type EngravedLayout } from "../lib/gteNotationEngraving";
 import { notationPitch, type NotationScore, type ScoreStaff } from "../lib/gteNotationScore";
@@ -10,7 +13,8 @@ export type NotationPoint = { frame: number; midi: number; staff: ScoreStaff };
 export type NotationSelection = ScoreSelection;
 const selectedSource = scoreEventSelected;
 
-export default function GteEngravedScore({ score, input, restInput = false, disabled, snapEnabled, denominator, dotted, length, cursor, selection, playbackFrame, getPlaybackFrame, playing, followPlayback, barsPerSystem, showBarNumbers, transformPitch, sourcePitch, onPoint, onSelect, onMove, onAudition, onBoxSelect, onAddBar, editorId, selectedBars = [], onBarSelect, onBarContextMenu, barDragging = false, onBarDragStart, onBarDragEnd, onBarDrop }: {
+export default function GteEngravedScore({ streamingGhosts, score, input, restInput = false, disabled, snapEnabled, denominator, dotted, length, cursor, selection, playbackFrame, getPlaybackFrame, playing, followPlayback, barsPerSystem, showBarNumbers, transformPitch, sourcePitch, onPoint, onSelect, onMove, onAudition, onBoxSelect, onAddBar, editorId, selectedBars = [], onBarSelect, onBarContextMenu, barDragging = false, onBarDragStart, onBarDragEnd, onBarDrop }: {
+  streamingGhosts?: StreamingGhost[];
   score: NotationScore; input: boolean; restInput?: boolean; disabled: boolean; guides?: boolean; snapEnabled: boolean; denominator: number; dotted: boolean; length: number;
   cursor: NotationPoint | null; selection: NotationSelection; playbackFrame: number; playing: boolean; barsPerSystem?: number; showBarNumbers: boolean;
   onPoint: (point: NotationPoint) => void;
@@ -251,6 +255,20 @@ export default function GteEngravedScore({ score, input, restInput = false, disa
         {layout.measures.filter(measure => selectedBars.includes(measure.index)).map(measure => <rect key={measure.index} data-notation-selected-bar={measure.index}
           x={measure.x} y={measure.top - 2} width={measure.width} height={measure.bottom - measure.top + 4} fill="#10b981" fillOpacity={0.08} stroke="#059669" strokeOpacity={0.45} pointerEvents="none" />)}
         {showBarNumbers && !onBarSelect && layout.measures.map((measure) => <text key={measure.index} x={measure.x + 4} y={measure.top - 8} fontSize={10} fill="#687a70" pointerEvents="none">{measure.index + 1}</text>)}
+        {streamingGhosts?.map(ghost => {
+          const measure=layout.measures[Math.floor(ghost.start/score.framesPerBar)]; if(!measure)return null;
+          const staff:ScoreStaff=score.percussion || ghost.midi>=60 ? "treble" : "bass";
+          const drum=score.percussion ? getDrumVoiceByMidi(ghost.midi) : null;
+          const midi=drum ? DRUM_NOTATION_POSITIONS[drum.id].midi : ghost.midi;
+          const point=coordinate({frame:ghost.start,midi,staff}); if(!point)return null;
+          const x=measure.columns.length<2 ? measure.startX+(ghost.start%score.framesPerBar)/score.framesPerBar*(measure.endX-measure.startX) : point.x;
+          const value=Math.max(1,Math.min(64,2**Math.round(Math.log2(score.framesPerBar*score.denominator/score.numerator/Math.max(1,ghost.length)))));
+          return <g key={ghost.key} data-streaming-ghost={ghost.phase} aria-hidden="true" pointerEvents="none" fill="#28785c" stroke="#28785c">
+            {drum && DRUM_NOTATION_POSITIONS[drum.id].head ? <path d={`M${x-4} ${point.y-4}l8 8m-8 0l8-8`} fill="none" strokeWidth={1.8}/> : <ellipse cx={x+5} cy={point.y} rx={6} ry={4} fill={value<=2 ? "none" : "#28785c"} transform={`rotate(-20 ${x+5} ${point.y})`} />}
+            {value>1 && <line x1={x+10} x2={x+10} y1={point.y} y2={point.y-29} strokeWidth={1.3}/>}
+            {Array.from({length:Math.max(0,Math.log2(value)-2)},(_,flag)=><path key={flag} d={`M${x+10} ${point.y-29+flag*5}q12 7 5 15q2-9-5-11`} />)}
+          </g>;
+        })}
         {noteTargets}
         {caret && <line x1={caret.x} x2={caret.x} y1={caret.measure.staffBottom[cursor!.staff] - 48} y2={caret.measure.staffBottom[cursor!.staff] + 12} stroke="#059669" strokeWidth={1.4} strokeDasharray="3 3" pointerEvents="none" />}
         {hover && hoverPosition && input && !disabled && <g pointerEvents="none" data-notation-preview="true" opacity={0.65}>

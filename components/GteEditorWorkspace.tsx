@@ -9423,6 +9423,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
                             <GteWorkspace
                               editorId={laneEditorRef}
                               snapshot={lane}
+                              streamingGhosts={practiceModeEnabled ? undefined : streaming?.ghosts?.[lane.id]}
                               timingMap={canvas.timingMap}
                               onSnapshotChange={(nextSnapshot, options) =>
                                 handleLaneSnapshotChange(laneId, nextSnapshot, options)
@@ -9699,6 +9700,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
                             <GteWorkspace
                               editorId={laneEditorRef}
                               snapshot={lane}
+                              streamingGhosts={practiceModeEnabled ? undefined : streaming?.ghosts?.[lane.id]}
                               timingMap={canvas.timingMap}
                               onSnapshotChange={(nextSnapshot, options) =>
                                 handleLaneSnapshotChange(laneId, nextSnapshot, options)
@@ -10214,6 +10216,7 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
                         <GteWorkspace
                           editorId={laneEditorRef}
                           snapshot={lane}
+                              streamingGhosts={practiceModeEnabled ? undefined : streaming?.ghosts?.[lane.id]}
                           timingMap={canvas.timingMap}
                           onSnapshotChange={(nextSnapshot, options) =>
                             handleLaneSnapshotChange(laneId, nextSnapshot, options)

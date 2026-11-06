@@ -39,7 +39,7 @@ export default function GteDrumNotation(props: ComponentProps<typeof GteWorkspac
       if (selected.length && (event.key === "Delete" || event.key === "Backspace")) { event.preventDefault(); event.stopPropagation(); remove(); }
     }}>
     <div className={readOnly ? "col-span-2 min-w-0" : "min-w-0"} style={{ zoom: 0.75 }}>
-    <GteEngravedScore score={score} editorId={props.editorId} input={write && !readOnly} disabled={readOnly}
+    <GteEngravedScore streamingGhosts={props.practiceMode ? undefined : props.streamingGhosts} score={score} editorId={props.editorId} input={write && !readOnly} disabled={readOnly}
       snapEnabled={true} denominator={denominator} dotted={false} length={length}
       cursor={null} selection={{ noteIds: selected, chordIds: [] }}
       playbackFrame={props.globalPlaybackFrame ?? 0} playing={Boolean(props.globalPlaybackIsPlaying)} followPlayback={props.followPlayback}

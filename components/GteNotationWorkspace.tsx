@@ -281,7 +281,7 @@ export default function GteNotationWorkspace(props: Props) {
     </div>}
     <div className={reading ? "col-span-2 min-w-0" : "col-start-1 row-start-1 min-w-0"}>
     <div data-notation-sheet-scale="true" style={{ zoom: compactTools ? 1 : 0.75 }}>
-    <GteEngravedScore score={score} input={write} restInput={restMode} disabled={readOnly} snapEnabled={true} denominator={denominator} dotted={dotted} length={entryLength}
+    <GteEngravedScore streamingGhosts={props.practiceMode ? undefined : props.streamingGhosts} score={score} input={write} restInput={restMode} disabled={readOnly} snapEnabled={true} denominator={denominator} dotted={dotted} length={entryLength}
       editorId={props.editorId} selectedBars={selectedBars}
       onBarSelect={readOnly ? undefined : selectBar}
       onBarContextMenu={readOnly ? undefined : (index, event) => selectBar(index, event, true)}

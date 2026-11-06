@@ -4,6 +4,7 @@ import { synthesizeTimingMap } from "./gteTiming";
 
 export type StreamingWorkspaceBinding = {
   canvas: CanvasSnapshot;
+  ghosts?: import("./gteStreamingGhosts").StreamingGhostLayers;
   name: string;
   progress: number;
   finishing: boolean;

@@ -112,6 +112,7 @@ type GteDrumWorkspaceProps = {
   canvasId: string;
   laneId: string;
   snapshot: EditorSnapshot;
+  streamingGhosts?: import("../lib/gteStreamingGhosts").StreamingGhost[];
   timingMap?: TimingMapV2;
   onSnapshotChange: (
     snapshot: EditorSnapshot,
@@ -195,6 +196,7 @@ export default function GteDrumWorkspace({
   canvasId,
   laneId,
   snapshot,
+  streamingGhosts,
   timingMap,
   onSnapshotChange,
   isActive,
@@ -2950,6 +2952,11 @@ export default function GteDrumWorkspace({
             />
           )}
 
+          {streamingGhosts?.map(ghost=>{
+            const voice=getDrumVoiceForNote({midiNum:ghost.midi,tab:ghost.tab} as Note);
+            const index=DRUM_VOICES.findIndex(item=>item.id===voice.id);
+            return <span key={ghost.key} data-streaming-ghost={ghost.phase} aria-hidden="true" className="absolute rounded-sm bg-emerald-600" style={{pointerEvents:"none",left:LABEL_WIDTH+(ghost.start+gridStep/2)*pxPerFrame-drumHitSize/2,top:RULER_HEIGHT+index*ROW_HEIGHT+(ROW_HEIGHT-drumHitSize)/2,width:drumHitSize,height:drumHitSize}}/>;
+          })}
           {visibleMaterializedNotes.map((item) => {
             const { note, virtual } = item;
             const voice = getDrumVoiceForNote(note);

@@ -37,11 +37,13 @@ it("renders selectable bar headers and drag boundaries without intercepting note
   const props = { score: buildNotationScore(snapshot), input: true, disabled: false, snapEnabled: true, denominator: 8, dotted: false, length: 60,
     cursor: null, selection: { noteIds: [], chordIds: [] }, playbackFrame: 0, playing: false, barsPerSystem: 4, showBarNumbers: true,
     transformPitch: (midi: number) => midi, onPoint, onSelect: vi.fn(), onMove: vi.fn(), editorId: "score__ed__piano",
+    streamingGhosts: [{key:"preview-note",phase:"preview" as const,start:120,length:60,midi:64,tab:[0,0] as [number,number]}],
     selectedBars: [0], onBarSelect, onBarContextMenu, onBarDragStart, onBarDrop, barDragging: true };
   try {
     await act(async () => { root.render(React.createElement(GteEngravedScore, props)); });
     const engraving = element.querySelector("svg"), headers = element.querySelectorAll<HTMLButtonElement>("[data-bar-select]");
     expect(headers.length).toBe(2);
+    const ghost=element.querySelector("[data-streaming-ghost]"); expect(ghost).not.toBeNull(); expect(ghost?.getAttribute("pointer-events")).toBe("none");
     expect(headers[0].draggable).toBe(true); expect(headers[1].draggable).toBe(false);
     expect(headers[0].getAttribute("aria-pressed")).toBe("true");
     expect(headers[0].dataset.barSelectEditor).toBe("score__ed__piano");

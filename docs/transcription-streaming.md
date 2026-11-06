@@ -59,4 +59,10 @@ This equivalence is to running the current one-bar algorithm on all raw input at
 
 Until the first generated music is ready, the stream route reuses `JobStatusLayout`'s transcription progress screen, including current job timing; it does not use the editor skeleton. Initial track preference is guitar tab, bass tab, notation, then other tracks. Incoming source metadata never overrides an existing active track.
 
-The editor progress panel occupies normal document space below the editor header, avoiding overlays over notes and controls. Its percentage follows the revealed musical-time frontier; a model snapshot arriving ahead does not immediately advance the displayed percentage. Empty settled sections can advance progress once their queued notes have all appeared. Completion stays below 100% until saving succeeds.
+The compact editor progress panel is fixed at the viewport centre with a translucent background. It ignores pointer input so the editor remains usable underneath it. Its percentage follows the revealed musical-time frontier; a model snapshot arriving ahead does not immediately advance the displayed percentage. Empty settled sections can advance progress once their queued notes have all appeared. Completion stays below 100% until saving succeeds.
+
+## Display-only ghost phases
+
+Queued inference groups enter a translucent real preview for approximately 300 ms before entering the editable score. Fainter deterministic placeholders lead by up to 0.95 of a bar, with a steady advancing frontier bounded by available model progress. Placeholders contain no invented fret labels. They pause with incoming-data gaps and while the user is actively editing.
+
+Ghosts are separate typed display primitives, passed to Canvas/tab view, MIDI, sheet and drum editor overlays. They never enter CanvasSnapshot, note selection, audio scheduling, clipboard or persistence. Practice playback continues to use solid musical events only. SVG/DOM ghost elements are hidden from accessibility navigation and ignore pointer events. Ghost-only updates do not rerun sheet engraving.

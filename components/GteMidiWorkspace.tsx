@@ -498,6 +498,7 @@ export default function GteMidiWorkspace(props: Props) {
                   <rect x={x + w - Math.min(handleWidth, w / 3)} y={y} width={Math.min(handleWidth, w / 3)} height={ROW - 4} fill="transparent" cursor="ew-resize" onPointerDown={(event) => begin(event, "right")} />
                 </g>;
               })}
+              {props.streamingGhosts?.map(ghost=><rect key={ghost.key} aria-hidden="true" data-streaming-ghost={ghost.phase} x={ghost.start*scale} y={(127-ghost.midi)*ROW+2} width={Math.max(3,ghost.length*scale)} height={ROW-4} rx={2} fill="#329c79" pointerEvents="none" />)}
               {drawing && <rect x={drawing.frame * scale} y={(127 - drawing.midi) * ROW + 2} width={drawing.length * scale} height={ROW - 4} rx={2} fill="#86dec0" stroke="#175a43" pointerEvents="none" />}
               {marquee && <rect {...marquee} fill="#059669" fillOpacity={0.1} stroke="#059669" pointerEvents="none" />}
               <MidiPlayhead scale={scale} row={ROW} height={PITCH_HEIGHT} frame={props.globalPlaybackFrame ?? 0} playing={Boolean(props.globalPlaybackIsPlaying)} getFrame={props.getGlobalPlaybackFrame} notes={events} scroll={scroller} follow={follow && !focusBox && !gesture.current} />

@@ -187,6 +187,7 @@ function closeAudioContext(ctx: AudioContext) {
 type Props = {
   editorId: string;
   snapshot: EditorSnapshot;
+  streamingGhosts?: import("../lib/gteStreamingGhosts").StreamingGhost[];
   timingMap?: TimingMapV2;
   onSnapshotChange: (
     snapshot: EditorSnapshot,
@@ -4992,6 +4993,7 @@ function ChordLaneWorkspace({
 export default function GteWorkspace({
   editorId,
   snapshot,
+  streamingGhosts,
   timingMap,
   onSnapshotChange,
   allowBackend = true,
@@ -17036,7 +17038,7 @@ export default function GteWorkspace({
         }`}
       >
         {tabViewEnabled && (
-          <GtePracticeTab snapshot={snapshot} editorId={editorId}
+          <GtePracticeTab streamingGhosts={practiceMode ? undefined : streamingGhosts} snapshot={snapshot} editorId={editorId}
             getFrame={getCurrentPlayheadFrame} playing={effectiveIsPlaying} active={isActive}
             selectedBars={selectedBarIndexSet} onBarSelect={handleBarSelection}
             onBarRangeSelect={handlePracticeBarSegmentSelection}
@@ -17872,6 +17874,12 @@ export default function GteWorkspace({
                   });
                 })}
 
+                {!tabViewEnabled && !practiceMode && streamingGhosts?.flatMap(ghost => getSpanSegments(ghost.start,ghost.length).map((segment,index)=>(
+                  <span key={`${ghost.key}:${index}`} aria-hidden="true" data-streaming-ghost={ghost.phase} className="gte-streaming-ghost absolute flex items-center justify-center rounded-sm bg-emerald-600 text-slate-900"
+                    style={{pointerEvents:"none",top:segment.rowIndex*rowStride+ghost.tab[0]*ROW_HEIGHT+canvasNoteTopInset,left:segment.inRowStart*scale+1,width:Math.max(8,segment.length*scale)-2,height:canvasNoteHeight,zIndex:0,fontSize:14}}>
+                    {ghost.phase === "preview" ? ghost.tab[1] : ""}
+                  </span>
+                )))}
                 {visibleNotes.flatMap((note) => {
                   const noteEffectEdges = noteEffectEdgeMap.get(note.id) || { left: false, right: false };
                   const scalePreview = scaleToolActive ? scalePreviewNotes[note.id] : undefined;

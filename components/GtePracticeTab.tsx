@@ -6,6 +6,7 @@ import { buildPracticeTabEffects } from "../lib/gtePracticeTabEffects";
 import { useLocale } from "../lib/i18n/react";
 
 type Props = {
+  streamingGhosts?: import("../lib/gteStreamingGhosts").StreamingGhost[];
   snapshot: EditorSnapshot; editorId: string; getFrame: () => number; playing: boolean; active: boolean;
   selectedBars: ReadonlySet<number>; onBarSelect: (bar: number,event: MouseEvent<HTMLButtonElement>) => void;
   onBarRangeSelect?: (start: number,end: number,event: MouseEvent<HTMLButtonElement>) => void;
@@ -138,6 +139,10 @@ export default memo(function GtePracticeTab(props: Props) {
         </g>;
       })}
       {fretLayer}
+      {props.streamingGhosts?.map(ghost=>{const p=practiceTabPosition(layout,ghost.start);const y=p.y+layout.stringTop+ghost.tab[0]*layout.stringGap;
+        return <g key={ghost.key} data-streaming-ghost={ghost.phase} aria-hidden="true" pointerEvents="none" fill="#28785c">
+          {ghost.phase === "preview" ? <text x={p.x} y={y} dominantBaseline="central" textAnchor="middle" fontSize={12}>{ghost.tab[1]}</text> : <rect x={p.x-5} y={y-3} width={10} height={6} rx={2}/>}
+        </g>;})}
       {effects.map(effect => <g key={effect.key} data-practice-effect={effect.kind} pointerEvents="none" fill="none" stroke="#1e293b" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
         <path d={effect.path} strokeDasharray={effect.held ? "4 3" : undefined} />
         {effect.arrow && <path d={effect.arrow} fill="#1e293b" stroke="none" />}

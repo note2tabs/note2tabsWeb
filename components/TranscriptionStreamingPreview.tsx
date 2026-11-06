@@ -19,7 +19,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
   const metadata = lastMetadata.current;
   const [phase, setPhase] = useState<"streaming" | "finishing" | "saving" | "saved">("streaming");
   const [savedEditorId, setSavedEditorId] = useState<string | null>(null);
-  const revealed = useRef(createStreamingReveal());
+  const revealed = useRef(createStreamingReveal({ previewMs: 300 }));
   const sourceComplete = useRef(false), finalizing = useRef(false), finalError = useRef(false), editRevision = useRef(0);
   const phaseRef = useRef(phase); phaseRef.current = phase;
   const finalSourceRef = useRef(finalSource); finalSourceRef.current = finalSource;
@@ -27,6 +27,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
   const interaction = useRef({ pointer: false, until: 0 });
   const [canvas, setCanvas] = useState<CanvasSnapshot | null>(null);
   const openedEditor = useRef(false);
+  const [ghosts, setGhosts] = useState<import("../lib/gteStreamingGhosts").StreamingGhostLayers>({});
   const [historySize, setHistorySize] = useState({ undo: 0, redo: 0 });
   const draft = useRef<StreamingEdits>(emptyStreamingEdits()), base = useRef<CanvasSnapshot | null>(null), working = useRef<CanvasSnapshot | null>(null);
   const history = useRef<{ past: StreamingEdits[]; future: StreamingEdits[] }>({ past: [], future: [] });
@@ -96,6 +97,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
     const timer = window.setInterval(() => {
       if (interaction.current.pointer || Date.now() < interaction.current.until || phaseRef.current === "saved" || phaseRef.current === "saving" || finalizing.current) return;
       const next = revealed.current.advance(125); if (next && next !== base.current) applySource(next);
+      const layers=revealed.current.ghosts(); setGhosts(previous => JSON.stringify(previous) === JSON.stringify(layers) ? previous : layers);
       finishLatestRef.current();
     }, 125);
     return () => { clearInterval(timer); window.removeEventListener("blur", pointerUp); window.removeEventListener("pointerup", pointerUp); window.removeEventListener("pointercancel", pointerUp); window.removeEventListener("keydown", typing, true); };
@@ -116,9 +118,9 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
       }
       busy.current = false;
       if (event.data.request === wanted.current && event.data.canvas) {
-        const first = !base.current || base.current.editors[0]?.id === "awaiting-first-track";
+        const first = !openedEditor.current || !base.current || base.current.editors[0]?.id === "awaiting-first-track";
         const next = revealed.current.receive(event.data.canvas, event.data.request.endsWith(":final"), event.data.throughSeconds ?? lastMetadata.current.settledSeconds ?? lastMetadata.current.processedSeconds);
-        if (first && next) applySource(revealed.current.advance() ?? next);
+        if (first && next) { applySource(revealed.current.advance() ?? next); setGhosts(revealed.current.ghosts()); }
         if (event.data.request.endsWith(":final")) sourceComplete.current = true;
         if (!storageFailed.current) setNotice("");
         finishLatestRef.current();
@@ -177,7 +179,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
   if (!working.current) working.current = shown;
   if (!base.current) base.current = shown;
   const stage = phase === "saving" ? "Saving your arrangement..." : phase === "finishing" ? "Finishing your arrangement..." : sourceComplete.current || revealed.current.pending() ? "Adding notes - you can edit and play" : "Listening - you can edit and play";
-  const ready = Boolean(canvas && (sourceComplete.current || canvas.editors.some(lane => lane.notes.length || lane.chords.length)));
+  const ready = Boolean(canvas && (sourceComplete.current || canvas.editors.some(lane => lane.notes.length || lane.chords.length) || Object.values(ghosts).some(notes => notes.some(note => note.phase === "preview"))));
   if (ready) openedEditor.current = true;
   return <>
     {notice && <p role="status" className={styles.notice}>{notice}{phase === "finishing" && <button type="button" onClick={() => { if (finalError.current) { finalError.current = false; finishLatestRef.current(); } else void saveLatestRef.current(); }}>Retry</button>}</p>}
@@ -190,7 +192,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
       </div>
     </main> : <Editor editorId={savedEditorId || `stream-${jobId}`} isGuestMode={savedEditorId === "guest"} hasAccount passedTutorial
       hydratedCanvas={savedEditorId ? workspaceCanvas : undefined}
-      streaming={phase === "saved" ? undefined : { canvas: workspaceCanvas, name, progress, finishing: phase !== "streaming", stage,
+      streaming={phase === "saved" ? undefined : { canvas: workspaceCanvas, ghosts, name, progress, finishing: phase !== "streaming", stage,
         onInteractionStart: () => { interaction.current.pointer = true; },
         onChange: edit, undo, redo, undoCount: historySize.undo, redoCount: historySize.redo }} />}
   </>;
