@@ -22,6 +22,7 @@ import { rememberCheckoutAttempt } from "../lib/checkoutTracking";
 import { PLAN_CATALOG } from "../lib/subscriptionPlans";
 import Link from "./LocaleLink";
 import PremiumConversionCard from "./PremiumConversionCard";
+import TranscriptionBlockCard from "./TranscriptionBlockCard";
 import PremiumHomeCallout from "./PremiumHomeCallout";
 
 type Props = {
@@ -346,29 +347,38 @@ export default function LimitUpgradePrompt({
       busyRef.current = false;
     }
   }
-  if (!plan || !definition)
+  if (!plan || !definition) {
+    // Nothing to sell (already on the top plan, or the request exceeds every plan): still say clearly what
+    // happened, as a proper card in the same slot the upgrade card would have used.
+    const exceeds = t("This selection exceeds the available plans. Choose a smaller file or a shorter section.");
+    const resetLine = isCredits
+      ? context.plan === "PRO" && context.resetLabel ? t("Your credits reset {date}", { date: context.resetLabel }) : resetMessage
+      : undefined;
     return (
-      <div className="notice">
-        {context.plan === "PRO" && isCredits && context.resetLabel
-          ? t("Your credits reset {date}", { date: context.resetLabel })
-          : resetMessage ||
-            t(
-              "This selection exceeds the available plans. Choose a smaller file or a shorter section.",
-            )}
-      </div>
+      <TranscriptionBlockCard
+        tone="credits"
+        role="alert"
+        title={title}
+        description={isCredits ? description : exceeds}
+        detail={[isCredits && context.plan !== "PRO" ? exceeds : "", resetLine ?? ""].filter(Boolean).join(" ") || undefined}
+      />
     );
+  }
   if (presentation === "classic") {
     if (isYoutube && context.plan === "FREE") return <PremiumHomeCallout show />;
     const directCheckout = isFile && context.plan === "FREE" && plan === "PREMIUM" && Boolean(session);
+    // The request needs more credits than are left: say so, instead of a generic "keep transcribing" pitch.
+    const shortfall = isCredits && Boolean(context.required && context.required > (context.remaining || 0));
     const classicTitle = isHeavy ? t("Use the Heavy model")
       : isFile ? directCheckout ? t("Continue with this upload") : plan === "PRO" ? t("This file needs Pro") : t("This file needs Premium")
       : reason === "file_duration_limit" ? t("Transcribe more of this file")
+      : shortfall ? t("Not enough credits for this transcription")
       : t("Keep transcribing today");
     const classicDescription = isHeavy ? t("The Heavy model is available with Premium or Pro for our highest transcription accuracy.")
       : isFile ? directCheckout ? t("Your file is still selected. Premium supports audio files up to 200 MB and full-length transcription.")
         : plan === "PRO" ? t("This file is larger than Premium's 200 MB limit. Pro supports files up to 500 MB.") : t("Free uploads are limited to 50 MB. Premium supports files up to 200 MB.")
       : reason === "file_duration_limit" ? t("Free accounts can select up to 60 seconds. Premium unlocks full-length audio-file transcription.")
-      : context.plan === "FREE" ? t("Premium includes 100 monthly credits, rollover, and full-song audio uploads.") : description;
+      : context.plan === "FREE" ? (shortfall ? `${description} ` : "") + t("Premium includes 100 monthly credits, rollover, and full-song audio uploads.") : description;
     const actionLabel = directCheckout ? t("Continue with Premium") : plan === "PRO" ? t("See Pro") : isHeavy ? t("See plans") : reason === "file_duration_limit" ? t("See longer options") : t("See Premium");
     return <>
       <PremiumConversionCard

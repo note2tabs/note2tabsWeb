@@ -67,6 +67,7 @@ import TranscriptionModelValueNote from "../components/TranscriptionModelValueNo
 import HeavyPreviewIntroDialog from "../components/HeavyPreviewIntroDialog";
 import HeavyPreviewOffer from "../components/HeavyPreviewOffer";
 import LimitUpgradePrompt from "../components/LimitUpgradePrompt";
+import TranscriptionBlockCard from "../components/TranscriptionBlockCard";
 import {calculateTranscriptionCredits} from "../lib/transcriptionModels";
 import { publishCreditsForPremiumPrompt } from "../lib/premiumPromptSignals";
 import TranscriptionStartStatus from "../components/TranscriptionStartStatus";
@@ -1697,6 +1698,16 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 handleHeroPrimaryAction();
               }}
             >
+              {verificationBlocked && (
+                <TranscriptionBlockCard tone="verify" role="status" eyebrow={t("Email verification")} title={t("Verify your email")}
+                  description={t("Verify your email to continue transcribing and unlock your free Heavy preview.")}
+                  actionLabel={t("Verify now")} href={verifyHref} />
+              )}
+              {isSignedIn && ((showCreditsLow && displayedCredits?.remaining === 0) || blockedCredits) && !needsPremiumForSelectedFile && !needsPremiumForFileDuration && !showHeavyUpgrade && !blockedYoutube && (
+                <div ref={creditsCalloutRef} className="transcription-block-slot">
+                <LimitUpgradePrompt presentation="classic" context={limitContext} resetMessage={t("Your credits reset {date}", {date:creditsResetLabel})} tracking={{source:"low_credits",reason:blockedCredits?"credits_exhausted":"credits_low",surface:"low_credits_dialog",trigger:blockedCredits?"credits_exhausted":"credits_threshold_reached"}}/>
+                </div>
+              )}
               <div className="prompt-meta-row">
                 <div className="prompt-meta-left">
                   <div className="model-choice model-choice--meta">
@@ -1868,23 +1879,6 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 </div>
               </div>
 
-              {isSignedIn && blockedCredits && (
-                <div ref={creditsCalloutRef} className="notice credits-callout" role="alert">
-                  <strong>{t("Not enough credits for this transcription")}</strong>
-                  <span>
-                    {limitContext.required !== undefined && limitContext.remaining !== undefined
-                      ? t("This transcription needs {required} credits. You have {remaining} left.", { required: limitContext.required, remaining: limitContext.remaining })
-                      : null}{" "}
-                    {creditsResetLabel ? t("Your credits reset {date}", { date: creditsResetLabel }) : null}
-                  </span>
-                </div>
-              )}
-              {verificationBlocked && (
-                <div className="notice verification-callout" role="status">
-                  <strong>{t("Verify your email to continue transcribing and unlock your free Heavy preview. ")}</strong>
-                  <Link href={verifyHref} className="button-link">{t(" Verify now ")}</Link>
-                </div>
-              )}
               {mode === "YOUTUBE" && (
                 <>
                   <div className="prompt-field prompt-field--compact">
@@ -1974,9 +1968,6 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                     : t("You can make one transcription now. Verify your email to keep transcribing and unlock your free Heavy preview. ")}
                   <Link href={verifyHref} className="button-link">{t(" Verify now ")}</Link>
                 </div>
-              )}
-              {isSignedIn && ((showCreditsLow && displayedCredits?.remaining === 0) || blockedCredits) && !needsPremiumForSelectedFile && !needsPremiumForFileDuration && !showHeavyUpgrade && !blockedYoutube && (
-                <LimitUpgradePrompt presentation="classic" context={limitContext} resetMessage={t("Your credits reset {date}", {date:creditsResetLabel})} tracking={{source:"low_credits",reason:blockedCredits?"credits_exhausted":"credits_low",surface:"low_credits_dialog",trigger:blockedCredits?"credits_exhausted":"credits_threshold_reached"}}/>
               )}
               {blockedYoutube && <LimitUpgradePrompt presentation="classic" context={limitContext} tracking={{source:"premium_prompt",reason:"youtube_duration_limit",surface:"youtube_limit_dialog",trigger:"clip_duration_limit"}}/>}
 
