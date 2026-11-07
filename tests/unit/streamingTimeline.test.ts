@@ -65,4 +65,23 @@ describe("preview timeline matches the backend's MIDI timing", () => {
     expect(ghost.start).toBe(Math.round(2 * canvas.editors[0].fps));
     expect(buildUnsettledGhosts(input, canvas)[canvas.editors[0].id][0].start).toBe(Math.round(.5 * canvas.editors[0].fps));
   });
+
+  it("gives equal notes equal lengths once the music is aligned to the grid, and ragged ones without it", () => {
+    // Steady eighth notes whose first downbeat sits 0.5 s into the audio: not on a 16th-note multiple.
+    const spb = 60 * 4 / 144, eighth = spb / 8, firstDownbeat = .5;
+    const lengthsFor = (tempoAnalysis: any) => {
+      let seed = 7;
+      const rand = () => (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296;     // fixed "performance" noise
+      const segments = Array.from({ length: 64 }, (_, index) => {
+        const start = firstDownbeat + index * eighth + (rand() - .5) * .02;
+        return { pitch_midi: 64, start_time_s: start, end_time_s: start + eighth * .85 + (rand() - .5) * .02 };
+      });
+      const canvas = createPreviewBuilder()({ ...payload([], tempoAnalysis), processedSeconds: 60, settledSeconds: 60, durationSeconds: 60, tracks: [{ ...track([]), segments }] });
+      return canvas.editors[0].notes.map(note => note.length);
+    };
+    const aligned = lengthsFor({ bpm: 144, beatsPerBar: 4, firstDownbeat });
+    expect(aligned.length).toBeGreaterThan(55);
+    expect(new Set(aligned).size).toBe(1);                                                    // every note is one eighth long
+    expect(new Set(lengthsFor({ bpm: 144, beatsPerBar: 4 })).size).toBeGreaterThan(1);       // the old, unaligned behaviour was ragged
+  });
 });
