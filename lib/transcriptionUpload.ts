@@ -15,6 +15,8 @@ export class TranscriptionUploadError extends Error {
     message: string,
     public readonly stage: "upload_presign" | "upload_storage",
     public readonly details: UploadFailureDetails,
+    /** The server refused because the account's email is not verified (not a transfer problem). */
+    public readonly verificationRequired = false,
   ) {
     super(message);
     this.name = "TranscriptionUploadError";
@@ -95,7 +97,8 @@ export async function uploadTranscriptionFile(
       const data = await response.json().catch(() => ({}));
       if (!response.ok || typeof data?.url !== "string" || !data.url || typeof data?.key !== "string" || !data.key) {
         throw new TranscriptionUploadError(typeof data?.error === "string" ? data.error : errorMessage,
-          "upload_presign", { http_status: response.status, request_id: safeRequestId(response), upload_attempt: attempt });
+          "upload_presign", { http_status: response.status, request_id: safeRequestId(response), upload_attempt: attempt },
+          data?.verificationRequired === true);
       }
       signed = data;
     } catch (error) {
