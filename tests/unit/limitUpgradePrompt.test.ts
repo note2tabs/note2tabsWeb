@@ -344,3 +344,26 @@ it("keeps Premium-to-Pro upgrades on pricing without fetching an automatic quote
  expect(el.querySelector("dialog")).toBeNull();expect(el.textContent).toContain("See Pro");
  expect(el.querySelector("a")?.getAttribute("href")).toContain("plan=pro");expect(m.fetch).not.toHaveBeenCalled();
 });
+
+it("says plainly that a request needs more credits than are left, with the upgrade offer in the same card", async()=>{
+ await render({plan:"FREE",remaining:3,required:10,resetLabel:"1 November"},{presentation:"classic"});
+ expect(el.textContent).toContain("Not enough credits for this transcription");
+ expect(el.textContent).toContain("This transcription needs 10 credits. You have 3 left.");
+ expect(el.textContent).toContain("Premium includes 100 monthly credits");
+ expect(el.querySelectorAll("aside")).toHaveLength(1);
+ expect(el.querySelector("a")?.getAttribute("href")).toContain("reason=credits_exhausted");
+});
+it("keeps the plain low-credit pitch when nothing is short", async()=>{
+ await render({plan:"FREE",remaining:2},{presentation:"classic"});
+ expect(el.textContent).toContain("Keep transcribing today");
+ expect(el.textContent).not.toContain("Not enough credits");
+});
+it("shows a clear card, not a bare line, when there is nothing to upgrade to", async()=>{
+ await render({plan:"PRO",remaining:3,required:50,resetLabel:"1 November"},{presentation:"classic"});
+ const card=el.querySelector("aside[role=alert]")!;
+ expect(card).not.toBeNull();
+ expect(card.textContent).toContain("Not enough credits for this transcription");
+ expect(card.textContent).toContain("This transcription needs 50 credits. You have 3 left.");
+ expect(card.textContent).toContain("Your credits reset 1 November");
+ expect(el.querySelector("a")).toBeNull();
+});

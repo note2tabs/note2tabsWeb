@@ -10405,32 +10405,107 @@ main.page:has([data-gte-practice-piano-roll]) {
   box-shadow: 0 8px 22px rgba(6, 17, 13, 0.04);
 }
 
-.verification-callout,
-.credits-callout {
-  display: flex;
-  flex-wrap: wrap;
+/* Shown at the top of the transcriber form when something blocks transcribing (email not verified,
+   not enough credits): same visual language as the premium prompt, with the action on the card. */
+.transcription-block-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px 14px;
-  margin: 0 0 12px;
-  border-color: rgba(176, 112, 0, 0.35);
-  background: rgba(255, 244, 222, 0.85);
-  color: #5c3a00;
+  gap: 16px;
+  margin: 0 0 16px;
+  padding: 18px 20px;
+  border: 1px solid rgba(6, 17, 13, 0.13);
+  border-radius: 16px;
+  background: rgba(252, 250, 246, 0.98);
+  color: #06110d;
+  text-align: left;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 14px 34px rgba(6, 17, 13, 0.07);
+  animation: transcription-block-in 0.28s ease-out;
 }
 
-.verification-callout strong,
-.credits-callout strong {
-  font-weight: 600;
+.transcription-block-card__icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #e5f1ea;
+  color: #1f6b52;
 }
 
-.credits-callout span {
-  flex-basis: 100%;
-  font-size: 0.85rem;
+.transcription-block-card--credits .transcription-block-card__icon {
+  background: #fdeccb;
+  color: #9a5b06;
 }
 
-.verification-callout .button-link {
-  font-weight: 600;
+.transcription-block-card__copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.transcription-block-card__eyebrow {
+  color: rgba(6, 17, 13, 0.5);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.transcription-block-card__copy h3,
+.transcription-block-card__copy p {
+  margin: 0;
+}
+
+.transcription-block-card__copy h3 {
+  font-size: 1.02rem;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+}
+
+.transcription-block-card__copy p {
+  max-width: 560px;
+  color: rgba(6, 17, 13, 0.68);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.transcription-block-card__copy small {
+  color: rgba(6, 17, 13, 0.5);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.transcription-block-card__action {
+  min-width: 148px;
+  min-height: 42px;
   white-space: nowrap;
+}
+
+/* The existing upgrade card appears in the same slot; keep spacing consistent with ours. */
+.transcription-block-slot .premium-conversion-card {
+  margin: 0 0 16px;
+}
+
+@keyframes transcription-block-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .transcription-block-card { animation: none; }
+}
+
+@media (max-width: 640px) {
+  .transcription-block-card {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 16px;
+  }
+
+  .transcription-block-card__action {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
 }
 
 .notice .button-row {
