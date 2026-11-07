@@ -143,10 +143,10 @@ it("opens the editor with unsettled real previews but keeps them out of the edit
  await act(async()=>WorkerStub.current.onmessage?.({data:{request:"attempt:1",canvas:empty,provisionalGhosts:{lane:[ghost]},throughSeconds:0}}));
  let props=mocks.render.mock.calls.at(-1)![0];
  expect(props.streaming.canvas.editors[0].notes).toHaveLength(0);
- expect(props.streaming.ghosts.lane).toEqual([ghost]);
+ expect(props.streaming.ghosts.lane.filter((note: any) => note.phase === "preview")).toEqual([ghost]);
  await act(async()=>{await vi.advanceTimersByTimeAsync(5000);});
  props=mocks.render.mock.calls.at(-1)![0];expect(props.streaming.canvas.editors[0].notes).toHaveLength(0);
- expect(props.streaming.ghosts.lane).toEqual([ghost]);
+ expect(props.streaming.ghosts.lane.filter((note: any) => note.phase === "preview")).toEqual([ghost]);
 });
 
 it("opens the editor as soon as the first preview artifact exists, before any note", async () => {

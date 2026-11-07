@@ -36,7 +36,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
   const history = useRef<{ past: StreamingEdits[]; future: StreamingEdits[] }>({ past: [], future: [] });
   const editsCallback = useRef(onEditsChange); editsCallback.current = onEditsChange;
   useEffect(() => { void preloadStreamingEditor(); }, []);
-  const displayGhosts = () => { const layers=revealed.current.ghosts(); for(const lane of working.current?.editors ?? []) if(layers[lane.id]) layers[lane.id]=cleanStreamingGhosts(lane,layers[lane.id]); return layers; };
+  const displayGhosts = () => { const layers=revealed.current.ghosts(initial.current.editors); for(const lane of working.current?.editors ?? []) if(layers[lane.id]) layers[lane.id]=cleanStreamingGhosts(lane,layers[lane.id]); return layers; };
   const storageFailed = useRef(false);
   const [notice, setNotice] = useState("");
   // The first artifact proves inference is running: open the editor now, even before the first note.
@@ -104,7 +104,8 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
     window.addEventListener("blur", pointerUp); window.addEventListener("pointerup", pointerUp); window.addEventListener("pointercancel", pointerUp); window.addEventListener("keydown", typing, true);
     const timer = window.setInterval(() => {
       if (interaction.current.pointer || Date.now() < interaction.current.until || phaseRef.current === "saved" || phaseRef.current === "saving" || finalizing.current) return;
-      const next = revealed.current.advance(125); if (next && next !== base.current) applySource(next);
+      // Before the editor is open nothing may animate; once open, even an empty editor sweeps a head.
+      const next = revealed.current.advance(openedEditor.current ? 125 : 0); if (next && next !== base.current) applySource(next);
       // Before the first note the caret rests at bar 1, so the editor already looks alive.
       setStreamingHead(revealed.current.headSeconds() ?? (openedEditor.current && !sourceComplete.current ? 0 : null));
       const lanes = revealed.current.knownLanes(); setKnown(previous => previous.join() === lanes.join() ? previous : lanes);
@@ -192,7 +193,7 @@ export default function TranscriptionStreamingPreview({ jobId, name, metadata: i
   const progress = phase === "saved" ? 100 : Math.min(99, Math.max(0, 100 * revealed.current.throughSeconds() / metadata.durationSeconds));
   const initial = useRef<CanvasSnapshot>({ id: `stream-${jobId}`, name, secondsPerBar: 2, editors: [{
     id: "awaiting-first-track", name: "Guitar", program: 25, instrumentType: "guitar-tab", instrumentId: "acoustic_guitar", trackType: "tab",
-    fps: 240, totalFrames: 480, framesPerMessure: 480, timeSignature: 4, timeSignatureBottom: 4, notes: [], chords: [], cutPositionsWithCoords: [], optimalsByTime: {},
+    fps: 240, totalFrames: 1920, framesPerMessure: 480, timeSignature: 4, timeSignatureBottom: 4, notes: [], chords: [], cutPositionsWithCoords: [], optimalsByTime: {},
   }] });
   const shown = canvas ?? initial.current;
   const workspaceCanvas = useMemo(() => ({ ...shown, id: savedEditorId || `stream-${jobId}`, name: shown.name || name }), [shown, jobId, name, savedEditorId]);

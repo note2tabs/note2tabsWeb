@@ -1,5 +1,5 @@
 import type { CanvasSnapshot, EditorSnapshot } from "../types/gte";
-import { ghostNotes, type StreamingGhostLayers } from "./gteStreamingGhosts";
+import { ghostNotes, placeholderGhosts, type StreamingGhostLayers } from "./gteStreamingGhosts";
 const key = (lane: EditorSnapshot, kind: string, id: number) => `${lane.id}:${kind}:${id}`;
 
 const DEFAULT_CADENCE_MS = 4000, MIN_CADENCE_MS = 2000, MAX_CADENCE_MS = 10000;
@@ -9,6 +9,8 @@ const MIN_SPEED = .5, COMPLETE_MIN_SPEED = 2;
 const COMPLETE_DRAIN_MS = 1500;
 const SPEED_EASE_MS = 700;   // speed changes glide instead of jumping at batch boundaries
 const SILENCE_SKIP_S = 1, SILENCE_BOOST = 3;
+const PLACEHOLDER_AHEAD_BARS = 1.5; // cosmetic anticipation shown just ahead of the head
+const IDLE_SECONDS_PER_SECOND = 1, IDLE_MAX_SECONDS = 7; // simulated sweep before any music has arrived
 
 /** LLM-style reveal. Inference arrives in irregular batches; the editor shows it
  * through a single write head that sweeps the song left to right at a smoothly
@@ -28,7 +30,7 @@ export function createStreamingReveal({ previewMs = 0 }: { previewMs?: number } 
   let last: CanvasSnapshot | null = null;
   let lastArrival = 0, cadenceMs = DEFAULT_CADENCE_MS;
   let through = 0, revealedThrough = 0, animationMs = 0;
-  let head = -1, bound = 0, speed = 0;
+  let head = -1, bound = 0, speed = 0, idleHead = -1;
   const rebuild = () => {
     if (!source) return null;
     last = { ...source, editors: source.editors.map(lane => {
@@ -75,16 +77,19 @@ export function createStreamingReveal({ previewMs = 0 }: { previewMs?: number } 
         }
       }
       queue = [...groups].map(([time, keys]) => ({ time, keys })).sort((a, b) => a.time - b.time);
-      // The write head starts at the first real music, so there is no dead wait.
-      if (!started) {
-        const first = Math.min((queue[0]?.time ?? Infinity) / 1000, draftTimes[0] ?? Infinity);
-        if (Number.isFinite(first)) head = first;
-      } else release();
+      // The head starts at the beginning and sweeps what has been processed, including a silent
+      // intro, so the editor is visibly working before the first note exists.
+      if (!started) head = 0; else release();
       return rebuild();
     },
     advance(elapsedMs?: number) {
       const delta = elapsedMs ?? 0; animationMs += delta;
       let changed = false;
+      // Nothing has arrived yet: sweep a simulated head so the empty editor is not static.
+      if (!source) {
+        if (delta > 0) idleHead = Math.min(IDLE_MAX_SECONDS, Math.max(0, idleHead) + delta / 1000 * IDLE_SECONDS_PER_SECOND);
+        return last;
+      }
       const ready = staged.filter(group => group.due <= animationMs); staged = staged.filter(group => group.due > animationMs);
       for (const group of ready) changed = solidify(group);
       if (elapsedMs === undefined) {
@@ -106,20 +111,26 @@ export function createStreamingReveal({ previewMs = 0 }: { previewMs?: number } 
       // Solid notes are the only part of the head's progress that changes the score.
       return changed || elapsedMs === undefined ? rebuild() : last;
     },
-    ghosts(): StreamingGhostLayers {
-      if (!source || (completeSource && !queue.length && !staged.length)) return {};
+    /** `idleLanes` are the placeholder lanes shown before the first canvas arrives. */
+    ghosts(idleLanes: readonly EditorSnapshot[] = []): StreamingGhostLayers {
+      if (!source) {
+        return idleHead < 0 ? {} : Object.fromEntries(idleLanes.map(lane => [lane.id, placeholderGhosts(lane, idleHead, (lane.secondsPerBar || 2) * PLACEHOLDER_AHEAD_BARS)]));
+      }
+      if (completeSource && !queue.length && !staged.length) return {};
       const previews = new Set(staged.flatMap(group => group.keys));
+      const ahead = (source.secondsPerBar || 2) * PLACEHOLDER_AHEAD_BARS;
       return Object.fromEntries(source.editors.map(lane => [lane.id, [
         ...ghostNotes(lane, previews),
         ...(head >= 0 ? (provisional[lane.id] ?? []).filter(ghost => ghost.start / lane.fps <= head) : []),
+        ...(head >= 0 ? placeholderGhosts(lane, head, ahead) : []),
       ]]));
     },
     /** Position of the write head in seconds, or null before streaming starts / after it ends. */
-    headSeconds: () => !source || head < 0 || (completeSource && !queue.length && !staged.length) ? null : head,
+    headSeconds: () => !source ? (idleHead < 0 ? null : idleHead) : head < 0 || (completeSource && !queue.length && !staged.length) ? null : head,
     /** Lanes the model has produced anything for, whether or not the head has reached it yet. */
     knownLanes: () => source ? source.editors.filter(lane => lane.notes.length || lane.chords.length || provisional[lane.id]?.length).map(lane => lane.id) : [],
     pending: () => queue.length + staged.length,
     throughSeconds: () => revealedThrough,
-    reset() { source = null; completeSource = false; provisional = {}; draftTimes = []; last = null; queue = []; visible = new Set(); through = 0; revealedThrough = 0; animationMs = 0; staged = []; lastArrival = 0; cadenceMs = DEFAULT_CADENCE_MS; head = -1; bound = 0; speed = 0; },
+    reset() { source = null; completeSource = false; provisional = {}; draftTimes = []; last = null; queue = []; visible = new Set(); through = 0; revealedThrough = 0; animationMs = 0; staged = []; lastArrival = 0; cadenceMs = DEFAULT_CADENCE_MS; head = -1; bound = 0; speed = 0; idleHead = -1; },
   };
 }

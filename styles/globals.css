@@ -14915,14 +14915,17 @@ html[lang="ar"] [data-editor-locale="ar"] :is(input[type="text"], textarea) {
 
 [data-streaming-ghost] { pointer-events: none !important; user-select: none; }
 [data-streaming-ghost="preview"] { opacity: .38; animation: gte-stream-in .16s ease-out; }
+/* Cosmetic anticipation just ahead of the write head: faint, fades in, never pulses. */
+[data-streaming-ghost="placeholder"] { opacity: .15; animation: gte-placeholder-in .3s ease-out; }
 /* New notes wipe in left to right, like a token being typed. */
 .gte-streaming-workspace [data-gte-note="true"] { animation: gte-stream-wipe .18s ease-out; }
 @keyframes gte-stream-in { from { opacity: 0; } to { opacity: .38; } }
+@keyframes gte-placeholder-in { from { opacity: 0; } to { opacity: .15; } }
 @keyframes gte-stream-wipe { from { clip-path: inset(0 100% 0 0); opacity: .4; } to { clip-path: inset(0 0 0 0); opacity: 1; } }
 /* Write head: a plain thin line spanning exactly the string rows. It moves ~8x/s, so glide between ticks. */
 .gte-streaming-caret { position: absolute; width: 2px; margin-left: -1px; z-index: 3; pointer-events: none; border-radius: 1px;
   background: #1f6b52; opacity: .8; transition: left .125s linear; }
 @media (prefers-reduced-motion: reduce) {
   .gte-streaming-caret { transition: none; }
-  [data-streaming-ghost="preview"], .gte-streaming-workspace [data-gte-note="true"] { animation: none; }
+  [data-streaming-ghost="preview"], [data-streaming-ghost="placeholder"], .gte-streaming-workspace [data-gte-note="true"] { animation: none; }
 }

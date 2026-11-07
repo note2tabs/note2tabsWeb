@@ -1,7 +1,8 @@
 import type { EditorSnapshot } from "../types/gte";
 /** Display-only primitives: deliberately not Note/Chord objects or snapshots.
- * Every ghost is derived from real inference output; nothing is invented. */
-export type StreamingGhost = { key: string; phase: "preview"; shape?: "note" | "chord"; showLabel?: boolean; start: number; length: number; midi: number; tab: [number, number] };
+ * "preview" ghosts come from real inference output. "placeholder" ghosts are purely
+ * cosmetic anticipation just ahead of the write head and are never music. */
+export type StreamingGhost = { key: string; phase: "preview" | "placeholder"; shape?: "note" | "chord"; showLabel?: boolean; start: number; length: number; midi: number; tab: [number, number] };
 export type StreamingGhostLayers = Record<string, StreamingGhost[]>;
 
 /** Notes that are about to become solid, drawn translucent at their final position. */
@@ -15,11 +16,38 @@ export function ghostNotes(lane: EditorSnapshot, previewKeys: ReadonlySet<string
  return result;
 }
 
-export const streamingGhostColor = (ghost: StreamingGhost) => ghost.shape === "chord" ? "#30bced" : "#24bb8d";
-export const streamingGhostFret = (ghost: StreamingGhost) => ghost.showLabel !== false ? String(ghost.tab[1]) : "";
+/**
+ * Cosmetic "something is being written here" notes in the short stretch ahead of the write head.
+ * They are stable (seeded per lane and slot, so they never flicker), disappear once the head
+ * passes them, and are hidden wherever real music or a real preview already is
+ * (see `cleanStreamingGhosts`). Nothing about them reflects the audio.
+ */
+export function placeholderGhosts(lane: EditorSnapshot, headSeconds: number, aheadSeconds: number): StreamingGhost[] {
+ const fps=lane.fps > 0 ? lane.fps : 240, step=Math.max(6,Math.round(fps/8));
+ const first=Math.max(0,Math.floor(headSeconds*fps/step)+1);
+ const last=Math.min(Math.floor((headSeconds+aheadSeconds)*fps/step),Math.floor((lane.totalFrames || Infinity)/step)-1);
+ const strings=lane.instrumentType === "bass-tab" ? 4 : 6;
+ const tabTrack=lane.instrumentType === "guitar-tab" || lane.instrumentType === "bass-tab";
+ const minimum=lane.instrumentType === "bass-tab" ? 2 : 3;
+ const seed=[...String(lane.id)].reduce((value,char)=>Math.imul(value,31)+char.charCodeAt(0),7), base=lane.notes[0]?.midiNum ?? 60;
+ const noise=(slot:number,salt:number)=>{let value=Math.imul(slot+salt,374761393)^seed;value=Math.imul(value^(value>>>13),1274126177);return ((value^(value>>>16))>>>0)/4294967296;};
+ const result: StreamingGhost[]=[];
+ for(let slot=first;slot<=last && slot<first+96;slot++){
+  if(noise(slot,11)>.72)continue; // natural gaps
+  const start=slot*step, string=Math.floor(noise(slot,23)*strings), stacked=noise(slot,37)>.7;
+  const voices=stacked ? tabTrack ? Math.min(strings,minimum+Math.floor(noise(slot,41)*2)) : 2 : 1;
+  const firstString=tabTrack ? Math.min(string,strings-voices) : string;
+  const length=Math.round(step*(.45+noise(slot,49)*.3));
+  for(let voice=0;voice<voices;voice++) result.push({ key:`ph:${slot}:${voice}`,phase:"placeholder",shape:voices>1 ? "chord" : "note",showLabel:false,start,length,midi:Math.max(24,Math.min(100,base+Math.floor(noise(slot,67+voice)*15)-7)),tab:[(firstString+voice)%strings,0] });
+ }
+ return result;
+}
 
-/** Real music owns its intervals: a ghost that would sit on top of a solid note
- * or an earlier ghost on the same string / pitch is hidden. */
+export const streamingGhostColor = (ghost: StreamingGhost) => ghost.shape === "chord" ? "#30bced" : "#24bb8d";
+export const streamingGhostFret = (ghost: StreamingGhost) => ghost.phase === "preview" && ghost.showLabel !== false ? String(ghost.tab[1]) : "";
+
+/** Real music owns its intervals. Real previews are hidden only when they would sit on solid notes or
+ * earlier previews; placeholders are kept or hidden as a whole group so a chord never shows ragged. */
 export function cleanStreamingGhosts(lane: EditorSnapshot, ghosts: readonly StreamingGhost[], minimumWidth = 6): StreamingGhost[] {
  const tab=lane.instrumentType === "guitar-tab" || lane.instrumentType === "bass-tab";
  type Span=[number,number];
@@ -35,8 +63,16 @@ export function cleanStreamingGhosts(lane: EditorSnapshot, ghosts: readonly Stre
   return lo<list.length && list[lo][0]<end+minimumWidth;
  };
  merge();const result:StreamingGhost[]=[];
- for(const ghost of ghosts){
+ for(const ghost of ghosts.filter(item=>item.phase === "preview")){
   if(overlaps(ghost))continue;result.push(ghost);add(ghost.start,ghost.length,channel(ghost));merge();
+ }
+ // Even a hidden provisional preview reserves its space from placeholders.
+ for(const ghost of ghosts.filter(item=>item.phase === "preview"))add(ghost.start,ghost.length,channel(ghost));
+ merge();const groups=new Map<number,StreamingGhost[]>();
+ for(const ghost of ghosts.filter(item=>item.phase === "placeholder"))groups.set(ghost.start,[...(groups.get(ghost.start) ?? []),ghost]);
+ for(const group of groups.values()){
+  if(group.some(overlaps))continue;
+  result.push(...group);for(const ghost of group)add(ghost.start,ghost.length,channel(ghost));merge();
  }
  return result;
 }
