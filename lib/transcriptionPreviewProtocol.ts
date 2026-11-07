@@ -6,7 +6,7 @@ export function streamingTrackKey(source: { id?: string; trackType?: string; pro
 export type TranscriptionPreviewMetadata = {
   version: 1; streamId: string; revision: number; processedSeconds: number; durationSeconds: number; complete: boolean; settledSeconds?: number;
 };
-export type TranscriptionPreviewPayload = TranscriptionPreviewMetadata & { tracks: TranscriberTrack[]; tempoAnalysis?: { bpm?: number; beatsPerBar?: number | null } | null };
+export type TranscriptionPreviewPayload = TranscriptionPreviewMetadata & { tracks: TranscriberTrack[]; tempoAnalysis?: { bpm?: number; beatsPerBar?: number | null; firstDownbeat?: number | null; onsetDelay?: number | null } | null };
 export function previewMetadata(value: unknown): TranscriptionPreviewMetadata | null {
   const item = value as TranscriptionPreviewMetadata;
   if (!item || item.version !== 1 || typeof item.streamId !== "string" || item.streamId.length > 160 ||

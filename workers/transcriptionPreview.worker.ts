@@ -9,7 +9,7 @@ self.onmessage = (event: MessageEvent<any>) => {
     catch { self.postMessage({ type: "complete", revision: event.data.revision, error: "Could not finish the arrangement. Your edits are still here." }); }
     return;
   }
-  try { const canvas=build(event.data.payload); self.postMessage({ request: event.data.request, canvas, provisionalGhosts: buildUnsettledGhosts(event.data.payload,canvas), throughSeconds: event.data.payload.complete ? event.data.payload.durationSeconds : event.data.payload.settledSeconds ?? event.data.payload.processedSeconds }); }
+  try { const canvas=build(event.data.payload), shift=build.shiftSeconds(); self.postMessage({ request: event.data.request, canvas, provisionalGhosts: buildUnsettledGhosts(event.data.payload,canvas,shift), throughSeconds: event.data.payload.complete ? event.data.payload.durationSeconds : (event.data.payload.settledSeconds ?? event.data.payload.processedSeconds) + shift }); }
   catch (error) {
     if (error instanceof WaitingForPreviewTempoError) {
       self.postMessage({ request: event.data.request, waitingForTempo: true });
