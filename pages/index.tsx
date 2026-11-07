@@ -1618,6 +1618,11 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   if (shouldRedirectToProductHome) return null;
 
   useEffect(()=>{setBlockedCredits(false);setBlockedYoutube(false);},[selectedFile,mode,ytStartTime,ytEndTime,fileStartTime,fileEndTime,entitlementPlan]);
+  // A credits rejection must be unmistakable: keep its explanation in view, not buried under the form.
+  const creditsCalloutRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (blockedCredits) creditsCalloutRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [blockedCredits, limitAttempt]);
   const limitContext = {
     plan: entitlementPlan,
     attempt: limitAttempt,
@@ -1863,6 +1868,17 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 </div>
               </div>
 
+              {isSignedIn && blockedCredits && (
+                <div ref={creditsCalloutRef} className="notice credits-callout" role="alert">
+                  <strong>{t("Not enough credits for this transcription")}</strong>
+                  <span>
+                    {limitContext.required !== undefined && limitContext.remaining !== undefined
+                      ? t("This transcription needs {required} credits. You have {remaining} left.", { required: limitContext.required, remaining: limitContext.remaining })
+                      : null}{" "}
+                    {creditsResetLabel ? t("Your credits reset {date}", { date: creditsResetLabel }) : null}
+                  </span>
+                </div>
+              )}
               {verificationBlocked && (
                 <div className="notice verification-callout" role="status">
                   <strong>{t("Verify your email to continue transcribing and unlock your free Heavy preview. ")}</strong>
