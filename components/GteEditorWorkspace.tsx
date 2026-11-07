@@ -2195,6 +2195,10 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
   }, [streaming?.canvas, streaming?.ghosts, streaming?.known?.join(",")]);
 
   const [streamingProgressBottom, setStreamingProgressBottom] = useState(104);
+  // Until the track being viewed has its first note the banner is the main thing on screen, so it
+  // sits in the middle; afterwards it docks out of the way above the transport.
+  const streamingViewedLane = streaming ? (streaming.canvas.editors.find(lane => lane.id === activeLaneId) ?? streaming.canvas.editors[0]) : undefined;
+  const streamingHasFirstNote = Boolean(streamingViewedLane && (streamingViewedLane.notes.length || streamingViewedLane.chords.length));
   useEffect(() => {
     if (!streaming) return;
     const controls = Array.from(document.querySelectorAll<HTMLElement>(
@@ -9267,9 +9271,9 @@ export default function GteEditorWorkspace({ editorId, isGuestMode: guestMode, h
           </div>
         </div>
         )}
-          {streaming && <div className="gte-transcription-progress" role="status" style={{ bottom: streamingProgressBottom }}>
-            <span>Note2Tabs is transcribing &quot;{streaming.name}&quot;</span><small>{streaming.stage} &middot; {Math.round(streaming.progress)}%</small>
-            <div role="progressbar" aria-label="Transcription progress" aria-valuenow={Math.round(streaming.progress)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${streaming.progress}%` }} /></div>
+          {streaming && <div className={`gte-transcription-progress${streamingHasFirstNote ? "" : " gte-transcription-progress--centered"}`} role="status" style={streamingHasFirstNote ? { bottom: streamingProgressBottom } : undefined}>
+            <span>Note2Tabs is transcribing &quot;{streaming.name}&quot;</span><small>{streaming.stage} &middot; <b>{Math.round(streaming.progress)}%</b></small>
+            <div role="progressbar" aria-label="Transcription progress" aria-valuenow={Math.round(streaming.progress)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${Math.max(2, streaming.progress)}%` }} /></div>
           </div>}
         {isGuestMode && !streaming && !isMobileEditMode && !practiceModeEnabled && (
           <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1 shadow-sm sm:flex-wrap sm:gap-4 sm:rounded-xl sm:px-4 sm:py-3 [@media(max-height:500px)]:hidden">
