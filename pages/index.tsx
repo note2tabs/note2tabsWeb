@@ -714,6 +714,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     canTranscribe,
     sessionStatus,
   ]);
+  // Signed in, unverified, and the one free transcription is spent: say so instead of a dead button.
+  const verificationBlocked = Boolean(isSignedIn && !canTranscribe);
   const submitLabel = authHandoffBusy
     ? t("Opening sign in…")
     : loading
@@ -726,6 +728,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     ? t("Checking account…")
     : !isSignedIn
     ? t("Continue to sign in")
+    : verificationBlocked
+    ? t("Verify now")
     : heavyPreviewAvailable && transcriptionModel === "super_heavy"
     ? t("Use free Heavy preview")
     : t("Generate tabs");
@@ -1273,10 +1277,25 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     await startConvert();
   };
 
+  const handleVerifyToContinue = async () => {
+    reportBlockedSubmission("email_unverified", "authentication");
+    sendEvent(ANALYTICS_EVENTS.verificationGateShown, { surface: "home_transcriber", mode, trigger: "verify_button" });
+    // Keep the user's selection; the existing resume flow restores it after verification.
+    try {
+      if (mode === "FILE" && selectedFile) await savePendingTranscription({ mode: "FILE", file: selectedFile, fileStartTime: Math.max(0, fileStartTime ?? 0), fileEndTime: Math.max(1, fileEndTime ?? DEFAULT_FILE_SNIPPET_SEC), savedAt: Date.now() });
+      else if (mode === "YOUTUBE" && youtubeUrl.trim()) await savePendingTranscription({ mode: "YOUTUBE", youtubeUrl: youtubeUrl.trim(), startTime: Math.max(0, ytStartTime ?? 0), endTime: Math.max(1, ytEndTime ?? DEFAULT_YOUTUBE_SNIPPET_SEC), savedAt: Date.now() });
+    } catch { /* Verification still proceeds; the user can pick the audio again. */ }
+    await router.push(verifyHref);
+  };
+
   const handleHeroPrimaryAction = () => {
     if (mode === "FILE" && !selectedFile) {
       trackCtaClick("choose_audio_file", { surface: "hero_funnel" });
       fileInputRef.current?.click();
+      return;
+    }
+    if (verificationBlocked) {
+      void handleVerifyToContinue();
       return;
     }
     trackCtaClick("convert_to_tabs", { surface: "hero_funnel", mode });
@@ -1800,8 +1819,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                       disabled={
                         loading ||
                         authHandoffBusy ||
-                        (mode === "YOUTUBE" && !canSubmit) ||
-                        (mode === "FILE" && Boolean(selectedFile) && !canSubmit)
+                        (mode === "YOUTUBE" && !canSubmit && !verificationBlocked) ||
+                        (mode === "FILE" && Boolean(selectedFile) && !canSubmit && !verificationBlocked)
                       }
                     >
                       {submitLabel}
@@ -1811,6 +1830,12 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
                 </div>
               </div>
 
+              {verificationBlocked && (
+                <div className="notice verification-callout" role="status">
+                  <strong>{t("Verify your email to continue transcribing and unlock your free Heavy preview. ")}</strong>
+                  <Link href={verifyHref} className="button-link">{t(" Verify now ")}</Link>
+                </div>
+              )}
               {mode === "YOUTUBE" && (
                 <>
                   <div className="prompt-field prompt-field--compact">
@@ -1893,7 +1918,7 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
               {needsPremiumForSelectedFile && !showHeavyUpgrade && <LimitUpgradePrompt presentation="classic" context={limitContext} tracking={{source:"large_upload_gate",reason:needsProForSelectedFile?"pro_file_size_limit":"file_size_limit",surface:"file_size_limit_dialog",trigger:"oversized_file_selected"}}/>}
               {!needsPremiumForSelectedFile && needsPremiumForFileDuration && !showHeavyUpgrade && <LimitUpgradePrompt presentation="classic" context={limitContext} tracking={{source:"premium_prompt",reason:"file_duration_limit",surface:"file_duration_limit_dialog",trigger:"long_clip_selected"}}/>}
               {showHeavyUpgrade && !isPremiumUser && <LimitUpgradePrompt presentation="classic" context={limitContext} tracking={{source:"heavy_model",reason:"heavy_model_locked",surface:"heavy_model_locked_dialog",trigger:"locked_model_selected"}}/>}
-              {isSignedIn && !isEmailVerified && (
+              {isSignedIn && !isEmailVerified && !verificationBlocked && (
                 <div className="notice">
                   {unverifiedTranscriptionUsed
                     ? t("Verify your email to continue transcribing and unlock your free Heavy preview. ")

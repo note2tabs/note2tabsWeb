@@ -10405,6 +10405,27 @@ main.page:has([data-gte-practice-piano-roll]) {
   box-shadow: 0 8px 22px rgba(6, 17, 13, 0.04);
 }
 
+.verification-callout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  margin: 0 0 12px;
+  border-color: rgba(176, 112, 0, 0.35);
+  background: rgba(255, 244, 222, 0.85);
+  color: #5c3a00;
+}
+
+.verification-callout strong {
+  font-weight: 600;
+}
+
+.verification-callout .button-link {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .notice .button-row {
   margin-top: 12px;
 }

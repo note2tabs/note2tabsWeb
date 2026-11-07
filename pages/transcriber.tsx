@@ -743,6 +743,8 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
     canTranscribe,
     sessionStatus,
   ]);
+  // Signed in, unverified, and the one free transcription is spent: say so instead of a dead button.
+  const verificationBlocked = Boolean(isSignedIn && !canTranscribe);
   const submitLabel = authHandoffBusy
     ? t("Opening sign in…")
     : loading
@@ -755,6 +757,8 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
     ? t("Checking account…")
     : !isSignedIn
     ? t("Continue to sign in")
+    : verificationBlocked
+    ? t("Verify now")
     : heavyPreviewAvailable && transcriptionModel === "super_heavy"
     ? t("Use free Heavy preview")
     : t(pianoContext ? "Transcribe piano" : "Generate tabs");
@@ -1263,10 +1267,25 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
     }
   };
 
+  const handleVerifyToContinue = async () => {
+    reportBlockedSubmission("email_unverified", "authentication");
+    sendEvent(ANALYTICS_EVENTS.verificationGateShown, { surface: "transcriber", mode, trigger: "verify_button" });
+    // Keep the user's selection; the existing resume flow restores it after verification.
+    try {
+      if (mode === "FILE" && selectedFile) await savePendingTranscription({ mode: "FILE", file: selectedFile, fileStartTime: Math.max(0, fileStartTime ?? 0), fileEndTime: Math.max(1, fileEndTime ?? DEFAULT_FILE_SNIPPET_SEC), savedAt: Date.now() });
+      else if (mode === "YOUTUBE" && youtubeUrl.trim()) await savePendingTranscription({ mode: "YOUTUBE", youtubeUrl: youtubeUrl.trim(), startTime: Math.max(0, ytStartTime ?? 0), endTime: Math.max(1, ytEndTime ?? DEFAULT_YOUTUBE_SNIPPET_SEC), savedAt: Date.now() });
+    } catch { /* Verification still proceeds; the user can pick the audio again. */ }
+    await router.push(verifyHref);
+  };
+
   const handleHeroPrimaryAction = () => {
     if (mode === "FILE" && !selectedFile) {
       trackCtaClick("choose_audio_file", { surface: "transcriber_funnel", requested_instrument: requestedInstrument });
       fileInputRef.current?.click();
+      return;
+    }
+    if (verificationBlocked) {
+      void handleVerifyToContinue();
       return;
     }
     trackCtaClick("convert_to_tabs", { surface: "transcriber_funnel", mode, requested_instrument: requestedInstrument });
@@ -1669,8 +1688,8 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
                       disabled={
                         loading ||
                         authHandoffBusy ||
-                        (mode === "YOUTUBE" && !canSubmit) ||
-                        (mode === "FILE" && Boolean(selectedFile) && !canSubmit)
+                        (mode === "YOUTUBE" && !canSubmit && !verificationBlocked) ||
+                        (mode === "FILE" && Boolean(selectedFile) && !canSubmit && !verificationBlocked)
                       }
                     >
                       {submitLabel}
@@ -1680,6 +1699,12 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
                 </div>
               </div>
 
+              {verificationBlocked && (
+                <div className="notice verification-callout" role="status">
+                  <strong>{t("Verify your email to continue transcribing and unlock your free Heavy preview. ")}</strong>
+                  <Link href={verifyHref} className="button-link">{t(" Verify now ")}</Link>
+                </div>
+              )}
               {mode === "YOUTUBE" && !youtubeDownloadsAvailable && (
                 <div role="status" className="my-4 rounded-lg border border-slate-200 bg-stone-50 px-4 py-3 text-sm text-slate-700">
                   <p>{YOUTUBE_UNAVAILABLE_MESSAGE}</p>
@@ -1723,7 +1748,7 @@ export default function TranscriberPage({ initialInstrument, landingPage }: Tran
               {!needsPremiumForSelectedFile && needsPremiumForFileDuration && !showHeavyUpgrade && <LimitUpgradePrompt presentation="classic" context={limitContext} tracking={{source:"premium_prompt",reason:"file_duration_limit",surface:"file_duration_limit_dialog",trigger:"long_clip_selected"}}/>}
               {showHeavyUpgrade && !isPremiumUser && <LimitUpgradePrompt presentation="classic" context={limitContext} tracking={{source:"heavy_model",reason:"heavy_model_locked",surface:"heavy_model_locked_dialog",trigger:"locked_model_selected"}}/>}
               {mode === "YOUTUBE" && !youtubeDownloadsAvailable && sessionStatus !== "loading" && youtubeUpgradeAttempt > 0 && <LimitUpgradePrompt key={youtubeUpgradeAttempt} context={{...limitContext, fileBytes: undefined, required: undefined}} tracking={{source:"premium_prompt",reason:"youtube_paid_access",surface:"youtube_access_dialog",trigger:"youtube_selected"}}/>}
-              {isSignedIn && !isEmailVerified && (
+              {isSignedIn && !isEmailVerified && !verificationBlocked && (
                 <div className="notice">
                   {unverifiedTranscriptionUsed
                     ? t("Verify your email to continue transcribing and unlock your free Heavy preview. ")
