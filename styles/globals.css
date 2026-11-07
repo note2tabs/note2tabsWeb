@@ -10405,7 +10405,8 @@ main.page:has([data-gte-practice-piano-roll]) {
   box-shadow: 0 8px 22px rgba(6, 17, 13, 0.04);
 }
 
-.verification-callout {
+.verification-callout,
+.credits-callout {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -10417,8 +10418,14 @@ main.page:has([data-gte-practice-piano-roll]) {
   color: #5c3a00;
 }
 
-.verification-callout strong {
+.verification-callout strong,
+.credits-callout strong {
   font-weight: 600;
+}
+
+.credits-callout span {
+  flex-basis: 100%;
+  font-size: 0.85rem;
 }
 
 .verification-callout .button-link {
