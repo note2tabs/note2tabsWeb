@@ -268,6 +268,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
   const [heavyPreviewConfirmationIntent, setHeavyPreviewConfirmationIntent] = useState<"select" | "start">("start");
   const [showHeavyUpgrade, setShowHeavyUpgrade] = useState(false);
   const [blockedCredits, setBlockedCredits] = useState(false);
+  // Set when the server (not the session) says the email must be verified, e.g. a stale session.
+  const [serverVerificationBlocked, setServerVerificationBlocked] = useState(false);
   const [limitAttempt, setLimitAttempt] = useState(0);
   const [blockedRequiredCredits, setBlockedRequiredCredits] = useState<number|undefined>(undefined);
   const [blockedYoutube, setBlockedYoutube] = useState(false);
@@ -749,7 +751,8 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
     sessionStatus,
   ]);
   // Signed in, unverified, and the one free transcription is spent: say so instead of a dead button.
-  const verificationBlocked = Boolean(isSignedIn && !canTranscribe);
+  const verificationBlocked = Boolean(isSignedIn && (!canTranscribe || serverVerificationBlocked));
+  useEffect(() => { if (isEmailVerified) setServerVerificationBlocked(false); }, [isEmailVerified]);
   const submitLabel = authHandoffBusy
     ? t("Opening sign in…")
     : loading
@@ -1134,10 +1137,11 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
         if (data.verificationRequired) {
           await updateSession().catch(() => null);
           reportBlockedSubmission("email_unverified", "server", { http_status: response.status, request_id: response.headers.get("x-request-id") || undefined });
-          setError(t("Verify your email to start transcribing and unlock your free Heavy preview."));
+          setServerVerificationBlocked(true);
+          setError(null);
           return;
         }
-        if (response.status === 403 && data.credits) {
+        if (response.status === 403 && (data.credits || data.requiredCredits !== undefined)) {
           setBlockedRequiredCredits(data.requiredCredits);
           reportBlockedSubmission("credits_exhausted", "server", { http_status: response.status, request_id: response.headers.get("x-request-id") || undefined });
           setError(null);
@@ -1220,6 +1224,16 @@ export default function HomePage({ trustMetrics }: HomePageProps) {
       setStatus(t("Tabs ready. Choose an editor below."));
       return;
     } catch (err: any) {
+      if (err instanceof TranscriptionUploadError && err.verificationRequired) {
+        // The account must verify its email: the card says so and offers the button; a raw error line does not.
+        await updateSession().catch(() => null);
+        setServerVerificationBlocked(true);
+        reportBlockedSubmission("email_unverified", "server", failureDetails);
+        sendEvent(ANALYTICS_EVENTS.verificationGateShown, { surface: "home_transcriber", mode, trigger: "server_rejection" });
+        setStatus(null);
+        setError(null);
+        return;
+      }
       if (!submissionAccepted) reportBlockedSubmission("request_failed", submissionPhase, failureDetails);
       setStatus(null);
       setError(err?.message || t("We could not reach the transcription service. Check your connection and try again."));
